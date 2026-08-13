@@ -3,7 +3,6 @@ package com.qdischarge.clinicqueue.config;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
@@ -11,11 +10,10 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
 import java.io.IOException;
 
 /**
- * Mirrors two things the original index.js did:
- *  - app.use(cors())                                    -> permissive CORS for all routes
- *  - express.static(frontend/dist) + catch-all fallback  -> serve a built SPA (if any) from
- *                                                            src/main/resources/static, falling
- *                                                            back to index.html for client-side routes
+ * Mirrors what the original index.js did with
+ * express.static(frontend/dist) + a catch-all fallback: serve a built SPA
+ * (if any) from src/main/resources/static, falling back to index.html for
+ * client-side routes. CORS is configured centrally in SecurityConfig.
  *
  * /api/** and /webhook/** are handled by @RestController beans, which Spring's
  * RequestMappingHandlerMapping resolves before this resource handler, so they
@@ -23,14 +21,6 @@ import java.io.IOException;
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
-
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
-    }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {

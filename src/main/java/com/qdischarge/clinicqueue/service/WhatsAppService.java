@@ -8,6 +8,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
@@ -21,6 +22,15 @@ import java.util.Map;
  * Java port of backend/utils/whatsappSender.js. Talks to either the Meta
  * WhatsApp Cloud API or an Evolution API instance depending on app.wa-provider,
  * exactly like the original module chose between the two via WA_PROVIDER.
+ *
+ * The public send* methods are @Async and fire-and-forget (matching how the
+ * original's callers never actually used the awaited response value for
+ * anything besides logging), dispatched on the bounded "whatsappExecutor"
+ * pool defined in AsyncConfig -- so a slow/unreachable WhatsApp provider
+ * never blocks an HTTP request thread. Internal fallback calls (e.g. a
+ * failed interactive-buttons send falling back to plain text) call the
+ * private *Sync methods directly, since Spring AOP proxies can't intercept
+ * same-class ("this.") method calls to apply @Async.
  */
 @Service
 @RequiredArgsConstructor
@@ -57,8 +67,41 @@ public class WhatsAppService {
         return e.getMessage();
     }
 
+    // -------------------------------------------------------------
+    // Public, async, fire-and-forget entry points
+    // -------------------------------------------------------------
+
+    @Async("whatsappExecutor")
+    public void sendWhatsAppMessage(String phone, String text) {
+        sendWhatsAppMessageSync(phone, text);
+    }
+
+    @Async("whatsappExecutor")
+    public void sendButtonsMessage(String phone, String title, String description, List<WaButton> buttons, String footer) {
+        sendButtonsMessageSync(phone, title, description, buttons, footer);
+    }
+
+    @Async("whatsappExecutor")
+    public void sendUrlButtonMessage(String phone, String title, String description, String buttonText, String urlTarget, String footer) {
+        sendUrlButtonMessageSync(phone, title, description, buttonText, urlTarget, footer);
+    }
+
+    @Async("whatsappExecutor")
+    public void sendPollMessage(String phone, String question, List<String> options) {
+        sendPollMessageSync(phone, question, options);
+    }
+
+    @Async("whatsappExecutor")
+    public void sendListMessage(String phone, String title, String description, Object sections, String footer) {
+        sendListMessageSync(phone, title, description, sections, footer);
+    }
+
+    // -------------------------------------------------------------
+    // Synchronous implementations
+    // -------------------------------------------------------------
+
     /** Send simple text message. */
-    public Map<String, Object> sendWhatsAppMessage(String phone, String text) {
+    private Map<String, Object> sendWhatsAppMessageSync(String phone, String text) {
         String cleaned = formatPhone(phone);
 
         if (isMeta()) {
@@ -102,8 +145,8 @@ public class WhatsAppService {
     }
 
     /** Send interactive quick reply buttons message. */
-    public Map<String, Object> sendButtonsMessage(String phone, String title, String description,
-                                                    List<WaButton> buttons, String footer) {
+    private Map<String, Object> sendButtonsMessageSync(String phone, String title, String description,
+                                                         List<WaButton> buttons, String footer) {
         String cleaned = formatPhone(phone);
         String effectiveFooter = footer != null ? footer : "qDischarge Smart Queue";
 
@@ -145,18 +188,18 @@ public class WhatsAppService {
                 return response.getBody();
             } catch (RestClientException e) {
                 log.error("❌ Meta API Buttons error for {}: {}", cleaned, extractError(e));
-                return sendWhatsAppMessage(phone, title + "\n\n" + description);
+                return sendWhatsAppMessageSync(phone, title + "\n\n" + description);
             }
         } else {
             String fullQuestion = ((title != null ? title : "") + "\n" + description).trim();
             List<String> optionLabels = buttons.stream().map(WaButton::displayText).toList();
-            return sendPollMessage(phone, fullQuestion, optionLabels);
+            return sendPollMessageSync(phone, fullQuestion, optionLabels);
         }
     }
 
     /** Send interactive CTA URL redirect button message (direct link button in WhatsApp). */
-    public Map<String, Object> sendUrlButtonMessage(String phone, String title, String description,
-                                                      String buttonText, String urlTarget, String footer) {
+    private Map<String, Object> sendUrlButtonMessageSync(String phone, String title, String description,
+                                                           String buttonText, String urlTarget, String footer) {
         String cleaned = formatPhone(phone);
         String effectiveFooter = footer != null ? footer : "qDischarge Smart Queue";
 
@@ -190,15 +233,15 @@ public class WhatsAppService {
                 return response.getBody();
             } catch (RestClientException e) {
                 log.error("❌ Meta API CTA URL error for {}: {}", cleaned, extractError(e));
-                return sendWhatsAppMessage(phone, title + "\n\n" + description + "\n\n🔗 " + urlTarget);
+                return sendWhatsAppMessageSync(phone, title + "\n\n" + description + "\n\n🔗 " + urlTarget);
             }
         } else {
-            return sendWhatsAppMessage(phone, title + "\n\n" + description + "\n\n🔗 " + urlTarget);
+            return sendWhatsAppMessageSync(phone, title + "\n\n" + description + "\n\n🔗 " + urlTarget);
         }
     }
 
     /** Send interactive poll card menu (Evolution API only). */
-    public Map<String, Object> sendPollMessage(String phone, String question, List<String> options) {
+    private Map<String, Object> sendPollMessageSync(String phone, String question, List<String> options) {
         String cleaned = formatPhone(phone);
         try {
             String url = appProperties.getEvolutionApiUrl() + "/message/sendPoll/" + appProperties.getInstanceName();
@@ -221,8 +264,8 @@ public class WhatsAppService {
     }
 
     /** Send list/menu message (Evolution API only). */
-    public Map<String, Object> sendListMessage(String phone, String title, String description,
-                                                 Object sections, String footer) {
+    private Map<String, Object> sendListMessageSync(String phone, String title, String description,
+                                                      Object sections, String footer) {
         String cleaned = formatPhone(phone);
         try {
             String url = appProperties.getEvolutionApiUrl() + "/message/sendList/" + appProperties.getInstanceName();

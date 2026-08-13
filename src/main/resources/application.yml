@@ -1,5 +1,11 @@
 server:
   port: ${PORT:5000}
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:false}
+    key-store: ${SERVER_SSL_KEY_STORE:}
+    key-store-password: ${SERVER_SSL_KEY_STORE_PASSWORD:}
+    key-store-type: ${SERVER_SSL_KEY_STORE_TYPE:PKCS12}
+    key-alias: ${SERVER_SSL_KEY_ALIAS:}
 
 spring:
   application:
@@ -12,9 +18,16 @@ spring:
     hikari:
       # Don't fail application startup if the DB is unreachable at boot time -
       # mirrors the original Node app, which logs a warning and keeps serving
-      # even when initializeDatabase() fails (see DatabaseInitializer).
+      # even when initializeDatabase() fails (see FlywayMigrationRunner).
       initialization-fail-timeout: -1
       connection-timeout: 5000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+  flyway:
+    # Migrations are run manually by FlywayMigrationRunner (try/catch, non-fatal),
+    # not by Spring Boot's auto-configured Flyway, so a DB outage at boot can't
+    # crash the whole application context.
+    enabled: false
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -22,8 +35,8 @@ spring:
     resources:
       add-mappings: true
 
-# Application-specific settings. Env var names deliberately match the
-# original Node backend's .env so the same .env values can be reused.
+# Application-specific settings. Most env var names deliberately match the
+# original Node backend's .env; see README for the security-hardening additions.
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
   clinic-name: ${CLINIC_NAME:qDischarge}
@@ -32,7 +45,12 @@ app:
 
   admin-username: ${ADMIN_USERNAME:admin}
   admin-password: ${ADMIN_PASSWORD:adminpass}
-  admin-token: ${ADMIN_TOKEN:clinic-admin-secret-token-2026}
+  admin-password-hash: ${ADMIN_PASSWORD_HASH:}
+  jwt-secret: ${JWT_SECRET:}
+  jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:720}
+
+  webhook-verify-token: ${WEBHOOK_VERIFY_TOKEN:clinic_queue_token}
+  allowed-origins: ${ALLOWED_ORIGINS:${FRONTEND_URL:http://localhost:5173}}
 
   # WhatsApp provider: 'meta' (Meta Cloud API) or 'evolution' (Evolution API)
   wa-provider: ${WA_PROVIDER:meta}
@@ -43,6 +61,36 @@ app:
   evolution-api-url: ${EVOLUTION_API_URL:http://localhost:8080}
   evolution-api-key: ${EVOLUTION_API_KEY:}
   instance-name: ${INSTANCE_NAME:clinic-bot}
+
+  rate-limit-login-per-minute: ${RATE_LIMIT_LOGIN_PER_MINUTE:10}
+  rate-limit-webhook-per-minute: ${RATE_LIMIT_WEBHOOK_PER_MINUTE:120}
+  rate-limit-create-token-per-minute: ${RATE_LIMIT_CREATE_TOKEN_PER_MINUTE:20}
+
+  async-core-pool-size: ${ASYNC_CORE_POOL_SIZE:4}
+  async-max-pool-size: ${ASYNC_MAX_POOL_SIZE:16}
+  async-queue-capacity: ${ASYNC_QUEUE_CAPACITY:500}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+      # Exposes /actuator/health/liveness (process is alive -- ignores DB)
+      # and /actuator/health/readiness (DB reachable). Point container/
+      # orchestrator restart policies at liveness and load-balancer routing
+      # at readiness, so a transient DB outage doesn't kill healthy instances.
+      probes:
+        enabled: true
+  health:
+    defaults:
+      enabled: true
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
 
 logging:
   level:

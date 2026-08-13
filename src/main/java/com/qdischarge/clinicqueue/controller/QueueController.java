@@ -2,14 +2,19 @@ package com.qdischarge.clinicqueue.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.qdischarge.clinicqueue.config.AppProperties;
+import com.qdischarge.clinicqueue.dto.CreateTokenRequest;
 import com.qdischarge.clinicqueue.dto.CreateTokenResult;
+import com.qdischarge.clinicqueue.dto.LoginRequest;
 import com.qdischarge.clinicqueue.dto.QueueData;
 import com.qdischarge.clinicqueue.dto.TokenDto;
+import com.qdischarge.clinicqueue.dto.UpdateStatusRequest;
 import com.qdischarge.clinicqueue.dto.UpdateStatusResult;
+import com.qdischarge.clinicqueue.dto.VerifyRequest;
+import com.qdischarge.clinicqueue.security.AdminAuthService;
+import com.qdischarge.clinicqueue.security.JwtService;
 import com.qdischarge.clinicqueue.service.QrCodeService;
 import com.qdischarge.clinicqueue.service.QueueManagerService;
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -20,13 +25,14 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Java port of backend/routes/queue.js. Same paths, same request/response
- * shapes, same admin-token auth on /verify and PUT /:id.
+ * Java port of backend/routes/queue.js. Same paths and response shapes as
+ * the original; admin auth on /verify and PUT /:id is now enforced
+ * declaratively by SecurityConfig (JWT + ROLE_ADMIN) instead of a manual
+ * per-route header check.
  */
 @RestController
 @RequestMapping("/api/queue")
@@ -36,27 +42,16 @@ public class QueueController {
 
     private final QueueManagerService queueManagerService;
     private final QrCodeService qrCodeService;
-    private final AppProperties appProperties;
+    private final AdminAuthService adminAuthService;
+    private final JwtService jwtService;
     private final ObjectMapper objectMapper;
 
-    private boolean isAdminAuthorized(HttpServletRequest request) {
-        String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-        String expected = appProperties.getAdminToken();
-        return authHeader != null
-                && authHeader.startsWith("Bearer ")
-                && authHeader.substring(7).equals(expected);
-    }
-
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody(required = false) Map<String, String> body) {
-        String username = body != null ? body.get("username") : null;
-        String password = body != null ? body.get("password") : null;
-
-        if (Objects.equals(username, appProperties.getAdminUsername())
-                && Objects.equals(password, appProperties.getAdminPassword())) {
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
+        if (adminAuthService.authenticate(request.username(), request.password())) {
             Map<String, Object> ok = new LinkedHashMap<>();
             ok.put("success", true);
-            ok.put("token", appProperties.getAdminToken());
+            ok.put("token", jwtService.generateAdminToken(request.username()));
             return ResponseEntity.ok(ok);
         }
         return ResponseEntity.status(401).body(msg("Invalid username or password."));
@@ -108,16 +103,9 @@ public class QueueController {
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@RequestBody(required = false) Map<String, String> body) {
-        String name = body != null ? body.get("name") : null;
-        String phone = body != null ? body.get("phone") : null;
-
-        if (phone == null || phone.isBlank()) {
-            return ResponseEntity.badRequest().body(msg("Phone number is required."));
-        }
-
+    public ResponseEntity<Map<String, Object>> create(@Valid @RequestBody CreateTokenRequest request) {
         try {
-            CreateTokenResult result = queueManagerService.createToken(name, phone);
+            CreateTokenResult result = queueManagerService.createToken(request.name(), request.phone());
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("success", true);
             resp.put("alreadyExists", result.alreadyExists());
@@ -151,14 +139,9 @@ public class QueueController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<Map<String, Object>> verify(HttpServletRequest request,
-                                                        @RequestBody(required = false) Map<String, Object> body) {
-        if (!isAdminAuthorized(request)) {
-            return ResponseEntity.status(401).body(msg("Unauthorized. Admin token is missing or invalid."));
-        }
-
-        Object qrData = body != null ? body.get("qrData") : null;
-        Integer targetId = toInt(body != null ? body.get("tokenId") : null);
+    public ResponseEntity<Map<String, Object>> verify(@RequestBody(required = false) VerifyRequest request) {
+        Object qrData = request != null ? request.qrData() : null;
+        Integer targetId = request != null ? request.tokenId() : null;
 
         if (targetId == null && qrData != null) {
             try {
@@ -204,21 +187,15 @@ public class QueueController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateStatus(HttpServletRequest request,
-                                                              @PathVariable String id,
-                                                              @RequestBody(required = false) Map<String, String> body) {
-        if (!isAdminAuthorized(request)) {
-            return ResponseEntity.status(401).body(msg("Unauthorized. Admin token is missing or invalid."));
-        }
-
-        String status = body != null ? body.get("status") : null;
+    public ResponseEntity<Map<String, Object>> updateStatus(@PathVariable String id,
+                                                              @Valid @RequestBody UpdateStatusRequest request) {
         List<String> validStatuses = List.of("waiting", "serving", "completed", "missed");
-        if (status == null || !validStatuses.contains(status)) {
+        if (!validStatuses.contains(request.status())) {
             return ResponseEntity.badRequest().body(msg("Invalid status."));
         }
 
         try {
-            UpdateStatusResult result = queueManagerService.updateTokenStatus(id, status);
+            UpdateStatusResult result = queueManagerService.updateTokenStatus(id, request.status());
             if (result == null) {
                 return ResponseEntity.status(404).body(msg("Token not found."));
             }

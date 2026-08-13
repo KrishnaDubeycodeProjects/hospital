@@ -40,8 +40,7 @@ public class WebhookController {
             @RequestParam(name = "hub.challenge", required = false) String challenge) {
 
         if (mode != null && token != null) {
-            if ("subscribe".equals(mode)
-                    && ("clinic_queue_token".equals(token) || token.equals(appProperties.getAdminToken()))) {
+            if ("subscribe".equals(mode) && token.equals(appProperties.getWebhookVerifyToken())) {
                 log.info("✅ META WEBHOOK VERIFIED!");
                 return ResponseEntity.ok(challenge);
             }
