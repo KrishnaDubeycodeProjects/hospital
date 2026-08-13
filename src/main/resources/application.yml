@@ -1,0 +1,49 @@
+server:
+  port: ${PORT:5000}
+
+spring:
+  application:
+    name: clinic-queue-backend
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}?sslmode=require
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Don't fail application startup if the DB is unreachable at boot time -
+      # mirrors the original Node app, which logs a warning and keeps serving
+      # even when initializeDatabase() fails (see DatabaseInitializer).
+      initialization-fail-timeout: -1
+      connection-timeout: 5000
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  web:
+    resources:
+      add-mappings: true
+
+# Application-specific settings. Env var names deliberately match the
+# original Node backend's .env so the same .env values can be reused.
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  clinic-name: ${CLINIC_NAME:qDischarge}
+  token-expiry-hours: ${TOKEN_EXPIRY_HOURS:24}
+  avg-service-minutes: ${AVG_SERVICE_MINUTES:10}
+
+  admin-username: ${ADMIN_USERNAME:admin}
+  admin-password: ${ADMIN_PASSWORD:adminpass}
+  admin-token: ${ADMIN_TOKEN:clinic-admin-secret-token-2026}
+
+  # WhatsApp provider: 'meta' (Meta Cloud API) or 'evolution' (Evolution API)
+  wa-provider: ${WA_PROVIDER:meta}
+  meta-access-token: ${META_ACCESS_TOKEN:}
+  meta-phone-number-id: ${META_PHONE_NUMBER_ID:1337438019442398}
+  meta-api-version: ${META_API_VERSION:v25.0}
+
+  evolution-api-url: ${EVOLUTION_API_URL:http://localhost:8080}
+  evolution-api-key: ${EVOLUTION_API_KEY:}
+  instance-name: ${INSTANCE_NAME:clinic-bot}
+
+logging:
+  level:
+    com.qdischarge.clinicqueue: INFO
