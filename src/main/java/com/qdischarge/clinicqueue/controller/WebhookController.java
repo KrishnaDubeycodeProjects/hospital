@@ -2,9 +2,14 @@ package com.qdischarge.clinicqueue.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
+import com.qdischarge.clinicqueue.bot.BotMessages;
+import com.qdischarge.clinicqueue.bot.Intent;
+import com.qdischarge.clinicqueue.bot.Lang;
+import com.qdischarge.clinicqueue.bot.WaSessionService;
 import com.qdischarge.clinicqueue.config.AppProperties;
 import com.qdischarge.clinicqueue.dto.TokenDto;
 import com.qdischarge.clinicqueue.dto.WaButton;
+import com.qdischarge.clinicqueue.service.AccessService;
 import com.qdischarge.clinicqueue.service.QueueManagerService;
 import com.qdischarge.clinicqueue.service.WhatsAppService;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +19,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Java port of backend/routes/webhook.js. Handles the Meta Cloud API
  * subscription handshake (GET) and incoming WhatsApp messages (POST), for
  * both the Meta Cloud API and Evolution API payload shapes.
+ *
+ * Every phone's first message goes through a one-time greeting + language
+ * picker (English / Hindi / Marathi, tracked in {@link WaSessionService})
+ * before it ever sees the main menu -- see {@link #receive}. On Meta, the
+ * picker is real tap buttons (btn_lang_en/hi/mr); on Evolution, which has no
+ * button primitive, it's a plain-text prompt asking the patient to type
+ * "English" / "Hindi" / "Marathi", matched by {@link Lang#matchInitial}.
+ * Once a language is set it applies to every reply, and the menu commands
+ * (generate/status/cancel, see {@link Intent}) are recognized typed in any
+ * of the three languages regardless of which one is active.
  */
 @RestController
 @RequestMapping("/webhook")
@@ -29,6 +46,12 @@ public class WebhookController {
     private final QueueManagerService queueManagerService;
     private final WhatsAppService whatsAppService;
     private final AppProperties appProperties;
+    private final WaSessionService waSessionService;
+    private final BotMessages botMessages;
+    private final AccessService accessService;
+
+    /** "revoke <id>" -- deliberately a literal, untranslated English command (see BotMessages#accessGranted) so the WhatsApp notice's instructions always work regardless of the reply's language. */
+    private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
 
     // -------------------------------------------------------------
     // WEBHOOK VERIFICATION (GET) for Meta WhatsApp Cloud API
@@ -123,7 +146,7 @@ public class WebhookController {
             buttonId = messageData.path("buttonsResponseMessage").path("selectedButtonId").asText("");
         }
 
-        String cleanMessage = incomingMessage.toLowerCase();
+        String cleanMessage = incomingMessage.trim().toLowerCase();
 
         if (fromPhone.isEmpty()) {
             return ResponseEntity.ok("EVENT_RECEIVED");
@@ -133,57 +156,110 @@ public class WebhookController {
                 fromPhone, pushName, incomingMessage, buttonId);
 
         try {
+            // STEP 0: Greeting + one-time language picker, before anything else.
+            WaSessionService.WaSession session = waSessionService.get(fromPhone);
+            if (session == null) {
+                waSessionService.createAwaitingLanguage(fromPhone);
+                sendLanguagePrompt(fromPhone, true);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+            if (session.awaitingLanguage()) {
+                Lang chosen = Lang.matchInitial(buttonId, cleanMessage);
+                if (chosen == null) {
+                    sendLanguagePrompt(fromPhone, false);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+                waSessionService.setLanguage(fromPhone, chosen);
+                sendWelcomeCard(fromPhone, chosen);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            Lang lang = session.language();
+
+            // "revoke <id>" -- a patient's fast, always-available response to the access-granted
+            // WhatsApp notice (see AccessService#notifyPatientOfNewAccess) if it wasn't them.
+            // Checked before anything else so it can never be swallowed by a registration step.
+            Matcher revokeMatch = REVOKE_COMMAND.matcher(cleanMessage);
+            if (revokeMatch.matches()) {
+                int grantId = Integer.parseInt(revokeMatch.group(1));
+                boolean revoked = accessService.revoke(grantId, fromPhone);
+                whatsAppService.sendWhatsAppMessage(fromPhone,
+                        revoked ? botMessages.accessRevoked(lang, grantId) : botMessages.accessRevokeNotFound(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
             TokenDto activeToken = queueManagerService.getActiveToken(fromPhone);
 
-            // STEP 1: Interactive button reply clicks
-            if ("btn_generate_token".equals(buttonId) || "generate token".equals(cleanMessage) || "1".equals(cleanMessage)) {
-                if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
-                    queueManagerService.createRegisteringToken(fromPhone);
-                    whatsAppService.sendWhatsAppMessage(fromPhone,
-                            "✍️ *PATIENT REGISTRATION*\n\nPlease reply with your *Full Name* to generate your queue token.\n\n_Example: Yash Dubey_");
-                } else {
-                    whatsAppService.sendWhatsAppMessage(fromPhone,
-                            "⚠️ You already have active Token #" + activeToken.getId() + " (" + activeToken.getStatus().toUpperCase() + ").");
-                    sendTokenDashboardCard(fromPhone, activeToken);
-                }
-                return ResponseEntity.ok("EVENT_RECEIVED");
-            }
-
-            if ("btn_check_status".equals(buttonId) || "check status".equals(cleanMessage) || "2".equals(cleanMessage)) {
-                sendStatusCard(fromPhone, activeToken);
-                return ResponseEntity.ok("EVENT_RECEIVED");
-            }
-
-            if ("btn_cancel_token".equals(buttonId) || "cancel token".equals(cleanMessage) || "3".equals(cleanMessage)) {
-                if (activeToken != null) {
-                    queueManagerService.updateTokenStatus(String.valueOf(activeToken.getId()), "missed");
-                    whatsAppService.sendWhatsAppMessage(fromPhone,
-                            "❌ *TOKEN CANCELLED*\n\nYour Token *#" + activeToken.getId() + "* has been cancelled.\n\nSend *Hi* anytime to generate a new token.");
-                } else {
-                    whatsAppService.sendWhatsAppMessage(fromPhone, "❌ No active token to cancel.");
-                }
-                return ResponseEntity.ok("EVENT_RECEIVED");
-            }
-
-            // STEP 2: Name registration flow
+            // STEP 1a/1b: Mid-registration, every reply is form input -- checked before any
+            // command/language matching below, so a numeric age like "1"/"2"/"3" (a common
+            // real age!) can never be swallowed by the generate/status/cancel shortcuts.
             if (activeToken != null && "awaiting_name".equals(activeToken.getSessionStep())) {
-                List<String> invalidNames = List.of("hi", "hello", "hey", "status", "cancel");
-                if (invalidNames.contains(cleanMessage)) {
-                    whatsAppService.sendWhatsAppMessage(fromPhone,
-                            "✍️ *NAME REQUIRED*\n\nPlease reply with your actual *Full Name* (e.g. John Doe) to generate your token.");
+                if (Intent.isReservedWord(cleanMessage)) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidNameReminder(lang));
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
 
-                TokenDto details = queueManagerService.completeRegistration(activeToken.getId(), incomingMessage);
-                sendTokenDashboardCard(fromPhone, details);
+                queueManagerService.captureName(activeToken.getId(), incomingMessage);
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.agePrompt(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_age".equals(activeToken.getSessionStep())) {
+                Integer age = parseAge(cleanMessage);
+                if (age == null) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidAgeReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                TokenDto details = queueManagerService.captureAge(activeToken.getId(), age);
+                sendTokenDashboardCard(fromPhone, details, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            // Let a patient switch language at any later point by typing/tapping it again.
+            Lang switchTo = Lang.match(buttonId, cleanMessage);
+            if (switchTo != null && switchTo != lang) {
+                waSessionService.setLanguage(fromPhone, switchTo);
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.languageSwitched(switchTo));
+                sendWelcomeCard(fromPhone, switchTo);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            Intent intent = Intent.match(buttonId, cleanMessage);
+
+            // STEP 2: Menu commands -- generate/status/cancel, typed or tapped, in any supported language
+            if (intent == Intent.GENERATE_TOKEN) {
+                if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                    queueManagerService.createRegisteringToken(fromPhone);
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.nameRegistrationPrompt(lang));
+                } else {
+                    whatsAppService.sendWhatsAppMessage(fromPhone,
+                            botMessages.alreadyActiveToken(lang, activeToken.getId(), activeToken.getStatus()));
+                    sendTokenDashboardCard(fromPhone, activeToken, lang);
+                }
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (intent == Intent.CHECK_STATUS) {
+                sendStatusCard(fromPhone, activeToken, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (intent == Intent.CANCEL_TOKEN) {
+                if (activeToken != null) {
+                    queueManagerService.updateTokenStatus(String.valueOf(activeToken.getId()), "missed");
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.tokenCancelled(lang, activeToken.getId()));
+                } else {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.noActiveTokenToCancel(lang));
+                }
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
             // STEP 3: Fallback routing
             if (activeToken != null && ("waiting".equals(activeToken.getStatus()) || "serving".equals(activeToken.getStatus()))) {
-                sendTokenDashboardCard(fromPhone, activeToken);
+                sendTokenDashboardCard(fromPhone, activeToken, lang);
             } else {
-                sendWelcomeCard(fromPhone);
+                sendWelcomeCard(fromPhone, lang);
             }
 
             return ResponseEntity.ok("EVENT_RECEIVED");
@@ -193,53 +269,59 @@ public class WebhookController {
         }
     }
 
+    /**
+     * Meta has a real interactive-button primitive, so the language picker is
+     * three tap buttons there. Evolution API has none for this bot (buttons
+     * degrade to a poll, which isn't what was wanted here), so it gets a
+     * plain-text prompt asking the patient to type the language name instead
+     * -- matched back by {@link Lang#matchInitial}.
+     */
+    private void sendLanguagePrompt(String phone, boolean firstContact) {
+        String text = firstContact
+                ? botMessages.greetingAndLanguagePrompt(appProperties.getClinicName())
+                : botMessages.languageNotUnderstood();
+
+        if ("meta".equals(appProperties.getWaProvider())) {
+            List<WaButton> buttons = List.of(
+                    new WaButton("btn_lang_en", "English"),
+                    new WaButton("btn_lang_hi", "हिंदी"),
+                    new WaButton("btn_lang_mr", "मराठी"));
+            whatsAppService.sendButtonsMessage(phone, "🌐 Choose Language", text, buttons, appProperties.getClinicName());
+        } else {
+            whatsAppService.sendWhatsAppMessage(phone, text);
+        }
+    }
+
     // -------------------------------------------------------------
     // Interactive message builders
     // -------------------------------------------------------------
 
-    private void sendWelcomeCard(String phone) {
-        String title = "🏥 WELCOME TO " + appProperties.getClinicName().toUpperCase();
-        String description = "Welcome to our Smart Queue Management System.\n\nPlease tap an option below to continue:";
-        List<WaButton> buttons = List.of(
-                new WaButton("btn_generate_token", "🎫 Generate Token"),
-                new WaButton("btn_check_status", "🔍 Check Status"));
-        whatsAppService.sendButtonsMessage(phone, title, description, buttons, "qDischarge Smart Queue");
+    private void sendWelcomeCard(String phone, Lang lang) {
+        String title = botMessages.welcomeTitle(lang, appProperties.getClinicName());
+        String description = botMessages.welcomeDescription(lang);
+        whatsAppService.sendButtonsMessage(phone, title, description, botMessages.welcomeButtons(lang), appProperties.getClinicName());
     }
 
-    private void sendTokenDashboardCard(String phone, TokenDto token) {
+    private void sendTokenDashboardCard(String phone, TokenDto token, Lang lang) {
         String cleanPhone = phone.replaceAll("[^0-9]", "");
         String positionText = getOrdinal(token.getPosition());
         int avgServiceTime = appProperties.getAvgServiceMinutes();
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
-        String statusBadge = "serving".equals(token.getStatus()) ? "🔔 NOW SERVING!" : "⏳ WAITING IN QUEUE";
+        String statusBadge = botMessages.statusBadge(lang, token.getStatus());
         String liveUrl = appProperties.getFrontendUrl() + "/patient?phone=" + cleanPhone;
 
-        String title = "🎫 TOKEN #" + token.getId() + " GENERATED!";
-        String description = """
-                Hello %s,
+        String title = botMessages.dashboardTitle(lang, token.getId());
+        String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, positionText, peopleAhead, estWait);
 
-                Your queue token has been generated successfully!
+        whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
 
-                📌 *Status:* %s
-                📍 *Queue Position:* %s
-                👥 *Patients Ahead:* %d
-                ⏱️ *Estimated Wait:* ~%d mins
-
-                Tap below to open your interactive live queue dashboard!"""
-                .formatted(token.getName(), statusBadge, positionText, peopleAhead, estWait);
-
-        whatsAppService.sendUrlButtonMessage(phone, title, description, "🌐 Live Tracker Link", liveUrl, "qDischarge Live Tracking");
-
-        List<WaButton> menuButtons = List.of(
-                new WaButton("btn_check_status", "📊 Refresh Status"),
-                new WaButton("btn_cancel_token", "❌ Cancel Token"));
-        whatsAppService.sendButtonsMessage(phone, "", "Need to manage your queue ticket?", menuButtons, "Quick Actions");
+        whatsAppService.sendButtonsMessage(phone, "", botMessages.quickActionsFooter(lang), botMessages.quickActionButtons(lang), "Quick Actions");
     }
 
-    private void sendStatusCard(String phone, TokenDto token) {
+    private void sendStatusCard(String phone, TokenDto token, Lang lang) {
         if (token == null || "registering_name".equals(token.getStatus())) {
-            whatsAppService.sendWhatsAppMessage(phone, "❌ *No Active Token Found*\n\nSend *Hi* to generate a token.");
+            whatsAppService.sendWhatsAppMessage(phone, botMessages.noActiveTokenFound(lang));
             return;
         }
         String cleanPhone = phone.replaceAll("[^0-9]", "");
@@ -249,17 +331,24 @@ public class WebhookController {
         int estWait = peopleAhead * avgServiceTime;
         String liveUrl = appProperties.getFrontendUrl() + "/patient?phone=" + cleanPhone;
 
-        String title = "📊 CURRENT QUEUE STATUS";
-        String description = """
-                🎫 Token: #%d
-                👤 Patient: %s
-                📍 Position: %s
-                👥 People Ahead: %d
-                ⏱️ Estimated Wait: ~%d mins
-                ⚡ Status: %s"""
-                .formatted(token.getId(), token.getName(), positionText, peopleAhead, estWait, token.getStatus().toUpperCase());
+        String title = botMessages.statusTitle(lang);
+        String description = botMessages.statusDescription(lang, token.getId(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus());
 
-        whatsAppService.sendUrlButtonMessage(phone, title, description, "🌐 Live Tracker Link", liveUrl, "qDischarge Live Tracking");
+        whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
+    }
+
+    /** Accepts a bare number (digits only, after trimming any stray text/punctuation), 0-120. Anything else is rejected. */
+    private Integer parseAge(String cleanMessage) {
+        String digitsOnly = cleanMessage.replaceAll("[^0-9]", "");
+        if (digitsOnly.isEmpty()) {
+            return null;
+        }
+        try {
+            int age = Integer.parseInt(digitsOnly);
+            return (age >= 0 && age <= 120) ? age : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private String getOrdinal(Integer n) {

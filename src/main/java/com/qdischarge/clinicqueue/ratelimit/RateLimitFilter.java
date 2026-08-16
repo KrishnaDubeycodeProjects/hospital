@@ -55,6 +55,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         } else if ("POST".equals(method) && path.equals("/webhook/whatsapp")) {
             limit = appProperties.getRateLimitWebhookPerMinute();
             bucket = "webhook";
+        } else if ("POST".equals(method) && (path.equals("/api/auth/otp/send") || path.equals("/api/auth/otp/verify"))) {
+            limit = appProperties.getRateLimitOtpPerMinute();
+            bucket = "otp";
         }
 
         if (limit != null) {

@@ -17,9 +17,13 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Parses "Authorization: Bearer <jwt>", and if it's a valid, unexpired admin
- * token, populates the SecurityContext with a ROLE_ADMIN authentication.
- * Routes that don't require auth simply proceed with no authentication set.
+ * Parses "Authorization: Bearer <jwt>" and, if valid, populates the
+ * SecurityContext with a ROLE_ADMIN / ROLE_PATIENT / ROLE_DOCTOR
+ * authentication (see JwtService). The decoded token itself -- subject,
+ * role, and doctorId for doctor tokens -- is stashed in the authentication's
+ * "details" slot so controllers can pull it via CurrentUser without a second
+ * DB lookup. Routes that don't require auth simply proceed with no
+ * authentication set.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,10 +39,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            String username = jwtService.validateAndGetSubject(token);
-            if (username != null) {
+            JwtService.DecodedToken decoded = jwtService.decode(token);
+            if (decoded != null) {
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        username, null, List.of(new SimpleGrantedAuthority("ROLE_" + JwtService.ADMIN_ROLE)));
+                        decoded.subject(), null, List.of(new SimpleGrantedAuthority("ROLE_" + decoded.role())));
+                authentication.setDetails(decoded);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }

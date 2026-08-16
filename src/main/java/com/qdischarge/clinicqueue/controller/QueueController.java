@@ -6,10 +6,12 @@ import com.qdischarge.clinicqueue.dto.CreateTokenRequest;
 import com.qdischarge.clinicqueue.dto.CreateTokenResult;
 import com.qdischarge.clinicqueue.dto.LoginRequest;
 import com.qdischarge.clinicqueue.dto.QueueData;
+import com.qdischarge.clinicqueue.dto.SetLocationRequest;
 import com.qdischarge.clinicqueue.dto.TokenDto;
 import com.qdischarge.clinicqueue.dto.UpdateStatusRequest;
 import com.qdischarge.clinicqueue.dto.UpdateStatusResult;
 import com.qdischarge.clinicqueue.dto.VerifyRequest;
+import com.qdischarge.clinicqueue.geo.GeoDistanceService;
 import com.qdischarge.clinicqueue.security.AdminAuthService;
 import com.qdischarge.clinicqueue.security.JwtService;
 import com.qdischarge.clinicqueue.service.QrCodeService;
@@ -89,6 +91,21 @@ public class QueueController {
         }
     }
 
+    /**
+     * Every past completed visit under this phone number (potentially for
+     * different patients -- see QueueManagerService#archiveToHistory).
+     * Admin-only: unlike /position/{phone}, this can surface more than one
+     * patient's name/age history under a shared number.
+     */
+    @GetMapping("/history/{phone}")
+    public ResponseEntity<Map<String, Object>> history(@PathVariable String phone) {
+        try {
+            return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(phone)));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
     @GetMapping("/token/{id}")
     public ResponseEntity<Map<String, Object>> tokenDetails(@PathVariable String id) {
         try {
@@ -105,12 +122,90 @@ public class QueueController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@Valid @RequestBody CreateTokenRequest request) {
         try {
-            CreateTokenResult result = queueManagerService.createToken(request.name(), request.phone());
+            CreateTokenResult result = queueManagerService.createToken(request.name(), request.age(), request.phone(), request.toLocationOrNull());
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("success", true);
             resp.put("alreadyExists", result.alreadyExists());
             resp.put("data", result.data());
             return ResponseEntity.ok(resp);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    /** Patient shares their current GPS location or manually enters one (DIGIPIN or lat/lon). */
+    @PostMapping("/{id}/location")
+    public ResponseEntity<Map<String, Object>> setLocation(@PathVariable String id,
+                                                             @Valid @RequestBody SetLocationRequest request) {
+        try {
+            TokenDto updated = queueManagerService.updateTokenLocation(Integer.parseInt(id), request);
+            if (updated == null) {
+                return ResponseEntity.status(404).body(msg("Token not found."));
+            }
+            return ResponseEntity.ok(ok(updated));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    /** Pre-registration check: "Hospital is 15 km away, only 30 minutes remain before OPD closes. Continue?" */
+    @GetMapping("/closing-time-check")
+    public ResponseEntity<Map<String, Object>> closingTimeCheck(@RequestParam double lat, @RequestParam double lon) {
+        try {
+            GeoDistanceService.ArrivalFeasibility feasibility = queueManagerService.checkClosingTimeFeasibility(lat, lon);
+            return ResponseEntity.ok(ok(feasibility));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    // ---- Missed queue: admin search / requeue-to-front / reject ----
+
+    @GetMapping("/missed")
+    public ResponseEntity<Map<String, Object>> missedQueue() {
+        try {
+            return ResponseEntity.ok(ok(queueManagerService.getMissedQueue()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    @GetMapping("/missed/search")
+    public ResponseEntity<Map<String, Object>> searchMissedQueue(@RequestParam(required = false) String query) {
+        try {
+            return ResponseEntity.ok(ok(queueManagerService.searchMissedQueue(query)));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    @PostMapping("/missed/{id}/requeue")
+    public ResponseEntity<Map<String, Object>> requeueMissed(@PathVariable int id) {
+        try {
+            TokenDto token = queueManagerService.requeueMissedToFront(id);
+            if (token == null) {
+                return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
+            }
+            return ResponseEntity.ok(ok(token));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    @PostMapping("/missed/{id}/reject")
+    public ResponseEntity<Map<String, Object>> rejectMissed(@PathVariable int id) {
+        try {
+            TokenDto token = queueManagerService.rejectMissedToken(id);
+            if (token == null) {
+                return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
+            }
+            return ResponseEntity.ok(ok(token));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
         }

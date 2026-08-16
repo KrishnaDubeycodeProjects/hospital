@@ -21,7 +21,17 @@ import java.util.Map;
 /**
  * Java port of backend/utils/whatsappSender.js. Talks to either the Meta
  * WhatsApp Cloud API or an Evolution API instance depending on app.wa-provider,
- * exactly like the original module chose between the two via WA_PROVIDER.
+ * exactly like the original module chose between the two via WA_PROVIDER --
+ * app.wa-provider just picks which one goes *first*.
+ *
+ * Cross-provider failover: every send ultimately funnels through
+ * {@link #sendWhatsAppMessageSync}, which tries the configured provider and,
+ * if that call throws, automatically retries the *other* provider before
+ * giving up -- so a Meta outage doesn't silently drop messages when an
+ * Evolution instance is also configured, and vice versa. Interactive sends
+ * (buttons/CTA/poll/list) that fail on their primary provider degrade to
+ * this same failover-aware plain-text send rather than to a single
+ * provider's text API, so they get the same two-provider safety net.
  *
  * The public send* methods are @Async and fire-and-forget (matching how the
  * original's callers never actually used the awaited response value for
@@ -88,7 +98,12 @@ public class WhatsAppService {
 
     @Async("whatsappExecutor")
     public void sendPollMessage(String phone, String question, List<String> options) {
-        sendPollMessageSync(phone, question, options);
+        try {
+            sendPollMessageSync(phone, question, options);
+        } catch (RestClientException e) {
+            log.error("❌ Evolution API poll error for {}: {} -- falling back to plain text.", formatPhone(phone), extractError(e));
+            sendWhatsAppMessageSync(phone, question + "\n\n" + String.join("\n", options));
+        }
     }
 
     @Async("whatsappExecutor")
@@ -100,48 +115,88 @@ public class WhatsAppService {
     // Synchronous implementations
     // -------------------------------------------------------------
 
-    /** Send simple text message. */
+    /**
+     * Send simple text message. Tries the configured provider (app.wa-provider)
+     * first; if that call fails, automatically retries the *other* provider
+     * before giving up. This is the failover-aware building block every other
+     * send method (buttons/CTA/poll/list) degrades to on its own primary
+     * provider's failure, so any message that can be reduced to plain text
+     * gets the same two-provider safety net.
+     */
     private Map<String, Object> sendWhatsAppMessageSync(String phone, String text) {
-        String cleaned = formatPhone(phone);
-
         if (isMeta()) {
             try {
-                log.info("\n📤 [META API] Sending Text to [{}]:\n{}\n", cleaned, text);
-
-                Map<String, Object> body = new LinkedHashMap<>();
-                body.put("messaging_product", "whatsapp");
-                body.put("recipient_type", "individual");
-                body.put("to", cleaned);
-                body.put("type", "text");
-                body.put("text", Map.of("body", text));
-
-                ResponseEntity<Map> response = restTemplate.postForEntity(
-                        metaMessagesUrl(), new HttpEntity<>(body, metaHeaders()), Map.class);
-                log.info("✅ Meta API text sent successfully to {}", cleaned);
-                return response.getBody();
+                return sendViaMetaText(phone, text);
             } catch (RestClientException e) {
-                log.error("❌ Meta API text error for {}: {}", cleaned, extractError(e));
-                return null;
+                log.error("❌ Meta API text error for {}: {} -- falling back to Evolution API.", formatPhone(phone), extractError(e));
+                return tryEvolutionFallbackText(phone, text);
             }
         } else {
             try {
-                String url = appProperties.getEvolutionApiUrl() + "/message/sendText/" + appProperties.getInstanceName();
-                Map<String, Object> body = new LinkedHashMap<>();
-                body.put("number", cleaned);
-                body.put("options", Map.of("delay", 500));
-                body.put("text", text);
-
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                headers.set("apikey", appProperties.getEvolutionApiKey());
-
-                ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-                return response.getBody();
+                return sendViaEvolutionText(phone, text);
             } catch (RestClientException e) {
-                log.error("❌ Evolution API error for {}: {}", cleaned, extractError(e));
-                return null;
+                log.error("❌ Evolution API error for {}: {} -- falling back to Meta API.", formatPhone(phone), extractError(e));
+                return tryMetaFallbackText(phone, text);
             }
         }
+    }
+
+    private Map<String, Object> tryEvolutionFallbackText(String phone, String text) {
+        try {
+            Map<String, Object> result = sendViaEvolutionText(phone, text);
+            log.info("✅ Evolution API fallback succeeded for {}", formatPhone(phone));
+            return result;
+        } catch (RestClientException e) {
+            log.error("❌ Evolution API fallback also failed for {}: {}", formatPhone(phone), extractError(e));
+            return null;
+        }
+    }
+
+    private Map<String, Object> tryMetaFallbackText(String phone, String text) {
+        try {
+            Map<String, Object> result = sendViaMetaText(phone, text);
+            log.info("✅ Meta API fallback succeeded for {}", formatPhone(phone));
+            return result;
+        } catch (RestClientException e) {
+            log.error("❌ Meta API fallback also failed for {}: {}", formatPhone(phone), extractError(e));
+            return null;
+        }
+    }
+
+    /** Raw Meta Cloud API text send -- throws on failure instead of swallowing, so callers can fall back. */
+    private Map<String, Object> sendViaMetaText(String phone, String text) {
+        String cleaned = formatPhone(phone);
+        log.info("\n📤 [META API] Sending Text to [{}]:\n{}\n", cleaned, text);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("messaging_product", "whatsapp");
+        body.put("recipient_type", "individual");
+        body.put("to", cleaned);
+        body.put("type", "text");
+        body.put("text", Map.of("body", text));
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                metaMessagesUrl(), new HttpEntity<>(body, metaHeaders()), Map.class);
+        log.info("✅ Meta API text sent successfully to {}", cleaned);
+        return response.getBody();
+    }
+
+    /** Raw Evolution API text send -- throws on failure instead of swallowing, so callers can fall back. */
+    private Map<String, Object> sendViaEvolutionText(String phone, String text) {
+        String cleaned = formatPhone(phone);
+        String url = appProperties.getEvolutionApiUrl() + "/message/sendText/" + appProperties.getInstanceName();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("number", cleaned);
+        body.put("options", Map.of("delay", 500));
+        body.put("text", text);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("apikey", appProperties.getEvolutionApiKey());
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
+        log.info("✅ Evolution API text sent successfully to {}", cleaned);
+        return response.getBody();
     }
 
     /** Send interactive quick reply buttons message. */
@@ -193,7 +248,12 @@ public class WhatsAppService {
         } else {
             String fullQuestion = ((title != null ? title : "") + "\n" + description).trim();
             List<String> optionLabels = buttons.stream().map(WaButton::displayText).toList();
-            return sendPollMessageSync(phone, fullQuestion, optionLabels);
+            try {
+                return sendPollMessageSync(phone, fullQuestion, optionLabels);
+            } catch (RestClientException e) {
+                log.error("❌ Evolution API poll error for {}: {} -- falling back to plain text.", cleaned, extractError(e));
+                return sendWhatsAppMessageSync(phone, fullQuestion + "\n\n" + String.join("\n", optionLabels));
+            }
         }
     }
 
@@ -240,30 +300,35 @@ public class WhatsAppService {
         }
     }
 
-    /** Send interactive poll card menu (Evolution API only). */
+    /**
+     * Send interactive poll card menu (Evolution API only -- Meta has no poll
+     * primitive). Throws on failure instead of swallowing, so callers
+     * (sendButtonsMessageSync's Evolution branch, and this class's own async
+     * entry point below) can fall back to plain text.
+     */
     private Map<String, Object> sendPollMessageSync(String phone, String question, List<String> options) {
         String cleaned = formatPhone(phone);
-        try {
-            String url = appProperties.getEvolutionApiUrl() + "/message/sendPoll/" + appProperties.getInstanceName();
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("number", cleaned);
-            body.put("name", question);
-            body.put("selectableCount", 1);
-            body.put("values", options);
+        String url = appProperties.getEvolutionApiUrl() + "/message/sendPoll/" + appProperties.getInstanceName();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("number", cleaned);
+        body.put("name", question);
+        body.put("selectableCount", 1);
+        body.put("values", options);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("apikey", appProperties.getEvolutionApiKey());
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("apikey", appProperties.getEvolutionApiKey());
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-            return response.getBody();
-        } catch (RestClientException e) {
-            log.error("❌ Failed to send poll: {}", e.getMessage());
-            return null;
-        }
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
+        return response.getBody();
     }
 
-    /** Send list/menu message (Evolution API only). */
+    /**
+     * Send list/menu message (Evolution API only -- Meta has no list
+     * primitive). Falls back to a failover-aware plain-text rendition of the
+     * same title/description/footer on failure, same as the buttons/CTA/poll
+     * sends above.
+     */
     private Map<String, Object> sendListMessageSync(String phone, String title, String description,
                                                       Object sections, String footer) {
         String cleaned = formatPhone(phone);
@@ -284,8 +349,9 @@ public class WhatsAppService {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
             return response.getBody();
         } catch (RestClientException e) {
-            log.error("❌ Failed to send list: {}", e.getMessage());
-            return null;
+            log.error("❌ Evolution API list error for {}: {} -- falling back to plain text.", cleaned, extractError(e));
+            String fallbackText = ((title != null ? title : "") + "\n\n" + (description != null ? description : "")).trim();
+            return sendWhatsAppMessageSync(phone, fallbackText);
         }
     }
 }

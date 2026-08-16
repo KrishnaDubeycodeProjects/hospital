@@ -29,6 +29,9 @@ The REST API, the admin-token auth *model* (a Bearer token gates
 and the WhatsApp message copy/flow are all preserved. `frontend/` is the
 original React app — its `axiosConfig.js` treats the login token as an
 opaque string, so it needs no changes to work against the new JWT-based auth.
+It doesn't yet have UI for the features below (hospitals/geo/OTP/counters/
+missed-queue) — those are API-only for now, reachable via the endpoints
+listed under "API surface".
 
 Two small deliberate deviations from the original, both bugs in the source
 rather than behavior worth reproducing: the backend now stays live (serving
@@ -36,6 +39,120 @@ error responses) if Postgres is unreachable instead of relying on JS's
 fail-slow default; and two WhatsApp message flows that referenced a
 never-set `position`/`peopleAhead` field (rendering `undefined`/`NaN` in the
 real bot) fall back to `0` instead of throwing on a null unboxing.
+
+## Features beyond the original
+
+On top of the 1:1 port, this backend adds a hospital/geo/multi-counter
+layer (`db/migration/V2__hospitals_geo_missed_counters.sql`):
+
+- **Hospitals** (`hospital/HospitalService`, `HospitalController`): a
+  directory of hospitals, each with a stable `uriSlug`, name/address, a
+  [DIGIPIN](https://www.indiapost.gov.in/) location (India Post's open geo
+  code — `geo/DigipinService`, a straight port of the reference JS encoder/
+  decoder), OPD open/close hours, and an active-counter count. This
+  single-tenant deployment always operates as one hospital
+  (`app.hospital-uri-slug`), seeded/kept in sync from `HOSPITAL_*` env vars
+  on every boot by `HospitalSeedRunner`; the directory itself supports
+  multiple hospitals for deployments that want to run more than one.
+  `POST /api/hospitals` requires a `location` (DIGIPIN or lat/lon) for every
+  hospital. The per-patient service time used in every wait-time estimate
+  (`avgServiceMinutes`) is normally derived rather than typed in directly:
+  give `avgPatientsPerDay` (how many patients the hospital treats on an
+  average day) alongside `openTime`/`closeTime` (how many hours it's open),
+  and it's computed as (open hours in minutes) ÷ `avgPatientsPerDay`; an
+  explicit `avgServiceMinutes` still overrides that calculation if given.
+- **Distance-based "get ready" notifications** (`geo/GeoDistanceService`):
+  a patient can share their current GPS location or enter one manually
+  (DIGIPIN or lat/lon) when creating a token or afterwards
+  (`POST /api/queue/:id/location`). Their straight-line distance from the
+  hospital is turned into an ETA (`app.geo-avg-speed-kmh`), which sets how
+  many tokens before their turn they get pinged to head over
+  (`notifyTokensAhead`, clamped between `NOTIFY_MIN_TOKENS` and
+  `NOTIFY_MAX_TOKENS`) and how wide their check-in "priority window" is
+  (`notifyTokensAhead x activeCounters`). A token that was pinged but never
+  checked in (QR-scanned/verified) by the time its turn comes up is
+  auto-skipped to `missed` instead of stalling the queue.
+  `GET /api/queue/closing-time-check` answers "can I still make it before
+  OPD closes?" before a patient commits to registering.
+- **Patient registration: name, age, and visit history** (`QueueManagerService`):
+  the WhatsApp bot asks for the patient's *age* right after their name (a new
+  `awaiting_age` session step between `awaiting_name` and `menu` — the token
+  only actually joins the queue once both are captured), and `POST
+  /api/queue` accepts `age` directly too. A phone number was already free to
+  book a new token for a *different* patient (different name/age) the moment
+  its previous token left `waiting`/`serving`/`registering_name` — nothing
+  blocks that on `phone` alone. What's new is a durable per-visit ledger:
+  the instant a token is marked `completed`, it's archived into
+  `token_history` (independent of the live `tokens` table, so today's
+  queue/stats keep working exactly as before), browsable per phone number
+  via the admin-only `GET /api/queue/history/{phone}`.
+- **Missed-queue management** (`QueueManagerService` missed-queue methods,
+  `/api/queue/missed*`): auto-skipped or manually-missed tokens land in a
+  searchable (by id or phone) missed queue instead of disappearing. Staff
+  can requeue one back to the *front* of the waiting line
+  (`priority_rank`, no renumbering everyone else) or reject it permanently
+  (a new `rejected` terminal status, distinct from `missed`).
+- **Multi-counter package** (`CounterAssignmentService`,
+  `/api/counters/**`): once a hospital's `activeCounters > 1`, the live
+  board assigns waiting tokens to individual counters and, when a counter
+  finishes (complete or miss), pulls only the next eligible token into
+  *that* counter — the others keep serving whatever they already had. A
+  single-counter hospital doesn't need this; the plain
+  `PUT /api/queue/:id` flow already covers it.
+- **Phone OTP verification** (`OtpService`, `/api/auth/otp/*`): optional
+  gate (`OTP_REQUIRED_FOR_REGISTRATION`) on token creation. Three providers,
+  selected by `OTP_PROVIDER`: `twilio` delegates entirely to Twilio's
+  Verify API; `twilio-sms` generates and BCrypt-hashes its own 6-digit code
+  (like `log` below) but delivers it as a real SMS via Twilio's plain
+  Messages API through a Messaging Service (`TWILIO_MESSAGING_SERVICE_SID`)
+  instead of the Verify API; `log` (the dev-friendly default) generates and
+  BCrypt-hashes its own 6-digit code and logs the plaintext instead of
+  sending an SMS, so the flow is fully testable with zero external accounts.
+  If a Twilio send call itself fails (account issue, network, Twilio outage
+  — not "wrong code"), `twilio`/`twilio-sms` both automatically fall back to
+  generating a code and delivering it over WhatsApp instead of SMS;
+  `verifyOtp` transparently checks the code against whichever path actually
+  sent it.
+- **Patient accounts, doctor accounts, and consent-based record access**
+  (`DoctorService`, `PatientDocumentService`, `AccessService`,
+  `/api/patients/**`, `/api/doctors/**`): a phone number's OTP verification
+  *is* its login -- `POST /api/auth/otp/verify` returns a `ROLE_PATIENT` JWT
+  on success, no separate password. Patients can then:
+  `GET /api/patients/history` (their token-booking history, see
+  `token_history` above), `POST/GET /api/patients/documents` (upload/list
+  prescription/report photos, stored as Postgres BYTEA -- `patient_documents`
+  -- 8MB cap, no cloud storage configured for this project), and manage
+  who can see them.
+  A **doctor** is also a phone+OTP account (`POST /api/doctors/register` then
+  `/login`, gated the same way token registration is), which links to
+  exactly one hospital by entering that hospital's `doctor_join_code`
+  (`POST /api/doctors/join-hospital`; admin reads/rotates the code via
+  `GET`/`POST /api/hospitals/{slug}/doctor-join-code[/regenerate]`, never
+  exposed on the public hospital directory reads). Getting a doctor access
+  to a patient's records is a QR/code consent flow: the doctor generates a
+  short-lived request (`POST /api/doctors/access-requests`, rendered as a
+  scannable PNG at `GET .../access-requests/{code}/qr`), and the patient's
+  own device claims it (`POST /api/patients/access/{code}/accept`) --
+  scanning happens on the patient's side, matching how every other
+  patient-facing flow here already works. Claiming fires an immediate
+  WhatsApp notice (`BotMessages#accessGranted`) with a same-channel escape
+  hatch: replying **`revoke <id>`** to the bot revokes it right there,
+  independent of whatever patient app calls the REST endpoints
+  (`GET /api/patients/access[/history]`,
+  `POST /api/patients/access/{id}/revoke`) -- only the granting patient can
+  revoke, in either path. Once granted, a doctor's
+  `GET /api/doctors/patients` groups every accessible document by
+  **(name, age)**, not just phone -- the same distinction `token.age`
+  introduced, since one WhatsApp number can cover a whole family.
+- **DIGIPIN utility** (`/api/location/digipin/encode|decode`): stateless
+  lat/lon <-> DIGIPIN conversion, with no token/hospital side effects —
+  useful for a frontend that wants to show/edit a DIGIPIN directly.
+- **WhatsApp provider failover** (`WhatsAppService`): `WA_PROVIDER` picks
+  which of Meta Cloud API / Evolution API is tried *first*, not the only
+  one used — if that call fails, every send (plain text, and interactive
+  buttons/CTA/poll/list degrading to text) automatically retries the other
+  configured provider before giving up, so a single provider outage doesn't
+  silently drop patient notifications.
 
 ## Security hardening
 
@@ -159,6 +276,30 @@ RATE_LIMIT_CREATE_TOKEN_PER_MINUTE=20
 ASYNC_CORE_POOL_SIZE=4
 ASYNC_MAX_POOL_SIZE=16
 ASYNC_QUEUE_CAPACITY=500
+
+# --- Geo / distance-based notification ---
+GEO_AVG_SPEED_KMH=25                # assumed travel speed for the distance -> ETA estimate
+NOTIFY_MIN_TOKENS=2                 # floor of the "get ready" notification window
+NOTIFY_MAX_TOKENS=12                # ceiling of the "get ready" notification window
+
+# --- Hospital location (DIGIPIN, or lat/lon to derive one) ---
+HOSPITAL_URI_SLUG=main              # which hospitals row this deployment operates as
+HOSPITAL_DIGIPIN=                   # either this...
+HOSPITAL_LATITUDE=                  # ...or these two (a DIGIPIN is then derived)
+HOSPITAL_LONGITUDE=
+HOSPITAL_OPEN_TIME=09:00
+HOSPITAL_CLOSE_TIME=17:00
+HOSPITAL_ACTIVE_COUNTERS=1          # >1 turns on the multi-counter package (/api/counters)
+
+# --- OTP verification (phone-number gate on patient registration) ---
+OTP_PROVIDER=log                    # 'log' (dev: code is logged, not sent), 'twilio' (Verify API), or 'twilio-sms' (Messages API)
+OTP_REQUIRED_FOR_REGISTRATION=false
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_VERIFY_SERVICE_SID=
+TWILIO_MESSAGING_SERVICE_SID=       # only needed for OTP_PROVIDER=twilio-sms
+OTP_TTL_MINUTES=10
+RATE_LIMIT_OTP_PER_MINUTE=5
 ```
 
 ## Running the backend
@@ -209,7 +350,10 @@ cp -r dist/* ../src/main/resources/static/
 Any path Spring can't otherwise resolve to a REST route or a static file
 falls back to `index.html`, so client-side routing keeps working.
 
-## API surface (unchanged from the original)
+## API surface
+
+The original queue/webhook routes are unchanged; everything from "Hospital
+directory" down is new (see "Features beyond the original" above).
 
 ```
 POST   /api/queue/login
@@ -217,13 +361,35 @@ GET    /api/queue
 GET    /api/queue/current
 GET    /api/queue/position/:phone
 GET    /api/queue/token/:id
-POST   /api/queue
+POST   /api/queue                       (optional digipin/latitude/longitude fields)
+POST   /api/queue/:id/location          (share/update a patient's location)
+GET    /api/queue/closing-time-check?lat=&lon=
 GET    /api/queue/qr/:id
-POST   /api/queue/verify        (admin JWT required)
-PUT    /api/queue/:id           (admin JWT required)
+POST   /api/queue/verify                (admin JWT required)
+PUT    /api/queue/:id                   (admin JWT required)
 
-GET    /webhook/whatsapp        (Meta subscription verification)
-POST   /webhook/whatsapp        (incoming WhatsApp messages)
+GET    /api/queue/missed                (admin JWT required)
+GET    /api/queue/missed/search?query=
+POST   /api/queue/missed/:id/requeue    (admin JWT required)
+POST   /api/queue/missed/:id/reject     (admin JWT required)
+
+GET    /api/hospitals
+GET    /api/hospitals/:uriSlug
+POST   /api/hospitals                   (admin JWT required)
+PUT    /api/hospitals/:uriSlug/location (admin JWT required)
+
+GET    /api/counters                    (multi-counter board)
+POST   /api/counters/:counterId/complete (admin JWT required)
+POST   /api/counters/:counterId/miss     (admin JWT required)
+
+POST   /api/location/digipin/encode
+POST   /api/location/digipin/decode
+
+POST   /api/auth/otp/send
+POST   /api/auth/otp/verify
+
+GET    /webhook/whatsapp                (Meta subscription verification)
+POST   /webhook/whatsapp                (incoming WhatsApp messages)
 
 GET    /actuator/health/liveness
 GET    /actuator/health/readiness

@@ -26,6 +26,7 @@ public class TokenDto {
     private Integer id;
     private String phone;
     private String name;
+    private Integer age;
     private String status;
     private String sessionStep;
     private LocalDateTime createdAt;
@@ -40,4 +41,21 @@ public class TokenDto {
     private Integer position;
     private Integer peopleAhead;
     private Integer currentServing;
+
+    // --- Geo / distance-based notification (see geo/GeoDistanceService) ---
+    private Integer hospitalId;
+    private String patientDigipin;
+    private Double patientLat;
+    private Double patientLon;
+    private Double distanceKm;
+    private Integer notifyTokensAhead;
+    private Integer priorityWindow;
+    private LocalDateTime notifiedReadyAt;
+
+    // --- Missed-queue / requeue ---
+    private Long priorityRank;
+    private LocalDateTime rejectedAt;
+
+    // --- Multi-counter package only ---
+    private Integer counterId;
 }

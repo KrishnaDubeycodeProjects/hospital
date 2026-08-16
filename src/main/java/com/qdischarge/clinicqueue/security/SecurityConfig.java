@@ -65,10 +65,33 @@ public class SecurityConfig {
                         .frameOptions(frame -> frame.deny())
                         .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/queue/verify").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/api/queue/*").authenticated()
+                        // NOTE: JwtAuthFilter now authenticates three token kinds (ROLE_ADMIN/
+                        // ROLE_PATIENT/ROLE_DOCTOR, see JwtService), so every admin-only route below
+                        // must say hasRole("ADMIN") explicitly -- a bare authenticated() would also
+                        // accept a valid patient or doctor token, which is not what any of these mean.
+                        .requestMatchers(HttpMethod.POST, "/api/queue/verify").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/queue/*").hasRole("ADMIN")
+                        // Missed-queue admin panel: staff-only search/requeue/reject over PII.
+                        .requestMatchers("/api/queue/missed", "/api/queue/missed/**").hasRole("ADMIN")
+                        // Per-phone visit history can span more than one patient's name/age -- staff-only.
+                        .requestMatchers("/api/queue/history/**").hasRole("ADMIN")
+                        // Hospital directory reads (location/URI/OPD hours) are public; creating,
+                        // relocating a hospital, or reading/rotating its doctor join code are admin actions.
+                        .requestMatchers(HttpMethod.POST, "/api/hospitals").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/location").hasRole("ADMIN")
+                        .requestMatchers("/api/hospitals/*/doctor-join-code", "/api/hospitals/*/doctor-join-code/**").hasRole("ADMIN")
+                        // Multi-counter admin actions (complete/miss/reassign a counter).
+                        .requestMatchers(HttpMethod.POST, "/api/counters/**").hasRole("ADMIN")
+                        // Doctor registration/login prove identity via OTP (see OtpController), not a
+                        // doctor JWT yet -- everything else a doctor does needs the token that returns.
+                        .requestMatchers(HttpMethod.POST, "/api/doctors/register", "/api/doctors/login").permitAll()
+                        .requestMatchers("/api/doctors/**").hasRole("DOCTOR")
+                        // Every /api/patients/** action is self-service on the caller's own phone
+                        // number (identified from the token, see CurrentUser) -- there's no "public"
+                        // patient endpoint here, login *is* OtpController's /verify.
+                        .requestMatchers("/api/patients/**").hasRole("PATIENT")
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                        .requestMatchers("/actuator/**").authenticated()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .anyRequest().permitAll())
                 .addFilterBefore(rateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

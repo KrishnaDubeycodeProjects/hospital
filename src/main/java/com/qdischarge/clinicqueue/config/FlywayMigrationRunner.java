@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -16,10 +17,14 @@ import javax.sql.DataSource;
  * swallowed instead of failing the whole application context -- matching
  * the original Node backend's initializeDatabase().catch(err => ...), which
  * logs and keeps the server running.
+ *
+ * @Order(1) so this runs before HospitalSeedRunner, which needs the schema
+ * this creates to already exist.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@Order(1)
 public class FlywayMigrationRunner implements ApplicationRunner {
 
     private final DataSource dataSource;
