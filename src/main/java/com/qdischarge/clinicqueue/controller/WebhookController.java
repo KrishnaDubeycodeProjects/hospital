@@ -26,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -101,6 +102,7 @@ public class WebhookController {
     @PostMapping(value = "/whatsapp", produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> receive(@RequestBody(required = false) JsonNode requestBody) {
         JsonNode body = requestBody != null ? requestBody : MissingNode.getInstance();
+        log.info("📩 INCOMING WEBHOOK PAYLOAD: {}", body);
 
         String fromPhone;
         String pushName;
@@ -196,11 +198,9 @@ public class WebhookController {
 
             buttonId = !isBlank(listRowId) ? listRowId : messageData.path("buttonsResponseMessage").path("selectedButtonId").asText("");
 
-            JsonNode locationMessage = messageData.path("locationMessage");
-            if (!locationMessage.isMissingNode() && !locationMessage.isNull()) {
-                incomingLat = locationMessage.path("degreesLatitude").isMissingNode() ? null : locationMessage.path("degreesLatitude").asDouble();
-                incomingLon = locationMessage.path("degreesLongitude").isMissingNode() ? null : locationMessage.path("degreesLongitude").asDouble();
-            }
+            Double[] coords = extractLocationFromPayload(data, messageData, body);
+            incomingLat = coords[0];
+            incomingLon = coords[1];
         }
 
         String cleanMessage = incomingMessage.trim().toLowerCase();
@@ -324,6 +324,10 @@ public class WebhookController {
             }
 
             if (activeToken != null && "awaiting_hospital_selection".equals(activeToken.getSessionStep())) {
+                int offset = Math.max(0, (activeToken.getSearchOffset() != null ? activeToken.getSearchOffset() : QueueManagerService.HOSPITAL_PAGE_SIZE) - QueueManagerService.HOSPITAL_PAGE_SIZE);
+                HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
+                        activeToken.getCategory(), activeToken.getGender(), activeToken.getPatientLat(), activeToken.getPatientLon(), offset, QueueManagerService.HOSPITAL_PAGE_SIZE);
+
                 if (SHOW_MORE_ROW_ID.equals(buttonId)) {
                     QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.showMoreHospitals(activeToken.getId());
                     if (outcome == null || outcome.page().results().isEmpty()) {
@@ -337,15 +341,38 @@ public class WebhookController {
                 if (buttonId != null && buttonId.startsWith(HOSPITAL_ROW_PREFIX)) {
                     Integer hospitalId = parseInt(buttonId.substring(HOSPITAL_ROW_PREFIX.length()));
                     TokenDto selected = hospitalId == null ? null : queueManagerService.selectHospital(activeToken.getId(), hospitalId);
-                    if (selected == null) {
-                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
+                    if (selected != null) {
+                        sendConfirmationCard(fromPhone, selected, lang);
                         return ResponseEntity.ok("EVENT_RECEIVED");
                     }
-                    sendConfirmationCard(fromPhone, selected, lang);
-                    return ResponseEntity.ok("EVENT_RECEIVED");
                 }
 
-                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
+                String cleanMsg = incomingMessage.trim().toLowerCase();
+
+                // Check for "profile N" or "info N" or "details N"
+                if (cleanMsg.startsWith("profile ") || cleanMsg.startsWith("info ") || cleanMsg.startsWith("details ") || cleanMsg.endsWith(" profile")) {
+                    String numStr = cleanMsg.replaceAll("[^0-9]", "");
+                    Integer idx = parseInt(numStr);
+                    if (idx != null && page != null && idx >= 1 && idx <= page.results().size()) {
+                        HospitalService.HospitalMatch match = page.results().get(idx - 1);
+                        sendHospitalProfile(fromPhone, match.hospital(), match.distanceKm(), lang);
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                }
+
+                // Check for bare number choice "1", "2", ... "20"
+                Integer selectedIdx = parseInt(cleanMsg);
+                if (selectedIdx != null && page != null && selectedIdx >= 1 && selectedIdx <= page.results().size()) {
+                    HospitalDto chosen = page.results().get(selectedIdx - 1).hospital();
+                    TokenDto selected = queueManagerService.selectHospital(activeToken.getId(), chosen.getId());
+                    if (selected != null) {
+                        sendConfirmationCard(fromPhone, selected, lang);
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                }
+
+                int totalCount = (page != null && page.results() != null) ? page.results().size() : 20;
+                whatsAppService.sendWhatsAppMessage(fromPhone, "⚠️ Invalid selection. Please reply with a hospital number (*1* to *" + totalCount + "*) or type *profile 1* to view hospital details.");
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -466,19 +493,82 @@ public class WebhookController {
         whatsAppService.sendLocationRequestMessage(phone, botMessages.locationPrompt(lang));
     }
 
-    /** "Which hospital?" -- up to 5 results as tappable list rows, plus a trailing "Show more" row if there's another page. */
+    /** "Which hospital?" -- up to 20 results as numbered text list + interactive list rows. */
     private void sendHospitalResultsList(String phone, TokenDto draft, HospitalService.HospitalSearchPage page, Lang lang) {
-        List<WaListRow> rows = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        sb.append("🏥 *Top Registered Hospitals for ").append(draft.getCategory()).append("*:\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
+
+        int index = 1;
         for (HospitalService.HospitalMatch match : page.results()) {
             HospitalDto h = match.hospital();
-            rows.add(new WaListRow(HOSPITAL_ROW_PREFIX + h.getId(), h.getName(), "~%.1f km".formatted(match.distanceKm())));
+            boolean openNow = isOpdOpen(h);
+            String statusIcon = openNow ? "🟢 Open" : "🔴 Closed";
+
+            sb.append(index).append("️⃣ *").append(h.getName()).append("*\n");
+            if (h.getAddress() != null && !h.getAddress().isBlank()) {
+                sb.append("📍 ").append(h.getAddress()).append("\n");
+            }
+            sb.append("⏰ OPD: ").append(formatTime(h.getOpenTime())).append(" - ").append(formatTime(h.getCloseTime()))
+              .append(" (").append(statusIcon).append(")\n");
+            sb.append("📏 Distance: ~%.1f km\n\n".formatted(match.distanceKm()));
+            index++;
         }
-        if (page.hasMore()) {
-            rows.add(new WaListRow(SHOW_MORE_ROW_ID, botMessages.showMoreRowTitle(lang), null));
+
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        sb.append("👉 *Reply with a number (1 to ").append(page.results().size()).append(") to select a hospital for booking.*\n");
+        sb.append("💡 *Type \"profile 1\" to view full hospital info & doctor roster.*");
+
+        whatsAppService.sendWhatsAppMessage(phone, sb.toString());
+    }
+
+    private void sendHospitalProfile(String phone, HospitalDto h, double distanceKm, Lang lang) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("🏥 *HOSPITAL PROFILE: ").append(h.getName().toUpperCase()).append("*\n");
+        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        if (h.getOwnership() != null) {
+            sb.append("🏛️ *Ownership:* ").append(h.getOwnership()).append("\n");
         }
-        List<WaListSection> sections = List.of(new WaListSection(null, rows));
-        whatsAppService.sendListMessage(phone, "", botMessages.hospitalResultsHeader(lang, draft.getCategory()),
-                sections, appProperties.getClinicName(), "View Hospitals");
+        if (h.getYearEstablished() != null) {
+            sb.append("📅 *Established:* ").append(h.getYearEstablished()).append("\n");
+        }
+        if (h.getAddress() != null && !h.getAddress().isBlank()) {
+            sb.append("📍 *Address:* ").append(h.getAddress()).append("\n");
+        }
+        if (h.getDigipin() != null) {
+            sb.append("📌 *DIGIPIN:* ").append(h.getDigipin()).append("\n");
+        }
+        sb.append("⏰ *OPD Hours:* ").append(formatTime(h.getOpenTime())).append(" - ").append(formatTime(h.getCloseTime())).append("\n");
+        sb.append("📏 *Distance:* ~%.1f km\n".formatted(distanceKm));
+        sb.append("⏱️ *Avg Service Time:* ").append(h.getAvgServiceMinutes()).append(" mins per patient\n");
+        sb.append("👨‍⚕️ *Active Counters:* ").append(h.getActiveCounters()).append("\n");
+
+        if (h.getCategories() != null && !h.getCategories().isEmpty()) {
+            sb.append("\n🩺 *Offered Departments:*\n");
+            for (String cat : h.getCategories()) {
+                sb.append("  • ").append(cat).append("\n");
+            }
+        }
+
+        if (h.getAccreditation() != null && !h.getAccreditation().isEmpty()) {
+            sb.append("\n🏆 *Accreditations:* ").append(String.join(", ", h.getAccreditation())).append("\n");
+        }
+
+        sb.append("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        sb.append("👉 Reply with hospital number to book a token, or type *menu* to return.");
+
+        whatsAppService.sendWhatsAppMessage(phone, sb.toString());
+    }
+
+    private boolean isOpdOpen(HospitalDto h) {
+        if (h == null || h.getOpenTime() == null || h.getCloseTime() == null) return true;
+        LocalTime now = LocalTime.now();
+        return !now.isBefore(h.getOpenTime()) && now.isBefore(h.getCloseTime());
+    }
+
+    private String formatTime(LocalTime time) {
+        if (time == null) return "N/A";
+        return time.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a"));
     }
 
     /** "Book here?" -- shown right after a hospital row is tapped, before the token actually joins that hospital's queue. */
@@ -550,14 +640,73 @@ public class WebhookController {
         }
     }
 
-    /** A native location share (lat/lon) wins; otherwise a typed 10-character DIGIPIN; otherwise unresolved. */
+    /** A native location share (lat/lon) wins; otherwise raw lat/lon or Google Maps link; otherwise 10-char DIGIPIN; otherwise unresolved. */
     private SetLocationRequest resolveIncomingLocation(Double lat, Double lon, String cleanMessage) {
         if (lat != null && lon != null) {
             return new SetLocationRequest(null, lat, lon);
         }
+        if (cleanMessage != null && !cleanMessage.isBlank()) {
+            java.util.regex.Pattern latLonPattern = java.util.regex.Pattern.compile("(-?\\d{1,2}\\.\\d+)\\s*,\\s*(-?\\d{1,3}\\.\\d+)");
+            java.util.regex.Matcher matcher = latLonPattern.matcher(cleanMessage);
+            if (matcher.find()) {
+                try {
+                    double parsedLat = Double.parseDouble(matcher.group(1));
+                    double parsedLon = Double.parseDouble(matcher.group(2));
+                    return new SetLocationRequest(null, parsedLat, parsedLon);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
         String candidate = cleanMessage == null ? "" : cleanMessage.trim().toUpperCase();
         if (DIGIPIN_PATTERN.matcher(candidate).matches()) {
             return new SetLocationRequest(candidate, null, null);
+        }
+        return null;
+    }
+
+    private Double[] extractLocationFromPayload(JsonNode data, JsonNode messageData, JsonNode body) {
+        List<JsonNode> candidates = List.of(
+                messageData.path("locationMessage"),
+                messageData.path("liveLocationMessage"),
+                messageData.path("viewOnceMessage").path("message").path("locationMessage"),
+                messageData.path("viewOnceMessage").path("message").path("liveLocationMessage"),
+                messageData.path("ephemeralMessage").path("message").path("locationMessage"),
+                messageData.path("ephemeralMessage").path("message").path("liveLocationMessage"),
+                data.path("locationMessage"),
+                data.path("liveLocationMessage"),
+                data.path("location"),
+                body.path("locationMessage"),
+                body.path("liveLocationMessage"),
+                body.path("location")
+        );
+
+        for (JsonNode node : candidates) {
+            if (node == null || node.isMissingNode() || node.isNull()) {
+                continue;
+            }
+
+            Double lat = parseCoord(node, "degreesLatitude", "latitude", "lat", "degLatitude");
+            Double lon = parseCoord(node, "degreesLongitude", "longitude", "lon", "lng", "degLongitude");
+
+            if (lat != null && lon != null) {
+                log.info("📍 Location successfully extracted from WhatsApp payload: lat={}, lon={}", lat, lon);
+                return new Double[]{lat, lon};
+            }
+        }
+        return new Double[]{null, null};
+    }
+
+    private Double parseCoord(JsonNode node, String... fieldNames) {
+        for (String field : fieldNames) {
+            JsonNode f = node.path(field);
+            if (!f.isMissingNode() && !f.isNull()) {
+                if (f.isNumber()) {
+                    return f.asDouble();
+                } else if (f.isTextual()) {
+                    try {
+                        return Double.parseDouble(f.asText().trim());
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
         }
         return null;
     }

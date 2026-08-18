@@ -11,18 +11,17 @@ spring:
   application:
     name: clinic-queue-backend
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}?sslmode=require
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}?sslmode=${DB_SSL_MODE:prefer}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Don't fail application startup if the DB is unreachable at boot time -
-      # mirrors the original Node app, which logs a warning and keeps serving
-      # even when initializeDatabase() fails (see FlywayMigrationRunner).
       initialization-fail-timeout: -1
-      connection-timeout: 5000
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
-      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 10000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:1}
+      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      idle-timeout: 30000
+      max-lifetime: 60000
   flyway:
     # Migrations are run manually by FlywayMigrationRunner (try/catch, non-fatal),
     # not by Spring Boot's auto-configured Flyway, so a DB outage at boot can't

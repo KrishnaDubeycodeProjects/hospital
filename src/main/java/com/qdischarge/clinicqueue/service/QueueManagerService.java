@@ -70,7 +70,7 @@ public class QueueManagerService {
     /** Ordering expression: a requeued-to-front token's negative priority_rank sorts before every plain id. */
     private static final String QUEUE_ORDER = "COALESCE(priority_rank, id) ASC";
     /** How many hospitals the WhatsApp booking flow shows per page ("5 options, then Show more"). */
-    public static final int HOSPITAL_PAGE_SIZE = 5;
+    public static final int HOSPITAL_PAGE_SIZE = 20;
     /** R formula headstart: the first 3 genuinely-ahead tokens don't add wait time (see computeTreatmentRemainingMinutes). */
     private static final int ETA_WAITING_HEADSTART_TOKENS = 3;
     /** R formula fixed buffer, in minutes (see computeTreatmentRemainingMinutes). */

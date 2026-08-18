@@ -134,20 +134,20 @@ export default function Landing() {
                 </Field>
 
                 <div className="hospital-scroll-list">
-                  {filteredHospitals.slice(0, 8).map((h) => (
+                  {filteredHospitals.slice(0, 20).map((h, idx) => (
                     <div
                       key={h.id || h.uriSlug}
                       className={`hospital-list-item ${selectedHospital?.id === h.id ? 'active' : ''}`}
                       onClick={() => handleHospitalChange(h)}
                     >
                       <div className="hospital-item-title">
-                        <strong>{h.name}</strong>
+                        <strong>#{idx + 1} {h.name}</strong>
                         <span className="badge badge-green">OPD {h.openTime}–{h.closeTime}</span>
                       </div>
                       <div className="muted-text" style={{ fontSize: '13px', marginTop: '4px' }}>
                         📍 {h.address || 'Mumbai, Maharashtra'}
                       </div>
-                      <div className="category-pills">
+                      <div className="category-pills" style={{ marginTop: '6px' }}>
                         {h.categories?.slice(0, 4).map((c) => (
                           <span key={c} className="cat-pill">{c}</span>
                         ))}
@@ -165,37 +165,70 @@ export default function Landing() {
           {/* Selected Hospital Live Queue Snapshot */}
           <div className="stack-md">
             {selectedHospital && (
-              <Card title={`Live Queue: ${selectedHospital.name}`}>
-                <p className="muted-text">📍 {selectedHospital.address}</p>
-                <div className="hospital-meta" style={{ marginBottom: '16px' }}>
-                  <span className="badge badge-blue">Counters Active: {selectedHospital.activeCounters || 2}</span>
-                  <span className="badge badge-amber">Avg Service: {selectedHospital.avgServiceMinutes || 10} mins/pt</span>
-                </div>
-
-                {loading && <Spinner label="Checking live counters..." />}
-                {queue && (
-                  <div className="stack-md">
-                    <div className="stat-row">
-                      <StatCard label="Waiting" value={queue.stats?.waiting || 0} tone="amber" />
-                      <StatCard label="Now Serving" value={queue.stats?.serving || 0} tone="blue" />
-                      <StatCard label="Done Today" value={queue.stats?.completed || 0} tone="green" />
-                    </div>
-
-                    {queue.currentServing ? (
-                      <div className="callout callout-ok">
-                        🟢 <strong>Token #{queue.currentServing}</strong> is currently at the counter!
-                      </div>
-                    ) : (
-                      <EmptyState title="No active tokens at counter right now." hint="Queue is clear and ready for immediate check-in." />
-                    )}
-
-                    <Link to="/book" style={{ display: 'block', marginTop: '8px' }}>
-                      <Button className="full-width">
-                        Book Token at {selectedHospital.name.split(',')[0]}
-                      </Button>
-                    </Link>
+              <Card title={`🏥 ${selectedHospital.name}`}>
+                <div className="stack-md">
+                  <div className="hospital-profile-header">
+                    <p className="muted-text" style={{ fontSize: '14px', margin: 0 }}>📍 {selectedHospital.address || 'Mumbai, Maharashtra'}</p>
+                    {selectedHospital.digipin && <span className="badge badge-amber">📌 DIGIPIN: {selectedHospital.digipin}</span>}
                   </div>
-                )}
+
+                  <div className="hospital-meta-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', margin: '8px 0' }}>
+                    <span className="badge badge-blue">⏰ OPD: {selectedHospital.openTime}–{selectedHospital.closeTime}</span>
+                    <span className="badge badge-green">👨‍⚕️ Counters: {selectedHospital.activeCounters || 2} Active</span>
+                    <span className="badge badge-amber">⏱️ Avg Wait: {selectedHospital.avgServiceMinutes || 10} min/pt</span>
+                    {selectedHospital.ownership && <span className="badge badge-purple">🏛️ {selectedHospital.ownership}</span>}
+                    {selectedHospital.yearEstablished && <span className="badge badge-gray">📅 Est. {selectedHospital.yearEstablished}</span>}
+                  </div>
+
+                  {selectedHospital.categories && selectedHospital.categories.length > 0 && (
+                    <div style={{ marginTop: '4px' }}>
+                      <strong style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>🩺 Medical Specializations & OPD Departments:</strong>
+                      <div className="category-pills">
+                        {selectedHospital.categories.map((cat) => (
+                          <span key={cat} className="cat-pill">{cat}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedHospital.accreditation && selectedHospital.accreditation.length > 0 && (
+                    <div style={{ marginTop: '4px' }}>
+                      <strong style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>🏆 Accreditations:</strong>
+                      <div className="row-gap" style={{ gap: '6px' }}>
+                        {selectedHospital.accreditation.map((acc) => (
+                          <span key={acc} className="badge badge-green">{acc}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '12px 0' }} />
+
+                  {loading && <Spinner label="Checking live counters..." />}
+                  {queue && (
+                    <div className="stack-md">
+                      <div className="stat-row">
+                        <StatCard label="Waiting" value={queue.stats?.waiting || 0} tone="amber" />
+                        <StatCard label="Now Serving" value={queue.stats?.serving || 0} tone="blue" />
+                        <StatCard label="Done Today" value={queue.stats?.completed || 0} tone="green" />
+                      </div>
+
+                      {queue.currentServing ? (
+                        <div className="callout callout-ok">
+                          🟢 <strong>Token #{queue.currentServing}</strong> is currently at the counter!
+                        </div>
+                      ) : (
+                        <EmptyState title="No active tokens at counter right now." hint="Queue is clear and ready for immediate check-in." />
+                      )}
+
+                      <Link to="/book" style={{ display: 'block', marginTop: '8px' }}>
+                        <Button className="full-width" size="lg">
+                          🎟️ Book Token at {selectedHospital.name.split(',')[0]}
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
               </Card>
             )}
 
