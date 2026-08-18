@@ -1730,18 +1730,147 @@ a:hover {
   margin-bottom: 18px;
 }
 
-/* --- Footer --- */
-.clean-footer {
-  background: #0f172a;
-  color: #94a3b8;
-  padding: 48px 24px 24px;
-  font-size: 13px;
-  border-top: 1px solid #1e293b;
+/* --- Full Mobile & Tablet Responsive Media Queries --- */
+
+@media (max-width: 768px) {
+  .clean-header-inner {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .clean-nav-links {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+  }
+
+  .clean-hero {
+    padding: 36px 16px;
+  }
+
+  .clean-hero-h1 {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .clean-hero-p {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+
+  .clean-tracker-card {
+    padding: 20px;
+    border-radius: 14px;
+  }
+
+  .clean-section {
+    padding: 36px 16px;
+  }
+
+  .clean-section-title {
+    font-size: 20px;
+  }
+
+  .clean-directory-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .clean-drawer {
+    position: relative;
+    top: 0;
+    padding: 20px;
+  }
+
+  .clean-stats-strip {
+    padding: 16px;
+  }
+
+  .clean-stats-inner {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .clean-portals-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .clean-footer {
+    padding: 32px 16px 16px;
+  }
+
+  .field-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .field-row > * {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .detail-row dd {
+    text-align: left;
+  }
+
+  .public-page {
+    padding: 16px 12px;
+  }
+
+  .narrow-card {
+    max-width: 100% !important;
+  }
+
+  .auth-card-wrap {
+    max-width: 100%;
+  }
+
+  .hospital-profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
-.clean-footer-inner {
-  max-width: 1140px;
-  margin: 0 auto;
+@media (max-width: 480px) {
+  .clean-brand-name {
+    font-size: 16px;
+  }
+
+  .clean-hero-h1 {
+    font-size: 24px;
+  }
+
+  .clean-nav-links {
+    font-size: 12px;
+    gap: 10px;
+  }
+
+  .clean-btn-primary,
+  .clean-btn-secondary {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+  }
+
+  .token-number {
+    font-size: 36px;
+  }
+
+  .token-summary {
+    padding: 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 }
+
 
 

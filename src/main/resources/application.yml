@@ -62,7 +62,7 @@ spring:
 # Application-specific settings. Most env var names deliberately match the
 # original Node backend's .env; see README for the security-hardening additions.
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  frontend-url: ${FRONTEND_URL:https://princete.com}
   clinic-name: ${CLINIC_NAME:qDischarge}
   token-expiry-hours: ${TOKEN_EXPIRY_HOURS:24}
   avg-service-minutes: ${AVG_SERVICE_MINUTES:10}
@@ -74,7 +74,7 @@ app:
   jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:720}
 
   webhook-verify-token: ${WEBHOOK_VERIFY_TOKEN:clinic_queue_token}
-  allowed-origins: ${ALLOWED_ORIGINS:${FRONTEND_URL:http://localhost:5173}}
+  allowed-origins: ${ALLOWED_ORIGINS:https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}
 
   # WhatsApp provider: 'meta' (Meta Cloud API) or 'evolution' (Evolution API)
   wa-provider: ${WA_PROVIDER:evolution}
