@@ -223,7 +223,14 @@ public class QueueManagerService {
 
     /** Copies the geo/priority fields from a freshly-read raw row onto a purpose-built response DTO. */
     private TokenDto withGeoFields(TokenDto target, TokenDto raw) {
+        target.setDailyNumber(raw.getDailyNumber());
         target.setHospitalId(raw.getHospitalId());
+        if (raw.getHospitalId() != null) {
+            HospitalDto h = hospitalService.getById(raw.getHospitalId());
+            if (h != null) {
+                target.setHospitalName(h.getName());
+            }
+        }
         target.setCategory(raw.getCategory());
         target.setGender(raw.getGender());
         target.setAge(raw.getAge());
@@ -465,8 +472,12 @@ public class QueueManagerService {
         hospitalDepartmentService.ensure(hospital.getId(), draft.getCategory());
 
         jdbc.update(
-                "UPDATE tokens SET status = 'waiting', session_step = 'menu', created_at = NOW() WHERE id = :id",
-                Map.of("id", tokenId));
+                """
+                UPDATE tokens SET status = 'waiting', session_step = 'menu', created_at = NOW(),
+                    daily_number = :dailyNumber
+                WHERE id = :id
+                """,
+                Map.of("id", tokenId, "dailyNumber", nextDailyNumber(hospital.getId(), draft.getCategory())));
 
         if (draft.getPatientLat() != null && draft.getPatientLon() != null) {
             try {
@@ -479,13 +490,17 @@ public class QueueManagerService {
     }
 
     // -----------------------------------------------------------------
-    // Direct/API booking (not via the WhatsApp search flow) -- always books
-    // into this deployment's operating hospital, but still requires a
-    // category since every token belongs to a (hospital, category) queue now.
+    // Direct/API booking (not via the WhatsApp search flow) -- books into
+    // whichever hospital the patient picked (see FindHospital.jsx / the
+    // "nearby" search), falling back to this deployment's single operating
+    // hospital only when none was given, for callers that never offer a
+    // hospital picker (e.g. a single-hospital deployment's own booking form).
+    // Still requires a category since every token belongs to a
+    // (hospital, category) queue now.
     // -----------------------------------------------------------------
 
-    /** age/gender/location are all optional -- when location is given (current GPS or manually entered), the distance-based notify window is computed immediately. */
-    public CreateTokenResult createToken(String name, Integer age, String gender, String category, String phone, SetLocationRequest location) {
+    /** age/gender/location are all optional -- when location is given (current GPS or manually entered), the distance-based notify window is computed immediately. hospitalId is optional -- omit it to book into this deployment's single operating hospital. */
+    public CreateTokenResult createToken(String name, Integer age, String gender, String category, String phone, SetLocationRequest location, Integer hospitalId) {
         cleanExpiredTokens();
 
         if (appProperties.isOtpRequiredForRegistration() && !otpService.isPhoneVerifiedRecently(phone)) {
@@ -502,7 +517,15 @@ public class QueueManagerService {
             return new CreateTokenResult(true, getTokenDetails(String.valueOf(active.getId())));
         }
 
-        HospitalDto hospital = hospitalService.getOperatingHospital();
+        HospitalDto hospital;
+        if (hospitalId != null) {
+            hospital = hospitalService.getById(hospitalId);
+            if (hospital == null) {
+                throw new IllegalArgumentException("Selected hospital not found.");
+            }
+        } else {
+            hospital = hospitalService.getOperatingHospital();
+        }
         if (hospital != null && hospital.getCloseTime() != null) {
             java.time.LocalTime now = java.time.LocalTime.now();
             java.time.LocalTime closeTime = hospital.getCloseTime();
@@ -518,18 +541,20 @@ public class QueueManagerService {
             hospitalDepartmentService.ensure(hospital.getId(), canonicalCategory);
         }
 
+        Integer resolvedHospitalId = hospital != null ? hospital.getId() : null;
         Map<String, Object> insertParams = new HashMap<>();
         insertParams.put("name", defaultName);
         insertParams.put("age", age);
         insertParams.put("gender", gender == null ? null : gender.toLowerCase());
         insertParams.put("category", canonicalCategory);
         insertParams.put("phone", phone);
-        insertParams.put("hospitalId", hospital != null ? hospital.getId() : null);
+        insertParams.put("hospitalId", resolvedHospitalId);
+        insertParams.put("dailyNumber", nextDailyNumber(resolvedHospitalId, canonicalCategory));
 
         Integer newId = jdbc.queryForObject(
                 """
-                INSERT INTO tokens (name, age, gender, category, phone, status, session_step, hospital_id)
-                VALUES (:name, :age, :gender, :category, :phone, 'waiting', 'menu', :hospitalId)
+                INSERT INTO tokens (name, age, gender, category, phone, status, session_step, hospital_id, daily_number)
+                VALUES (:name, :age, :gender, :category, :phone, 'waiting', 'menu', :hospitalId, :dailyNumber)
                 RETURNING id
                 """,
                 insertParams, Integer.class);
@@ -543,6 +568,32 @@ public class QueueManagerService {
         }
 
         return new CreateTokenResult(false, getTokenDetails(String.valueOf(newId)));
+    }
+
+    /**
+     * The patient-facing "Token #N" for a fresh (hospital, category) booking made
+     * today -- 1, 2, 3, ... independently for every hospital's every department,
+     * unlike the raw `id` column (a single sequence shared across every hospital
+     * and department in the whole system, which is what patients used to be
+     * shown -- confusing when e.g. a patient is 1st in line but sees "Token #13"
+     * because 12 other tokens already exist elsewhere today). Not a DB sequence:
+     * just "one more than today's highest daily_number in this (hospital,
+     * category)" -- good enough for a display label under normal booking
+     * volume/concurrency; a true collision just means two patients momentarily
+     * share a display number, which self-corrects on the next booking.
+     */
+    private Integer nextDailyNumber(Integer hospitalId, String category) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("hospitalId", hospitalId);
+        params.put("category", category);
+        Integer max = jdbc.queryForObject(
+                """
+                SELECT MAX(daily_number) FROM tokens
+                WHERE hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND created_at::date = CURRENT_DATE
+                """,
+                params, Integer.class);
+        return (max == null ? 0 : max) + 1;
     }
 
     /** Sets/updates a patient's location on an existing token and recomputes distance + notify window from it. */

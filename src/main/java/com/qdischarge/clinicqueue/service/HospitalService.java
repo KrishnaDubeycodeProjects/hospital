@@ -107,19 +107,21 @@ public class HospitalService {
     }
 
     /**
-     * Hospitals offering the given category (case-insensitive), open to the
-     * given patient gender (a hospital with no gender_specific flag accepts
-     * everyone; one flagged "male"/"female" only accepts a matching patient
-     * gender -- a patient who is "other" only matches unflagged hospitals),
-     * nearest first. offset/limit page through the ranked list -- the
-     * WhatsApp booking flow shows 5 at a time with a "Show more" for the
-     * next page (see QueueManagerService#searchAndOfferHospitals).
+     * Hospitals offering the given category (case-insensitive, or every
+     * category if null), open to the given patient gender (a hospital with
+     * no gender_specific flag accepts everyone; one flagged "male"/"female"
+     * only accepts a matching patient gender -- a patient who is "other"
+     * only matches unflagged hospitals; gender null skips this filter
+     * entirely), nearest first. offset/limit page through the ranked list --
+     * the WhatsApp booking flow and the "share your location" web page both
+     * show 20 at a time with a "Show more"/"Load more" for the next page
+     * (see QueueManagerService#searchAndOfferHospitals, HospitalController#nearby).
      */
     public HospitalSearchPage searchHospitals(String category, String gender, double lat, double lon, int offset, int limit) {
         List<HospitalDto> candidates = list().stream()
-                .filter(h -> h.getCategories() != null
-                        && h.getCategories().stream().anyMatch(c -> c.equalsIgnoreCase(category)))
-                .filter(h -> h.getGenderSpecific() == null || h.getGenderSpecific().equalsIgnoreCase(gender))
+                .filter(h -> category == null || (h.getCategories() != null
+                        && h.getCategories().stream().anyMatch(c -> c.equalsIgnoreCase(category))))
+                .filter(h -> gender == null || h.getGenderSpecific() == null || h.getGenderSpecific().equalsIgnoreCase(gender))
                 .toList();
 
         List<HospitalMatch> ranked = candidates.stream()

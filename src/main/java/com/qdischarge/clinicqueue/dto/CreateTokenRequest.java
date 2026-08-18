@@ -23,7 +23,10 @@ public record CreateTokenRequest(
         // When given, the distance-based "get ready" notification window is computed right away.
         String digipin,
         Double latitude,
-        Double longitude) {
+        Double longitude,
+        // Optional: which hospital (see GET /api/hospitals/nearby) this token books into --
+        // omit to fall back to this deployment's single operating hospital (app.hospital-uri-slug).
+        Integer hospitalId) {
 
     public SetLocationRequest toLocationOrNull() {
         if ((digipin == null || digipin.isBlank()) && (latitude == null || longitude == null)) {

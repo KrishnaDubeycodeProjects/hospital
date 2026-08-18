@@ -17,11 +17,23 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       initialization-fail-timeout: -1
-      connection-timeout: 10000
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:1}
-      minimum-idle: ${DB_POOL_MIN_IDLE:1}
-      idle-timeout: 30000
-      max-lifetime: 60000
+      # A remote pooled host (e.g. Supabase's pgbouncer) can take several
+      # seconds just to hand back a connection -- 10s was cutting it close
+      # under any extra latency/load, so a churned-out connection would
+      # occasionally miss the deadline and surface as "Failed to obtain JDBC
+      # Connection" (see QueueManagerService's scheduled ticks and, silently,
+      # any webhook request that needed a connection at the same moment).
+      connection-timeout: 30000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      # idle-timeout/max-lifetime this short (30s/60s) forced HikariCP to
+      # keep retiring and re-establishing connections against a remote host
+      # whose handshake alone can take several seconds -- constant churn that
+      # was the actual cause of the connection-timeout spikes above. Give
+      # connections a realistic lifespan instead (max-lifetime kept under a
+      # typical pooler's own ~30min connection recycle window).
+      idle-timeout: 600000
+      max-lifetime: 1500000
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -65,7 +77,7 @@ app:
   allowed-origins: ${ALLOWED_ORIGINS:${FRONTEND_URL:http://localhost:5173}}
 
   # WhatsApp provider: 'meta' (Meta Cloud API) or 'evolution' (Evolution API)
-  wa-provider: ${WA_PROVIDER:meta}
+  wa-provider: ${WA_PROVIDER:evolution}
   meta-access-token: ${META_ACCESS_TOKEN:}
   meta-phone-number-id: ${META_PHONE_NUMBER_ID:1337438019442398}
   meta-api-version: ${META_API_VERSION:v25.0}

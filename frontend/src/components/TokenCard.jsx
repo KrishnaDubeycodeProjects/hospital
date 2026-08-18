@@ -11,6 +11,9 @@ export default function TokenCard({ token, onRefresh }) {
   const toast = useToast();
 
   const terminal = ['completed', 'missed', 'rejected'].includes(token.status);
+  // Patient-facing number: resets per hospital+department+day (dailyNumber) instead
+  // of the raw `id`, which is one sequence shared across every hospital/department.
+  const displayNumber = token.dailyNumber ?? token.id;
 
   function shareLocation() {
     if (!navigator.geolocation) {
@@ -86,16 +89,17 @@ export default function TokenCard({ token, onRefresh }) {
           <StatusBadge status={token.status} />
         </div>
         <dl className="detail-list" style={{ margin: 0 }}>
+          {token.hospitalName && <Row label="🏛️ Hospital" value={token.hospitalName} />}
           <Row label="📅 Booking Date" value={dateStr} />
           <Row label="⏰ Estimated Time Slot" value={slotStr} />
-          <Row label="🎟️ Token Number" value={`#${token.id}`} />
+          <Row label="🎟️ Token Number" value={`#${displayNumber}`} />
           {token.name && <Row label="👤 Patient Name" value={token.name} />}
           {token.category && <Row label="🏥 Department" value={token.category} />}
         </dl>
       </div>
 
       <div className="token-summary">
-        <div className="token-number">#{token.id}</div>
+        <div className="token-number">#{displayNumber}</div>
         <StatusBadge status={token.status} />
       </div>
       {!terminal && (

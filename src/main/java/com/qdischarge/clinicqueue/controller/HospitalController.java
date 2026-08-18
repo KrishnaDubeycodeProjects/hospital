@@ -13,6 +13,7 @@ import com.qdischarge.clinicqueue.dto.UpdateDepartmentCountersRequest;
 import com.qdischarge.clinicqueue.service.DoctorService;
 import com.qdischarge.clinicqueue.service.HospitalDepartmentService;
 import com.qdischarge.clinicqueue.service.HospitalService;
+import com.qdischarge.clinicqueue.service.QueueManagerService;
 import com.qdischarge.clinicqueue.service.TimeSlotService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,43 @@ public class HospitalController {
     @GetMapping("/categories")
     public ResponseEntity<Map<String, Object>> categories() {
         return ResponseEntity.ok(ok(MedicalCategory.ALL));
+    }
+
+    /**
+     * Public: hospitals nearest a lat/lon, nearest-first -- the web twin of the
+     * WhatsApp bot's "share your location" search (see WebhookController /
+     * QueueManagerService#searchAndOfferHospitals), for the "just share your
+     * location" web link sent when a patient's WhatsApp app can't reliably
+     * deliver a live-location share. category/gender are optional (omit to
+     * browse every department); offset/limit page through results 20 at a
+     * time, same as the bot -- call again with offset = nextOffset for "load more".
+     */
+    @GetMapping("/nearby")
+    public ResponseEntity<Map<String, Object>> nearby(
+            @RequestParam double lat,
+            @RequestParam double lon,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String gender,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "20") int limit) {
+        String canonicalCategory = null;
+        if (category != null && !category.isBlank()) {
+            canonicalCategory = MedicalCategory.canonicalize(category);
+            if (canonicalCategory == null) {
+                return ResponseEntity.badRequest().body(msg("Unknown category: \"" + category + "\"."));
+            }
+        }
+        int safeOffset = Math.max(0, offset);
+        int safeLimit = Math.max(1, Math.min(limit, QueueManagerService.HOSPITAL_PAGE_SIZE));
+
+        HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
+                canonicalCategory, (gender == null || gender.isBlank()) ? null : gender, lat, lon, safeOffset, safeLimit);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("results", page.results());
+        data.put("hasMore", page.hasMore());
+        data.put("nextOffset", safeOffset + page.results().size());
+        return ResponseEntity.ok(ok(data));
     }
 
     @GetMapping("/{uriSlug}")

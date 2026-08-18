@@ -188,6 +188,23 @@ public class BotMessages {
         };
     }
 
+    /** Sent right after {@link #locationPrompt} as a fallback link -- see WebhookController#sendLocationPrompt. */
+    public String findHospitalLinkPrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "Having trouble sharing your location here? Tap this link instead -- it'll ask your browser for permission and show you the same nearest-hospital list.";
+            case HI -> "यहाँ स्थान साझा करने में दिक्कत हो रही है? इसके बजाय यह लिंक टैप करें -- यह आपके ब्राउज़र से अनुमति मांगेगा और वही निकटतम अस्पतालों की सूची दिखाएगा।";
+            case MR -> "इथे स्थान शेअर करण्यात अडचण येत आहे? त्याऐवजी ही लिंक टॅप करा -- ती तुमच्या ब्राउझरकडून परवानगी मागेल आणि तीच जवळच्या रुग्णालयांची यादी दाखवेल.";
+        };
+    }
+
+    public String findHospitalLinkButtonText(Lang lang) {
+        return switch (lang) {
+            case EN -> "🌐 Find Hospitals Near Me";
+            case HI -> "🌐 पास के अस्पताल खोजें";
+            case MR -> "🌐 जवळची रुग्णालये शोधा";
+        };
+    }
+
     public String invalidLocationReminder(Lang lang) {
         return switch (lang) {
             case EN -> "📍 *LOCATION NEEDED*\n\nPlease share your current location (the 📎/location icon), or type a valid 10-character DIGIPIN.";
@@ -213,6 +230,15 @@ public class BotMessages {
             case EN -> "➕ Show more";
             case HI -> "➕ और दिखाएं";
             case MR -> "➕ आणखी दाखवा";
+        };
+    }
+
+    /** Evolution has no tappable list row, so the hint after each results page tells the patient what to type instead (see WebhookController#isShowMoreCommand). */
+    public String showMoreHint(Lang lang) {
+        return switch (lang) {
+            case EN -> "➕ *Type \"more\"* to see the next hospitals.";
+            case HI -> "➕ अगले अस्पताल देखने के लिए *\"और दिखाएं\"* लिखें।";
+            case MR -> "➕ पुढील रुग्णालये पाहण्यासाठी *\"आणखी दाखवा\"* लिहा.";
         };
     }
 

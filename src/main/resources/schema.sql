@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS tokens (
   counter_id INT,
   reserved_counter_id INT,
   no_show_count INT NOT NULL DEFAULT 0,
-  search_offset INT NOT NULL DEFAULT 0
+  search_offset INT NOT NULL DEFAULT 0,
+  daily_number INT
 );
 
 -- Self-heals a "tokens" table created by an earlier version of this file.
@@ -116,7 +117,11 @@ ALTER TABLE tokens
   ADD COLUMN IF NOT EXISTS counter_id INT,
   ADD COLUMN IF NOT EXISTS reserved_counter_id INT,
   ADD COLUMN IF NOT EXISTS no_show_count INT NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS search_offset INT NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS search_offset INT NOT NULL DEFAULT 0,
+  -- Patient-facing "Token #N" -- resets to 1 per (hospital, category, day), unlike
+  -- the raw `id` (a single global sequence across every hospital/department) that
+  -- used to be shown directly. See QueueManagerService#nextDailyNumber.
+  ADD COLUMN IF NOT EXISTS daily_number INT;
 
 -- Speeds up the hot paths in QueueManagerService: phone lookups, status-
 -- filtered queue reads, the "how many waiting tokens have a smaller
@@ -264,7 +269,7 @@ CREATE TABLE IF NOT EXISTS access_grants (
 
 CREATE INDEX IF NOT EXISTS idx_access_grants_patient_phone ON access_grants (patient_phone);
 CREATE INDEX IF NOT EXISTS idx_access_grants_doctor_id ON access_grants (doctor_id);
-CREATE INDEX IF NOT EXISTS idx_access_grants_active ON access_grants (patient_phone, doctor_id) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_access_grants_active ON access_grants (patient_phone, doctor_id);
 
 -- ----------------------------------------------------------------------------
 -- hospital_departments: one row per (hospital, category) queue -- how many

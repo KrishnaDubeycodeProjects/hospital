@@ -146,6 +146,8 @@ export const hospitalApi = {
     putD(`/api/hospitals/${slug}/departments/${encodeURIComponent(category)}/counters`, { activeCounters }, authFor('ADMIN')),
   assignDoctorLocation: (slug, doctorId, payload) =>
     putD(`/api/hospitals/${slug}/doctors/${doctorId}/location`, payload, authFor('ADMIN')),
+  /** Nearest-first hospitals for a lat/lon, optionally filtered to one department; offset/limit page 20 at a time -- `{ results, hasMore, nextOffset }`. */
+  nearby: (params) => getD('/api/hospitals/nearby', { params }),
   timeSlots: (slug, date) => getD(`/api/hospitals/${slug}/time-slots`, { params: { date } }),
   createTimeSlot: (slug, payload) => postD(`/api/hospitals/${slug}/time-slots`, payload, authFor('ADMIN')),
   getJoinCode: (slug) => getD(`/api/hospitals/${slug}/doctor-join-code`, authFor('ADMIN')),

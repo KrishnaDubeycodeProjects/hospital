@@ -8,6 +8,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -25,7 +26,6 @@ import java.util.Map;
 @Slf4j
 public class EvolutionWebhookInitializer implements ApplicationRunner {
 
-    private final RestTemplate restTemplate;
     private final AppProperties appProperties;
 
     @Value("${server.port:8088}")
@@ -52,25 +52,35 @@ public class EvolutionWebhookInitializer implements ApplicationRunner {
 
         log.info("🔌 Registering Evolution API Webhook for instance '{}' -> {}", instance, targetUrl);
 
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("apikey", apiKey);
+        // Run asynchronously so network latency/timeout to Evolution API never delays Spring Boot startup
+        Thread.ofVirtual().start(() -> {
+            try {
+                SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+                requestFactory.setConnectTimeout(3000);
+                requestFactory.setReadTimeout(5000);
+                RestTemplate shortTimeoutTemplate = new RestTemplate(requestFactory);
 
-            Map<String, Object> webhookConfig = new LinkedHashMap<>();
-            webhookConfig.put("enabled", true);
-            webhookConfig.put("url", targetUrl);
-            webhookConfig.put("byEvents", false);
-            webhookConfig.put("base64", false);
-            webhookConfig.put("events", List.of("MESSAGES_UPSERT", "SEND_MESSAGE"));
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                if (apiKey != null && !apiKey.isBlank()) {
+                    headers.set("apikey", apiKey);
+                }
 
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("webhook", webhookConfig);
+                Map<String, Object> webhookConfig = new LinkedHashMap<>();
+                webhookConfig.put("enabled", true);
+                webhookConfig.put("url", targetUrl);
+                webhookConfig.put("byEvents", false);
+                webhookConfig.put("base64", false);
+                webhookConfig.put("events", List.of("MESSAGES_UPSERT", "SEND_MESSAGE"));
 
-            restTemplate.postForEntity(endpoint, new HttpEntity<>(payload, headers), Map.class);
-            log.info("✅ Evolution API Webhook configured successfully at {}", targetUrl);
-        } catch (Exception e) {
-            log.warn("⚠️ Evolution API Webhook registration notice (Evolution API might not be running locally on port 8086): {}", e.getMessage());
-        }
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("webhook", webhookConfig);
+
+                shortTimeoutTemplate.postForEntity(endpoint, new HttpEntity<>(payload, headers), Map.class);
+                log.info("✅ Evolution API Webhook configured successfully at {}", targetUrl);
+            } catch (Exception e) {
+                log.info("ℹ️ Evolution API Webhook auto-registration note: {} (Evolution API URL: {})", e.getMessage(), evolutionUrl);
+            }
+        });
     }
 }

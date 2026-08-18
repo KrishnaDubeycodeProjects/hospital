@@ -7,6 +7,7 @@ import { RoleShell } from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Book from './pages/Book';
+import FindHospital from './pages/FindHospital';
 import Track from './pages/Track';
 import TokenDetail from './pages/TokenDetail';
 
@@ -29,10 +30,11 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/book" element={<Book />} />
+            <Route path="/find-hospital" element={<FindHospital />} />
             <Route path="/track" element={<Track />} />
             <Route path="/track/:phone" element={<Track />} />
             <Route path="/token/:id" element={<TokenDetail />} />

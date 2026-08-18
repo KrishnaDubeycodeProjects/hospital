@@ -24,6 +24,8 @@ import java.time.LocalDateTime;
 public class TokenDto {
 
     private Integer id;
+    /** Patient-facing "Token #N" -- resets per (hospital, category, day), unlike `id` which is one global sequence across every hospital/department. See QueueManagerService#nextDailyNumber. */
+    private Integer dailyNumber;
     private String phone;
     private String name;
     private Integer age;
@@ -48,6 +50,7 @@ public class TokenDto {
     // --- Geo / real-ETA treatment timing (see geo/TomTomRoutingService,
     // service/TreatmentTimingScheduler) ---
     private Integer hospitalId;
+    private String hospitalName;
     private String patientDigipin;
     private Double patientLat;
     private Double patientLon;

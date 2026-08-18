@@ -126,7 +126,8 @@ public class QueueController {
     public ResponseEntity<Map<String, Object>> create(@Valid @RequestBody CreateTokenRequest request) {
         try {
             CreateTokenResult result = queueManagerService.createToken(
-                    request.name(), request.age(), request.gender(), request.category(), request.phone(), request.toLocationOrNull());
+                    request.name(), request.age(), request.gender(), request.category(), request.phone(),
+                    request.toLocationOrNull(), request.hospitalId());
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("success", true);
             resp.put("alreadyExists", result.alreadyExists());

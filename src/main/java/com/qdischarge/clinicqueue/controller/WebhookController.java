@@ -155,6 +155,17 @@ public class WebhookController {
             if (messageData.isMissingNode() || messageData.isNull()) {
                 messageData = data.path("messages").path(0).path("message");
             }
+            if (messageData.isMissingNode() || messageData.isNull()) {
+                // Evolution/Baileys fires live-location pings (every update after the initial
+                // share) as a "messages.update" event, which nests the patched content one
+                // level deeper under "update" instead of directly under "message" -- without
+                // this fallback those pings are silently dropped and a live-shared location
+                // never resolves.
+                messageData = data.path("update").path("message");
+            }
+            if (messageData.isMissingNode() || messageData.isNull()) {
+                messageData = data.path("messages").path(0).path("update").path("message");
+            }
             JsonNode keyData = data.path("key");
             if (keyData.isMissingNode() || keyData.isNull()) {
                 keyData = data.path("messages").path(0).path("key");
@@ -293,7 +304,7 @@ public class WebhookController {
                 }
 
                 queueManagerService.captureCategory(activeToken.getId(), category);
-                sendLocationPrompt(fromPhone, lang);
+                sendLocationPrompt(fromPhone, lang, category);
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -328,7 +339,7 @@ public class WebhookController {
                 HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
                         activeToken.getCategory(), activeToken.getGender(), activeToken.getPatientLat(), activeToken.getPatientLon(), offset, QueueManagerService.HOSPITAL_PAGE_SIZE);
 
-                if (SHOW_MORE_ROW_ID.equals(buttonId)) {
+                if (SHOW_MORE_ROW_ID.equals(buttonId) || isShowMoreCommand(cleanMessage)) {
                     QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.showMoreHospitals(activeToken.getId());
                     if (outcome == null || outcome.page().results().isEmpty()) {
                         whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
@@ -489,8 +500,23 @@ public class WebhookController {
         whatsAppService.sendButtonsMessage(phone, "", botMessages.genderPrompt(lang), botMessages.genderButtons(lang), appProperties.getClinicName());
     }
 
-    private void sendLocationPrompt(String phone, Lang lang) {
+    /**
+     * Native WhatsApp location sharing (and especially live location on
+     * Evolution API, which pings via separate "messages.update" events -- see
+     * {@code extractLocationFromPayload}) doesn't always land reliably, so
+     * alongside the native prompt this also sends a "just tap this link"
+     * fallback: a web page that asks the browser for location permission and
+     * shows the same nearest-first hospital list the bot would.
+     */
+    private void sendLocationPrompt(String phone, Lang lang, String category) {
         whatsAppService.sendLocationRequestMessage(phone, botMessages.locationPrompt(lang));
+
+        String cleanPhone = phone.replaceAll("[^0-9]", "");
+        String encodedCategory = java.net.URLEncoder.encode(category, java.nio.charset.StandardCharsets.UTF_8);
+        String findHospitalUrl = appProperties.getFrontendUrl() + "/find-hospital?phone=" + cleanPhone + "&category=" + encodedCategory;
+
+        whatsAppService.sendUrlButtonMessage(phone, "", botMessages.findHospitalLinkPrompt(lang),
+                botMessages.findHospitalLinkButtonText(lang), findHospitalUrl, appProperties.getClinicName());
     }
 
     /** "Which hospital?" -- up to 20 results as numbered text list + interactive list rows. */
@@ -518,8 +544,22 @@ public class WebhookController {
         sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
         sb.append("👉 *Reply with a number (1 to ").append(page.results().size()).append(") to select a hospital for booking.*\n");
         sb.append("💡 *Type \"profile 1\" to view full hospital info & doctor roster.*");
+        if (page.hasMore()) {
+            sb.append("\n").append(botMessages.showMoreHint(lang));
+        }
 
         whatsAppService.sendWhatsAppMessage(phone, sb.toString());
+    }
+
+    /** Evolution has no tappable "Show more" button, so the next page is also requested by typing it, in any supported language. */
+    private boolean isShowMoreCommand(String cleanMessage) {
+        if (cleanMessage == null) {
+            return false;
+        }
+        return switch (cleanMessage.trim()) {
+            case "more", "show more", "next", "और दिखाएं", "आणखी दाखवा" -> true;
+            default -> false;
+        };
     }
 
     private void sendHospitalProfile(String phone, HospitalDto h, double distanceKm, Lang lang) {

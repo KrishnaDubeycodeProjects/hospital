@@ -64,16 +64,23 @@ function BookForm({ phone, onBooked }) {
       (pos) => {
         setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
         setLocating(false);
+        toast.success('Location captured.');
       },
       (err) => {
         setLocating(false);
-        toast.error(err.message);
+        toast.error(err.message || 'Could not capture location.');
       }
     );
   }
 
   async function submit(e) {
     e.preventDefault();
+
+    if (!location) {
+      toast.error('Location share is compulsory. Please click "Share my current location".');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await queueApi.create({
@@ -82,7 +89,8 @@ function BookForm({ phone, onBooked }) {
         gender: form.gender || undefined,
         category: form.category,
         phone,
-        ...(location || {}),
+        latitude: location.latitude,
+        longitude: location.longitude,
       });
       toast.success('Token booked!');
       onBooked();
@@ -97,22 +105,25 @@ function BookForm({ phone, onBooked }) {
     <Card title="You don't have an active token">
       <EmptyState title="Book a new token to join the queue." />
       <form onSubmit={submit} className="stack-md">
-        <Field label="Full name">
+        <Field label="Full Name">
           <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
         </Field>
+
         <div className="field-row">
           <Field label="Age">
-            <Input type="number" min="0" max="120" value={form.age} onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))} />
+            <Input type="number" min="0" max="120" value={form.age} onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))} required />
           </Field>
+
           <Field label="Gender">
-            <Select value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}>
-              <option value="">Prefer not to say</option>
+            <Select value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} required>
+              <option value="">Select gender…</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="other">Other</option>
             </Select>
           </Field>
         </div>
+
         <Field label="Department">
           <Select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} required>
             <option value="">Select a department…</option>
@@ -123,13 +134,15 @@ function BookForm({ phone, onBooked }) {
             ))}
           </Select>
         </Field>
-        <Field label="Location" hint="Optional — lets us estimate your travel time.">
-          <Button type="button" variant="secondary" size="sm" onClick={useMyLocation} loading={locating}>
-            {location ? 'Location captured ✓' : 'Share my current location'}
+
+        <Field label="Location Share (Compulsory)" hint="Required — captures your location to estimate travel time & counter turn.">
+          <Button type="button" variant={location ? 'secondary' : 'primary'} size="sm" onClick={useMyLocation} loading={locating}>
+            {location ? '✓ Location Captured' : '📍 Share My Current Location (Compulsory)'}
           </Button>
         </Field>
+
         <Button type="submit" loading={submitting}>
-          Book token
+          Book Token
         </Button>
       </form>
     </Card>

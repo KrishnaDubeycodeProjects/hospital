@@ -1359,3 +1359,389 @@ a:hover {
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+
+/* ===========================================================================
+   Minimalist Formal Healthcare Design System
+   =========================================================================== */
+
+.clean-landing {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* --- Header --- */
+.clean-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.clean-header-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.clean-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.clean-brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #0284c7;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.clean-brand-name {
+  font-size: 19px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.clean-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.clean-nav-link {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.clean-nav-link:hover {
+  color: #0284c7;
+}
+
+/* --- Hero --- */
+.clean-hero {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 64px 24px;
+}
+
+.clean-hero-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 48px;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .clean-hero-inner {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+.clean-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: #f0f9ff;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.clean-hero-h1 {
+  font-size: 40px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 0 0 16px;
+}
+
+.clean-hero-p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #64748b;
+  margin: 0 0 28px;
+}
+
+.clean-btn-primary {
+  background: #0284c7;
+  color: #ffffff !important;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.clean-btn-primary:hover {
+  background: #0369a1;
+}
+
+.clean-btn-secondary {
+  background: #ffffff;
+  color: #334155 !important;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.clean-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+/* --- Hero Tracker Card --- */
+.clean-tracker-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05);
+}
+
+.clean-tracker-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clean-input {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.clean-input:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+}
+
+/* --- Stats Strip --- */
+.clean-stats-strip {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 24px;
+}
+
+.clean-stats-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.clean-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.clean-stat-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0284c7;
+  line-height: 1;
+}
+
+.clean-stat-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* --- Main Directory Layout --- */
+.clean-section {
+  padding: 56px 24px;
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+.clean-section-header {
+  margin-bottom: 32px;
+}
+
+.clean-section-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+
+.clean-section-desc {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.clean-directory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+
+@media (max-width: 860px) {
+  .clean-directory-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.clean-hospital-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clean-hospital-card:hover {
+  border-color: #0284c7;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.clean-hospital-card.active {
+  border-color: #0284c7;
+  background: #f0f9ff;
+}
+
+.clean-hospital-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.clean-hospital-meta {
+  font-size: 13px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clean-drawer {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.05);
+  position: sticky;
+  top: 84px;
+}
+
+.clean-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+/* --- Portals Grid --- */
+.clean-portals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.clean-portal-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+}
+
+.clean-portal-box:hover {
+  border-color: #0284c7;
+  box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.05);
+}
+
+.clean-portal-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #f0f9ff;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+/* --- Footer --- */
+.clean-footer {
+  background: #0f172a;
+  color: #94a3b8;
+  padding: 48px 24px 24px;
+  font-size: 13px;
+  border-top: 1px solid #1e293b;
+}
+
+.clean-footer-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+
