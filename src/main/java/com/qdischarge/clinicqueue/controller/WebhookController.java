@@ -3,13 +3,21 @@ package com.qdischarge.clinicqueue.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.qdischarge.clinicqueue.bot.BotMessages;
+import com.qdischarge.clinicqueue.bot.Gender;
 import com.qdischarge.clinicqueue.bot.Intent;
 import com.qdischarge.clinicqueue.bot.Lang;
 import com.qdischarge.clinicqueue.bot.WaSessionService;
+import com.qdischarge.clinicqueue.catalog.MedicalCategory;
 import com.qdischarge.clinicqueue.config.AppProperties;
+import com.qdischarge.clinicqueue.dto.HospitalDto;
+import com.qdischarge.clinicqueue.dto.SetLocationRequest;
 import com.qdischarge.clinicqueue.dto.TokenDto;
 import com.qdischarge.clinicqueue.dto.WaButton;
+import com.qdischarge.clinicqueue.dto.WaListRow;
+import com.qdischarge.clinicqueue.dto.WaListSection;
+import com.qdischarge.clinicqueue.geo.GeoDistanceService;
 import com.qdischarge.clinicqueue.service.AccessService;
+import com.qdischarge.clinicqueue.service.HospitalService;
 import com.qdischarge.clinicqueue.service.QueueManagerService;
 import com.qdischarge.clinicqueue.service.WhatsAppService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,6 +45,15 @@ import java.util.regex.Pattern;
  * Once a language is set it applies to every reply, and the menu commands
  * (generate/status/cancel, see {@link Intent}) are recognized typed in any
  * of the three languages regardless of which one is active.
+ *
+ * "Generate Token" walks a returning-or-new patient through registration
+ * (name -> gender -> age, skipped straight to department if this phone's
+ * identity is already known -- see QueueManagerService#createRegisteringToken)
+ * then a department -> location -> hospital search+select+confirm booking
+ * flow: hospitals offering the chosen department, open to the patient's
+ * gender, are ranked by distance and shown 5 at a time (a "Show more" row
+ * for the next 5) as an interactive list; tapping one shows a confirmation
+ * card before the token actually joins that hospital's department queue.
  */
 @RestController
 @RequestMapping("/webhook")
@@ -44,6 +62,8 @@ import java.util.regex.Pattern;
 public class WebhookController {
 
     private final QueueManagerService queueManagerService;
+    private final HospitalService hospitalService;
+    private final GeoDistanceService geoDistanceService;
     private final WhatsAppService whatsAppService;
     private final AppProperties appProperties;
     private final WaSessionService waSessionService;
@@ -52,6 +72,9 @@ public class WebhookController {
 
     /** "revoke <id>" -- deliberately a literal, untranslated English command (see BotMessages#accessGranted) so the WhatsApp notice's instructions always work regardless of the reply's language. */
     private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DIGIPIN_PATTERN = Pattern.compile("^[A-Z0-9]{10}$");
+    private static final String SHOW_MORE_ROW_ID = "show_more";
+    private static final String HOSPITAL_ROW_PREFIX = "hosp_";
 
     // -------------------------------------------------------------
     // WEBHOOK VERIFICATION (GET) for Meta WhatsApp Cloud API
@@ -83,6 +106,8 @@ public class WebhookController {
         String pushName;
         String incomingMessage;
         String buttonId;
+        Double incomingLat = null;
+        Double incomingLon = null;
 
         if ("whatsapp_business_account".equals(body.path("object").asText())) {
             JsonNode entry = body.path("entry").path(0);
@@ -103,10 +128,21 @@ public class WebhookController {
             String msgType = message.path("type").asText("");
             if ("text".equals(msgType)) {
                 tmpMessage = message.path("text").path("body").asText("");
-            } else if ("interactive".equals(msgType)
-                    && "button_reply".equals(message.path("interactive").path("type").asText(""))) {
-                tmpButtonId = message.path("interactive").path("button_reply").path("id").asText("");
-                tmpMessage = message.path("interactive").path("button_reply").path("title").asText("");
+            } else if ("interactive".equals(msgType)) {
+                String interactiveType = message.path("interactive").path("type").asText("");
+                if ("button_reply".equals(interactiveType)) {
+                    tmpButtonId = message.path("interactive").path("button_reply").path("id").asText("");
+                    tmpMessage = message.path("interactive").path("button_reply").path("title").asText("");
+                } else if ("list_reply".equals(interactiveType)) {
+                    tmpButtonId = message.path("interactive").path("list_reply").path("id").asText("");
+                    tmpMessage = message.path("interactive").path("list_reply").path("title").asText("");
+                }
+            } else if ("location".equals(msgType)) {
+                JsonNode loc = message.path("location");
+                if (!loc.isMissingNode()) {
+                    incomingLat = loc.path("latitude").isMissingNode() ? null : loc.path("latitude").asDouble();
+                    incomingLon = loc.path("longitude").isMissingNode() ? null : loc.path("longitude").asDouble();
+                }
             }
             incomingMessage = tmpMessage;
             buttonId = tmpButtonId;
@@ -122,9 +158,16 @@ public class WebhookController {
                 keyData = data.path("messages").path(0).path("key");
             }
 
+            if (keyData.path("fromMe").asBoolean(false)) {
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
             String remoteJid = textOrNull(keyData.path("remoteJid"));
             if (isBlank(remoteJid)) {
                 remoteJid = textOrNull(body.path("remoteJid"));
+            }
+            if (remoteJid != null && (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast") || remoteJid.endsWith("@newsletter"))) {
+                return ResponseEntity.ok("EVENT_RECEIVED");
             }
             fromPhone = isBlank(remoteJid) ? "" : remoteJid.split("@")[0];
             if (!fromPhone.isEmpty() && !fromPhone.startsWith("+")) {
@@ -137,13 +180,22 @@ public class WebhookController {
             }
             pushName = isBlank(pn) ? "Patient" : pn;
 
+            String listRowId = textOrNull(messageData.path("listResponseMessage").path("singleSelectReply").path("selectedRowId"));
+
             incomingMessage = firstNonBlank(
                     textOrNull(messageData.path("conversation")),
                     textOrNull(messageData.path("extendedTextMessage").path("text")),
-                    textOrNull(messageData.path("buttonsResponseMessage").path("selectedDisplayText"))
+                    textOrNull(messageData.path("buttonsResponseMessage").path("selectedDisplayText")),
+                    textOrNull(messageData.path("listResponseMessage").path("title"))
             ).trim();
 
-            buttonId = messageData.path("buttonsResponseMessage").path("selectedButtonId").asText("");
+            buttonId = !isBlank(listRowId) ? listRowId : messageData.path("buttonsResponseMessage").path("selectedButtonId").asText("");
+
+            JsonNode locationMessage = messageData.path("locationMessage");
+            if (!locationMessage.isMissingNode() && !locationMessage.isNull()) {
+                incomingLat = locationMessage.path("degreesLatitude").isMissingNode() ? null : locationMessage.path("degreesLatitude").asDouble();
+                incomingLon = locationMessage.path("degreesLongitude").isMissingNode() ? null : locationMessage.path("degreesLongitude").asDouble();
+            }
         }
 
         String cleanMessage = incomingMessage.trim().toLowerCase();
@@ -190,9 +242,9 @@ public class WebhookController {
 
             TokenDto activeToken = queueManagerService.getActiveToken(fromPhone);
 
-            // STEP 1a/1b: Mid-registration, every reply is form input -- checked before any
-            // command/language matching below, so a numeric age like "1"/"2"/"3" (a common
-            // real age!) can never be swallowed by the generate/status/cancel shortcuts.
+            // STEP 1: Mid-registration/booking, every reply is form input -- checked before any
+            // command/language matching below, so e.g. a numeric age or department number like
+            // "1"/"2"/"3" can never be swallowed by the generate/status/cancel shortcuts.
             if (activeToken != null && "awaiting_name".equals(activeToken.getSessionStep())) {
                 if (Intent.isReservedWord(cleanMessage)) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidNameReminder(lang));
@@ -200,6 +252,18 @@ public class WebhookController {
                 }
 
                 queueManagerService.captureName(activeToken.getId(), incomingMessage);
+                sendGenderPrompt(fromPhone, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_gender".equals(activeToken.getSessionStep())) {
+                Gender gender = Gender.match(buttonId, cleanMessage);
+                if (gender == null) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidGenderReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                queueManagerService.captureGender(activeToken.getId(), gender.code());
                 whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.agePrompt(lang));
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
@@ -211,8 +275,97 @@ public class WebhookController {
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
 
-                TokenDto details = queueManagerService.captureAge(activeToken.getId(), age);
-                sendTokenDashboardCard(fromPhone, details, lang);
+                queueManagerService.captureAge(activeToken.getId(), age);
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.categoryPrompt(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_category".equals(activeToken.getSessionStep())) {
+                String category = MedicalCategory.match(incomingMessage);
+                if (category == null) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidCategoryReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                queueManagerService.captureCategory(activeToken.getId(), category);
+                sendLocationPrompt(fromPhone, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_location".equals(activeToken.getSessionStep())) {
+                SetLocationRequest location = resolveIncomingLocation(incomingLat, incomingLon, cleanMessage);
+                if (location == null) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidLocationReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                QueueManagerService.HospitalSearchOutcome outcome;
+                try {
+                    outcome = queueManagerService.searchAndOfferHospitals(activeToken.getId(), location);
+                } catch (IllegalArgumentException e) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidLocationReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+                if (outcome == null) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidLocationReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+                if (outcome.page().results().isEmpty()) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.noHospitalsFound(lang, activeToken.getCategory()));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+                sendHospitalResultsList(fromPhone, outcome.draft(), outcome.page(), lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_hospital_selection".equals(activeToken.getSessionStep())) {
+                if (SHOW_MORE_ROW_ID.equals(buttonId)) {
+                    QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.showMoreHospitals(activeToken.getId());
+                    if (outcome == null || outcome.page().results().isEmpty()) {
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                    sendHospitalResultsList(fromPhone, outcome.draft(), outcome.page(), lang);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                if (buttonId != null && buttonId.startsWith(HOSPITAL_ROW_PREFIX)) {
+                    Integer hospitalId = parseInt(buttonId.substring(HOSPITAL_ROW_PREFIX.length()));
+                    TokenDto selected = hospitalId == null ? null : queueManagerService.selectHospital(activeToken.getId(), hospitalId);
+                    if (selected == null) {
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                    sendConfirmationCard(fromPhone, selected, lang);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_confirmation".equals(activeToken.getSessionStep())) {
+                if ("btn_confirm_booking".equals(buttonId)) {
+                    try {
+                        TokenDto booked = queueManagerService.confirmBooking(activeToken.getId());
+                        sendTokenDashboardCard(fromPhone, booked, lang);
+                    } catch (IllegalStateException e) {
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidConfirmationReminder(lang));
+                    }
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                if ("btn_choose_again".equals(buttonId)) {
+                    QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.restartHospitalSelection(activeToken.getId());
+                    if (outcome == null || outcome.page().results().isEmpty()) {
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                    sendHospitalResultsList(fromPhone, outcome.draft(), outcome.page(), lang);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidConfirmationReminder(lang));
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -230,8 +383,14 @@ public class WebhookController {
             // STEP 2: Menu commands -- generate/status/cancel, typed or tapped, in any supported language
             if (intent == Intent.GENERATE_TOKEN) {
                 if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
-                    queueManagerService.createRegisteringToken(fromPhone);
-                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.nameRegistrationPrompt(lang));
+                    TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
+                    if (draft != null && "awaiting_category".equals(draft.getSessionStep())) {
+                        // A returning phone whose identity (name/gender/age) is already known --
+                        // skip straight to picking a department instead of re-asking from scratch.
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.categoryPrompt(lang));
+                    } else {
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.nameRegistrationPrompt(lang));
+                    }
                 } else {
                     whatsAppService.sendWhatsAppMessage(fromPhone,
                             botMessages.alreadyActiveToken(lang, activeToken.getId(), activeToken.getStatus()));
@@ -281,15 +440,7 @@ public class WebhookController {
                 ? botMessages.greetingAndLanguagePrompt(appProperties.getClinicName())
                 : botMessages.languageNotUnderstood();
 
-        if ("meta".equals(appProperties.getWaProvider())) {
-            List<WaButton> buttons = List.of(
-                    new WaButton("btn_lang_en", "English"),
-                    new WaButton("btn_lang_hi", "हिंदी"),
-                    new WaButton("btn_lang_mr", "मराठी"));
-            whatsAppService.sendButtonsMessage(phone, "🌐 Choose Language", text, buttons, appProperties.getClinicName());
-        } else {
-            whatsAppService.sendWhatsAppMessage(phone, text);
-        }
+        whatsAppService.sendWhatsAppMessage(phone, text);
     }
 
     // -------------------------------------------------------------
@@ -300,6 +451,41 @@ public class WebhookController {
         String title = botMessages.welcomeTitle(lang, appProperties.getClinicName());
         String description = botMessages.welcomeDescription(lang);
         whatsAppService.sendButtonsMessage(phone, title, description, botMessages.welcomeButtons(lang), appProperties.getClinicName());
+    }
+
+    private void sendGenderPrompt(String phone, Lang lang) {
+        whatsAppService.sendButtonsMessage(phone, "", botMessages.genderPrompt(lang), botMessages.genderButtons(lang), appProperties.getClinicName());
+    }
+
+    private void sendLocationPrompt(String phone, Lang lang) {
+        whatsAppService.sendLocationRequestMessage(phone, botMessages.locationPrompt(lang));
+    }
+
+    /** "Which hospital?" -- up to 5 results as tappable list rows, plus a trailing "Show more" row if there's another page. */
+    private void sendHospitalResultsList(String phone, TokenDto draft, HospitalService.HospitalSearchPage page, Lang lang) {
+        List<WaListRow> rows = new ArrayList<>();
+        for (HospitalService.HospitalMatch match : page.results()) {
+            HospitalDto h = match.hospital();
+            rows.add(new WaListRow(HOSPITAL_ROW_PREFIX + h.getId(), h.getName(), "~%.1f km".formatted(match.distanceKm())));
+        }
+        if (page.hasMore()) {
+            rows.add(new WaListRow(SHOW_MORE_ROW_ID, botMessages.showMoreRowTitle(lang), null));
+        }
+        List<WaListSection> sections = List.of(new WaListSection(null, rows));
+        whatsAppService.sendListMessage(phone, "", botMessages.hospitalResultsHeader(lang, draft.getCategory()),
+                sections, appProperties.getClinicName(), "View Hospitals");
+    }
+
+    /** "Book here?" -- shown right after a hospital row is tapped, before the token actually joins that hospital's queue. */
+    private void sendConfirmationCard(String phone, TokenDto selected, Lang lang) {
+        HospitalDto hospital = hospitalService.getById(selected.getHospitalId());
+        String name = hospital != null ? hospital.getName() : "Hospital";
+        String address = hospital != null ? hospital.getAddress() : null;
+        double distanceKm = (hospital != null && selected.getPatientLat() != null && selected.getPatientLon() != null)
+                ? geoDistanceService.distanceKm(hospital.getLatitude(), hospital.getLongitude(), selected.getPatientLat(), selected.getPatientLon())
+                : 0;
+        whatsAppService.sendButtonsMessage(phone, "", botMessages.hospitalConfirmationPrompt(lang, name, address, distanceKm),
+                botMessages.confirmationButtons(lang), appProperties.getClinicName());
     }
 
     private void sendTokenDashboardCard(String phone, TokenDto token, Lang lang) {
@@ -349,6 +535,26 @@ public class WebhookController {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private Integer parseInt(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** A native location share (lat/lon) wins; otherwise a typed 10-character DIGIPIN; otherwise unresolved. */
+    private SetLocationRequest resolveIncomingLocation(Double lat, Double lon, String cleanMessage) {
+        if (lat != null && lon != null) {
+            return new SetLocationRequest(null, lat, lon);
+        }
+        String candidate = cleanMessage == null ? "" : cleanMessage.trim().toUpperCase();
+        if (DIGIPIN_PATTERN.matcher(candidate).matches()) {
+            return new SetLocationRequest(candidate, null, null);
+        }
+        return null;
     }
 
     private String getOrdinal(Integer n) {

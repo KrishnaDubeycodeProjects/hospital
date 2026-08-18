@@ -59,10 +59,12 @@ public class QueueController {
         return ResponseEntity.status(401).body(msg("Invalid username or password."));
     }
 
+    /** hospitalId/category are optional -- omit both for the hospital-wide view, or pass both to see one department's queue. */
     @GetMapping
-    public ResponseEntity<Map<String, Object>> getQueue() {
+    public ResponseEntity<Map<String, Object>> getQueue(@RequestParam(required = false) Integer hospitalId,
+                                                          @RequestParam(required = false) String category) {
         try {
-            QueueData data = queueManagerService.getQueue();
+            QueueData data = queueManagerService.getQueue(hospitalId, category);
             return ResponseEntity.ok(ok(data));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
@@ -70,9 +72,10 @@ public class QueueController {
     }
 
     @GetMapping("/current")
-    public ResponseEntity<Map<String, Object>> current() {
+    public ResponseEntity<Map<String, Object>> current(@RequestParam(required = false) Integer hospitalId,
+                                                         @RequestParam(required = false) String category) {
         try {
-            return ResponseEntity.ok(ok(queueManagerService.getCurrentServingToken()));
+            return ResponseEntity.ok(ok(queueManagerService.getCurrentServingToken(hospitalId, category)));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
         }
@@ -122,7 +125,8 @@ public class QueueController {
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@Valid @RequestBody CreateTokenRequest request) {
         try {
-            CreateTokenResult result = queueManagerService.createToken(request.name(), request.age(), request.phone(), request.toLocationOrNull());
+            CreateTokenResult result = queueManagerService.createToken(
+                    request.name(), request.age(), request.gender(), request.category(), request.phone(), request.toLocationOrNull());
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("success", true);
             resp.put("alreadyExists", result.alreadyExists());
@@ -165,21 +169,59 @@ public class QueueController {
         }
     }
 
+    /**
+     * Admin clicks "not come yet" on a called-but-absent waiting patient:
+     * instead of marking them missed outright, push them back within their
+     * own queue by an exponentially growing number of positions (1, 2, 4,
+     * 8, 16, ... then straight to the back) -- see
+     * QueueManagerService#pushBackNoShow.
+     */
+    @PostMapping("/{id}/no-show")
+    public ResponseEntity<Map<String, Object>> noShow(@PathVariable int id) {
+        try {
+            TokenDto token = queueManagerService.pushBackNoShow(id);
+            return ResponseEntity.ok(ok(token));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    /**
+     * Patients already notified+called and still inside their travel-time
+     * grace window (see QueueManagerService#runTreatmentTimingTick) --
+     * resolves itself automatically (push-back or missed) once the window
+     * elapses, this is just a read-only view for the admin dashboard.
+     */
+    @GetMapping("/anomaly-control")
+    public ResponseEntity<Map<String, Object>> anomalyControlQueue(@RequestParam(required = false) Integer hospitalId,
+                                                                     @RequestParam(required = false) String category) {
+        try {
+            return ResponseEntity.ok(ok(queueManagerService.getAnomalyControlQueue(hospitalId, category)));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
     // ---- Missed queue: admin search / requeue-to-front / reject ----
 
     @GetMapping("/missed")
-    public ResponseEntity<Map<String, Object>> missedQueue() {
+    public ResponseEntity<Map<String, Object>> missedQueue(@RequestParam(required = false) Integer hospitalId,
+                                                             @RequestParam(required = false) String category) {
         try {
-            return ResponseEntity.ok(ok(queueManagerService.getMissedQueue()));
+            return ResponseEntity.ok(ok(queueManagerService.getMissedQueue(hospitalId, category)));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
         }
     }
 
     @GetMapping("/missed/search")
-    public ResponseEntity<Map<String, Object>> searchMissedQueue(@RequestParam(required = false) String query) {
+    public ResponseEntity<Map<String, Object>> searchMissedQueue(@RequestParam(required = false) String query,
+                                                                   @RequestParam(required = false) Integer hospitalId,
+                                                                   @RequestParam(required = false) String category) {
         try {
-            return ResponseEntity.ok(ok(queueManagerService.searchMissedQueue(query)));
+            return ResponseEntity.ok(ok(queueManagerService.searchMissedQueue(query, hospitalId, category)));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
         }

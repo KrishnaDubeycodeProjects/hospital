@@ -57,7 +57,7 @@ public class PatientController {
         }
     }
 
-    /** Every prescription/report this phone has uploaded (for itself or any family member -- see V4's per-token age). */
+    /** Every prescription/report this phone has uploaded (for itself or any family member -- see tokens.age in schema.sql). */
     @GetMapping("/documents")
     public ResponseEntity<Map<String, Object>> documents() {
         return ResponseEntity.ok(ok(patientDocumentService.listForPatient(currentUser.requirePatientPhone())));

@@ -9,7 +9,7 @@ import java.util.Map;
 
 /**
  * Tracks, per phone number, which language a WhatsApp bot session has picked
- * (see wa_sessions migration). Deliberately independent of the tokens table:
+ * (see the wa_sessions table in schema.sql). Deliberately independent of the tokens table:
  * a phone needs a language *before* it has any token row (during the
  * greeting/picker exchange), and keeps it across tokens (new token, cancelled
  * token, completed visit, ...).

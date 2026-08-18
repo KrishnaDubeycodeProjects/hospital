@@ -5,11 +5,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * Distance-aware queue math: how far a patient is from the hospital, how
- * long that takes to travel, how many tokens' worth of head-start their
- * "get ready" notification needs, and how big a token-count arrival window
- * that buys them. Implements the "Distance-Based Notification" and
- * "Priority Window" formulas from the product spec.
+ * Distance-aware queue math: how far a patient is from the hospital and how
+ * long that takes to travel. Straight-line-only -- no roads/traffic -- so
+ * it's used for two narrow, tolerant-of-approximation jobs: the
+ * pre-registration "can you make it before closing?" check
+ * (checkClosingTime), and as geo.TomTomRoutingService's fallback when a
+ * real routing ETA isn't available. The precise, minutes-based "go now"
+ * trigger patients are actually notified/called against lives in
+ * geo.TomTomRoutingService + service.QueueManagerService#runTreatmentTimingTick.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,32 +37,6 @@ public class GeoDistanceService {
     public double estimatedTravelMinutes(double distanceKm) {
         double speedKmh = Math.max(1, appProperties.getGeoAvgSpeedKmh());
         return (distanceKm / speedKmh) * 60.0;
-    }
-
-    /**
-     * Dynamic notification range: how many tokens before their turn a patient
-     * should be pinged, scaled by how long they need to travel. Nearby patients
-     * get a small heads-up (clamped at the configured minimum, e.g. 2 tokens);
-     * distant patients get a much bigger one (clamped at the configured
-     * maximum, e.g. 12 tokens) instead of a single fixed number for everyone.
-     */
-    public int notifyTokensAhead(double travelMinutes) {
-        double avgServiceMinutes = Math.max(1, appProperties.getAvgServiceMinutes());
-        long raw = Math.round(Math.ceil(travelMinutes / avgServiceMinutes));
-        int min = appProperties.getNotifyMinTokens();
-        int max = appProperties.getNotifyMaxTokens();
-        return (int) Math.max(min, Math.min(raw, max));
-    }
-
-    /**
-     * Priority Window = Notification Tokens x Active Counters -- the number of
-     * queue slots a patient's arrival window spans once notified. With more
-     * counters serving in parallel, the queue burns through tokens faster, so
-     * a given travel time buys proportionally fewer "wall clock" tokens of
-     * grace unless the window is scaled up by counter count.
-     */
-    public int priorityWindow(int notifyTokensAhead, int activeCounters) {
-        return notifyTokensAhead * Math.max(1, activeCounters);
     }
 
     public record ArrivalFeasibility(boolean canMakeIt, double distanceKm, double travelMinutes, double minutesUntilClose) {

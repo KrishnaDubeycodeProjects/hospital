@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:5000}
+  port: ${PORT:8088}
   ssl:
     enabled: ${SERVER_SSL_ENABLED:false}
     key-store: ${SERVER_SSL_KEY_STORE:}
@@ -18,16 +18,11 @@ spring:
     hikari:
       # Don't fail application startup if the DB is unreachable at boot time -
       # mirrors the original Node app, which logs a warning and keeps serving
-      # even when initializeDatabase() fails (see FlywayMigrationRunner).
+      # even when the DB is briefly unavailable.
       initialization-fail-timeout: -1
       connection-timeout: 5000
       maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
       minimum-idle: ${DB_POOL_MIN_IDLE:2}
-  flyway:
-    # Migrations are run manually by FlywayMigrationRunner (try/catch, non-fatal),
-    # not by Spring Boot's auto-configured Flyway, so a DB outage at boot can't
-    # crash the whole application context.
-    enabled: false
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -40,6 +35,18 @@ spring:
       # uploads well under PatientDocumentService's own 8MB cap -- give it headroom.
       max-file-size: 10MB
       max-request-size: 10MB
+  sql:
+    init:
+      # This app has no JPA/Hibernate entities anywhere (plain NamedParameterJdbcTemplate
+      # throughout -- see JdbcConfig), so there's nothing for ddl-auto to generate DDL
+      # from. Schema instead comes from src/main/resources/schema.sql -- but applied by
+      # config/SchemaInitRunner, NOT Spring Boot's own auto-configured SQL initializer:
+      # that initializer's continue-on-error only covers failures *within* the script,
+      # not a failed-to-connect DB at boot, which it treats as fatal and crashes the
+      # whole application context. SchemaInitRunner instead swallows any failure (DB
+      # unreachable, or a bad statement) exactly like the old FlywayMigrationRunner did,
+      # so a DB outage at startup is logged and doesn't take the app down with it.
+      mode: never
 
 # Application-specific settings. Most env var names deliberately match the
 # original Node backend's .env; see README for the security-hardening additions.
@@ -76,10 +83,20 @@ app:
   async-max-pool-size: ${ASYNC_MAX_POOL_SIZE:16}
   async-queue-capacity: ${ASYNC_QUEUE_CAPACITY:500}
 
-  # Distance -> ETA -> dynamic notification window (see geo/GeoDistanceService)
+  # Distance -> ETA fallback (see geo/GeoDistanceService; used only when TomTom is unavailable)
   geo-avg-speed-kmh: ${GEO_AVG_SPEED_KMH:25}
-  notify-min-tokens: ${NOTIFY_MIN_TOKENS:2}
-  notify-max-tokens: ${NOTIFY_MAX_TOKENS:12}
+
+  # Real routing ETA (TomTom) vs. queue treatment-time-remaining, anomaly-control
+  # grace window, and the "head to the hospital now" voice call (see
+  # geo/TomTomRoutingService, service/TreatmentTimingScheduler, service/TwilioStudioCallService).
+  # Blank TOMTOM_API_KEY -> falls back to the haversine estimate above instead of failing booking.
+  tomtom-api-key: ${TOMTOM_API_KEY:}
+  twilio-studio-flow-sid: ${TWILIO_STUDIO_FLOW_SID:FWdummy00000000000000000000000000}
+  twilio-caller-number: ${TWILIO_CALLER_NUMBER:}
+  twilio-call-enabled: ${TWILIO_CALL_ENABLED:false}
+  twilio-voice-tone: ${TWILIO_VOICE_TONE:neutral}
+  notify-buffer-minutes: ${NOTIFY_BUFFER_MINUTES:2}
+  timing-poll-interval-ms: ${TIMING_POLL_INTERVAL_MS:15000}
 
   # Default single hospital, seeded into the "hospitals" table on first migration.
   # Location can be given as a DIGIPIN, or as lat/lon (a DIGIPIN is then derived).

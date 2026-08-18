@@ -94,8 +94,8 @@ Request:
 ```
 `name`/`age` may be omitted if the flow captures them later (e.g. via the
 WhatsApp bot). `phone` is required. `digipin` OR `latitude`+`longitude` are
-optional — when given, the distance-based "get ready" window is computed
-immediately (see [README](README.md) "Distance-based get ready notifications").
+optional — when given, a real routing ETA is fetched immediately (see
+[README](README.md) `Real-ETA "go now" notification + call, and anomaly-control`).
 
 Response `200`:
 ```json
@@ -155,6 +155,34 @@ Valid values: `waiting`, `serving`, `completed`, `missed`. `400` on any other va
 Response `200`: `data` is an `UpdateStatusResult` (updated token + any
 side-effect info, e.g. next token pulled in). `404` if not found.
 
+### `POST /api/queue/{id}/no-show`
+**Admin JWT.** Reception clicks "not come yet" on a called-but-absent
+waiting patient — instead of marking them missed outright, this pushes them
+back within their own department's queue by an exponentially growing
+number of positions each time it's clicked on the *same* token: 1st click
+skips 1 position, 2nd skips 2, then 4, 8, 16, ... Once the skip count would
+exceed how many patients are actually waiting, the token goes straight to
+the back instead. Uses floating-point `priorityRank` reordering under the
+hood — nobody else's position changes.
+
+Response `200`: updated `TokenDto`. `400` if the token isn't currently `waiting`.
+
+This same push-back (and, once a token has been pushed all the way to the
+back of its queue with nowhere left to go, a `missed` transition) also
+happens automatically, without any admin action, driven by real ETA vs.
+queue-wait timing — see `GET /api/queue/anomaly-control` below.
+
+### `GET /api/queue/anomaly-control?hospitalId=&category=`
+Waiting tokens that have already been sent their "go now" WhatsApp
+notification + Twilio voice call and are inside the grace window
+(`anomalyControlUntil`) they're given the benefit of the doubt for while
+still travelling — see `service/QueueManagerService#runTreatmentTimingTick`.
+Purely a read; resolution (push-back or `missed`) happens automatically once
+the window elapses, same rule as `/no-show` above. `hospitalId`/`category`
+both optional (omit both for the hospital-wide view).
+
+Response `200`: `TokenDto[]`, soonest-to-expire first.
+
 ### Missed queue (`/api/queue/missed*`) — all **Admin JWT**
 
 - `GET /api/queue/missed` — full missed-queue list (`TokenDto[]`).
@@ -210,13 +238,16 @@ Request:
   "closeTime": "17:00",
   "avgPatientsPerDay": 96,
   "avgServiceMinutes": null,
+  "minServiceMinutes": 5,
   "activeCounters": 1
 }
 ```
 `uriSlug` must match `^[a-z0-9-]{2,100}$`. `location` is required (either
 `digipin` or `latitude`+`longitude`). `avgServiceMinutes`, if given,
 overrides the derived `(openHours ÷ avgPatientsPerDay)` calculation.
-`400` on validation failure.
+`minServiceMinutes` is the floor a hospital commits to per patient — asked
+directly, not derived, and must not exceed `avgServiceMinutes` when both are
+given. `400` on validation failure.
 
 ### `GET /api/hospitals/{uriSlug}/doctor-join-code`
 **Admin JWT.** The code to hand a doctor so they can self-link their
@@ -226,6 +257,45 @@ account (`POST /api/doctors/join-hospital`). `data`: `{ "doctorJoinCode": "..." 
 ### `POST /api/hospitals/{uriSlug}/doctor-join-code/regenerate`
 **Admin JWT.** Rotates the join code (e.g. it leaked); existing doctor
 links are unaffected. Same response shape as above.
+
+### `PUT /api/hospitals/{uriSlug}/doctors/{doctorId}/location`
+**Admin JWT.** Assigns one of this hospital's doctors to a physical
+location in its queue system — a counter number, exactly like every other
+counter (see `/api/counters`), within a department.
+
+Request:
+```json
+{ "counterId": 2, "category": "Cardiology" }
+```
+`category` must be a valid `catalog.MedicalCategory` name. `404` if the
+hospital doesn't exist; `400` if the category is unknown or the doctor
+hasn't joined *this* hospital.
+
+Response `200`: updated `DoctorDto`.
+
+### `GET /api/hospitals/{uriSlug}/time-slots?date=`
+Public. This hospital's OPD time slots, soonest first; `date` (optional,
+`yyyy-MM-dd`) filters to one day. `data` is `TimeSlotDto[]`.
+
+### `POST /api/hospitals/{uriSlug}/time-slots`
+**Admin JWT.** Opens one OPD time window on one day and rosters a list of
+doctors onto it in the same call. A hospital can have any number of these
+on the same day — call this once per slot.
+
+Request:
+```json
+{
+  "date": "2026-08-20",
+  "startTime": "09:00",
+  "endTime": "11:00",
+  "category": "Cardiology",
+  "doctorIds": [1, 2, 3]
+}
+```
+`category` is optional (omit for a hospital-wide slot); if given, must be a
+valid `catalog.MedicalCategory` name. `doctorIds` must be non-empty.
+Response `200`: the created `TimeSlotDto`. `400` on validation failure
+(unknown category, `endTime` not after `startTime`).
 
 ### `PUT /api/hospitals/{uriSlug}/location`
 **Admin JWT.** Relocate a hospital.
@@ -304,6 +374,10 @@ Response `200`: `data` is the updated `DoctorDto`. `400` if the code is invalid.
 ### `GET /api/doctors/me`
 **Doctor JWT.** The calling doctor's own profile (`DoctorDto`, includes
 `hospitalName` if linked).
+
+### `GET /api/doctors/me/time-slots`
+**Doctor JWT.** Every OPD time slot the calling doctor has been rostered
+onto, soonest first. `data` is `TimeSlotDto[]`.
 
 ### `POST /api/doctors/access-requests`
 **Doctor JWT.** Generates a fresh access-request code (valid 30 minutes)
@@ -412,16 +486,32 @@ absent fields are simply omitted from the JSON, not `null`):
 `id, phone, name, age, status, sessionStep, createdAt, servedAt,
 completedAt, missedAt, isVerified, verifiedAt, position, peopleAhead,
 currentServing, hospitalId, patientDigipin, patientLat, patientLon,
-distanceKm, notifyTokensAhead, priorityWindow, notifiedReadyAt,
-priorityRank, rejectedAt, counterId`.
+distanceKm, travelMinutes, treatmentRemainingMinutes, notifiedReadyAt,
+anomalyControlUntil, priorityRank, rejectedAt, counterId, noShowCount`.
+`travelMinutes` is the TomTom-routed one-way ETA to the hospital (falls
+back to a straight-line estimate if TomTom is unavailable);
+`treatmentRemainingMinutes` is how many minutes of queue work are still
+ahead of this token in its own department (recomputed continuously —
+display-only, see `service/QueueManagerService#runTreatmentTimingTick`);
+`anomalyControlUntil` is non-null while the token is inside its post-notify
+grace window (see `GET /api/queue/anomaly-control` below).
 `status` is one of `registering_name | waiting | serving | completed |
-missed | rejected`.
+missed | rejected`. `priorityRank` is a floating-point number (not an
+integer) — a repositioned/no-show-pushed-back token can land between two
+existing ranks (e.g. `2.5`) without renumbering the rest of the queue.
 
 **`HospitalDto`**: `id, uriSlug, name, address, digipin, formattedDigipin,
 latitude, longitude, openTime, closeTime, avgServiceMinutes,
-activeCounters, createdAt, updatedAt`.
+minServiceMinutes, activeCounters, ownership, yearEstablished,
+accreditation, genderSpecific, categories, createdAt, updatedAt`.
 
-**`DoctorDto`**: `id, phone, name, hospitalId, hospitalName, createdAt`.
+**`DoctorDto`**: `id, phone, name, hospitalId, hospitalName, counterId,
+category, createdAt`. `counterId`/`category` are the doctor's
+hospital-assigned physical location (see `PUT
+/api/hospitals/{uriSlug}/doctors/{doctorId}/location`) — absent until set.
+
+**`TimeSlotDto`**: `id, hospitalId, category, slotDate, startTime, endTime,
+doctorIds, createdAt`. `category` is absent for a hospital-wide slot.
 
 **`AccessGrantDto`**: `id, doctorId, doctorName, hospitalName,
 patientPhone, grantedAt, revokedAt, revokedBy`.

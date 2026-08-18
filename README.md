@@ -13,7 +13,7 @@ frontend is functionally unchanged and still talks to the same
 | Original (Node) | This port (Java) |
 |---|---|
 | `backend/index.js` | `ClinicQueueApplication.java` + `config/WebConfig.java` |
-| `backend/utils/db.js` | `config/FlywayMigrationRunner.java` + `db/migration/V1__init_schema.sql` |
+| `backend/utils/db.js` | `spring.jpa.hibernate.ddl-auto` (schema derived from `@Entity` classes) |
 | `backend/utils/queueManager.js` | `service/QueueManagerService.java` |
 | `backend/utils/whatsappSender.js` | `service/WhatsAppService.java` (now async) |
 | `backend/routes/queue.js` | `controller/QueueController.java` |
@@ -61,17 +61,31 @@ layer (`db/migration/V2__hospitals_geo_missed_counters.sql`):
   average day) alongside `openTime`/`closeTime` (how many hours it's open),
   and it's computed as (open hours in minutes) ÷ `avgPatientsPerDay`; an
   explicit `avgServiceMinutes` still overrides that calculation if given.
-- **Distance-based "get ready" notifications** (`geo/GeoDistanceService`):
-  a patient can share their current GPS location or enter one manually
-  (DIGIPIN or lat/lon) when creating a token or afterwards
-  (`POST /api/queue/:id/location`). Their straight-line distance from the
-  hospital is turned into an ETA (`app.geo-avg-speed-kmh`), which sets how
-  many tokens before their turn they get pinged to head over
-  (`notifyTokensAhead`, clamped between `NOTIFY_MIN_TOKENS` and
-  `NOTIFY_MAX_TOKENS`) and how wide their check-in "priority window" is
-  (`notifyTokensAhead x activeCounters`). A token that was pinged but never
-  checked in (QR-scanned/verified) by the time its turn comes up is
-  auto-skipped to `missed` instead of stalling the queue.
+- **Real-ETA "go now" notification + call, and anomaly-control**
+  (`geo/TomTomRoutingService`, `service/TreatmentTimingScheduler`,
+  `service/TwilioStudioCallService`): a patient can share their current GPS
+  location or enter one manually (DIGIPIN or lat/lon) when creating a token
+  or afterwards (`POST /api/queue/:id/location`). That's routed through
+  TomTom (`TOMTOM_API_KEY`; falls back to the straight-line
+  `app.geo-avg-speed-kmh` estimate if unset or unreachable) into a real
+  travel ETA (`travelMinutes`), compared every `TIMING_POLL_INTERVAL_MS`
+  against how many minutes of queue work are still ahead of them in their
+  own department (`treatmentRemainingMinutes` = people ahead x the
+  hospital's `minServiceMinutes` ÷ active counters for that department).
+  The moment the queue wait is no longer comfortably longer than the travel
+  time (+ `NOTIFY_BUFFER_MINUTES`), a localized WhatsApp message
+  (English/Hindi/Marathi, `bot/BotMessages#headingToHospitalNotification`)
+  and a Twilio Studio Flow voice call (`TWILIO_STUDIO_FLOW_SID`/
+  `TWILIO_CALLER_NUMBER`, gated behind `TWILIO_CALL_ENABLED`) fire
+  together, and the token enters an anomaly-control grace window
+  (`anomalyControlUntil`, visible via `GET /api/queue/anomaly-control`) --
+  the benefit of the doubt that they're still travelling. A token that
+  isn't checked in (QR-scanned/verified) by the time that window elapses is
+  pushed back exponentially in its own queue (1, 2, 4, 8, 16, ... positions
+  -- the same push-back an admin's manual "not come yet" uses) rather than
+  instantly failed; only once that's pushed it all the way to the back of
+  its queue with nowhere further to go does the *next* missed deadline mark
+  it `missed`.
   `GET /api/queue/closing-time-check` answers "can I still make it before
   OPD closes?" before a patient commits to registering.
 - **Patient registration: name, age, and visit history** (`QueueManagerService`):
@@ -202,10 +216,9 @@ layer (`db/migration/V2__hospitals_geo_missed_counters.sql`):
 - **Connection pooling**: HikariCP pool size is configurable
   (`DB_POOL_MAX_SIZE`, `DB_POOL_MIN_IDLE`) and won't block app startup if
   Postgres is briefly unreachable.
-- **Versioned schema + indexes**: Flyway (`db/migration/`) replaces the
-  original's ad hoc `CREATE TABLE IF NOT EXISTS`, adding indexes on
-  `phone`, `status`, `(status, id)`, and `created_at` for the hot queries
-  (phone lookup, position counting, FIFO next-waiting scan).
+- **Schema managed by Hibernate**: `spring.jpa.hibernate.ddl-auto` derives the
+  schema from the `@Entity` classes at boot, replacing the original's ad hoc
+  `CREATE TABLE IF NOT EXISTS`.
 - **Health probes for orchestration**: `/actuator/health/liveness` reflects
   only "is the JVM/HTTP server up" (safe for restart policies);
   `/actuator/health/readiness` reflects DB reachability (safe for
@@ -277,10 +290,17 @@ ASYNC_CORE_POOL_SIZE=4
 ASYNC_MAX_POOL_SIZE=16
 ASYNC_QUEUE_CAPACITY=500
 
-# --- Geo / distance-based notification ---
-GEO_AVG_SPEED_KMH=25                # assumed travel speed for the distance -> ETA estimate
-NOTIFY_MIN_TOKENS=2                 # floor of the "get ready" notification window
-NOTIFY_MAX_TOKENS=12                # ceiling of the "get ready" notification window
+# --- Geo / ETA fallback (used only when TomTom is unavailable, see below) ---
+GEO_AVG_SPEED_KMH=25                # assumed travel speed for the straight-line distance -> ETA fallback estimate
+
+# --- Treatment-timing: real routing ETA vs. queue wait, anomaly-control, voice call ---
+TOMTOM_API_KEY=                     # TomTom Routing API key; blank = always use the haversine fallback above
+TWILIO_STUDIO_FLOW_SID=FWdummy00000000000000000000000000  # Studio Flow the "go now" voice call executes
+TWILIO_CALLER_NUMBER=               # "From" number for the outbound call
+TWILIO_CALL_ENABLED=false           # master on/off switch -- off by default, never dials anyone out of the box
+TWILIO_VOICE_TONE=neutral           # passed to the Studio Flow as a parameter (its Say/Gather widgets pick the voice)
+NOTIFY_BUFFER_MINUTES=2             # extra arrival buffer added to the travel ETA before triggering notify+call
+TIMING_POLL_INTERVAL_MS=15000       # how often the active queue is re-evaluated for due triggers/expired grace windows
 
 # --- Hospital location (DIGIPIN, or lat/lon to derive one) ---
 HOSPITAL_URI_SLUG=main              # which hospitals row this deployment operates as
@@ -322,8 +342,8 @@ cp .env.example .env   # fill in JWT_SECRET at minimum
 docker compose up --build
 ```
 
-The server listens on `http://localhost:5000` by default and migrates the
-`tokens` table on startup via Flyway.
+The server listens on `http://localhost:5000` by default and creates the
+`tokens` table (and the rest of the schema) on startup via Hibernate.
 
 ## Running the frontend
 
@@ -372,6 +392,7 @@ GET    /api/queue/missed                (admin JWT required)
 GET    /api/queue/missed/search?query=
 POST   /api/queue/missed/:id/requeue    (admin JWT required)
 POST   /api/queue/missed/:id/reject     (admin JWT required)
+GET    /api/queue/anomaly-control       (tokens inside an active "go now" grace window)
 
 GET    /api/hospitals
 GET    /api/hospitals/:uriSlug
