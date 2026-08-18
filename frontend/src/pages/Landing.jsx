@@ -134,7 +134,7 @@ export default function Landing() {
             </h1>
 
             <p className="clean-hero-p">
-              ArogyaFlow helps patients find OPD hospitals, book consultation tokens, and receive live WhatsApp turn updates without standing in crowded waiting rooms.
+              ArogyaFlow helps patients find OPD hospitals, book consultation tokens, and receive live SMS turn updates without standing in crowded waiting rooms.
             </p>
 
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -200,7 +200,7 @@ export default function Landing() {
           <div className="clean-stat-card">
             <PhoneIcon size={24} style={{ color: '#0284c7' }} />
             <div>
-              <div className="clean-stat-val">WhatsApp</div>
+              <div className="clean-stat-val">SMS & Voice</div>
               <div className="clean-stat-lbl">Instant Location Token Dispatch</div>
             </div>
           </div>

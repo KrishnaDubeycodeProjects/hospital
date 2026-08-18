@@ -150,7 +150,7 @@ function OtpAuthFlow({ kind }) {
     setSending(true);
     try {
       const res = await otpApi.send(formatted);
-      toast.success(res.message || 'OTP verification code sent via WhatsApp!');
+      toast.success(res.message || 'OTP verification code sent via SMS!');
       setStage('otp');
       setResendTimer(30);
     } catch (err) {
@@ -235,7 +235,7 @@ function OtpAuthFlow({ kind }) {
       }
       extra={
         <span className="badge badge-blue">
-          💬 WhatsApp OTP
+          📲 SMS OTP
         </span>
       }
     >
@@ -279,7 +279,7 @@ function OtpAuthFlow({ kind }) {
         <form onSubmit={handleSendOtp} className="stack-md">
           <p className="muted-text">
             {mode === 'login'
-              ? 'Enter your mobile number to receive a secure 6-digit WhatsApp OTP.'
+              ? 'Enter your mobile number to receive a secure 6-digit SMS OTP.'
               : 'Sign up in seconds! Enter your mobile number to get started.'}
           </p>
           <Field label="Mobile Phone Number" hint="Default format: +91 9876543210">
@@ -294,11 +294,11 @@ function OtpAuthFlow({ kind }) {
           </Field>
 
           <Button type="submit" loading={sending} className="full-width">
-            Send WhatsApp Verification Code
+            Send SMS Verification Code
           </Button>
 
           <div className="auth-help-hint">
-            🔒 Safe & Secure. We will send an instant code to your WhatsApp.
+            🔒 Safe & Secure. We will send an instant code via SMS.
           </div>
         </form>
       )}

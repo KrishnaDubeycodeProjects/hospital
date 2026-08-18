@@ -1,8 +1,11 @@
 import axios from 'axios';
 
 // Base URL of the Spring Boot backend -- see ../.env (VITE_API_URL) and
-// application.yml (server.port, default 8088).
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8088';
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? 'https://decency-immovable-synopsis.ngrok-free.dev'
+    : 'http://localhost:8088');
 
 export const client = axios.create({ baseURL: API_URL });
 
