@@ -28,97 +28,176 @@ export default function PatientAccess() {
   }, []);
 
   async function accept(rawCode) {
+    if (!rawCode || rawCode.trim().length < 4) {
+      toast.error('Please enter a valid 8-character access code');
+      return;
+    }
+
     setClaiming(true);
     try {
       await patientApi.acceptAccess(rawCode.trim());
-      toast.success('Access granted to the doctor.');
+      toast.success('Access granted successfully! The doctor can now view your authorized medical records.');
       setCode('');
       setScanOpen(false);
       load();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'Invalid or expired access code');
     } finally {
       setClaiming(false);
     }
   }
 
-  async function revoke(grantId) {
+  async function revoke(grantId, doctorName) {
+    if (!window.confirm(`Are you sure you want to revoke medical record access for ${doctorName || 'this doctor'}?`)) {
+      return;
+    }
+
     try {
       await patientApi.revokeAccess(grantId);
-      toast.success('Access revoked.');
+      toast.success(`Access for ${doctorName || 'doctor'} revoked successfully.`);
       load();
     } catch (err) {
-      toast.error(err.message);
+      toast.error(err.message || 'Failed to revoke access');
     }
   }
 
   return (
     <div className="stack-lg">
-      <h1>Doctor Access</h1>
+      <div className="card-head">
+        <div>
+          <h1>Doctor Access & Privacy Control</h1>
+          <p className="muted-text">
+            Scan your doctor's QR code or enter their access code to grant temporary permission to view your medical reports.
+          </p>
+        </div>
+      </div>
 
-      <Card title="Grant a doctor access" actions={<Button size="sm" variant="secondary" onClick={() => setScanOpen(true)}>Scan QR</Button>}>
-        <p className="muted-text">Enter the code shown on the doctor's screen, or scan their QR.</p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (code.trim()) accept(code);
-          }}
-          className="row-gap"
+      <div className="landing-grid-layout">
+        <Card
+          title="Grant Access to a Doctor"
+          extra={
+            <Button size="sm" variant="secondary" onClick={() => setScanOpen(true)}>
+              📷 Scan Doctor QR
+            </Button>
+          }
         >
-          <Field label="Access code">
-            <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. AB12CD" required />
-          </Field>
-          <Button type="submit" loading={claiming}>
-            Grant access
-          </Button>
-        </form>
-      </Card>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              accept(code);
+            }}
+            className="stack-md"
+          >
+            <p className="muted-text">
+              Enter the 8-character access code displayed on your doctor's screen, or click above to open your camera scanner.
+            </p>
+            <Field label="8-Character Doctor Access Code">
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="e.g. AB12CD34"
+                required
+                style={{ fontSize: '18px', letterSpacing: '0.1em', fontWeight: 'bold' }}
+              />
+            </Field>
+            <Button type="submit" loading={claiming} className="full-width">
+              Grant Doctor Medical Record Access
+            </Button>
+          </form>
+        </Card>
 
-      <Card title="Doctors with active access">
+        <Card title="Your Data Security & Controls">
+          <div className="stack-md">
+            <div className="callout callout-ok">
+              🛡️ <strong>Instant Control:</strong> You can revoke a doctor's access anytime with one tap. Access is also notified to your WhatsApp immediately upon granting.
+            </div>
+
+            <div className="stack-sm">
+              <div className="muted-text"><strong>What a doctor can see:</strong></div>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-muted)', fontSize: '14px' }}>
+                <li>Your uploaded Rx prescriptions & diagnostic lab reports</li>
+                <li>Your name and age associated with medical documents</li>
+                <li>Document upload dates and medical categories</li>
+              </ul>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card
+        title="Doctors with Active Access"
+        extra={
+          active && (
+            <span className="badge badge-blue">
+              {active.length} Active Grants
+            </span>
+          )
+        }
+      >
         {active ? (
           <Table
             columns={[
-              { key: 'doctorName', header: 'Doctor' },
-              { key: 'hospitalName', header: 'Hospital' },
-              { key: 'grantedAt', header: 'Granted', render: (r) => fmtDateTime(r.grantedAt) },
+              { key: 'doctorName', header: 'Doctor Name', render: (r) => <strong>Dr. {r.doctorName}</strong> },
+              { key: 'hospitalName', header: 'Hospital / Clinic', render: (r) => r.hospitalName || 'General Hospital' },
+              { key: 'grantedAt', header: 'Access Granted On', render: (r) => fmtDateTime(r.grantedAt) },
               {
                 key: 'actions',
-                header: '',
+                header: 'Action',
                 render: (r) => (
-                  <Button size="sm" variant="danger" onClick={() => revoke(r.id)}>
-                    Revoke
+                  <Button size="sm" variant="danger" onClick={() => revoke(r.id, r.doctorName)}>
+                    🚫 Revoke Access
                   </Button>
                 ),
               },
             ]}
             rows={active}
-            emptyText="No doctor currently has access to your records."
+            emptyText="No doctor currently has active access to your records."
           />
         ) : (
-          <Spinner />
+          <Spinner label="Loading active access grants..." />
         )}
       </Card>
 
-      <Card title="Access history">
-        {history ? (
+      {history && history.length > 0 && (
+        <Card title="Access Grant History">
           <Table
             columns={[
-              { key: 'doctorName', header: 'Doctor' },
-              { key: 'hospitalName', header: 'Hospital' },
-              { key: 'grantedAt', header: 'Granted', render: (r) => fmtDateTime(r.grantedAt) },
-              { key: 'revokedAt', header: 'Revoked', render: (r) => fmtDateTime(r.revokedAt) },
+              { key: 'doctorName', header: 'Doctor Name', render: (r) => `Dr. ${r.doctorName}` },
+              { key: 'hospitalName', header: 'Hospital', render: (r) => r.hospitalName || '-' },
+              { key: 'grantedAt', header: 'Granted At', render: (r) => fmtDateTime(r.grantedAt) },
+              {
+                key: 'status',
+                header: 'Status',
+                render: (r) =>
+                  r.revokedAt ? (
+                    <span className="badge badge-amber">Revoked on {fmtDateTime(r.revokedAt)}</span>
+                  ) : (
+                    <span className="badge badge-green">Active</span>
+                  ),
+              },
             ]}
             rows={history}
-            emptyText="No history yet."
           />
-        ) : (
-          <Spinner />
-        )}
-      </Card>
+        </Card>
+      )}
 
-      <Modal open={scanOpen} onClose={() => setScanOpen(false)} title="Scan doctor's QR code">
-        {scanOpen && <QrScanner onResult={(text) => accept(text)} />}
-      </Modal>
+      {scanOpen && (
+        <Modal title="Scan Doctor Access QR Code" onClose={() => setScanOpen(false)}>
+          <div className="stack-md">
+            <p className="muted-text">Position your camera over the doctor's QR code to scan automatically.</p>
+            <QrScanner
+              onScan={(scannedText) => {
+                if (scannedText) {
+                  accept(scannedText);
+                }
+              }}
+            />
+            <Button variant="ghost" onClick={() => setScanOpen(false)} className="full-width">
+              Cancel
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

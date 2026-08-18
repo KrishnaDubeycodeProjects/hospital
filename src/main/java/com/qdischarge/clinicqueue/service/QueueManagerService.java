@@ -453,6 +453,15 @@ public class QueueManagerService {
         if (hospital == null) {
             throw new IllegalStateException("Selected hospital no longer exists.");
         }
+        if (hospital.getCloseTime() != null) {
+            java.time.LocalTime now = java.time.LocalTime.now();
+            java.time.LocalTime closeTime = hospital.getCloseTime();
+            java.time.LocalTime cutOffTime = closeTime.minusMinutes(30);
+            if (!now.isBefore(cutOffTime) && now.isBefore(closeTime.plusHours(2))) {
+                throw new IllegalStateException("Online token booking for today is closed because " 
+                    + hospital.getName() + " OPD closes at " + closeTime + " (within 30 minutes). Please visit the reception counter directly or book for tomorrow.");
+            }
+        }
         hospitalDepartmentService.ensure(hospital.getId(), draft.getCategory());
 
         jdbc.update(
@@ -494,6 +503,16 @@ public class QueueManagerService {
         }
 
         HospitalDto hospital = hospitalService.getOperatingHospital();
+        if (hospital != null && hospital.getCloseTime() != null) {
+            java.time.LocalTime now = java.time.LocalTime.now();
+            java.time.LocalTime closeTime = hospital.getCloseTime();
+            java.time.LocalTime cutOffTime = closeTime.minusMinutes(30);
+            if (!now.isBefore(cutOffTime) && now.isBefore(closeTime.plusHours(2))) {
+                throw new IllegalStateException("Online token booking for today is closed because OPD closes at " 
+                    + closeTime + " (within 30 minutes). Please visit the reception counter directly or book for tomorrow.");
+            }
+        }
+
         String defaultName = (name == null || name.isBlank()) ? "Patient" : name;
         if (hospital != null) {
             hospitalDepartmentService.ensure(hospital.getId(), canonicalCategory);

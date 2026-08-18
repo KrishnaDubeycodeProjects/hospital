@@ -109,7 +109,12 @@ public class WhatsAppService {
             log.info("✅ Evolution API text sent successfully to {}", cleaned);
             return response.getBody();
         } catch (RestClientException e) {
-            log.error("❌ Evolution API error for {}: {}", cleaned, extractError(e));
+            String errStr = extractError(e);
+            if (errStr != null && errStr.contains("Connection Closed")) {
+                log.warn("⚠️ Evolution API Notice for [{}]: Cannot send message to the bot's own connected number (Connection Closed). Please test from a separate mobile number.", cleaned);
+            } else {
+                log.error("❌ Evolution API error for {}: {}", cleaned, errStr);
+            }
             return null;
         }
     }

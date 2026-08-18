@@ -60,8 +60,40 @@ export default function TokenCard({ token, onRefresh }) {
     );
   }
 
+  // Calculate Date and Slot window
+  const dateObj = token.createdAt ? new Date(token.createdAt) : new Date();
+  const dateStr = dateObj.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const waitMins = token.treatmentRemainingMinutes || (token.position ? (token.position - 1) * 10 : 0);
+  const startTime = new Date(dateObj.getTime() + waitMins * 60000);
+  const endTime = new Date(startTime.getTime() + 10 * 60000);
+
+  const formatTime = (d) =>
+    d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const slotStr = `${formatTime(startTime)} - ${formatTime(endTime)}`;
+
   return (
     <div>
+      {/* Registration Summary Banner */}
+      <div className="callout callout-ok" style={{ display: 'block', margin: '0 0 20px', padding: '18px' }}>
+        <div style={{ fontWeight: 800, fontSize: '16px', color: '#047857', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>✅ Registration Confirmed</span>
+          <StatusBadge status={token.status} />
+        </div>
+        <dl className="detail-list" style={{ margin: 0 }}>
+          <Row label="📅 Booking Date" value={dateStr} />
+          <Row label="⏰ Estimated Time Slot" value={slotStr} />
+          <Row label="🎟️ Token Number" value={`#${token.id}`} />
+          {token.name && <Row label="👤 Patient Name" value={token.name} />}
+          {token.category && <Row label="🏥 Department" value={token.category} />}
+        </dl>
+      </div>
+
       <div className="token-summary">
         <div className="token-number">#{token.id}</div>
         <StatusBadge status={token.status} />
@@ -74,8 +106,6 @@ export default function TokenCard({ token, onRefresh }) {
       )}
 
       <dl className="detail-list">
-        {token.name && <Row label="Name" value={token.name} />}
-        {token.category && <Row label="Department" value={token.category} />}
         {typeof token.currentServing === 'number' && <Row label="Now serving" value={`#${token.currentServing}`} />}
         {token.travelMinutes != null && <Row label="Your travel ETA" value={fmtMinutes(token.travelMinutes)} />}
         {token.treatmentRemainingMinutes != null && (
@@ -97,7 +127,7 @@ export default function TokenCard({ token, onRefresh }) {
       )}
 
       {feasibility && (
-        <div className={`callout ${feasibility.canMakeIt === false ? 'callout-warn' : 'callout-ok'}`}>
+        <div className={`callout ${feasibility.canMakeIt === false ? 'callout-warn' : 'callout-ok'}`} style={{ marginTop: '16px' }}>
           {feasibility.canMakeIt === false
             ? `You may not make it in time — about ${fmtMinutes(feasibility.travelMinutes)} away, ${fmtMinutes(
                 feasibility.minutesUntilClose
@@ -109,8 +139,8 @@ export default function TokenCard({ token, onRefresh }) {
       )}
 
       <div className="qr-block">
-        <img src={queueApi.qrUrl(token.id)} alt={`QR code for token ${token.id}`} width={220} height={220} />
-        <p className="muted-text">Show this QR at reception to check in.</p>
+        <img src={queueApi.qrUrl(token.id)} alt="Token QR" width={200} height={200} />
+        <p className="muted-text">Show this QR to staff when called.</p>
       </div>
     </div>
   );

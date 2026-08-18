@@ -158,7 +158,12 @@ public class WebhookController {
                 keyData = data.path("messages").path(0).path("key");
             }
 
-            if (keyData.path("fromMe").asBoolean(false)) {
+            boolean isFromMe = keyData.path("fromMe").asBoolean(false)
+                    || data.path("fromMe").asBoolean(false)
+                    || body.path("fromMe").asBoolean(false)
+                    || body.path("data").path("key").path("fromMe").asBoolean(false);
+
+            if (isFromMe) {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
