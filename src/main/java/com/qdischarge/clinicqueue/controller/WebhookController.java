@@ -441,7 +441,7 @@ public class WebhookController {
                     }
                 } else {
                     whatsAppService.sendWhatsAppMessage(fromPhone,
-                            botMessages.alreadyActiveToken(lang, activeToken.getId(), activeToken.getStatus()));
+                            botMessages.alreadyActiveToken(lang, activeToken.displayNumber(), activeToken.getStatus()));
                     sendTokenDashboardCard(fromPhone, activeToken, lang);
                 }
                 return ResponseEntity.ok("EVENT_RECEIVED");
@@ -455,7 +455,7 @@ public class WebhookController {
             if (intent == Intent.CANCEL_TOKEN) {
                 if (activeToken != null) {
                     queueManagerService.updateTokenStatus(String.valueOf(activeToken.getId()), "missed");
-                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.tokenCancelled(lang, activeToken.getId()));
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.tokenCancelled(lang, activeToken.displayNumber()));
                 } else {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.noActiveTokenToCancel(lang));
                 }
@@ -636,7 +636,7 @@ public class WebhookController {
         String statusBadge = botMessages.statusBadge(lang, token.getStatus());
         String liveUrl = appProperties.getFrontendUrl() + "/patient?phone=" + cleanPhone;
 
-        String title = botMessages.dashboardTitle(lang, token.getId());
+        String title = botMessages.dashboardTitle(lang, token.displayNumber());
         String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, positionText, peopleAhead, estWait);
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());

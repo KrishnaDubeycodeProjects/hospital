@@ -75,4 +75,16 @@ public class TokenDto {
 
     // --- Booking-in-progress (hospital search/selection, pre-confirmation) ---
     private Integer searchOffset;
+
+    /**
+     * The number to actually show a patient in any "Token #N" message --
+     * {@link #dailyNumber} when it's known, or 0 for the rare legacy/edge-case
+     * row where it isn't, rather than falling back to {@link #id} (a global
+     * sequence across every hospital/department, which is what caused
+     * patients to see e.g. "#17" for the 1st booking of the day in their
+     * department).
+     */
+    public int displayNumber() {
+        return dailyNumber != null ? dailyNumber : 0;
+    }
 }

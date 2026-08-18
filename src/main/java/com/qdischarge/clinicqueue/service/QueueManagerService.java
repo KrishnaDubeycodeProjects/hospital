@@ -836,14 +836,14 @@ public class QueueManagerService {
         }
     }
 
-    private void sendTurnNotification(String phone, int tokenId) {
+    private void sendTurnNotification(String phone, int displayNumber) {
         whatsAppService.sendWhatsAppMessage(phone,
-                "🎉 It's your turn now! Please come to the counter for Token #" + tokenId + ".");
+                "🎉 It's your turn now! Please come to the counter for Token #" + displayNumber + ".");
     }
 
-    private void sendNextInLineNotification(String phone, int tokenId) {
+    private void sendNextInLineNotification(String phone, int displayNumber) {
         whatsAppService.sendWhatsAppMessage(phone,
-                "🔔 You are next in line for Token #" + tokenId + "! There is only 1 person ahead of you. Please be ready.");
+                "🔔 You are next in line for Token #" + displayNumber + "! There is only 1 person ahead of you. Please be ready.");
     }
 
     public UpdateStatusResult updateTokenStatus(String idStr, String status) {
@@ -873,7 +873,7 @@ public class QueueManagerService {
                 return null;
             }
             TokenDto token = rows.get(0);
-            sendTurnNotification(token.getPhone(), token.getId());
+            sendTurnNotification(token.getPhone(), token.displayNumber());
 
             TokenDto view = TokenDto.builder()
                     .id(token.getId()).phone(token.getPhone()).name(token.getName()).status(token.getStatus())
@@ -894,11 +894,11 @@ public class QueueManagerService {
             if ("completed".equals(status)) {
                 archiveToHistory(updatedToken);
                 whatsAppService.sendWhatsAppMessage(updatedToken.getPhone(),
-                        "✅ Token #" + updatedToken.getId() + " has been served. Thank you for visiting "
+                        "✅ Token #" + updatedToken.displayNumber() + " has been served. Thank you for visiting "
                                 + appProperties.getClinicName() + "! 🙏");
             } else {
                 whatsAppService.sendWhatsAppMessage(updatedToken.getPhone(),
-                        "⚠️ You missed your turn for Token #" + updatedToken.getId()
+                        "⚠️ You missed your turn for Token #" + updatedToken.displayNumber()
                                 + ".\n\n📌 Please send \"Hi\" or \"Hello\" again to generate a new token.");
             }
 
@@ -984,20 +984,21 @@ public class QueueManagerService {
         if (claimed == null) {
             return null;
         }
-        sendTurnNotification(claimed.getPhone(), claimed.getId());
+        sendTurnNotification(claimed.getPhone(), claimed.displayNumber());
 
         Map<String, Object> params = new HashMap<>();
         params.put("hospitalId", hospitalId);
         params.put("category", category);
         List<Map<String, Object>> upNext = jdbc.queryForList(
                 """
-                SELECT id, phone FROM tokens WHERE status = 'waiting'
+                SELECT id, phone, daily_number FROM tokens WHERE status = 'waiting'
                   AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
                 ORDER BY %s LIMIT 1
                 """.formatted(QUEUE_ORDER),
                 params);
         if (!upNext.isEmpty()) {
-            sendNextInLineNotification((String) upNext.get(0).get("phone"), (Integer) upNext.get(0).get("id"));
+            Integer dailyNumber = (Integer) upNext.get(0).get("daily_number");
+            sendNextInLineNotification((String) upNext.get(0).get("phone"), dailyNumber != null ? dailyNumber : 0);
         }
         return claimed.getId();
     }
@@ -1270,7 +1271,7 @@ public class QueueManagerService {
         }
         TokenDto token = rows.get(0);
         whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                "✅ Good news! Reception has reinstated your Token #" + token.getId()
+                "✅ Good news! Reception has reinstated your Token #" + token.displayNumber()
                         + " and moved it to the FRONT of the queue. Please come to the counter now.");
         return getTokenDetails(String.valueOf(id));
     }
@@ -1285,7 +1286,7 @@ public class QueueManagerService {
         }
         TokenDto token = rows.get(0);
         whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                "❌ Your missed Token #" + token.getId() + " has been closed by reception. "
+                "❌ Your missed Token #" + token.displayNumber() + " has been closed by reception. "
                         + "Please send \"Hi\" to generate a new token if you'd still like to visit.");
         return token;
     }
@@ -1377,7 +1378,7 @@ public class QueueManagerService {
 
         TokenDto moved = movePatientToPosition(tokenId, targetPosition);
         whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                "⏭️ We called Token #" + token.getId() + " but you weren't ready, so you've been moved back "
+                "⏭️ We called Token #" + token.displayNumber() + " but you weren't ready, so you've been moved back "
                         + skip + " position" + (skip == 1 ? "" : "s") + " in the queue. Please stay nearby.");
         return moved;
     }

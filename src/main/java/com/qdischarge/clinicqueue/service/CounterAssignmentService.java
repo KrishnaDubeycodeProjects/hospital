@@ -149,10 +149,10 @@ public class CounterAssignmentService {
         TokenDto token = rows.get(0);
         if ("completed".equals(status)) {
             whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                    "✅ Token #" + token.getId() + " has been served. Thank you for visiting! 🙏");
+                    "✅ Token #" + token.displayNumber() + " has been served. Thank you for visiting! 🙏");
         } else {
             whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                    "⚠️ You missed your turn at Counter " + counterId + " for Token #" + token.getId()
+                    "⚠️ You missed your turn at Counter " + counterId + " for Token #" + token.displayNumber()
                             + ".\n\n📌 Please send \"Hi\" again to generate a new token.");
         }
     }
@@ -171,7 +171,7 @@ public class CounterAssignmentService {
         jdbc.update("UPDATE tokens SET counter_id = :c, reserved_counter_id = NULL WHERE id = :id",
                 Map.of("c", counterId, "id", claimed.getId()));
         whatsAppService.sendWhatsAppMessage(claimed.getPhone(),
-                "🎉 It's your turn! Please proceed to Counter " + counterId + " for Token #" + claimed.getId() + ".");
+                "🎉 It's your turn! Please proceed to Counter " + counterId + " for Token #" + claimed.displayNumber() + ".");
 
         int activeCounters = hospitalDepartmentService.activeCounters(hospitalId, category);
         refreshReservations(hospitalId, category, activeCounters);

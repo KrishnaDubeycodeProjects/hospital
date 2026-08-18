@@ -31,7 +31,7 @@ export default function PatientQueue() {
       {token === undefined && <Spinner />}
       {token === null && <BookForm phone={phone} onBooked={load} />}
       {token && (
-        <Card title={`Token #${token.id}`}>
+        <Card title={`Token #${token.dailyNumber ?? token.id}`}>
           <TokenCard token={token} onRefresh={load} />
         </Card>
       )}

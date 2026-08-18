@@ -38,18 +38,26 @@ public class SchemaInitRunner implements ApplicationRunner {
             int failed = 0;
 
             for (String statement : statements) {
-                String trimmed = statement.trim();
-                // Ignore empty statements or pure comment lines
-                if (trimmed.isEmpty() || trimmed.startsWith("--")) {
+                // Strip inline -- comments line by line, then re-join and trim
+                String cleaned = java.util.Arrays.stream(statement.split("\n"))
+                        .map(line -> {
+                            int idx = line.indexOf("--");
+                            return idx >= 0 ? line.substring(0, idx) : line;
+                        })
+                        .collect(java.util.stream.Collectors.joining("\n"))
+                        .trim();
+
+                // Ignore empty statements
+                if (cleaned.isEmpty()) {
                     continue;
                 }
 
                 try {
-                    jdbcTemplate.execute(trimmed);
+                    jdbcTemplate.execute(cleaned);
                     executed++;
                 } catch (Exception e) {
                     failed++;
-                    log.debug("Schema statement skipped/warning: {} -> {}", trimmed.length() > 60 ? trimmed.substring(0, 60) + "..." : trimmed, e.getMessage());
+                    log.debug("Schema statement skipped/warning: {} -> {}", cleaned.length() > 60 ? cleaned.substring(0, 60) + "..." : cleaned, e.getMessage());
                 }
             }
 

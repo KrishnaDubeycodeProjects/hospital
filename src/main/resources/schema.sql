@@ -99,29 +99,26 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 
 -- Self-heals a "tokens" table created by an earlier version of this file.
-ALTER TABLE tokens
-  ADD COLUMN IF NOT EXISTS age INT,
-  ADD COLUMN IF NOT EXISTS gender VARCHAR(10),
-  ADD COLUMN IF NOT EXISTS category VARCHAR(100),
-  ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP,
-  ADD COLUMN IF NOT EXISTS hospital_id INT,
-  ADD COLUMN IF NOT EXISTS patient_digipin CHAR(10),
-  ADD COLUMN IF NOT EXISTS patient_lat DOUBLE PRECISION,
-  ADD COLUMN IF NOT EXISTS patient_lon DOUBLE PRECISION,
-  ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION,
-  ADD COLUMN IF NOT EXISTS travel_minutes DOUBLE PRECISION,
-  ADD COLUMN IF NOT EXISTS treatment_remaining_minutes DOUBLE PRECISION,
-  ADD COLUMN IF NOT EXISTS notified_ready_at TIMESTAMP,
-  ADD COLUMN IF NOT EXISTS anomaly_control_until TIMESTAMP,
-  ADD COLUMN IF NOT EXISTS priority_rank BIGINT,
-  ADD COLUMN IF NOT EXISTS counter_id INT,
-  ADD COLUMN IF NOT EXISTS reserved_counter_id INT,
-  ADD COLUMN IF NOT EXISTS no_show_count INT NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS search_offset INT NOT NULL DEFAULT 0,
-  -- Patient-facing "Token #N" -- resets to 1 per (hospital, category, day), unlike
-  -- the raw `id` (a single global sequence across every hospital/department) that
-  -- used to be shown directly. See QueueManagerService#nextDailyNumber.
-  ADD COLUMN IF NOT EXISTS daily_number INT;
+-- Each ALTER is a separate statement so one failure cannot block the others.
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS age INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS hospital_id INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS patient_digipin CHAR(10);
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS patient_lat DOUBLE PRECISION;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS patient_lon DOUBLE PRECISION;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS distance_km DOUBLE PRECISION;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS travel_minutes DOUBLE PRECISION;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS treatment_remaining_minutes DOUBLE PRECISION;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS notified_ready_at TIMESTAMP;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS anomaly_control_until TIMESTAMP;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS priority_rank BIGINT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS counter_id INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS reserved_counter_id INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS no_show_count INT NOT NULL DEFAULT 0;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS search_offset INT NOT NULL DEFAULT 0;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS daily_number INT;
 
 -- Speeds up the hot paths in QueueManagerService: phone lookups, status-
 -- filtered queue reads, the "how many waiting tokens have a smaller

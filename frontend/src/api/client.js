@@ -8,7 +8,15 @@ export const API_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' ? window.location.origin : 'https://princete.com');
 
-export const client = axios.create({ baseURL: API_URL });
+const isNgrok = typeof window !== 'undefined' && window.location.hostname.includes('ngrok');
+const isApiNgrok = (import.meta.env.VITE_API_URL || '').includes('ngrok');
+
+export const client = axios.create({
+  baseURL: API_URL,
+  // ngrok shows an interstitial warning page for browser requests unless this header is set.
+  // It's harmless for non-ngrok backends (they just ignore unknown headers).
+  headers: isNgrok || isApiNgrok ? { 'ngrok-skip-browser-warning': 'true' } : {},
+});
 
 
 // Every request that needs auth passes an explicit `role` in its axios

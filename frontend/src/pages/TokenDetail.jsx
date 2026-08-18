@@ -33,7 +33,7 @@ export default function TokenDetail() {
         ← Back to home
       </Link>
       {token ? (
-        <Card title={`Token #${token.id}`} className="narrow-card">
+        <Card title={`Token #${token.dailyNumber ?? token.id}`} className="narrow-card">
           <TokenCard token={token} onRefresh={load} />
         </Card>
       ) : (
