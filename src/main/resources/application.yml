@@ -102,10 +102,8 @@ app:
   # geo/TomTomRoutingService, service/TreatmentTimingScheduler, service/TwilioStudioCallService).
   # Blank TOMTOM_API_KEY -> falls back to the haversine estimate above instead of failing booking.
   tomtom-api-key: ${TOMTOM_API_KEY:}
-  twilio-studio-flow-sid: ${TWILIO_STUDIO_FLOW_SID:FWdummy00000000000000000000000000}
   twilio-caller-number: ${TWILIO_CALLER_NUMBER:}
   twilio-call-enabled: ${TWILIO_CALL_ENABLED:false}
-  twilio-voice-tone: ${TWILIO_VOICE_TONE:neutral}
   notify-buffer-minutes: ${NOTIFY_BUFFER_MINUTES:2}
   timing-poll-interval-ms: ${TIMING_POLL_INTERVAL_MS:15000}
 

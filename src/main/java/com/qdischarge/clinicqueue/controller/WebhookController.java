@@ -3,6 +3,7 @@ package com.qdischarge.clinicqueue.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.qdischarge.clinicqueue.bot.BotMessages;
+import com.qdischarge.clinicqueue.bot.ConfirmationChoice;
 import com.qdischarge.clinicqueue.bot.Gender;
 import com.qdischarge.clinicqueue.bot.Intent;
 import com.qdischarge.clinicqueue.bot.Lang;
@@ -388,7 +389,11 @@ public class WebhookController {
             }
 
             if (activeToken != null && "awaiting_confirmation".equals(activeToken.getSessionStep())) {
-                if ("btn_confirm_booking".equals(buttonId)) {
+                // Evolution renders "buttons" as a plain numbered list (no tappable primitive), so the
+                // patient's choice is matched from typed text -- see ConfirmationChoice.
+                ConfirmationChoice choice = ConfirmationChoice.match(buttonId, cleanMessage);
+
+                if (choice == ConfirmationChoice.CONFIRM) {
                     try {
                         TokenDto booked = queueManagerService.confirmBooking(activeToken.getId());
                         sendTokenDashboardCard(fromPhone, booked, lang);
@@ -398,7 +403,7 @@ public class WebhookController {
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
 
-                if ("btn_choose_again".equals(buttonId)) {
+                if (choice == ConfirmationChoice.CHOOSE_AGAIN) {
                     QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.restartHospitalSelection(activeToken.getId());
                     if (outcome == null || outcome.page().results().isEmpty()) {
                         whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
@@ -619,8 +624,7 @@ public class WebhookController {
         double distanceKm = (hospital != null && selected.getPatientLat() != null && selected.getPatientLon() != null)
                 ? geoDistanceService.distanceKm(hospital.getLatitude(), hospital.getLongitude(), selected.getPatientLat(), selected.getPatientLon())
                 : 0;
-        whatsAppService.sendButtonsMessage(phone, "", botMessages.hospitalConfirmationPrompt(lang, name, address, distanceKm),
-                botMessages.confirmationButtons(lang), appProperties.getClinicName());
+        whatsAppService.sendWhatsAppMessage(phone, botMessages.hospitalConfirmationPrompt(lang, name, address, distanceKm));
     }
 
     private void sendTokenDashboardCard(String phone, TokenDto token, Lang lang) {

@@ -1,6 +1,5 @@
 package com.qdischarge.clinicqueue.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qdischarge.clinicqueue.bot.Lang;
 import com.qdischarge.clinicqueue.config.AppProperties;
 import lombok.RequiredArgsConstructor;
@@ -16,28 +15,27 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * Places the "your token is about to be called, head to the hospital now"
- * voice call, via a Twilio Studio Flow Execution
- * (https://studio.twilio.com/v2/Flows/{FlowSid}/Executions) -- plain REST
+ * voice call, via Twilio's plain Voice Calls API
+ * (https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Calls.json) with
+ * inline TwiML (a "Twiml" param, not a Url/Studio Flow) -- plain REST
  * (RestTemplate + Basic Auth), same pattern as OtpService's Twilio Verify/
  * Messages calls, rather than pulling in the Twilio Java SDK for one
- * endpoint. The flow itself (built in the Twilio console, outside this
- * repo) owns the actual call script/voice selection; this just hands it the
- * message text plus the patient's language and the configured tone as
- * execution parameters for its Say/Gather widgets to read.
+ * endpoint. No Studio Flow or public callback URL needed: the TwiML
+ * (a <Say> of the message text) is handed to Twilio directly in the
+ * request, so Account SID + Auth Token + caller number is enough.
  *
  * Fired alongside the WhatsApp notification from
  * QueueManagerService#runTreatmentTimingTick -- both channels, same
  * trigger, same moment.
  *
  * No-ops (logs and returns) rather than dialing anyone when calling is
- * disabled or still on its dummy placeholder Flow SID -- mirrors
- * OtpService's "fails cleanly on dummy credentials" default, so a fresh
- * checkout never places a real phone call.
+ * disabled or the caller number isn't configured -- mirrors OtpService's
+ * "fails cleanly on dummy credentials" default, so a fresh checkout never
+ * places a real phone call.
  */
 @Service
 @RequiredArgsConstructor
@@ -46,52 +44,61 @@ public class TwilioStudioCallService {
 
     private final AppProperties appProperties;
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
-
-    private static final String DUMMY_FLOW_SID = "FWdummy00000000000000000000000000";
 
     private boolean isConfigured() {
         if (!appProperties.isTwilioCallEnabled()) {
             return false;
         }
-        String flowSid = appProperties.getTwilioStudioFlowSid();
         String caller = appProperties.getTwilioCallerNumber();
-        return flowSid != null && !flowSid.isBlank() && !DUMMY_FLOW_SID.equals(flowSid)
-                && caller != null && !caller.isBlank();
+        return caller != null && !caller.isBlank();
     }
 
     /** Fire-and-forget: never blocks or fails the caller's request thread on a slow/unreachable Twilio. */
     @Async("whatsappExecutor")
     public void triggerHeadToHospitalCall(String toPhone, String message, Lang lang) {
         if (!isConfigured()) {
-            log.info("📵 Twilio Studio call skipped for {} (calling disabled or Flow SID/caller number not configured).",
+            log.info("📵 Twilio call skipped for {} (calling disabled or caller number not configured).",
                     formatPhone(toPhone));
             return;
         }
         try {
-            String url = "https://studio.twilio.com/v2/Flows/%s/Executions".formatted(appProperties.getTwilioStudioFlowSid());
-
-            Map<String, Object> parameters = new LinkedHashMap<>();
-            parameters.put("message", message);
-            parameters.put("language", lang != null ? lang.name().toLowerCase() : Lang.EN.name().toLowerCase());
-            parameters.put("tone", appProperties.getTwilioVoiceTone());
+            String url = "https://api.twilio.com/2010-04-01/Accounts/%s/Calls.json"
+                    .formatted(appProperties.getTwilioAccountSid());
 
             MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
             body.add("To", toPhone);
             body.add("From", appProperties.getTwilioCallerNumber());
-            body.add("Parameters", objectMapper.writeValueAsString(parameters));
+            body.add("Twiml", buildTwiml(message, lang));
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             headers.setBasicAuth(appProperties.getTwilioAccountSid(), appProperties.getTwilioAuthToken());
 
             restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-            log.info("📞 Twilio Studio call triggered for {}", formatPhone(toPhone));
+            log.info("📞 Twilio call triggered for {}", formatPhone(toPhone));
         } catch (RestClientException e) {
-            log.error("❌ Twilio Studio Execution error for {}: {}", formatPhone(toPhone), extractError(e));
+            log.error("❌ Twilio Call error for {}: {}", formatPhone(toPhone), extractError(e));
         } catch (Exception e) {
-            log.error("❌ Could not trigger Twilio Studio call for {}: {}", formatPhone(toPhone), e.getMessage());
+            log.error("❌ Could not trigger Twilio call for {}: {}", formatPhone(toPhone), e.getMessage());
         }
+    }
+
+    /** Twilio TTS locale for <Say>; Marathi has no dedicated classic voice, so it falls back to Hindi. */
+    private String sayLanguage(Lang lang) {
+        if (lang == Lang.HI || lang == Lang.MR) {
+            return "hi-IN";
+        }
+        return "en-IN";
+    }
+
+    private String buildTwiml(String message, Lang lang) {
+        String escaped = message == null ? "" : message
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
+        return "<Response><Say language=\"%s\">%s</Say></Response>".formatted(sayLanguage(lang), escaped);
     }
 
     private String formatPhone(String phone) {

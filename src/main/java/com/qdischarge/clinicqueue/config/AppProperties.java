@@ -18,6 +18,13 @@ public class AppProperties {
     private int tokenExpiryHours;
     private int avgServiceMinutes;
 
+    public String getFrontendUrl() {
+        if (frontendUrl == null || frontendUrl.isBlank() || frontendUrl.contains("localhost")) {
+            return "https://princete.com";
+        }
+        return frontendUrl;
+    }
+
     // --- Admin auth ---
     private String adminUsername;
     /** Plaintext dev fallback; hashed in-memory at startup. Prefer adminPasswordHash in production. */
@@ -61,14 +68,10 @@ public class AppProperties {
     // --- Treatment-timing: real routing ETA vs. queue wait, anomaly-control, voice call ---
     /** TomTom Routing API key; blank = always use the haversine fallback (see geo.TomTomRoutingService). */
     private String tomtomApiKey;
-    /** Twilio Studio Flow SID the "head to the hospital now" voice call executes (see service.TwilioStudioCallService). */
-    private String twilioStudioFlowSid;
-    /** Caller-id ("From") number for the outbound Studio Flow call. */
+    /** Caller-id ("From") number for the outbound "head to the hospital now" call (see service.TwilioStudioCallService). */
     private String twilioCallerNumber;
     /** Master on/off switch for placing the actual call -- off by default so a fresh checkout never dials anyone. */
     private boolean twilioCallEnabled;
-    /** Passed through to the Studio Flow as a parameter; the flow's own Say/Gather widgets pick the voice per language/tone. */
-    private String twilioVoiceTone;
     /** Extra arrival buffer (minutes) added on top of the travel ETA when deciding it's time to notify+call. */
     private int notifyBufferMinutes;
     /** How often (ms) the treatment-timing scheduler re-evaluates the active queue (see service.TreatmentTimingScheduler). */

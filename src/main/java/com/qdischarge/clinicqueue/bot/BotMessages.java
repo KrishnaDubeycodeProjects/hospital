@@ -258,28 +258,24 @@ public class BotMessages {
         };
     }
 
+    /** Evolution has no tappable button, so this ends with a "type your choice" instruction instead of "tap" -- see WebhookController#sendConfirmationCard. */
     public String hospitalConfirmationPrompt(Lang lang, String hospitalName, String address, double distanceKm) {
         String addressLine = (address != null && !address.isBlank()) ? "\n📍 " + address : "";
         return switch (lang) {
-            case EN -> "🏥 *%s*%s\n📏 ~%.1f km away\n\nBook your token here?".formatted(hospitalName, addressLine, distanceKm);
-            case HI -> "🏥 *%s*%s\n📏 ~%.1f किमी दूर\n\nक्या यहां अपना टोकन बुक करें?".formatted(hospitalName, addressLine, distanceKm);
-            case MR -> "🏥 *%s*%s\n📏 ~%.1f किमी दूर\n\nइथे तुमचा टोकन बुक करायचा का?".formatted(hospitalName, addressLine, distanceKm);
-        };
-    }
-
-    public List<WaButton> confirmationButtons(Lang lang) {
-        return switch (lang) {
-            case EN -> List.of(new WaButton("btn_confirm_booking", "✅ Confirm"), new WaButton("btn_choose_again", "🔁 Choose Again"));
-            case HI -> List.of(new WaButton("btn_confirm_booking", "✅ पुष्टि करें"), new WaButton("btn_choose_again", "🔁 फिर से चुनें"));
-            case MR -> List.of(new WaButton("btn_confirm_booking", "✅ पुष्टी करा"), new WaButton("btn_choose_again", "🔁 पुन्हा निवडा"));
+            case EN -> "🏥 *%s*%s\n📏 ~%.1f km away\n\nBook your token here?\n\n1️⃣ ✅ *Confirm*\n2️⃣ 🔁 *Choose Again*\n\n👉 *Type 1* or *Confirm* to book, or *2* / *Choose Again* to pick a different hospital."
+                    .formatted(hospitalName, addressLine, distanceKm);
+            case HI -> "🏥 *%s*%s\n📏 ~%.1f किमी दूर\n\nक्या यहां अपना टोकन बुक करें?\n\n1️⃣ ✅ *पुष्टि करें*\n2️⃣ 🔁 *फिर से चुनें*\n\n👉 बुक करने के लिए *1* या *पुष्टि करें* लिखें, या दूसरा अस्पताल चुनने के लिए *2* या *फिर से चुनें* लिखें।"
+                    .formatted(hospitalName, addressLine, distanceKm);
+            case MR -> "🏥 *%s*%s\n📏 ~%.1f किमी दूर\n\nइथे तुमचा टोकन बुक करायचा का?\n\n1️⃣ ✅ *पुष्टी करा*\n2️⃣ 🔁 *पुन्हा निवडा*\n\n👉 बुक करण्यासाठी *1* किंवा *पुष्टी करा* लिहा, किंवा वेगळे रुग्णालय निवडण्यासाठी *2* किंवा *पुन्हा निवडा* लिहा."
+                    .formatted(hospitalName, addressLine, distanceKm);
         };
     }
 
     public String invalidConfirmationReminder(Lang lang) {
         return switch (lang) {
-            case EN -> "Please tap *Confirm* to book this hospital, or *Choose Again* to pick a different one.";
-            case HI -> "इस अस्पताल को बुक करने के लिए *पुष्टि करें* पर टैप करें, या दूसरा चुनने के लिए *फिर से चुनें* पर टैप करें।";
-            case MR -> "हे रुग्णालय बुक करण्यासाठी *पुष्टी करा* वर टॅप करा, किंवा वेगळे निवडण्यासाठी *पुन्हा निवडा* वर टॅप करा.";
+            case EN -> "Please type *1* or *Confirm* to book this hospital, or *2* / *Choose Again* to pick a different one.";
+            case HI -> "इस अस्पताल को बुक करने के लिए *1* या *पुष्टि करें* लिखें, या दूसरा चुनने के लिए *2* या *फिर से चुनें* लिखें।";
+            case MR -> "हे रुग्णालय बुक करण्यासाठी *1* किंवा *पुष्टी करा* लिहा, किंवा वेगळे निवडण्यासाठी *2* किंवा *पुन्हा निवडा* लिहा.";
         };
     }
 

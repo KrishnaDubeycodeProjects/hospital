@@ -1,13 +1,15 @@
 import axios from 'axios';
 
-// Base URL of the Spring Boot backend -- see ../.env (VITE_API_URL) and
+// API base URL resolution (in priority order):
+// 1. VITE_API_URL from .env.local  → used during local dev (http://localhost:8088 or ngrok)
+// 2. VITE_API_URL from .env        → used in production build (https://princete.com)
+// 3. window.location.origin        → safe fallback when deployed (same-origin)
 export const API_URL =
   import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
-    ? 'https://decency-immovable-synopsis.ngrok-free.dev'
-    : 'http://localhost:8088');
+  (typeof window !== 'undefined' ? window.location.origin : 'https://princete.com');
 
 export const client = axios.create({ baseURL: API_URL });
+
 
 // Every request that needs auth passes an explicit `role` in its axios
 // config (see the `authFor` helper below) instead of relying on one global

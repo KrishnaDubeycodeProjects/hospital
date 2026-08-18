@@ -1435,6 +1435,26 @@ a:hover {
   color: #0284c7;
 }
 
+.mobile-nav-toggle {
+  display: none;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 18px;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+.clean-desktop-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.clean-mobile-actions {
+  display: none;
+}
+
 /* --- Hero --- */
 .clean-hero {
   background: #ffffff;
@@ -1735,22 +1755,51 @@ a:hover {
 @media (max-width: 768px) {
   .clean-header-inner {
     padding: 12px 16px;
-    flex-wrap: wrap;
-    gap: 12px;
+    position: relative;
+  }
+
+  .mobile-nav-toggle {
+    display: block;
+  }
+
+  .clean-desktop-actions {
+    display: none;
   }
 
   .clean-nav-links {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 18px 20px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+    z-index: 99;
+  }
+
+  .clean-nav-links.open {
     display: flex;
-    gap: 16px;
-    font-size: 13px;
+  }
+
+  .clean-mobile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid #f1f5f9;
   }
 
   .clean-hero {
-    padding: 36px 16px;
+    padding: 32px 16px;
   }
 
   .clean-hero-h1 {
-    font-size: 28px;
+    font-size: 26px;
     margin-bottom: 12px;
   }
 
@@ -1760,12 +1809,12 @@ a:hover {
   }
 
   .clean-tracker-card {
-    padding: 20px;
+    padding: 18px;
     border-radius: 14px;
   }
 
   .clean-section {
-    padding: 36px 16px;
+    padding: 32px 16px;
   }
 
   .clean-section-title {
@@ -1780,7 +1829,7 @@ a:hover {
   .clean-drawer {
     position: relative;
     top: 0;
-    padding: 20px;
+    padding: 18px;
   }
 
   .clean-stats-strip {
@@ -1798,7 +1847,7 @@ a:hover {
   }
 
   .clean-footer {
-    padding: 32px 16px 16px;
+    padding: 28px 16px 16px;
   }
 
   .field-row {
@@ -1831,6 +1880,7 @@ a:hover {
 
   .auth-card-wrap {
     max-width: 100%;
+    padding: 12px;
   }
 
   .hospital-profile-header {
@@ -1841,34 +1891,40 @@ a:hover {
 
 @media (max-width: 480px) {
   .clean-brand-name {
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .clean-hero-h1 {
-    font-size: 24px;
-  }
-
-  .clean-nav-links {
-    font-size: 12px;
-    gap: 10px;
+    font-size: 22px;
   }
 
   .clean-btn-primary,
   .clean-btn-secondary {
     width: 100%;
     justify-content: center;
-    padding: 10px 16px;
+    padding: 12px 16px;
   }
 
   .token-number {
-    font-size: 36px;
+    font-size: 32px;
   }
 
   .token-summary {
-    padding: 14px;
+    padding: 12px;
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+
+  .stat-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 12px;
+    font-size: 13px;
   }
 }
 

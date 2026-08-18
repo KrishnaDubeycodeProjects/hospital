@@ -75,8 +75,8 @@ layer (`db/migration/V2__hospitals_geo_missed_counters.sql`):
   The moment the queue wait is no longer comfortably longer than the travel
   time (+ `NOTIFY_BUFFER_MINUTES`), a localized WhatsApp message
   (English/Hindi/Marathi, `bot/BotMessages#headingToHospitalNotification`)
-  and a Twilio Studio Flow voice call (`TWILIO_STUDIO_FLOW_SID`/
-  `TWILIO_CALLER_NUMBER`, gated behind `TWILIO_CALL_ENABLED`) fire
+  and a plain Twilio voice call with inline TwiML (`TWILIO_CALLER_NUMBER`,
+  gated behind `TWILIO_CALL_ENABLED`) fire
   together, and the token enters an anomaly-control grace window
   (`anomalyControlUntil`, visible via `GET /api/queue/anomaly-control`) --
   the benefit of the doubt that they're still travelling. A token that
@@ -295,10 +295,8 @@ GEO_AVG_SPEED_KMH=25                # assumed travel speed for the straight-line
 
 # --- Treatment-timing: real routing ETA vs. queue wait, anomaly-control, voice call ---
 TOMTOM_API_KEY=                     # TomTom Routing API key; blank = always use the haversine fallback above
-TWILIO_STUDIO_FLOW_SID=FWdummy00000000000000000000000000  # Studio Flow the "go now" voice call executes
 TWILIO_CALLER_NUMBER=               # "From" number for the outbound call
 TWILIO_CALL_ENABLED=false           # master on/off switch -- off by default, never dials anyone out of the box
-TWILIO_VOICE_TONE=neutral           # passed to the Studio Flow as a parameter (its Say/Gather widgets pick the voice)
 NOTIFY_BUFFER_MINUTES=2             # extra arrival buffer added to the travel ETA before triggering notify+call
 TIMING_POLL_INTERVAL_MS=15000       # how often the active queue is re-evaluated for due triggers/expired grace windows
 

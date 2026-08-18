@@ -45,6 +45,7 @@ export default function Landing() {
   const [queue, setQueue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [phone, setPhone] = useState('');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -81,6 +82,11 @@ export default function Landing() {
     } catch {
       setQueue(null);
     }
+    // On small screens, scroll down to the drawer element
+    if (window.innerWidth < 860) {
+      const drawer = document.getElementById('selected-hospital-drawer');
+      if (drawer) drawer.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   function trackToken(e) {
@@ -96,7 +102,7 @@ export default function Landing() {
 
   return (
     <div className="clean-landing">
-      {/* 1. Header */}
+      {/* 1. Responsive Header */}
       <header className="clean-header">
         <div className="clean-header-inner">
           <Link to="/" className="clean-brand">
@@ -104,13 +110,29 @@ export default function Landing() {
             <h1 className="clean-brand-name">ArogyaFlow</h1>
           </Link>
 
-          <nav className="clean-nav-links">
-            <a href="#directory" className="clean-nav-link">Hospital Directory</a>
-            <a href="#portals" className="clean-nav-link">Portals</a>
-            <a href="#security" className="clean-nav-link">Security & Privacy</a>
+          <button
+            className="mobile-nav-toggle"
+            onClick={() => setMobileNavOpen((o) => !o)}
+            aria-label="Toggle Navigation"
+          >
+            {mobileNavOpen ? '✕' : '☰'}
+          </button>
+
+          <nav className={`clean-nav-links ${mobileNavOpen ? 'open' : ''}`}>
+            <a href="#directory" className="clean-nav-link" onClick={() => setMobileNavOpen(false)}>Hospital Directory</a>
+            <a href="#portals" className="clean-nav-link" onClick={() => setMobileNavOpen(false)}>Portals</a>
+            <a href="#security" className="clean-nav-link" onClick={() => setMobileNavOpen(false)}>Security & Privacy</a>
+            <div className="clean-mobile-actions">
+              <Link to="/track" className="clean-btn-secondary" onClick={() => setMobileNavOpen(false)}>
+                <SearchIcon size={16} /> Track Token
+              </Link>
+              <Link to="/book" className="clean-btn-primary" onClick={() => setMobileNavOpen(false)}>
+                <TicketIcon size={16} /> Book Token
+              </Link>
+            </div>
           </nav>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="clean-desktop-actions">
             <Link to="/track" className="clean-btn-secondary" style={{ padding: '8px 16px', fontSize: '13px' }}>
               <SearchIcon size={16} /> Track Token
             </Link>
@@ -271,7 +293,7 @@ export default function Landing() {
           {/* Right Selected Hospital Drawer */}
           <div>
             {selectedHospital ? (
-              <div className="clean-drawer">
+              <div id="selected-hospital-drawer" className="clean-drawer">
                 <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
