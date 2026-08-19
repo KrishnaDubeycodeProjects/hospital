@@ -12,8 +12,11 @@ const PAGE_SIZE = 20;
  * WebhookController#sendLocationPrompt / QueueManagerService#searchAndOfferHospitals).
  * Sent as a fallback link on WhatsApp for patients whose native location
  * share doesn't land (live location on Evolution API in particular).
- * Shows 20 hospitals at a time with a "Load more" for the next 20, backed by
+ * Shows 20 hospitals per page with Prev/Next paging, backed by
  * GET /api/hospitals/nearby (offset/limit -- same page size as the bot).
+ * Each page replaces the list rather than appending to it -- true paging,
+ * not an infinite "load more" -- so results stay a fixed-height, page-number
+ * navigable list like the bot's "reply 1-20, or type next" flow.
  */
 export default function FindHospital() {
   const [params] = useSearchParams();
@@ -26,9 +29,8 @@ export default function FindHospital() {
   const [locationError, setLocationError] = useState('');
   const [results, setResults] = useState([]);
   const [hasMore, setHasMore] = useState(false);
-  const [nextOffset, setNextOffset] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0); // 0-based -- offset = pageIndex * PAGE_SIZE
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -55,32 +57,30 @@ export default function FindHospital() {
     );
   }
 
-  async function search(offset) {
+  async function loadPage(page) {
     if (!coords) return;
-    if (offset === 0) setLoading(true);
-    else setLoadingMore(true);
+    setLoading(true);
     try {
       const res = await hospitalApi.nearby({
         lat: coords.lat,
         lon: coords.lon,
         category: category || undefined,
-        offset,
+        offset: page * PAGE_SIZE,
         limit: PAGE_SIZE,
       });
-      setResults((prev) => (offset === 0 ? res.results : [...prev, ...res.results]));
+      setResults(res.results);
       setHasMore(res.hasMore);
-      setNextOffset(res.nextOffset);
+      setPageIndex(page);
     } catch (err) {
       toast.error(err.message);
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   }
 
-  // Fresh search from the top whenever we get a location fix or the department filter changes.
+  // Fresh search from page 1 whenever we get a location fix or the department filter changes.
   useEffect(() => {
-    if (coords) search(0);
+    if (coords) loadPage(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coords, category]);
 
@@ -127,14 +127,24 @@ export default function FindHospital() {
             <div className="stack-md">
               <div className="hospital-scroll-list">
                 {results.map((r, idx) => (
-                  <HospitalResultRow key={r.hospital.id} rank={idx + 1} match={r} category={category} />
+                  <HospitalResultRow key={r.hospital.id} rank={pageIndex * PAGE_SIZE + idx + 1} match={r} category={category} />
                 ))}
               </div>
-              {hasMore && (
-                <Button type="button" variant="secondary" onClick={() => search(nextOffset)} loading={loadingMore}>
-                  Load 20 more
+              <div className="row-gap" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={pageIndex === 0}
+                  onClick={() => loadPage(pageIndex - 1)}
+                >
+                  ← Previous
                 </Button>
-              )}
+                <span className="muted-text" style={{ fontSize: '13px' }}>Page {pageIndex + 1}</span>
+                <Button type="button" variant="secondary" size="sm" disabled={!hasMore} onClick={() => loadPage(pageIndex + 1)}>
+                  Next →
+                </Button>
+              </div>
             </div>
           )}
         </Card>

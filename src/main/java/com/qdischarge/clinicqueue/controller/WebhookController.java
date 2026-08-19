@@ -398,7 +398,11 @@ public class WebhookController {
                         TokenDto booked = queueManagerService.confirmBooking(activeToken.getId());
                         sendTokenDashboardCard(fromPhone, booked, lang);
                     } catch (IllegalStateException e) {
-                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidConfirmationReminder(lang));
+                        // Tell the patient why it actually failed (OPD closing soon, hospital
+                        // gone, ...) instead of the generic "type 1 or Confirm" reminder --
+                        // retrying Confirm can never fix these, so looping that text was a
+                        // dead end. See BotMessages#bookingFailed.
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.bookingFailed(lang, e.getMessage()));
                     }
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }

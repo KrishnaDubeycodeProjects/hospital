@@ -279,6 +279,22 @@ public class BotMessages {
         };
     }
 
+    /**
+     * Sent when {@code confirmBooking} rejects the "Confirm" reply (OPD
+     * closing soon, hospital gone, etc.) -- surfaces the actual reason
+     * instead of repeating {@link #invalidConfirmationReminder}, which just
+     * told the patient to type "1" or "Confirm" again and looped forever since
+     * retrying "1" can never fix a closed OPD. Points at *Choose Again*
+     * instead, since that's the only reply that can actually help here.
+     */
+    public String bookingFailed(Lang lang, String reason) {
+        return switch (lang) {
+            case EN -> "❌ %s\n\nType *2* or *Choose Again* to pick a different hospital.".formatted(reason);
+            case HI -> "❌ %s\n\nदूसरा अस्पताल चुनने के लिए *2* या *फिर से चुनें* लिखें।".formatted(reason);
+            case MR -> "❌ %s\n\nवेगळे रुग्णालय निवडण्यासाठी *2* किंवा *पुन्हा निवडा* लिहा.".formatted(reason);
+        };
+    }
+
     public String alreadyActiveToken(Lang lang, int id, String status) {
         return switch (lang) {
             case EN -> "⚠️ You already have active Token #" + id + " (" + status.toUpperCase() + ").";

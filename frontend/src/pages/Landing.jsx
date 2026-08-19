@@ -441,7 +441,7 @@ export default function Landing() {
 
       {/* 6. Privacy & Security */}
       <section id="security" style={{ background: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '40px 24px' }}>
-        <div style={{ maxWdith: '1140px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ maxWidth: '1140px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <LockIcon size={24} style={{ color: '#0284c7' }} />
           <div>
             <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>
