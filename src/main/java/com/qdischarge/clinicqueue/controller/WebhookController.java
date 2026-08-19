@@ -634,7 +634,11 @@ public class WebhookController {
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
         String statusBadge = botMessages.statusBadge(lang, token.getStatus());
-        String liveUrl = appProperties.getFrontendUrl() + "/patient?phone=" + cleanPhone;
+        // /patient requires a logged-in patient JWT session and ignores any ?phone= query
+        // string, so a link built that way just bounces an unauthenticated WhatsApp user to
+        // the login screen. /track/{phone} is the public, no-auth lookup route -- it reads
+        // the phone straight from the URL and redirects to /token/{id} (see Track.jsx).
+        String liveUrl = appProperties.getFrontendUrl() + "/track/" + cleanPhone;
 
         String title = botMessages.dashboardTitle(lang, token.displayNumber());
         String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, positionText, peopleAhead, estWait);
@@ -654,10 +658,11 @@ public class WebhookController {
         int avgServiceTime = appProperties.getAvgServiceMinutes();
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
-        String liveUrl = appProperties.getFrontendUrl() + "/patient?phone=" + cleanPhone;
+        // See sendTokenDashboardCard above -- /track/{phone} is the public route, /patient is not.
+        String liveUrl = appProperties.getFrontendUrl() + "/track/" + cleanPhone;
 
         String title = botMessages.statusTitle(lang);
-        String description = botMessages.statusDescription(lang, token.getId(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus());
+        String description = botMessages.statusDescription(lang, token.displayNumber(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus());
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
     }

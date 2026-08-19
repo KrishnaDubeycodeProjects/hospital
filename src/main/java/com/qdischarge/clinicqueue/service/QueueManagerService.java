@@ -783,7 +783,7 @@ public class QueueManagerService {
 
         Lang lang = resolveLang(token.getPhone());
         String message = botMessages.headingToHospitalNotification(
-                lang, token.getName(), token.getId(), token.getCategory(), hospital.getName());
+                lang, token.getName(), token.displayNumber(), token.getCategory(), hospital.getName());
         whatsAppService.sendWhatsAppMessage(token.getPhone(), message);
         twilioStudioCallService.triggerHeadToHospitalCall(token.getPhone(), message, lang);
     }
@@ -1166,7 +1166,7 @@ public class QueueManagerService {
                 👥 *Queue Position:* %s
 
                 Thank you for visiting %s. Please take a seat in our waiting room. We will notify you on WhatsApp as soon as your turn arrives! 🙏"""
-                .formatted(token.getName(), token.getId(), positionText, appProperties.getClinicName());
+                .formatted(token.getName(), token.displayNumber(), positionText, appProperties.getClinicName());
 
         whatsAppService.sendWhatsAppMessage(token.getPhone(), welcomeMsg);
 

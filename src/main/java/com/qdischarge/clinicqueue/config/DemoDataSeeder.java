@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,9 +38,10 @@ public class DemoDataSeeder implements ApplicationRunner {
             log.info("🚀 Seeding video demo scenarios & credentials...");
 
             // 1. Ensure 'main' hospital exists and has doctor_join_code 'DOC123' and 3 active counters
-            Integer mainHospitalId = jdbc.queryForObject(
+            List<Integer> mainIds = jdbc.query(
                     "SELECT id FROM hospitals WHERE uri_slug = 'main' LIMIT 1",
-                    Map.of(), Integer.class);
+                    Map.of(), (rs, rowNum) -> rs.getInt("id"));
+            Integer mainHospitalId = mainIds.isEmpty() ? null : mainIds.get(0);
 
             if (mainHospitalId != null) {
                 jdbc.update(
@@ -61,22 +63,27 @@ public class DemoDataSeeder implements ApplicationRunner {
 
             // 3. Register Test Doctor: Dr. Rajesh Sharma
             String doctorPhone = "+919888877777";
-            Integer docId = jdbc.queryForObject(
-                    "SELECT id FROM doctors WHERE phone = :phone",
-                    Map.of("phone", doctorPhone),
-                    (rs, rowNum) -> rs.getInt("id"));
+            try {
+                List<Integer> docIds = jdbc.query(
+                        "SELECT id FROM doctors WHERE phone = :phone",
+                        Map.of("phone", doctorPhone),
+                        (rs, rowNum) -> rs.getInt("id"));
+                Integer docId = docIds.isEmpty() ? null : docIds.get(0);
 
-            if (docId == null) {
-                jdbc.update(
-                        """
-                        INSERT INTO doctors (phone, name, hospital_id, counter_id, category)
-                        VALUES (:phone, 'Dr. Rajesh Sharma', :hospitalId, 1, 'General Medicine')
-                        """,
-                        Map.of("phone", doctorPhone, "hospitalId", mainHospitalId));
-            } else {
-                jdbc.update(
-                        "UPDATE doctors SET hospital_id = :hospitalId, counter_id = 1, category = 'General Medicine' WHERE id = :id",
-                        Map.of("hospitalId", mainHospitalId, "id", docId));
+                if (docId == null) {
+                    jdbc.update(
+                            """
+                            INSERT INTO doctors (phone, name, hospital_id, counter_id, category)
+                            VALUES (:phone, 'Dr. Rajesh Sharma', :hospitalId, 1, 'General Medicine')
+                            """,
+                            Map.of("phone", doctorPhone, "hospitalId", mainHospitalId));
+                } else {
+                    jdbc.update(
+                            "UPDATE doctors SET hospital_id = :hospitalId, counter_id = 1, category = 'General Medicine' WHERE id = :id",
+                            Map.of("hospitalId", mainHospitalId, "id", docId));
+                }
+            } catch (Exception e) {
+                log.warn("Note: doctor registration seeding fallback: {}", e.getMessage());
             }
 
             // 4. Pre-verify OTP for Doctor and Test Patients

@@ -46,8 +46,40 @@ public class GlobalExceptionHandler {
         return ResponseEntity.notFound().build();
     }
 
+    /**
+     * Handles client disconnects silently (e.g. browser closed tab, ngrok tunnel timeout,
+     * or connection aborted by host machine while writing response).
+     */
+    @ExceptionHandler({
+            org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
+            org.apache.catalina.connector.ClientAbortException.class
+    })
+    public void handleClientDisconnect(Exception e) {
+        log.debug("Client closed connection before response completed: {}", e.getMessage());
+    }
+
+    @ExceptionHandler(java.io.IOException.class)
+    public void handleIOException(java.io.IOException e) {
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("aborted") || msg.contains("broken pipe") || msg.contains("connection reset")) {
+            log.debug("Client connection aborted: {}", e.getMessage());
+        } else {
+            log.error("I/O error during request processing: {}", e.getMessage());
+        }
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception e) {
+        // Ignore client abort exceptions wrapped inside other exceptions
+        Throwable cause = e;
+        while (cause != null) {
+            String msg = cause.getMessage() != null ? cause.getMessage().toLowerCase() : "";
+            if (msg.contains("aborted by the software in your host machine") || msg.contains("broken pipe") || msg.contains("connection reset")) {
+                log.debug("Client aborted request: {}", cause.getMessage());
+                return null;
+            }
+            cause = cause.getCause();
+        }
         log.error("Unhandled error", e);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", false);

@@ -71,14 +71,6 @@ export default function TokenCard({ token, onRefresh }) {
     year: 'numeric',
   });
 
-  const waitMins = token.treatmentRemainingMinutes || (token.position ? (token.position - 1) * 10 : 0);
-  const startTime = new Date(dateObj.getTime() + waitMins * 60000);
-  const endTime = new Date(startTime.getTime() + 10 * 60000);
-
-  const formatTime = (d) =>
-    d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-  const slotStr = `${formatTime(startTime)} - ${formatTime(endTime)}`;
 
   return (
     <div>
@@ -91,7 +83,6 @@ export default function TokenCard({ token, onRefresh }) {
         <dl className="detail-list" style={{ margin: 0 }}>
           {token.hospitalName && <Row label="🏛️ Hospital" value={token.hospitalName} />}
           <Row label="📅 Booking Date" value={dateStr} />
-          <Row label="⏰ Estimated Time Slot" value={slotStr} />
           <Row label="🎟️ Token Number" value={`#${displayNumber}`} />
           {token.name && <Row label="👤 Patient Name" value={token.name} />}
           {token.category && <Row label="🏥 Department" value={token.category} />}
