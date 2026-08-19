@@ -39,6 +39,14 @@ export default function Book() {
     }
   }, [patient]);
 
+  // Booking always goes through fetch-hospitals → select → book. Landing on
+  // /book with no hospital chosen yet (e.g. the header/hero "Book Token"
+  // buttons) bounces to the directory instead of silently booking into
+  // whatever hospital the backend happens to default to.
+  useEffect(() => {
+    if (!hospitalId) navigate('/find-hospital', { replace: true });
+  }, [hospitalId, navigate]);
+
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
   }
@@ -137,22 +145,20 @@ export default function Book() {
     }
   }
 
+  // Redirecting to /find-hospital (see the effect above) -- don't flash the
+  // form for a hospital that hasn't been chosen yet.
+  if (!hospitalId) return null;
+
   return (
     <div className="public-page">
       <Link to="/" className="auth-back">
         ← Back to home
       </Link>
       <Card title="Book an OPD Token" className="narrow-card">
-        {hospitalId ? (
-          <div className="callout callout-ok" style={{ marginBottom: '16px' }}>
-            🏥 Booking at <strong>{hospitalName || `hospital #${hospitalId}`}</strong> ·{' '}
-            <Link to="/find-hospital">Change hospital</Link>
-          </div>
-        ) : (
-          <p className="muted-text" style={{ marginBottom: '16px' }}>
-            Pick a hospital from the <Link to="/find-hospital">hospital directory</Link> or book into the default center below.
-          </p>
-        )}
+        <div className="callout callout-ok" style={{ marginBottom: '16px' }}>
+          🏥 Booking at <strong>{hospitalName || `hospital #${hospitalId}`}</strong> ·{' '}
+          <Link to="/find-hospital">Change hospital</Link>
+        </div>
 
         <form onSubmit={submit} className="stack-md">
           <Field label="Full Name">

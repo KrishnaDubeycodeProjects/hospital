@@ -369,7 +369,11 @@ export default function Landing() {
                   )}
                 </div>
 
-                <Link to="/book" className="clean-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                <Link
+                  to={`/book?hospitalId=${selectedHospital.id}&hospitalName=${encodeURIComponent(selectedHospital.name)}`}
+                  className="clean-btn-primary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
                   <TicketIcon size={16} /> Book OPD Token at {selectedHospital.name.split(',')[0]}
                 </Link>
               </div>
