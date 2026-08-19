@@ -14,9 +14,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Automatically populates 125+ realistic hospital entries across Thane (West/East,
- * Ghodbunder Road, Majiwada, Panchpakhadi, Naupada, Kalwa) and Mumbai Western Suburbs
- * (Kandivali, Borivali, Malad, Goregaon, Andheri, Dahisar, Mira Road) on startup.
+ * Automatically populates {@link #getHospitalsList() 33 real hospitals} (by name and
+ * address -- not placeholders) across Thane (West/East, Ghodbunder Road, Majiwada,
+ * Panchpakhadi, Naupada, Kalwa) and Mumbai Western Suburbs (Kandivali, Borivali,
+ * Malad, Goregaon, Andheri) on startup. Was previously documented as "125+"; that
+ * count was never accurate -- the list below has always had 33 entries.
  */
 @Component
 @RequiredArgsConstructor
@@ -29,8 +31,8 @@ public class MumbaiHospitalDataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            log.info("🌱 Seeding 125+ hospitals across Thane & Mumbai Western Suburbs...");
             List<HospitalSeedData> seedList = getHospitalsList();
+            log.info("🌱 Seeding {} hospitals across Thane & Mumbai Western Suburbs...", seedList.size());
 
             int seeded = 0;
             for (HospitalSeedData h : seedList) {

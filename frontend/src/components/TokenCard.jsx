@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { queueApi } from '../api/client';
-import { Button, StatusBadge, fmtDateTime, fmtMinutes } from './ui';
+import { Button, RemoteImage, StatusBadge, fmtDateTime, fmtMinutes } from './ui';
 import { useToast } from '../context/ToastContext';
 
 /** Full status view of one token -- position, ETA, QR, "share location" / "will I make it" actions. Reused by the public token page and the patient portal's own-token view. */
@@ -134,7 +134,7 @@ export default function TokenCard({ token, onRefresh }) {
       )}
 
       <div className="qr-block">
-        <img src={queueApi.qrUrl(token.id)} alt="Token QR" width={200} height={200} />
+        <RemoteImage src={queueApi.qrUrl(token.id)} alt="Token QR" width={200} height={200} />
         <p className="muted-text">Show this QR to staff when called.</p>
       </div>
     </div>

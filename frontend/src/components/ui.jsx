@@ -1,4 +1,57 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { fetchAsObjectUrl } from '../api/client';
+
+/**
+ * <img> for a backend-hosted image (QR codes, etc.) that fetches the bytes
+ * through the shared axios client instead of a plain `src=` -- a raw `<img
+ * src="https://…ngrok-free.dev/…">` is fetched directly by the browser, which
+ * skips the `ngrok-skip-browser-warning` header the axios client attaches
+ * (see api/client.js). Ngrok's free tier then serves its HTML interstitial to
+ * that request instead of the image, so the `<img>` just renders broken --
+ * this was exactly why QR codes stopped rendering. Same fix already used for
+ * patient/doctor documents (see fetchAsObjectUrl); this brings QR images onto
+ * the same path. `role` is optional -- omit it for public, unauthenticated
+ * endpoints like the queue/access QR codes.
+ */
+export function RemoteImage({ src, alt, role, width, height, className, style }) {
+  const [objectUrl, setObjectUrl] = useState(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let currentUrl = null;
+    setObjectUrl(null);
+    setFailed(false);
+    fetchAsObjectUrl(src, role)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        currentUrl = url;
+        setObjectUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [src, role]);
+
+  if (failed) {
+    return (
+      <div className={className} style={{ width, height, display: 'grid', placeItems: 'center', ...style }}>
+        <span className="muted-text" style={{ fontSize: '12px' }}>Couldn't load image</span>
+      </div>
+    );
+  }
+  if (!objectUrl) {
+    return <div className={className} style={{ width, height, ...style }} aria-busy="true" />;
+  }
+  return <img src={objectUrl} alt={alt} width={width} height={height} className={className} style={style} />;
+}
 
 export function Card({ title, actions, children, className = '' }) {
   return (

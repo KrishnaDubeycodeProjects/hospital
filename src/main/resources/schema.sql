@@ -54,13 +54,16 @@ ALTER TABLE hospitals
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hospitals_doctor_join_code
   ON hospitals (doctor_join_code) WHERE doctor_join_code IS NOT NULL;
 
--- Placeholder default hospital row (India Gate, Delhi, as a non-null
--- placeholder location) -- HospitalSeedRunner overwrites this from
--- HOSPITAL_* env vars on every boot, so this row is just a safe fallback
--- if the app ever starts against a fresh DB before that runner executes.
-INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time, avg_service_minutes, active_counters)
-SELECT 'main', 'Main Hospital', 'Address not yet configured', '3C3P39L8T4', 28.6139, 77.2090, '09:00', '17:00', 10, 1
-WHERE NOT EXISTS (SELECT 1 FROM hospitals WHERE uri_slug = 'main');
+-- No placeholder default hospital row here on purpose. This used to
+-- unconditionally insert a "Main Hospital" / "Address not yet configured"
+-- row at India Gate, Delhi's coordinates on every single boot (guarded only
+-- by "WHERE NOT EXISTS", so it kept coming back no matter how many times it
+-- was deleted from the DB) -- meant as a fallback for HospitalSeedRunner to
+-- overwrite from HOSPITAL_* env vars, but those are never configured in this
+-- deployment, so the fake row just sat there permanently instead. Real
+-- hospitals come from MumbaiHospitalDataSeeder -- HospitalSeedRunner still
+-- upserts a real 'main' row if HOSPITAL_DIGIPIN/LATITUDE/LONGITUDE are ever
+-- actually set.
 
 -- ----------------------------------------------------------------------------
 -- tokens: one row per patient queue ticket. See QueueManagerService.
@@ -90,7 +93,7 @@ CREATE TABLE IF NOT EXISTS tokens (
   treatment_remaining_minutes DOUBLE PRECISION,
   notified_ready_at TIMESTAMP,
   anomaly_control_until TIMESTAMP,
-  priority_rank BIGINT,
+  priority_rank DOUBLE PRECISION,
   counter_id INT,
   reserved_counter_id INT,
   no_show_count INT NOT NULL DEFAULT 0,
@@ -113,7 +116,17 @@ ALTER TABLE tokens ADD COLUMN IF NOT EXISTS travel_minutes DOUBLE PRECISION;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS treatment_remaining_minutes DOUBLE PRECISION;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS notified_ready_at TIMESTAMP;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS anomaly_control_until TIMESTAMP;
-ALTER TABLE tokens ADD COLUMN IF NOT EXISTS priority_rank BIGINT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS priority_rank DOUBLE PRECISION;
+-- Fixes a deployed DB where this column already exists as the old BIGINT type
+-- (ADD COLUMN IF NOT EXISTS above is a no-op there, since the column already
+-- exists). QueueManagerService#movePatientToPosition deliberately computes
+-- fractional ranks -- "insert this token between rank 2 and rank 3" becomes
+-- 2.5, so nobody else's rank has to change -- but BIGINT can only store whole
+-- numbers, so Postgres was silently rounding every fractional write back to
+-- an integer. Two tokens repositioned into the same gap would round to the
+-- same rank and collide instead of landing at distinct positions. Safe to
+-- run on every boot: a no-op once the column is already DOUBLE PRECISION.
+ALTER TABLE tokens ALTER COLUMN priority_rank TYPE DOUBLE PRECISION USING priority_rank::double precision;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS counter_id INT;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS reserved_counter_id INT;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS no_show_count INT NOT NULL DEFAULT 0;
@@ -212,6 +225,20 @@ ALTER TABLE doctors
   ADD COLUMN IF NOT EXISTS hospital_id INT,
   ADD COLUMN IF NOT EXISTS counter_id INT,
   ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+
+-- phone/name were missing entirely on a deployed DB whose "doctors" table
+-- predates this file's CREATE TABLE (that only ran once, long enough ago
+-- that the table already had a different column set -- aadhaar_number,
+-- degrees, ehrid, license_number, ... from an older EHR-profile design --
+-- so "IF NOT EXISTS" skipped it and phone/name never got added). Every
+-- DoctorService.register/login call does `INSERT/SELECT ... phone`, so
+-- doctor registration and login couldn't work at all against that DB.
+-- No NOT NULL here -- can't add a NOT NULL column to a table that already
+-- has rows without one. The partial unique index below is what actually
+-- enforces "no two doctors share a phone" for rows that do have one.
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS name VARCHAR(100);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doctors_phone_unique ON doctors (phone) WHERE phone IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_doctors_hospital_id ON doctors (hospital_id);
 

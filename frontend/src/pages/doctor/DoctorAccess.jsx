@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { doctorApi } from '../../api/client';
-import { Button, Card, EmptyState, Spinner, fmtDateTime } from '../../components/ui';
+import { Button, Card, EmptyState, RemoteImage, Spinner, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
 export default function DoctorAccess() {
@@ -79,7 +79,7 @@ export default function DoctorAccess() {
           ) : (
             <div className="qr-block stack-md">
               <div style={{ background: '#ffffff', padding: '16px', display: 'inline-block', borderRadius: '16px', border: '2px solid var(--border)' }}>
-                <img
+                <RemoteImage
                   src={doctorApi.accessRequestQrUrl(request.code)}
                   alt="Doctor Patient Access QR Code"
                   width={260}

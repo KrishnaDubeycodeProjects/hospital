@@ -35,27 +35,25 @@ public class DemoDataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            log.info("🚀 Seeding video demo scenarios & credentials...");
-
-            // 1. Ensure 'main' hospital exists and has doctor_join_code 'DOC123' and 3 active counters
+            // 1. Only run against a *real* 'main'-slugged hospital that someone deliberately
+            // created. This used to fabricate one on every startup -- name "Main Hospital",
+            // address "123 Health Ave, Mumbai", lat/lon 28.6139/77.2090 (that's New Delhi's
+            // India Gate, not Mumbai) -- which kept reappearing as a bogus placeholder hospital
+            // no matter how many times it was deleted. No 'main' hospital -> skip the whole
+            // demo-scenario seed instead of inventing one.
             List<Integer> mainIds = jdbc.query(
                     "SELECT id FROM hospitals WHERE uri_slug = 'main' LIMIT 1",
                     Map.of(), (rs, rowNum) -> rs.getInt("id"));
-            Integer mainHospitalId = mainIds.isEmpty() ? null : mainIds.get(0);
-
-            if (mainHospitalId != null) {
-                jdbc.update(
-                        "UPDATE hospitals SET doctor_join_code = 'DOC123', active_counters = 3 WHERE id = :id",
-                        Map.of("id", mainHospitalId));
-            } else {
-                mainHospitalId = jdbc.queryForObject(
-                        """
-                        INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time, avg_service_minutes, active_counters, doctor_join_code, categories)
-                        VALUES ('main', 'Main Hospital', '123 Health Ave, Mumbai', '3C3P39L8T4', 28.6139, 77.2090, '09:00', '17:00', 10, 3, 'DOC123', 'General Medicine,Cardiology,Pediatrics')
-                        RETURNING id
-                        """,
-                        Map.of(), Integer.class);
+            if (mainIds.isEmpty()) {
+                log.info("ℹ️ No 'main' hospital configured -- skipping video demo scenario seeding (this is expected once the fake placeholder hospital is removed).");
+                return;
             }
+            Integer mainHospitalId = mainIds.get(0);
+
+            log.info("🚀 Seeding video demo scenarios & credentials against hospital #{}...", mainHospitalId);
+            jdbc.update(
+                    "UPDATE hospitals SET doctor_join_code = 'DOC123', active_counters = 3 WHERE id = :id",
+                    Map.of("id", mainHospitalId));
 
             // 2. Ensure General Medicine department exists with 3 active counters
             hospitalDepartmentService.ensure(mainHospitalId, "General Medicine");
