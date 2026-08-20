@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:5000}
+  port: ${PORT:8088}
   ssl:
     enabled: ${SERVER_SSL_ENABLED:false}
     key-store: ${SERVER_SSL_KEY_STORE:}
@@ -8,10 +8,16 @@ server:
     key-alias: ${SERVER_SSL_KEY_ALIAS:}
 
 spring:
+  config:
+    # Load a local .env (KEY=VALUE, same format docker-compose reads) into the
+    # Spring Environment for non-Docker runs (mvn spring-boot:run / java -jar).
+    # "optional:" so startup doesn't fail when it's absent (e.g. in CI/Docker,
+    # where real env vars are supplied instead). Never committed -- see .gitignore.
+    import: optional:file:.env[.properties]
   application:
     name: clinic-queue-backend
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}?sslmode=require
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver

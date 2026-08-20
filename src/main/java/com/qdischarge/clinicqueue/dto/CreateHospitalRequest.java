@@ -27,10 +27,8 @@ public record CreateHospitalRequest(
         SetLocationRequest location,
         String openTime,
         String closeTime,
-        @Min(value = 1, message = "avgPatientsPerDay must be at least 1.")
-        Integer avgPatientsPerDay,
         @Min(value = 1, message = "avgServiceMinutes must be at least 1.")
-        Integer avgServiceMinutes,
+        Integer minServiceMinutes,
         @Min(value = 1, message = "activeCounters must be at least 1.")
         Integer activeCounters) {
 }

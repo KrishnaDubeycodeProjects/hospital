@@ -25,7 +25,7 @@ public class HospitalDto {
     private Double longitude;
     private LocalTime openTime;
     private LocalTime closeTime;
-    private Integer avgServiceMinutes;
+    private Integer minTime;
     private Integer activeCounters;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

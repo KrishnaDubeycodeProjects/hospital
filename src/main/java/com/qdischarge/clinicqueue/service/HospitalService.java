@@ -72,14 +72,14 @@ public class HospitalService {
         LatLon resolved = resolveLocation(req.location());
         LocalTime open = req.openTime() != null ? LocalTime.parse(req.openTime()) : LocalTime.of(9, 0);
         LocalTime close = req.closeTime() != null ? LocalTime.parse(req.closeTime()) : LocalTime.of(17, 0);
-        int avgServiceMinutes = resolveAvgServiceMinutes(req, open, close);
+        int avgServiceMinutes =req.minServiceMinutes();
 
         // doctor_join_code: a fresh candidate is always generated, but on an upsert of an
         // already-existing hospital, COALESCE keeps whatever code it already had -- a
         // doctor's saved join code must never silently change under them.
         String sql = """
                 INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time, avg_service_minutes, active_counters, doctor_join_code)
-                VALUES (:slug, :name, :address, :digipin, :lat, :lon, :open, :close, :avgService, :counters, :joinCode)
+                VALUES (:slug, :name, :address, :digipin, :lat, :lon, :open, :close, :minTime, :counters, :joinCode)
                 ON CONFLICT (uri_slug) DO UPDATE SET
                     name = EXCLUDED.name, address = EXCLUDED.address, digipin = EXCLUDED.digipin,
                     latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
@@ -90,12 +90,18 @@ public class HospitalService {
                 RETURNING *
                 """;
         List<HospitalDto> rows = jdbc.query(sql, Map.of(
-                "slug", req.uriSlug(), "name", req.name(), "address", req.address() == null ? "" : req.address(),
-                "digipin", resolved.digipin(), "lat", resolved.lat(), "lon", resolved.lon(),
+                "slug", req.uriSlug(),
+                "name", req.name(),
+                "address", req.address() == null ? "" : req.address()
+                ,
+                "digipin", resolved.digipin(),
+                "lat", resolved.lat(), "lon", resolved.lon(),
                 "open", open, "close", close,
-                "avgService", avgServiceMinutes,
-                "counters", req.activeCounters() == null ? 1 : req.activeCounters(),
-                "joinCode", generateJoinCode()
+                "minTime", avgServiceMinutes,
+
+                "counters", req.activeCounters() == null ? 1 : req.activeCounters()
+
+
         ), ROW_MAPPER);
         return finish(rows.get(0));
     }
@@ -132,28 +138,6 @@ public class HospitalService {
         return sb.toString();
     }
 
-    /**
-     * avgServiceMinutes (how long one patient's visit takes, which drives
-     * every wait-time estimate shown to patients) is normally derived rather
-     * than asked for directly: given how many hours the hospital is open and
-     * how many patients it treats on an average day, one patient's share of
-     * the day is (open minutes) / (patients per day). An explicit
-     * avgServiceMinutes always overrides that math; with neither given, falls
-     * back to the original flat default of 10 minutes/patient.
-     */
-    private int resolveAvgServiceMinutes(CreateHospitalRequest req, LocalTime open, LocalTime close) {
-        if (req.avgServiceMinutes() != null) {
-            return req.avgServiceMinutes();
-        }
-        if (req.avgPatientsPerDay() != null) {
-            long openMinutes = java.time.Duration.between(open, close).toMinutes();
-            if (openMinutes <= 0) {
-                openMinutes = DEFAULT_OPEN_MINUTES;
-            }
-            return (int) Math.max(1, openMinutes / req.avgPatientsPerDay());
-        }
-        return 10;
-    }
 
     public HospitalDto updateLocation(String uriSlug, SetLocationRequest location) {
         LatLon resolved = resolveLocation(location);
