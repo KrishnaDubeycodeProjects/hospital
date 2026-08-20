@@ -1,23 +1,30 @@
 package com.qdischarge.clinicqueue.service;
 
+import com.qdischarge.clinicqueue.catalog.MedicalCategory;
 import com.qdischarge.clinicqueue.config.AppProperties;
 import com.qdischarge.clinicqueue.dto.CreateHospitalRequest;
 import com.qdischarge.clinicqueue.dto.HospitalDto;
 import com.qdischarge.clinicqueue.dto.SetLocationRequest;
 import com.qdischarge.clinicqueue.geo.DigipinService;
+import com.qdischarge.clinicqueue.geo.GeoDistanceService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Hospital location (DIGIPIN-based), OPD hours, and counter count. A hospital's
+ * Hospital directory: location (DIGIPIN-based), OPD hours, counter count,
+ * and profile (ownership/year established/accreditation/gender-specific/
+ * offered categories -- see catalog.MedicalCategory). A hospital's
  * "location" is deliberately just a DIGIPIN + the lat/lon it decodes to --
  * settable either directly as a DIGIPIN or as raw lat/lon (a DIGIPIN is then
  * derived), which is what "setting the location to a hospital URI" means in
@@ -29,9 +36,37 @@ public class HospitalService {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final DigipinService digipinService;
+    private final GeoDistanceService geoDistanceService;
+    private final HospitalDepartmentService hospitalDepartmentService;
     private final AppProperties appProperties;
 
-    private static final RowMapper<HospitalDto> ROW_MAPPER = new BeanPropertyRowMapper<>(HospitalDto.class);
+    /**
+     * categories/accreditation are stored as comma-separated TEXT (not a
+     * Postgres array -- see schema.sql), so HospitalDto can't be mapped
+     * with a plain BeanPropertyRowMapper.
+     */
+    private static final RowMapper<HospitalDto> ROW_MAPPER = (rs, rowNum) -> HospitalDto.builder()
+            .id(rs.getInt("id"))
+            .uriSlug(rs.getString("uri_slug"))
+            .name(rs.getString("name"))
+            .address(rs.getString("address"))
+            .digipin(rs.getString("digipin"))
+            .latitude(rs.getDouble("latitude"))
+            .longitude(rs.getDouble("longitude"))
+            .openTime(rs.getObject("open_time", LocalTime.class))
+            .closeTime(rs.getObject("close_time", LocalTime.class))
+            .avgServiceMinutes(rs.getInt("avg_service_minutes"))
+            .minServiceMinutes((Integer) rs.getObject("min_service_minutes"))
+            .activeCounters(rs.getInt("active_counters"))
+            .ownership(rs.getString("ownership"))
+            .yearEstablished((Integer) rs.getObject("year_established"))
+            .accreditation(splitCsv(rs.getString("accreditation")))
+            .genderSpecific(rs.getString("gender_specific"))
+            .categories(splitCsv(rs.getString("categories")))
+            .createdAt(rs.getObject("created_at", LocalDateTime.class))
+            .updatedAt(rs.getObject("updated_at", LocalDateTime.class))
+            .build();
+
     /** Excludes 0/O/1/I/L -- easy to read aloud/type when handing a doctor their hospital's join code. */
     private static final String JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -52,7 +87,7 @@ public class HospitalService {
     public HospitalDto getOperatingHospital() {
         HospitalDto hospital = getBySlug(appProperties.getHospitalUriSlug());
         if (hospital == null) {
-            // Migration always seeds a 'main' row; if a custom slug was configured
+            // schema.sql always seeds a 'main' row; if a custom slug was configured
             // without creating that hospital yet, fall back to it so the single-
             // counter flows (which need *a* hospital) never hard-fail.
             hospital = getBySlug("main");
@@ -65,45 +100,126 @@ public class HospitalService {
                 .map(this::finish).toList();
     }
 
-    /** Same fallback the DB migration's placeholder row and DEFAULT clause use: a 9-to-5, 8-hour OPD day. */
+    public record HospitalMatch(HospitalDto hospital, double distanceKm) {
+    }
+
+    public record HospitalSearchPage(List<HospitalMatch> results, boolean hasMore) {
+    }
+
+    /**
+     * Hospitals offering the given category (case-insensitive, or every
+     * category if null), open to the given patient gender (a hospital with
+     * no gender_specific flag accepts everyone; one flagged "male"/"female"
+     * only accepts a matching patient gender -- a patient who is "other"
+     * only matches unflagged hospitals; gender null skips this filter
+     * entirely), nearest first. offset/limit page through the ranked list --
+     * the WhatsApp booking flow and the "share your location" web page both
+     * show 20 at a time with a "Show more"/"Load more" for the next page
+     * (see QueueManagerService#searchAndOfferHospitals, HospitalController#nearby).
+     */
+    public HospitalSearchPage searchHospitals(String category, String gender, double lat, double lon, int offset, int limit) {
+        List<HospitalDto> candidates = list().stream()
+                .filter(h -> category == null || (h.getCategories() != null
+                        && h.getCategories().stream().anyMatch(c -> c.equalsIgnoreCase(category))))
+                .filter(h -> gender == null || h.getGenderSpecific() == null || h.getGenderSpecific().equalsIgnoreCase(gender))
+                .toList();
+
+        List<HospitalMatch> ranked = candidates.stream()
+                .map(h -> new HospitalMatch(h, geoDistanceService.distanceKm(lat, lon, h.getLatitude(), h.getLongitude())))
+                .sorted(Comparator.comparingDouble(HospitalMatch::distanceKm))
+                .toList();
+
+        int from = Math.min(offset, ranked.size());
+        int to = Math.min(offset + limit, ranked.size());
+        return new HospitalSearchPage(ranked.subList(from, to), to < ranked.size());
+    }
+
+    /** Same fallback schema.sql's placeholder row and DEFAULT clause use: a 9-to-5, 8-hour OPD day. */
     private static final long DEFAULT_OPEN_MINUTES = 480;
 
     public HospitalDto create(CreateHospitalRequest req) {
         LatLon resolved = resolveLocation(req.location());
         LocalTime open = req.openTime() != null ? LocalTime.parse(req.openTime()) : LocalTime.of(9, 0);
         LocalTime close = req.closeTime() != null ? LocalTime.parse(req.closeTime()) : LocalTime.of(17, 0);
-        int avgServiceMinutes =req.minServiceMinutes();
+        int avgServiceMinutes = resolveAvgServiceMinutes(req, open, close);
+        if (req.minServiceMinutes() != null && req.minServiceMinutes() > avgServiceMinutes) {
+            throw new IllegalArgumentException("minServiceMinutes cannot exceed avgServiceMinutes.");
+        }
 
-        // doctor_join_code: a fresh candidate is always generated, but on an upsert of an
-        // already-existing hospital, COALESCE keeps whatever code it already had -- a
-        // doctor's saved join code must never silently change under them.
+        if (req.genderSpecific() != null && !req.genderSpecific().isBlank()
+                && !req.genderSpecific().equalsIgnoreCase("male") && !req.genderSpecific().equalsIgnoreCase("female")) {
+            throw new IllegalArgumentException("genderSpecific must be \"male\" or \"female\" (or omitted for general/co-ed).");
+        }
+        List<String> canonicalCategories = canonicalizeCategories(req.categories());
+
+        // doctor_join_code and the new profile columns (ownership onward): a fresh join-code
+        // candidate is always generated, but on an upsert of an already-existing hospital,
+        // COALESCE keeps whatever value it already had unless this call explicitly supplies a
+        // new one -- a doctor's saved join code (or an admin-edited profile field) must never
+        // silently change/reset just because HospitalSeedRunner re-upserts on every boot without
+        // knowing about it.
         String sql = """
-                INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time, avg_service_minutes, active_counters, doctor_join_code)
-                VALUES (:slug, :name, :address, :digipin, :lat, :lon, :open, :close, :minTime, :counters, :joinCode)
+                INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time,
+                    avg_service_minutes, min_service_minutes, active_counters, doctor_join_code, ownership, year_established, accreditation,
+                    gender_specific, categories)
+                VALUES (:slug, :name, :address, :digipin, :lat, :lon, :open, :close, :avgService, :minService, :counters, :joinCode,
+                    :ownership, :yearEstablished, :accreditation, :genderSpecific, :categories)
                 ON CONFLICT (uri_slug) DO UPDATE SET
                     name = EXCLUDED.name, address = EXCLUDED.address, digipin = EXCLUDED.digipin,
                     latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude,
                     open_time = EXCLUDED.open_time, close_time = EXCLUDED.close_time,
-                    avg_service_minutes = EXCLUDED.avg_service_minutes, active_counters = EXCLUDED.active_counters,
+                    avg_service_minutes = EXCLUDED.avg_service_minutes,
+                    min_service_minutes = COALESCE(EXCLUDED.min_service_minutes, hospitals.min_service_minutes),
+                    active_counters = EXCLUDED.active_counters,
                     doctor_join_code = COALESCE(hospitals.doctor_join_code, EXCLUDED.doctor_join_code),
+                    ownership = COALESCE(EXCLUDED.ownership, hospitals.ownership),
+                    year_established = COALESCE(EXCLUDED.year_established, hospitals.year_established),
+                    accreditation = COALESCE(EXCLUDED.accreditation, hospitals.accreditation),
+                    gender_specific = COALESCE(EXCLUDED.gender_specific, hospitals.gender_specific),
+                    categories = COALESCE(EXCLUDED.categories, hospitals.categories),
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING *
                 """;
-        List<HospitalDto> rows = jdbc.query(sql, Map.of(
-                "slug", req.uriSlug(),
-                "name", req.name(),
-                "address", req.address() == null ? "" : req.address()
-                ,
-                "digipin", resolved.digipin(),
-                "lat", resolved.lat(), "lon", resolved.lon(),
-                "open", open, "close", close,
-                "minTime", avgServiceMinutes,
+        Map<String, Object> params = new java.util.HashMap<>();
+        params.put("slug", req.uriSlug());
+        params.put("name", req.name());
+        params.put("address", req.address() == null ? "" : req.address());
+        params.put("digipin", resolved.digipin());
+        params.put("lat", resolved.lat());
+        params.put("lon", resolved.lon());
+        params.put("open", open);
+        params.put("close", close);
+        params.put("avgService", avgServiceMinutes);
+        params.put("minService", req.minServiceMinutes());
+        params.put("counters", req.activeCounters() == null ? 1 : req.activeCounters());
+        params.put("joinCode", generateJoinCode());
+        params.put("ownership", req.ownership());
+        params.put("yearEstablished", req.yearEstablished());
+        params.put("accreditation", joinCsv(req.accreditation()));
+        params.put("genderSpecific", req.genderSpecific() == null ? null : req.genderSpecific().toLowerCase());
+        params.put("categories", joinCsv(canonicalCategories));
 
-                "counters", req.activeCounters() == null ? 1 : req.activeCounters()
+        List<HospitalDto> rows = jdbc.query(sql, params, ROW_MAPPER);
+        HospitalDto hospital = finish(rows.get(0));
+        if (canonicalCategories != null) {
+            hospitalDepartmentService.syncFromHospital(hospital.getId(), canonicalCategories);
+        }
+        return hospital;
+    }
 
-
-        ), ROW_MAPPER);
-        return finish(rows.get(0));
+    private List<String> canonicalizeCategories(List<String> categories) {
+        if (categories == null) {
+            return null;
+        }
+        List<String> canonical = new ArrayList<>();
+        for (String c : categories) {
+            String match = MedicalCategory.canonicalize(c);
+            if (match == null) {
+                throw new IllegalArgumentException("Unknown category: \"" + c + "\". See GET /api/hospitals/categories for the valid list.");
+            }
+            canonical.add(match);
+        }
+        return canonical;
     }
 
     /** Admin-only: the join code doctors enter to link their account to this hospital (never exposed on public reads). */
@@ -138,6 +254,28 @@ public class HospitalService {
         return sb.toString();
     }
 
+    /**
+     * avgServiceMinutes (how long one patient's visit takes, which drives
+     * every wait-time estimate shown to patients) is normally derived rather
+     * than asked for directly: given how many hours the hospital is open and
+     * how many patients it treats on an average day, one patient's share of
+     * the day is (open minutes) / (patients per day). An explicit
+     * avgServiceMinutes always overrides that math; with neither given, falls
+     * back to the original flat default of 10 minutes/patient.
+     */
+    private int resolveAvgServiceMinutes(CreateHospitalRequest req, LocalTime open, LocalTime close) {
+        if (req.avgServiceMinutes() != null) {
+            return req.avgServiceMinutes();
+        }
+        if (req.avgPatientsPerDay() != null) {
+            long openMinutes = java.time.Duration.between(open, close).toMinutes();
+            if (openMinutes <= 0) {
+                openMinutes = DEFAULT_OPEN_MINUTES;
+            }
+            return (int) Math.max(1, openMinutes / req.avgPatientsPerDay());
+        }
+        return 10;
+    }
 
     public HospitalDto updateLocation(String uriSlug, SetLocationRequest location) {
         LatLon resolved = resolveLocation(location);
@@ -171,6 +309,20 @@ public class HospitalService {
             h.setFormattedDigipin(digipinService.format(h.getDigipin()));
         }
         return h;
+    }
+
+    private static List<String> splitCsv(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return null;
+        }
+        return Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
+    }
+
+    private static String joinCsv(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        return String.join(", ", values);
     }
 
     public record LatLon(String digipin, double lat, double lon) {

@@ -27,6 +27,8 @@ public class TokenHistoryDto {
     private String phone;
     private String name;
     private Integer age;
+    private String gender;
+    private String category;
     private Integer hospitalId;
     private Integer counterId;
     private LocalDateTime createdAt;

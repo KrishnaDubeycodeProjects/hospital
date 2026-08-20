@@ -11,6 +11,7 @@ import com.qdischarge.clinicqueue.service.AccessService;
 import com.qdischarge.clinicqueue.service.DoctorService;
 import com.qdischarge.clinicqueue.service.PatientDocumentService;
 import com.qdischarge.clinicqueue.service.QrCodeService;
+import com.qdischarge.clinicqueue.service.TimeSlotService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -39,6 +40,7 @@ public class DoctorController {
     private final AccessService accessService;
     private final PatientDocumentService patientDocumentService;
     private final QrCodeService qrCodeService;
+    private final TimeSlotService timeSlotService;
     private final CurrentUser currentUser;
 
     @PostMapping("/register")
@@ -105,6 +107,12 @@ public class DoctorController {
         }
     }
 
+    /** The calling doctor's own rostered OPD time slots, soonest first. */
+    @GetMapping("/me/time-slots")
+    public ResponseEntity<Map<String, Object>> myTimeSlots() {
+        return ResponseEntity.ok(ok(timeSlotService.listForDoctor(currentUser.requireDoctorId())));
+    }
+
     /** Every patient currently granting this doctor access, grouped by (name, age) with their documents. */
     @GetMapping("/patients")
     public ResponseEntity<Map<String, Object>> patients() {
@@ -129,6 +137,30 @@ public class DoctorController {
                 .contentType(MediaType.parseMediaType(file.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.fileName() + "\"")
                 .body(file.data());
+    }
+
+    /** Upload a prescription or medical report for a patient (if doctor currently has active access). */
+    @PostMapping(value = "/patients/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadPatientDocument(
+            @RequestParam("patientPhone") String patientPhone,
+            @RequestParam("patientName") String patientName,
+            @RequestParam(name = "patientAge", required = false) Integer patientAge,
+            @RequestParam("docType") String docType,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        int doctorId = currentUser.requireDoctorId();
+        List<String> allowedPhones = accessService.listActivePatientPhonesForDoctor(doctorId);
+        if (!allowedPhones.contains(patientPhone)) {
+            return ResponseEntity.status(403).body(msg("You don't currently have active access to this patient's records."));
+        }
+        try {
+            DoctorDto doctor = doctorService.getById(doctorId);
+            PatientDocumentDto doc = patientDocumentService.upload(
+                    patientPhone, patientName, patientAge, docType,
+                    doctor != null ? doctor.getHospitalId() : null, doctorId, file);
+            return ResponseEntity.ok(ok(doc));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        }
     }
 
     private Map<String, Object> ok(Object data) {

@@ -1,78 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import AdminDashboard from './components/admin/AdminDashboard';
-import PatientView from './components/patient/PatientView';
-import Header from './components/common/Header';
-import './App.css';
+import React from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import { RoleShell } from './components/Layout';
+
+import Landing from './pages/Landing';
+import Login from './pages/Login';
+import Book from './pages/Book';
+import FindHospital from './pages/FindHospital';
+import Track from './pages/Track';
+import TokenDetail from './pages/TokenDetail';
+
+import AdminQueue from './pages/admin/AdminQueue';
+import AdminCounters from './pages/admin/AdminCounters';
+import AdminMissed from './pages/admin/AdminMissed';
+import AdminHistory from './pages/admin/AdminHistory';
+import AdminHospitals from './pages/admin/AdminHospitals';
+
+import PatientQueue from './pages/patient/PatientQueue';
+import PatientHistory from './pages/patient/PatientHistory';
+import PatientDocuments from './pages/patient/PatientDocuments';
+import PatientAccess from './pages/patient/PatientAccess';
+
+import DoctorProfile from './pages/doctor/DoctorProfile';
+import DoctorAccess from './pages/doctor/DoctorAccess';
+import DoctorPatients from './pages/doctor/DoctorPatients';
 
 export default function App() {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
-
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
-    };
-
-    window.addEventListener('popstate', handleLocationChange);
-    // Listen to pushState / replaceState custom events if needed
-    return () => {
-      window.removeEventListener('popstate', handleLocationChange);
-    };
-  }, []);
-
-  const navigateTo = (path) => {
-    window.history.pushState({}, '', path);
-    setCurrentPath(path);
-  };
-
-  // Simple Router Logic
-  if (currentPath === '/admin' || currentPath === '/admin/') {
-    return <AdminDashboard />;
-  }
-
-  if (currentPath.startsWith('/patient')) {
-    return <PatientView />;
-  }
-
-  // Home Page
   return (
-    <div className="home-view container">
-      <Header subtitle="Welcome to our Clinic Queue" />
-      <div className="card home-card">
-        <h2>Queue Portal</h2>
-        <p>Manage the queue or track your token status live.</p>
-        
-        <div className="home-actions">
-          <button className="btn btn-primary btn-lg" onClick={() => navigateTo('/admin')}>
-            Go to Admin Dashboard
-          </button>
-          
-          <div className="divider">OR</div>
-          
-          <form className="token-search-form" onSubmit={(e) => {
-            e.preventDefault();
-            const val = e.target.phone.value.trim();
-            if (val) {
-              navigateTo(`/patient?phone=${val}`);
-            }
-          }}>
-            <label htmlFor="phone">Enter Phone Number:</label>
-            <div className="input-group">
-              <input 
-                type="text" 
-                id="phone" 
-                name="phone" 
-                placeholder="e.g. 918850934544" 
-                required 
-              />
-              <button type="submit" className="btn btn-success">
-                Track Token
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+    <AuthProvider>
+      <ToastProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/book" element={<Book />} />
+            <Route path="/find-hospital" element={<FindHospital />} />
+            <Route path="/track" element={<Track />} />
+            <Route path="/track/:phone" element={<Track />} />
+            <Route path="/token/:id" element={<TokenDetail />} />
+            <Route path="/login/:role" element={<Login />} />
+
+            <Route path="/admin" element={<RoleShell role="admin" />}>
+              <Route index element={<AdminQueue />} />
+              <Route path="counters" element={<AdminCounters />} />
+              <Route path="missed" element={<AdminMissed />} />
+              <Route path="history" element={<AdminHistory />} />
+              <Route path="hospitals" element={<AdminHospitals />} />
+            </Route>
+
+            <Route path="/patient" element={<RoleShell role="patient" />}>
+              <Route index element={<PatientQueue />} />
+              <Route path="history" element={<PatientHistory />} />
+              <Route path="documents" element={<PatientDocuments />} />
+              <Route path="access" element={<PatientAccess />} />
+            </Route>
+
+            <Route path="/doctor" element={<RoleShell role="doctor" />}>
+              <Route index element={<DoctorProfile />} />
+              <Route path="access" element={<DoctorAccess />} />
+              <Route path="patients" element={<DoctorPatients />} />
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
+    </AuthProvider>
   );
 }
-
-

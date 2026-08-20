@@ -1,5 +1,6 @@
 package com.qdischarge.clinicqueue.bot;
 
+import com.qdischarge.clinicqueue.catalog.MedicalCategory;
 import com.qdischarge.clinicqueue.dto.WaButton;
 import org.springframework.stereotype.Component;
 
@@ -44,6 +45,25 @@ public class BotMessages {
             case EN -> "✅ Language set to English.";
             case HI -> "✅ भाषा हिंदी में सेट कर दी गई है।";
             case MR -> "✅ भाषा मराठी मध्ये सेट केली आहे.";
+        };
+    }
+
+    // -------------------------------------------------------------
+    // Treatment-timing "go now" trigger (see
+    // service.QueueManagerService#runTreatmentTimingTick): sent -- together
+    // with the Twilio voice call, see service.TwilioStudioCallService --
+    // the moment a patient's real routing ETA is no longer comfortably
+    // shorter than the queue's remaining treatment time.
+    // -------------------------------------------------------------
+
+    public String headingToHospitalNotification(Lang lang, String patientName, int tokenNumber, String departmentName, String hospitalName) {
+        return switch (lang) {
+            case EN -> "Hello %s, your token number %d for %s at %s is about to be called. We request you to please start heading to the hospital now."
+                    .formatted(patientName, tokenNumber, departmentName, hospitalName);
+            case HI -> "नमस्ते %s, %s में %s के लिए आपका टोकन नंबर %d जल्द ही बुलाया जाने वाला है। कृपया अब अस्पताल की ओर रवाना हो जाएं।"
+                    .formatted(patientName, hospitalName, departmentName, tokenNumber);
+            case MR -> "नमस्कार %s, %s येथे %s साठी आपला टोकन क्रमांक %d लवकरच बोलावला जाणार आहे. कृपया आता रुग्णालयाकडे रवाना व्हा."
+                    .formatted(patientName, hospitalName, departmentName, tokenNumber);
         };
     }
 
@@ -95,6 +115,30 @@ public class BotMessages {
         };
     }
 
+    public String genderPrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "🚻 *GENDER*\n\nThanks! Please tell us your *Gender*.";
+            case HI -> "🚻 *लिंग*\n\nधन्यवाद! कृपया अपना *लिंग* बताएं।";
+            case MR -> "🚻 *लिंग*\n\nधन्यवाद! कृपया तुमचे *लिंग* सांगा.";
+        };
+    }
+
+    public List<WaButton> genderButtons(Lang lang) {
+        return switch (lang) {
+            case EN -> List.of(new WaButton(Gender.MALE.buttonId(), "Male"), new WaButton(Gender.FEMALE.buttonId(), "Female"), new WaButton(Gender.OTHER.buttonId(), "Other"));
+            case HI -> List.of(new WaButton(Gender.MALE.buttonId(), "पुरुष"), new WaButton(Gender.FEMALE.buttonId(), "महिला"), new WaButton(Gender.OTHER.buttonId(), "अन्य"));
+            case MR -> List.of(new WaButton(Gender.MALE.buttonId(), "पुरुष"), new WaButton(Gender.FEMALE.buttonId(), "स्त्री"), new WaButton(Gender.OTHER.buttonId(), "इतर"));
+        };
+    }
+
+    public String invalidGenderReminder(Lang lang) {
+        return switch (lang) {
+            case EN -> "🚻 *GENDER REQUIRED*\n\nPlease tap one of the options above, or type Male, Female, or Other.";
+            case HI -> "🚻 *लिंग आवश्यक है*\n\nकृपया ऊपर दिए गए विकल्पों में से एक चुनें, या पुरुष, महिला, या अन्य टाइप करें।";
+            case MR -> "🚻 *लिंग आवश्यक आहे*\n\nकृपया वरील पर्यायांपैकी एक निवडा, किंवा पुरुष, स्त्री किंवा इतर टाइप करा.";
+        };
+    }
+
     public String agePrompt(Lang lang) {
         return switch (lang) {
             case EN -> "🎂 *AGE*\n\nThanks! Now please reply with your *Age* (in years).\n\n_Example: 34_";
@@ -108,6 +152,146 @@ public class BotMessages {
             case EN -> "🎂 *VALID AGE REQUIRED*\n\nPlease reply with just a number between 0 and 120 (e.g. 34).";
             case HI -> "🎂 *मान्य आयु आवश्यक है*\n\nकृपया केवल 0 से 120 के बीच की संख्या भेजें (जैसे: 34)।";
             case MR -> "🎂 *वैध वय आवश्यक आहे*\n\nकृपया फक्त 0 ते 120 मधील संख्या पाठवा (उदा. 34).";
+        };
+    }
+
+    // -------------------------------------------------------------
+    // Category (department) selection
+    // -------------------------------------------------------------
+
+    public String categoryPrompt(Lang lang) {
+        String menu = MedicalCategory.numberedMenuText();
+        return switch (lang) {
+            case EN -> "🏥 *DEPARTMENT*\n\nWhich department do you need? Reply with the number.\n\n" + menu;
+            case HI -> "🏥 *विभाग*\n\nआपको किस विभाग की आवश्यकता है? संख्या के साथ उत्तर दें।\n\n" + menu;
+            case MR -> "🏥 *विभाग*\n\nतुम्हाला कोणत्या विभागाची गरज आहे? क्रमांकासह उत्तर द्या.\n\n" + menu;
+        };
+    }
+
+    public String invalidCategoryReminder(Lang lang) {
+        return switch (lang) {
+            case EN -> "🏥 *NOT RECOGNIZED*\n\nPlease reply with just the *number* next to the department you need (e.g. 4).";
+            case HI -> "🏥 *पहचाना नहीं गया*\n\nकृपया आपको चाहिए विभाग के आगे की *संख्या* के साथ उत्तर दें (जैसे: 4)।";
+            case MR -> "🏥 *ओळखले नाही*\n\nकृपया तुम्हाला हव्या असलेल्या विभागाच्या पुढील *क्रमांका*सह उत्तर द्या (उदा. 4).";
+        };
+    }
+
+    // -------------------------------------------------------------
+    // Location (to search nearby hospitals offering the chosen department)
+    // -------------------------------------------------------------
+
+    public String locationPrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "📍 *YOUR LOCATION*\n\nTap below to share your current location, so we can find the nearest hospitals for you.\n\n_Can't share it? Reply with a DIGIPIN instead._";
+            case HI -> "📍 *आपका स्थान*\n\nनिकटतम अस्पताल खोजने के लिए नीचे टैप करके अपना वर्तमान स्थान साझा करें।\n\n_साझा नहीं कर सकते? इसके बजाय DIGIPIN भेजें।_";
+            case MR -> "📍 *तुमचे स्थान*\n\nजवळचे रुग्णालय शोधण्यासाठी खाली टॅप करून तुमचे सध्याचे स्थान शेअर करा.\n\n_शेअर करू शकत नाही? त्याऐवजी DIGIPIN पाठवा._";
+        };
+    }
+
+    /** Sent right after {@link #locationPrompt} as a fallback link -- see WebhookController#sendLocationPrompt. */
+    public String findHospitalLinkPrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "Having trouble sharing your location here? Tap this link instead -- it'll ask your browser for permission and show you the same nearest-hospital list.";
+            case HI -> "यहाँ स्थान साझा करने में दिक्कत हो रही है? इसके बजाय यह लिंक टैप करें -- यह आपके ब्राउज़र से अनुमति मांगेगा और वही निकटतम अस्पतालों की सूची दिखाएगा।";
+            case MR -> "इथे स्थान शेअर करण्यात अडचण येत आहे? त्याऐवजी ही लिंक टॅप करा -- ती तुमच्या ब्राउझरकडून परवानगी मागेल आणि तीच जवळच्या रुग्णालयांची यादी दाखवेल.";
+        };
+    }
+
+    public String findHospitalLinkButtonText(Lang lang) {
+        return switch (lang) {
+            case EN -> "🌐 Find Hospitals Near Me";
+            case HI -> "🌐 पास के अस्पताल खोजें";
+            case MR -> "🌐 जवळची रुग्णालये शोधा";
+        };
+    }
+
+    public String invalidLocationReminder(Lang lang) {
+        return switch (lang) {
+            case EN -> "📍 *LOCATION NEEDED*\n\nPlease share your current location (the 📎/location icon), or type a valid 10-character DIGIPIN.";
+            case HI -> "📍 *स्थान आवश्यक है*\n\nकृपया अपना वर्तमान स्थान साझा करें (📎/स्थान आइकन), या एक मान्य 10-अक्षर का DIGIPIN टाइप करें।";
+            case MR -> "📍 *स्थान आवश्यक आहे*\n\nकृपया तुमचे सध्याचे स्थान शेअर करा (📎/स्थान आयकॉन), किंवा वैध 10-अक्षरी DIGIPIN टाइप करा.";
+        };
+    }
+
+    // -------------------------------------------------------------
+    // Hospital search results (5 at a time, "Show more" for the next 5) and confirmation
+    // -------------------------------------------------------------
+
+    public String hospitalResultsHeader(Lang lang, String category) {
+        return switch (lang) {
+            case EN -> "🏥 Hospitals offering *" + category + "* near you, nearest first. Tap one to select it.";
+            case HI -> "🏥 आपके पास *" + category + "* प्रदान करने वाले अस्पताल, निकटतम पहले। चुनने के लिए एक पर टैप करें।";
+            case MR -> "🏥 तुमच्या जवळ *" + category + "* देणारी रुग्णालये, सर्वात जवळचे आधी. निवडण्यासाठी एकावर टॅप करा.";
+        };
+    }
+
+    public String showMoreRowTitle(Lang lang) {
+        return switch (lang) {
+            case EN -> "➕ Show more";
+            case HI -> "➕ और दिखाएं";
+            case MR -> "➕ आणखी दाखवा";
+        };
+    }
+
+    /** Evolution has no tappable list row, so the hint after each results page tells the patient what to type instead (see WebhookController#isShowMoreCommand). */
+    public String showMoreHint(Lang lang) {
+        return switch (lang) {
+            case EN -> "➕ *Type \"more\"* to see the next hospitals.";
+            case HI -> "➕ अगले अस्पताल देखने के लिए *\"और दिखाएं\"* लिखें।";
+            case MR -> "➕ पुढील रुग्णालये पाहण्यासाठी *\"आणखी दाखवा\"* लिहा.";
+        };
+    }
+
+    public String noHospitalsFound(Lang lang, String category) {
+        return switch (lang) {
+            case EN -> "😔 No hospitals currently offer *" + category + "* near you.\n\nPlease pick a different department.\n\n" + MedicalCategory.numberedMenuText();
+            case HI -> "😔 फिलहाल आपके पास *" + category + "* प्रदान करने वाला कोई अस्पताल नहीं है।\n\nकृपया एक अलग विभाग चुनें।\n\n" + MedicalCategory.numberedMenuText();
+            case MR -> "😔 सध्या तुमच्या जवळ *" + category + "* देणारे कोणतेही रुग्णालय नाही.\n\nकृपया वेगळा विभाग निवडा.\n\n" + MedicalCategory.numberedMenuText();
+        };
+    }
+
+    public String invalidHospitalSelectionReminder(Lang lang) {
+        return switch (lang) {
+            case EN -> "🏥 Please tap a hospital from the list above, or *Show more* for more options.";
+            case HI -> "🏥 कृपया ऊपर दी गई सूची से एक अस्पताल चुनें, या अधिक विकल्पों के लिए *और दिखाएं* पर टैप करें।";
+            case MR -> "🏥 कृपया वरील यादीतून एक रुग्णालय निवडा, किंवा अधिक पर्यायांसाठी *आणखी दाखवा* वर टॅप करा.";
+        };
+    }
+
+    /** Evolution has no tappable button, so this ends with a "type your choice" instruction instead of "tap" -- see WebhookController#sendConfirmationCard. */
+    public String hospitalConfirmationPrompt(Lang lang, String hospitalName, String address, double distanceKm) {
+        String addressLine = (address != null && !address.isBlank()) ? "\n📍 " + address : "";
+        return switch (lang) {
+            case EN -> "🏥 *%s*%s\n📏 ~%.1f km away\n\nBook your token here?\n\n1️⃣ ✅ *Confirm*\n2️⃣ 🔁 *Choose Again*\n\n👉 *Type 1* or *Confirm* to book, or *2* / *Choose Again* to pick a different hospital."
+                    .formatted(hospitalName, addressLine, distanceKm);
+            case HI -> "🏥 *%s*%s\n📏 ~%.1f किमी दूर\n\nक्या यहां अपना टोकन बुक करें?\n\n1️⃣ ✅ *पुष्टि करें*\n2️⃣ 🔁 *फिर से चुनें*\n\n👉 बुक करने के लिए *1* या *पुष्टि करें* लिखें, या दूसरा अस्पताल चुनने के लिए *2* या *फिर से चुनें* लिखें।"
+                    .formatted(hospitalName, addressLine, distanceKm);
+            case MR -> "🏥 *%s*%s\n📏 ~%.1f किमी दूर\n\nइथे तुमचा टोकन बुक करायचा का?\n\n1️⃣ ✅ *पुष्टी करा*\n2️⃣ 🔁 *पुन्हा निवडा*\n\n👉 बुक करण्यासाठी *1* किंवा *पुष्टी करा* लिहा, किंवा वेगळे रुग्णालय निवडण्यासाठी *2* किंवा *पुन्हा निवडा* लिहा."
+                    .formatted(hospitalName, addressLine, distanceKm);
+        };
+    }
+
+    public String invalidConfirmationReminder(Lang lang) {
+        return switch (lang) {
+            case EN -> "Please type *1* or *Confirm* to book this hospital, or *2* / *Choose Again* to pick a different one.";
+            case HI -> "इस अस्पताल को बुक करने के लिए *1* या *पुष्टि करें* लिखें, या दूसरा चुनने के लिए *2* या *फिर से चुनें* लिखें।";
+            case MR -> "हे रुग्णालय बुक करण्यासाठी *1* किंवा *पुष्टी करा* लिहा, किंवा वेगळे निवडण्यासाठी *2* किंवा *पुन्हा निवडा* लिहा.";
+        };
+    }
+
+    /**
+     * Sent when {@code confirmBooking} rejects the "Confirm" reply (OPD
+     * closing soon, hospital gone, etc.) -- surfaces the actual reason
+     * instead of repeating {@link #invalidConfirmationReminder}, which just
+     * told the patient to type "1" or "Confirm" again and looped forever since
+     * retrying "1" can never fix a closed OPD. Points at *Choose Again*
+     * instead, since that's the only reply that can actually help here.
+     */
+    public String bookingFailed(Lang lang, String reason) {
+        return switch (lang) {
+            case EN -> "❌ %s\n\nType *2* or *Choose Again* to pick a different hospital.".formatted(reason);
+            case HI -> "❌ %s\n\nदूसरा अस्पताल चुनने के लिए *2* या *फिर से चुनें* लिखें।".formatted(reason);
+            case MR -> "❌ %s\n\nवेगळे रुग्णालय निवडण्यासाठी *2* किंवा *पुन्हा निवडा* लिहा.".formatted(reason);
         };
     }
 

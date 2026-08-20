@@ -24,14 +24,22 @@ services:
       - "${PORT:-5000}:5000"
     environment:
       PORT: 5000
-      DB_HOST: postgres
-      DB_PORT: 5432
+      # Defaults to the bundled "postgres" container below, but every one of
+      # these is overridable from .env -- e.g. pointing DB_HOST at a remote
+      # DB (Supabase, RDS, ...) instead, same as running the app directly
+      # (see application.yml). The bundled container still starts either way;
+      # it's just unused if you override DB_HOST.
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-clinic_queue}
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_SSL_MODE: ${DB_SSL_MODE:-prefer}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      DB_POOL_MIN_IDLE: ${DB_POOL_MIN_IDLE:-2}
 
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+      FRONTEND_URL: ${FRONTEND_URL:-https://princete.com}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,https://princete.com}
       CLINIC_NAME: ${CLINIC_NAME:-qDischarge}
 
       # Required in any real deployment -- see README. No safe defaults are

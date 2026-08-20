@@ -17,23 +17,47 @@ spring:
   application:
     name: clinic-queue-backend
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}
+    # prepareThreshold=0 disables pgjdbc's server-side prepared statements. Required
+    # for Supabase's transaction-mode pooler (port 6543): PgBouncer hands each
+    # transaction a different physical backend connection, so a statement name
+    # cached by the driver on one connection collides ("prepared statement \"S_n\"
+    # already exists") the next time it's reused on a different one. Harmless
+    # against a direct/session-mode connection too, so it's left unconditional
+    # rather than gated on which port is configured.
+    #
+    # currentSchema puts every unqualified table this app touches inside its own
+    # "clinicqueue" schema (created by schema.sql) instead of "public" -- needed
+    # whenever DB_DATABASE points at a database that already has its own
+    # unrelated tables in public (e.g. a shared Supabase project with its own
+    # "users"/"doctors"). Without this, schema.sql's CREATE TABLE IF NOT EXISTS /
+    # ADD COLUMN IF NOT EXISTS silently bolts this app's columns onto those
+    # foreign tables instead of creating its own -- that's what caused the
+    # "ehrid"/FK-to-users errors on doctor registration. pgjdbc sends this as a
+    # startup-packet option (-c search_path=...), which -- unlike a runtime SET
+    # -- is safe with PgBouncer/Supavisor transaction pooling.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_DATABASE:postgres}?sslmode=${DB_SSL_MODE:prefer}&prepareThreshold=0&currentSchema=${DB_SCHEMA:clinicqueue}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Don't fail application startup if the DB is unreachable at boot time -
-      # mirrors the original Node app, which logs a warning and keeps serving
-      # even when initializeDatabase() fails (see FlywayMigrationRunner).
       initialization-fail-timeout: -1
-      connection-timeout: 5000
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      # A remote pooled host (e.g. Supabase's pgbouncer) can take several
+      # seconds just to hand back a connection -- 10s was cutting it close
+      # under any extra latency/load, so a churned-out connection would
+      # occasionally miss the deadline and surface as "Failed to obtain JDBC
+      # Connection" (see QueueManagerService's scheduled ticks and, silently,
+      # any webhook request that needed a connection at the same moment).
+      connection-timeout: 30000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
       minimum-idle: ${DB_POOL_MIN_IDLE:2}
-  flyway:
-    # Migrations are run manually by FlywayMigrationRunner (try/catch, non-fatal),
-    # not by Spring Boot's auto-configured Flyway, so a DB outage at boot can't
-    # crash the whole application context.
-    enabled: false
+      # idle-timeout/max-lifetime this short (30s/60s) forced HikariCP to
+      # keep retiring and re-establishing connections against a remote host
+      # whose handshake alone can take several seconds -- constant churn that
+      # was the actual cause of the connection-timeout spikes above. Give
+      # connections a realistic lifespan instead (max-lifetime kept under a
+      # typical pooler's own ~30min connection recycle window).
+      idle-timeout: 600000
+      max-lifetime: 1500000
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -46,11 +70,23 @@ spring:
       # uploads well under PatientDocumentService's own 8MB cap -- give it headroom.
       max-file-size: 10MB
       max-request-size: 10MB
+  sql:
+    init:
+      # This app has no JPA/Hibernate entities anywhere (plain NamedParameterJdbcTemplate
+      # throughout -- see JdbcConfig), so there's nothing for ddl-auto to generate DDL
+      # from. Schema instead comes from src/main/resources/schema.sql -- but applied by
+      # config/SchemaInitRunner, NOT Spring Boot's own auto-configured SQL initializer:
+      # that initializer's continue-on-error only covers failures *within* the script,
+      # not a failed-to-connect DB at boot, which it treats as fatal and crashes the
+      # whole application context. SchemaInitRunner instead swallows any failure (DB
+      # unreachable, or a bad statement) exactly like the old FlywayMigrationRunner did,
+      # so a DB outage at startup is logged and doesn't take the app down with it.
+      mode: never
 
 # Application-specific settings. Most env var names deliberately match the
 # original Node backend's .env; see README for the security-hardening additions.
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  frontend-url: ${FRONTEND_URL:https://princete.com}
   clinic-name: ${CLINIC_NAME:qDischarge}
   token-expiry-hours: ${TOKEN_EXPIRY_HOURS:24}
   avg-service-minutes: ${AVG_SERVICE_MINUTES:10}
@@ -62,10 +98,10 @@ app:
   jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:720}
 
   webhook-verify-token: ${WEBHOOK_VERIFY_TOKEN:clinic_queue_token}
-  allowed-origins: ${ALLOWED_ORIGINS:${FRONTEND_URL:http://localhost:5173}}
+  allowed-origins: ${ALLOWED_ORIGINS:https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}
 
   # WhatsApp provider: 'meta' (Meta Cloud API) or 'evolution' (Evolution API)
-  wa-provider: ${WA_PROVIDER:meta}
+  wa-provider: ${WA_PROVIDER:evolution}
   meta-access-token: ${META_ACCESS_TOKEN:}
   meta-phone-number-id: ${META_PHONE_NUMBER_ID:1337438019442398}
   meta-api-version: ${META_API_VERSION:v25.0}
@@ -82,10 +118,18 @@ app:
   async-max-pool-size: ${ASYNC_MAX_POOL_SIZE:16}
   async-queue-capacity: ${ASYNC_QUEUE_CAPACITY:500}
 
-  # Distance -> ETA -> dynamic notification window (see geo/GeoDistanceService)
+  # Distance -> ETA fallback (see geo/GeoDistanceService; used only when TomTom is unavailable)
   geo-avg-speed-kmh: ${GEO_AVG_SPEED_KMH:25}
-  notify-min-tokens: ${NOTIFY_MIN_TOKENS:2}
-  notify-max-tokens: ${NOTIFY_MAX_TOKENS:12}
+
+  # Real routing ETA (TomTom) vs. queue treatment-time-remaining, anomaly-control
+  # grace window, and the "head to the hospital now" voice call (see
+  # geo/TomTomRoutingService, service/TreatmentTimingScheduler, service/TwilioStudioCallService).
+  # Blank TOMTOM_API_KEY -> falls back to the haversine estimate above instead of failing booking.
+  tomtom-api-key: ${TOMTOM_API_KEY:}
+  twilio-caller-number: ${TWILIO_CALLER_NUMBER:}
+  twilio-call-enabled: ${TWILIO_CALL_ENABLED:false}
+  notify-buffer-minutes: ${NOTIFY_BUFFER_MINUTES:2}
+  timing-poll-interval-ms: ${TIMING_POLL_INTERVAL_MS:15000}
 
   # Default single hospital, seeded into the "hospitals" table on first migration.
   # Location can be given as a DIGIPIN, or as lat/lon (a DIGIPIN is then derived).

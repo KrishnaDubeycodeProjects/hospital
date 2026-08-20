@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -25,8 +26,20 @@ public class HospitalDto {
     private Double longitude;
     private LocalTime openTime;
     private LocalTime closeTime;
-    private Integer minTime;
+    private Integer avgServiceMinutes;
+    /** The floor this hospital commits to per patient (asked directly at registration, not derived). */
+    private Integer minServiceMinutes;
     private Integer activeCounters;
+
+    // --- Hospital profile (see catalog.MedicalCategory for valid categories) ---
+    /** Free text; "Private" / "Trust" / "Government" / "Chain-affiliated" are the expected values. */
+    private String ownership;
+    private Integer yearEstablished;
+    private List<String> accreditation;
+    /** Null = general/co-ed; "male" or "female" = this hospital only serves that gender. */
+    private String genderSpecific;
+    private List<String> categories;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

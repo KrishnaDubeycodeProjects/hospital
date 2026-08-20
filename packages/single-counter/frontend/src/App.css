@@ -1,0 +1,731 @@
+/* Premium Clinic Theme Variables */
+:root {
+  --primary-color: #1a7a5a;
+  --primary-light: #e8f5e9;
+  --primary-dark: #0f543d;
+  --bg-color: #f8faf9;
+  --card-bg: #ffffff;
+  
+  --status-waiting: #f57c00;
+  --status-waiting-bg: #fff3e0;
+  --status-serving: #2e7d32;
+  --status-serving-bg: #e8f5e9;
+  --status-completed: #1b5e20;
+  --status-completed-bg: #e8f5e9;
+  --status-missed: #c62828;
+  --status-missed-bg: #ffebee;
+  
+  --text-primary: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --text-light: #95a5a6;
+  --border-color: #e2e8f0;
+  
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-md: 0 8px 16px rgba(0,0,0,0.06);
+  --shadow-lg: 0 16px 32px rgba(26, 122, 90, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base resets & typography */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* App Header Styling */
+.app-header {
+  margin-bottom: 2.5rem;
+  animation: fadeInDown 0.6s ease;
+}
+
+.header-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 1.5rem;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 2.25rem;
+  filter: drop-shadow(0 2px 4px rgba(26, 122, 90, 0.2));
+}
+
+.app-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  letter-spacing: -0.5px;
+}
+
+.app-header .subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+/* Card layout (Glassmorphism & Shadows) */
+.card {
+  background: var(--card-bg);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: var(--radius-md);
+  padding: 1.75rem;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(26, 122, 90, 0.15);
+}
+
+/* Common UI Elements */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  outline: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+  box-shadow: 0 4px 12px rgba(26, 122, 90, 0.2);
+}
+
+.btn-success {
+  background-color: var(--status-serving);
+  color: white;
+}
+.btn-success:hover {
+  background-color: #1b5e20;
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.2);
+}
+
+.btn-danger {
+  background-color: var(--status-missed);
+  color: white;
+}
+.btn-danger:hover {
+  background-color: #a81c1c;
+  box-shadow: 0 4px 12px rgba(198, 40, 40, 0.2);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  border-radius: var(--radius-md);
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 50px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-waiting {
+  background-color: var(--status-waiting-bg);
+  color: var(--status-waiting);
+}
+.badge-serving {
+  background-color: var(--status-serving-bg);
+  color: var(--status-serving);
+}
+.badge-completed {
+  background-color: var(--status-completed-bg);
+  color: var(--status-completed);
+}
+.badge-missed {
+  background-color: var(--status-missed-bg);
+  color: var(--status-missed);
+}
+
+/* Home / Portal Page */
+.home-view {
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.home-card {
+  max-width: 500px;
+  margin: 0 auto;
+  text-align: center;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.home-card h2 {
+  font-size: 1.75rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary-color);
+}
+
+.home-card p {
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text-light);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.divider:not(:empty)::before {
+  margin-right: .5em;
+}
+
+.divider:not(:empty)::after {
+  margin-left: .5em;
+}
+
+.token-search-form {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 0.5rem;
+}
+
+.token-search-form label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-group input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.input-group input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(26, 122, 90, 0.1);
+}
+
+/* Stats Cards styling */
+.stats-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  text-align: center;
+  padding: 1.25rem;
+}
+
+.stat-value {
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.border-waiting { border-left: 4px solid var(--status-waiting); }
+.border-serving { border-left: 4px solid var(--status-serving); }
+.border-completed { border-left: 4px solid var(--status-completed); }
+.border-missed { border-left: 4px solid var(--status-missed); }
+
+.text-waiting { color: var(--status-waiting); }
+.text-serving { color: var(--status-serving); }
+.text-completed { color: var(--status-completed); }
+.text-missed { color: var(--status-missed); }
+
+/* Admin Dashboard Grids */
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 992px) {
+  .admin-grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.queue-table-container {
+  padding: 1.5rem;
+}
+
+.queue-table-container h3 {
+  margin-bottom: 1.25rem;
+  color: var(--primary-color);
+  font-size: 1.25rem;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.queue-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.queue-table th, .queue-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.queue-table th {
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.queue-table tbody tr {
+  transition: var(--transition);
+}
+
+.queue-table tbody tr:hover {
+  background-color: var(--primary-light);
+}
+
+.token-number-cell {
+  color: var(--primary-color);
+  font-size: 1.1rem;
+}
+
+.action-placeholder {
+  color: var(--text-light);
+}
+
+/* Current Serving Component */
+.current-serving-card {
+  position: sticky;
+  top: 2rem;
+  border: 2px solid var(--status-serving);
+  background-color: #fafdfb;
+}
+
+.serving-header {
+  font-weight: 800;
+  color: var(--status-serving);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+}
+
+.serving-indicator {
+  animation: pulse 1.5s infinite;
+}
+
+.serving-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.serving-token-number {
+  font-size: 4rem;
+  font-weight: 900;
+  color: var(--status-serving);
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.serving-details h3 {
+  font-size: 1.3rem;
+  margin-bottom: 0.25rem;
+}
+
+.serving-details p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.serving-details .time {
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+
+.serving-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  width: 100%;
+}
+
+.serving-actions .btn {
+  flex: 1;
+}
+
+.current-serving-empty {
+  text-align: center;
+}
+
+.current-serving-empty h3 {
+  color: var(--text-secondary);
+}
+
+.no-active {
+  color: var(--text-light);
+  margin-top: 1rem;
+}
+
+/* Patient View Specific */
+.patient-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .patient-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+  }
+  
+  .current-serving-banner {
+    grid-column: 1 / -1;
+  }
+}
+
+.current-serving-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--primary-light);
+  border-color: rgba(26, 122, 90, 0.2);
+  padding: 1.25rem 2rem;
+}
+
+.banner-label {
+  font-weight: 800;
+  color: var(--primary-color);
+  letter-spacing: 0.5px;
+  font-size: 0.9rem;
+}
+
+.banner-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+
+.patient-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.patient-token-card {
+  text-align: center;
+  padding: 2rem;
+}
+
+.patient-token-card .card-header {
+  font-weight: 800;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+}
+
+.patient-token-card .token-number {
+  font-size: 5rem;
+  font-weight: 900;
+  color: var(--primary-color);
+  margin: 0.5rem 0;
+  line-height: 1;
+}
+
+.patient-token-card .patient-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.queue-position-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 2rem;
+}
+
+@media (min-width: 576px) {
+  .queue-position-card {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+  }
+  
+  .pos-divider {
+    width: 1px;
+    height: 50px;
+    background-color: var(--border-color);
+  }
+}
+
+.pos-item {
+  text-align: center;
+}
+
+.pos-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.pos-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--primary-color);
+  margin-top: 0.25rem;
+}
+
+.serving-highlight {
+  background-color: var(--status-serving-bg);
+  border-color: var(--status-serving);
+  text-align: center;
+  flex-direction: column;
+}
+
+.serving-highlight h3 {
+  color: var(--status-serving);
+  font-size: 1.5rem;
+}
+
+.serving-msg {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.completed-highlight {
+  background-color: var(--status-completed-bg);
+  border-color: var(--status-completed);
+  text-align: center;
+  flex-direction: column;
+}
+
+.completed-highlight h3 {
+  color: var(--status-completed);
+}
+
+.missed-highlight {
+  background-color: var(--status-missed-bg);
+  border-color: var(--status-missed);
+  text-align: center;
+  flex-direction: column;
+}
+
+.missed-highlight h3 {
+  color: var(--status-missed);
+}
+
+/* Queue Status Visualizer */
+.queue-visual h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1.25rem;
+  color: var(--primary-color);
+}
+
+.visual-list {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .visual-list {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+}
+
+.visual-node {
+  flex: 0 0 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background-color: #f1f5f9;
+  border: 1px solid var(--border-color);
+  transition: var(--transition);
+}
+
+.node-serving {
+  border-color: var(--status-serving);
+  background-color: var(--status-serving-bg);
+}
+
+.node-waiting {
+  border-color: var(--status-waiting);
+  background-color: var(--status-waiting-bg);
+}
+
+.node-user {
+  border: 2px dashed var(--primary-color);
+  box-shadow: 0 0 8px rgba(26, 122, 90, 0.25);
+}
+
+.node-number {
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.node-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.patient-footer-tips {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}
+
+/* Alert system */
+.alert {
+  padding: 1rem 1.5rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+.alert-danger {
+  background-color: var(--status-missed-bg);
+  color: var(--status-missed);
+  border: 1px solid rgba(198, 40, 40, 0.2);
+}
+
+/* Animations */
+@keyframes pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading Spinner */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid var(--primary-light);
+  border-top: 5px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-top: 2rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

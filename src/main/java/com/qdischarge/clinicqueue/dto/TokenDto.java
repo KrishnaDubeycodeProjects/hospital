@@ -24,9 +24,14 @@ import java.time.LocalDateTime;
 public class TokenDto {
 
     private Integer id;
+    /** Patient-facing "Token #N" -- resets per (hospital, category, day), unlike `id` which is one global sequence across every hospital/department. See QueueManagerService#nextDailyNumber. */
+    private Integer dailyNumber;
     private String phone;
     private String name;
     private Integer age;
+    private String gender;
+    /** The department (catalog.MedicalCategory) this token is queued in -- see QueueManagerService. */
+    private String category;
     private String status;
     private String sessionStep;
     private LocalDateTime createdAt;
@@ -42,20 +47,44 @@ public class TokenDto {
     private Integer peopleAhead;
     private Integer currentServing;
 
-    // --- Geo / distance-based notification (see geo/GeoDistanceService) ---
+    // --- Geo / real-ETA treatment timing (see geo/TomTomRoutingService,
+    // service/TreatmentTimingScheduler) ---
     private Integer hospitalId;
+    private String hospitalName;
     private String patientDigipin;
     private Double patientLat;
     private Double patientLon;
     private Double distanceKm;
-    private Integer notifyTokensAhead;
-    private Integer priorityWindow;
+    /** TomTom-routed one-way ETA to the hospital, minutes -- fetched once at booking/location-set time. */
+    private Double travelMinutes;
+    /** Last-computed "minutes of queue work still ahead of this patient" -- display only, always recomputed live before any decision (see QueueManagerService#runTreatmentTimingTick). */
+    private Double treatmentRemainingMinutes;
     private LocalDateTime notifiedReadyAt;
+    /** Non-null while the patient is inside their post-notify grace window (see QueueManagerService#handleNoShowOrMiss). */
+    private LocalDateTime anomalyControlUntil;
 
-    // --- Missed-queue / requeue ---
-    private Long priorityRank;
+    // --- Missed-queue / requeue / floating-point positioning (see
+    // QueueManagerService#movePatientToPosition) ---
+    private Double priorityRank;
     private LocalDateTime rejectedAt;
+    /** How many times reception has clicked "not come yet" on this token -- drives the exponential push-back (see QueueManagerService#pushBackNoShow). */
+    private Integer noShowCount;
 
     // --- Multi-counter package only ---
     private Integer counterId;
+
+    // --- Booking-in-progress (hospital search/selection, pre-confirmation) ---
+    private Integer searchOffset;
+
+    /**
+     * The number to actually show a patient in any "Token #N" message --
+     * {@link #dailyNumber} when it's known, or 0 for the rare legacy/edge-case
+     * row where it isn't, rather than falling back to {@link #id} (a global
+     * sequence across every hospital/department, which is what caused
+     * patients to see e.g. "#17" for the 1st booking of the day in their
+     * department).
+     */
+    public int displayNumber() {
+        return dailyNumber != null ? dailyNumber : 0;
+    }
 }

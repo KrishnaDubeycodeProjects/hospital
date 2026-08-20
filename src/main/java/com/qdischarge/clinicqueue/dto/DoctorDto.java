@@ -21,5 +21,14 @@ public class DoctorDto {
     private Integer hospitalId;
     /** Populated on joined reads (e.g. GET /api/doctors/me) -- null when the doctor hasn't linked a hospital yet. */
     private String hospitalName;
+    /**
+     * This doctor's assigned physical location within their hospital's queue
+     * system -- a counter number, exactly like every other counter (see
+     * CounterAssignmentService), plus which department (catalog.MedicalCategory)
+     * that counter belongs to. Set by the hospital (admin), not the doctor --
+     * see HospitalController's PUT .../doctors/{doctorId}/location.
+     */
+    private Integer counterId;
+    private String category;
     private LocalDateTime createdAt;
 }

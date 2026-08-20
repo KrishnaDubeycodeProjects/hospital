@@ -79,9 +79,16 @@ public class SecurityConfig {
                         // relocating a hospital, or reading/rotating its doctor join code are admin actions.
                         .requestMatchers(HttpMethod.POST, "/api/hospitals").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/location").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/departments/*/counters").hasRole("ADMIN")
                         .requestMatchers("/api/hospitals/*/doctor-join-code", "/api/hospitals/*/doctor-join-code/**").hasRole("ADMIN")
+                        // Hospital assigns one of its doctors to a counter/department location.
+                        .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/doctors/*/location").hasRole("ADMIN")
+                        // Time-slot reads (a hospital's OPD schedule) are public; opening one is admin-only.
+                        .requestMatchers(HttpMethod.POST, "/api/hospitals/*/time-slots").hasRole("ADMIN")
                         // Multi-counter admin actions (complete/miss/reassign a counter).
                         .requestMatchers(HttpMethod.POST, "/api/counters/**").hasRole("ADMIN")
+                        // Admin pushes a called-but-absent patient back in their own queue (exponential backoff).
+                        .requestMatchers(HttpMethod.POST, "/api/queue/*/no-show").hasRole("ADMIN")
                         // Doctor registration/login prove identity via OTP (see OtpController), not a
                         // doctor JWT yet -- everything else a doctor does needs the token that returns.
                         .requestMatchers(HttpMethod.POST, "/api/doctors/register", "/api/doctors/login").permitAll()
@@ -107,7 +114,8 @@ public class SecurityConfig {
                 .filter(s -> !s.isEmpty())
                 .toList();
         configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(false);
 

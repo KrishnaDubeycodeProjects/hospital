@@ -68,6 +68,27 @@ public class DoctorService {
         return getById(doctorId);
     }
 
+    /**
+     * Admin-only: assigns one of this hospital's doctors to a counter number
+     * within a department -- the "hospital location, like every other
+     * counter" model (see AssignDoctorLocationRequest). The doctor must
+     * already have joined *this* hospital; a hospital can't hand out seats
+     * in a queue it doesn't own.
+     */
+    public DoctorDto assignLocation(int hospitalId, int doctorId, int counterId, String category) {
+        DoctorDto doctor = getById(doctorId);
+        if (doctor == null) {
+            throw new IllegalArgumentException("Doctor not found.");
+        }
+        if (doctor.getHospitalId() == null || doctor.getHospitalId() != hospitalId) {
+            throw new IllegalArgumentException("This doctor hasn't joined this hospital.");
+        }
+        jdbc.update(
+                "UPDATE doctors SET counter_id = :counterId, category = :category, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
+                Map.of("counterId", counterId, "category", category, "id", doctorId));
+        return getById(doctorId);
+    }
+
     public DoctorDto getById(int id) {
         List<DoctorDto> rows = jdbc.query(JOINED_SELECT + " WHERE d.id = :id", Map.of("id", id), DoctorService::mapRow);
         return rows.isEmpty() ? null : rows.get(0);
@@ -79,7 +100,7 @@ public class DoctorService {
     }
 
     private static final String JOINED_SELECT = """
-            SELECT d.id, d.phone, d.name, d.hospital_id, h.name AS hospital_name, d.created_at
+            SELECT d.id, d.phone, d.name, d.hospital_id, h.name AS hospital_name, d.counter_id, d.category, d.created_at
             FROM doctors d LEFT JOIN hospitals h ON h.id = d.hospital_id
             """;
 
@@ -91,6 +112,8 @@ public class DoctorService {
                 .name(rs.getString("name"))
                 .hospitalId((Integer) rs.getObject("hospital_id"))
                 .hospitalName(rs.getString("hospital_name"))
+                .counterId((Integer) rs.getObject("counter_id"))
+                .category(rs.getString("category"))
                 .createdAt(createdAt != null ? createdAt.toLocalDateTime() : null)
                 .build();
     }

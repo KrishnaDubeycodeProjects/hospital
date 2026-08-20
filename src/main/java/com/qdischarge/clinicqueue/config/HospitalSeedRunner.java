@@ -7,22 +7,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
  * Upserts the single operating hospital's row (uri_slug = app.hospital-uri-slug)
  * from HOSPITAL_* env vars on every boot -- the same "config is the source of
  * truth, DB just mirrors it" pattern as AdminAuthService's credential handling.
- * Runs after FlywayMigrationRunner (@Order(2)) so the "hospitals" table exists.
+ * The "hospitals" table already exists by the time any ApplicationRunner runs,
+ * since Hibernate creates the schema (spring.jpa.hibernate.ddl-auto) during
+ * context refresh, before runners execute.
  * If neither a DIGIPIN nor lat/lon is configured, it leaves whatever's already
- * in the DB (e.g. the migration's placeholder row) alone -- location is meant
- * to be set explicitly, via env vars or the admin API, not guessed at.
+ * in the DB alone -- location is meant to be set explicitly, via env vars or
+ * the admin API, not guessed at.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Order(2)
 public class HospitalSeedRunner implements ApplicationRunner {
 
     private final HospitalService hospitalService;
@@ -51,8 +51,17 @@ public class HospitalSeedRunner implements ApplicationRunner {
                     location,
                     appProperties.getHospitalOpenTime(),
                     appProperties.getHospitalCloseTime(),
+                    // avgPatientsPerDay: not sourced from env vars -- avgServiceMinutes below is given directly instead.
+                    null,
                     appProperties.getAvgServiceMinutes(),
-                    appProperties.getHospitalActiveCounters()
+                    // minServiceMinutes: admin-API-only, like the profile fields below -- preserved
+                    // across re-seeding by HospitalService#create's COALESCE, never wiped by this null.
+                    null,
+                    appProperties.getHospitalActiveCounters(),
+                    // Profile fields (ownership onward) aren't sourced from env vars -- leave them
+                    // to the admin API. HospitalService#create preserves whatever's already stored
+                    // on every re-seed instead of wiping them out with these nulls.
+                    null, null, null, null, null
             ));
             log.info("Hospital '{}' location seeded from configuration.", appProperties.getHospitalUriSlug());
         } catch (Exception e) {

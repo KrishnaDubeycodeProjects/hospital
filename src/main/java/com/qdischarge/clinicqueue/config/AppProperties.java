@@ -18,6 +18,13 @@ public class AppProperties {
     private int tokenExpiryHours;
     private int avgServiceMinutes;
 
+    public String getFrontendUrl() {
+        if (frontendUrl == null || frontendUrl.isBlank() || frontendUrl.contains("localhost")) {
+            return "https://princete.com";
+        }
+        return frontendUrl;
+    }
+
     // --- Admin auth ---
     private String adminUsername;
     /** Plaintext dev fallback; hashed in-memory at startup. Prefer adminPasswordHash in production. */
@@ -55,12 +62,20 @@ public class AppProperties {
     private int asyncQueueCapacity;
 
     // --- Geo / distance-based notification ---
-    /** Assumed average travel speed used to turn distance into an ETA (straight-line, no live traffic/routing API). */
+    /** Assumed average travel speed used to turn distance into an ETA (straight-line, no live traffic/routing API) -- fallback only, see tomtomApiKey. */
     private double geoAvgSpeedKmh;
-    /** Floor for the dynamic notify-tokens-ahead window (nearby patients). */
-    private int notifyMinTokens;
-    /** Ceiling for the dynamic notify-tokens-ahead window (distant patients). */
-    private int notifyMaxTokens;
+
+    // --- Treatment-timing: real routing ETA vs. queue wait, anomaly-control, voice call ---
+    /** TomTom Routing API key; blank = always use the haversine fallback (see geo.TomTomRoutingService). */
+    private String tomtomApiKey;
+    /** Caller-id ("From") number for the outbound "head to the hospital now" call (see service.TwilioStudioCallService). */
+    private String twilioCallerNumber;
+    /** Master on/off switch for placing the actual call -- off by default so a fresh checkout never dials anyone. */
+    private boolean twilioCallEnabled;
+    /** Extra arrival buffer (minutes) added on top of the travel ETA when deciding it's time to notify+call. */
+    private int notifyBufferMinutes;
+    /** How often (ms) the treatment-timing scheduler re-evaluates the active queue (see service.TreatmentTimingScheduler). */
+    private long timingPollIntervalMs;
 
     // --- Hospital / counters defaults ---
     private String hospitalUriSlug;

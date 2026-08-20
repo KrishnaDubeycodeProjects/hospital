@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * Prescription/report photo uploads, stored as Postgres BYTEA (this project
- * has no cloud storage configured -- see patient_documents in V5). Listing
+ * has no cloud storage configured -- see patient_documents in schema.sql). Listing
  * always projects metadata-only columns; only #getFile touches file_data, so
  * a patient's document list never drags BYTEA payloads across the wire.
  */
