@@ -65,7 +65,6 @@ public class OtpService {
     private final NamedParameterJdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
     private final RestTemplate restTemplate;
-    private final WhatsAppService whatsAppService;
 
     private static final int MAX_ATTEMPTS = 5;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -227,27 +226,14 @@ public class OtpService {
             restTemplate.postForEntity(url, new HttpEntity<>(body, twilioHeaders()), Map.class);
             return new OtpResult(true, "OTP sent via SMS.");
         } catch (RestClientException e) {
-            log.error("❌ Twilio Messages API send error for {}: {} -- falling back to WhatsApp delivery.", phone, extractError(e));
-            whatsAppService.sendWhatsAppMessage(phone,
-                    "🔐 Your verification code is *" + code + "* (valid " + appProperties.getOtpTtlMinutes()
-                            + " minutes). We couldn't reach you by SMS just now, so we sent this over WhatsApp instead.");
-            return new OtpResult(true, "Could not send OTP via SMS right now -- sent your verification code via WhatsApp instead.");
+            log.error("❌ Twilio Messages API send error for {}: {}", phone, extractError(e));
+            return new OtpResult(false, "Failed to send OTP via SMS: " + extractError(e));
         }
     }
 
-    /**
-     * Twilio's SMS send failed (account/network/Twilio outage) -- rather than
-     * leave the patient stuck, generate our own code (same as the "log"
-     * provider) and deliver it over WhatsApp instead, via WhatsAppService
-     * (which itself fails over between Meta and Evolution). verifyOtp() picks
-     * this path back up automatically via hasPendingLocalOtp().
-     */
     private OtpResult sendViaWhatsAppFallback(String phone) {
-        String code = generateAndStoreLocalOtp(phone);
-        whatsAppService.sendWhatsAppMessage(phone,
-                "🔐 Your verification code is *" + code + "* (valid " + appProperties.getOtpTtlMinutes()
-                        + " minutes). We couldn't reach you by SMS just now, so we sent this over WhatsApp instead.");
-        return new OtpResult(true, "Could not send OTP via SMS right now -- sent your verification code via WhatsApp instead.");
+        log.warn("WhatsApp fallback skipped for {} (configured to only respond when user initiates).", phone);
+        return new OtpResult(false, "Could not send OTP via SMS and proactive WhatsApp notifications are disabled.");
     }
 
     private OtpResult verifyViaTwilio(String phone, String code) {

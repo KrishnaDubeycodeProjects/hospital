@@ -23,6 +23,31 @@ public class CurrentUser {
         return decoded;
     }
 
+    public boolean isPatient() {
+        JwtService.DecodedToken decoded = get();
+        return decoded != null && JwtService.PATIENT_ROLE.equals(decoded.role());
+    }
+
+    public boolean isDoctor() {
+        JwtService.DecodedToken decoded = get();
+        return decoded != null && JwtService.DOCTOR_ROLE.equals(decoded.role());
+    }
+
+    public boolean isAdmin() {
+        JwtService.DecodedToken decoded = get();
+        return decoded != null && JwtService.ADMIN_ROLE.equals(decoded.role());
+    }
+
+    public String getPatientPhone() {
+        JwtService.DecodedToken decoded = get();
+        return (decoded != null && JwtService.PATIENT_ROLE.equals(decoded.role())) ? decoded.subject() : null;
+    }
+
+    public Integer getDoctorId() {
+        JwtService.DecodedToken decoded = get();
+        return (decoded != null && JwtService.DOCTOR_ROLE.equals(decoded.role())) ? decoded.doctorId() : null;
+    }
+
     /** The calling patient's phone number (JWT subject). Throws if there's no valid ROLE_PATIENT token -- SecurityConfig should already have rejected that request. */
     public String requirePatientPhone() {
         JwtService.DecodedToken decoded = get();

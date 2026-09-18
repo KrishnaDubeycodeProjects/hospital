@@ -71,6 +71,7 @@ public class WebhookController {
     private final WaSessionService waSessionService;
     private final BotMessages botMessages;
     private final AccessService accessService;
+    private final com.qdischarge.clinicqueue.service.FamilyUnitService familyUnitService;
 
     /** "revoke <id>" -- deliberately a literal, untranslated English command (see BotMessages#accessGranted) so the WhatsApp notice's instructions always work regardless of the reply's language. */
     private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
@@ -262,6 +263,75 @@ public class WebhookController {
             // STEP 1: Mid-registration/booking, every reply is form input -- checked before any
             // command/language matching below, so e.g. a numeric age or department number like
             // "1"/"2"/"3" can never be swallowed by the generate/status/cancel shortcuts.
+            if (activeToken != null && "awaiting_family_selection".equals(activeToken.getSessionStep())) {
+                List<com.qdischarge.clinicqueue.dto.FamilyMemberDto> members = familyUnitService.listMembers(fromPhone);
+                int choice = -1;
+                try {
+                    choice = Integer.parseInt(cleanMessage.trim());
+                } catch (NumberFormatException ignored) {}
+
+                int addChoice = (members != null ? members.size() : 0) + 1;
+                if (choice == addChoice || cleanMessage.toLowerCase().contains("add")) {
+                    queueManagerService.setSessionStep(activeToken.getId(), "awaiting_new_member_name");
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.newMemberNamePrompt(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else if (members != null && choice >= 1 && choice <= members.size()) {
+                    com.qdischarge.clinicqueue.dto.FamilyMemberDto chosen = members.get(choice - 1);
+                    queueManagerService.selectFamilyMember(activeToken.getId(), chosen.getId(), chosen.getName(), chosen.getAge(), chosen.getGender());
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.categoryPrompt(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else {
+                    StringBuilder sb = new StringBuilder();
+                    if (members != null) {
+                        for (int i = 0; i < members.size(); i++) {
+                            com.qdischarge.clinicqueue.dto.FamilyMemberDto m = members.get(i);
+                            String ageStr = m.getAge() != null ? " (" + m.getAge() + " yrs)" : "";
+                            String relStr = m.getRelationship() != null && !m.getRelationship().equalsIgnoreCase("HEAD") ? " - " + m.getRelationship() : " (Self)";
+                            sb.append(String.format("%d️⃣ %s%s%s\n", i + 1, m.getName(), relStr, ageStr));
+                        }
+                    }
+                    sb.append(String.format("%d️⃣ ➕ Add Family Member", addChoice));
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.familySelectionPrompt(lang, sb.toString()));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+            }
+
+            if (activeToken != null && "awaiting_new_member_name".equals(activeToken.getSessionStep())) {
+                if (Intent.isReservedWord(cleanMessage)) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidNameReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+                queueManagerService.captureName(activeToken.getId(), incomingMessage.trim());
+                queueManagerService.setSessionStep(activeToken.getId(), "awaiting_new_member_rel");
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.newMemberRelationPrompt(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && "awaiting_new_member_rel".equals(activeToken.getSessionStep())) {
+                String rel = incomingMessage.trim();
+                queueManagerService.setSessionStep(activeToken.getId(), "awaiting_new_member_age:" + rel);
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.newMemberAgePrompt(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (activeToken != null && activeToken.getSessionStep() != null && activeToken.getSessionStep().startsWith("awaiting_new_member_age")) {
+                Integer age = parseAge(cleanMessage);
+                if (age == null) {
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidAgeReminder(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+                String rel = "Family";
+                if (activeToken.getSessionStep().contains(":")) {
+                    rel = activeToken.getSessionStep().substring(activeToken.getSessionStep().indexOf(":") + 1);
+                }
+                com.qdischarge.clinicqueue.dto.FamilyMemberDto newMember = familyUnitService.addFamilyMember(fromPhone,
+                        new com.qdischarge.clinicqueue.dto.AddFamilyMemberRequest(
+                                activeToken.getName(), null, age, null, rel, null, null, null));
+                queueManagerService.selectFamilyMember(activeToken.getId(), newMember.getId(), newMember.getName(), newMember.getAge(), newMember.getGender());
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.categoryPrompt(lang));
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
             if (activeToken != null && "awaiting_name".equals(activeToken.getSessionStep())) {
                 if (Intent.isReservedWord(cleanMessage)) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidNameReminder(lang));
@@ -435,6 +505,21 @@ public class WebhookController {
             // STEP 2: Menu commands -- generate/status/cancel, typed or tapped, in any supported language
             if (intent == Intent.GENERATE_TOKEN) {
                 if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                    List<com.qdischarge.clinicqueue.dto.FamilyMemberDto> members = familyUnitService.listMembers(fromPhone);
+                    if (members != null && !members.isEmpty()) {
+                        TokenDto draft = queueManagerService.createFamilyRegisteringToken(fromPhone);
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < members.size(); i++) {
+                            com.qdischarge.clinicqueue.dto.FamilyMemberDto m = members.get(i);
+                            String ageStr = m.getAge() != null ? " (" + m.getAge() + " yrs)" : "";
+                            String relStr = m.getRelationship() != null && !m.getRelationship().equalsIgnoreCase("HEAD") ? " - " + m.getRelationship() : " (Self)";
+                            sb.append(String.format("%d️⃣ %s%s%s\n", i + 1, m.getName(), relStr, ageStr));
+                        }
+                        sb.append(String.format("%d️⃣ ➕ Add Family Member", members.size() + 1));
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.familySelectionPrompt(lang, sb.toString()));
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+
                     TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
                     if (draft != null && "awaiting_category".equals(draft.getSessionStep())) {
                         // A returning phone whose identity (name/gender/age) is already known --

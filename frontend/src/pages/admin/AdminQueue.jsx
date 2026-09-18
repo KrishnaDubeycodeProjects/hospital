@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { hospitalApi, queueApi } from '../../api/client';
 import QrScanner from '../../components/QrScanner';
-import { Button, Card, Field, Input, Modal, Select, Spinner, StatCard, StatusBadge, Table, fmtDateTime, fmtMinutes } from '../../components/ui';
+import { Button, Card, Field, Input, Modal, Select, Spinner, StatusBadge, Table, fmtDateTime, fmtMinutes } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
 export default function AdminQueue() {
@@ -165,12 +165,27 @@ export default function AdminQueue() {
         <Spinner />
       ) : (
         <>
-          <div className="stat-row">
-            <StatCard label="Total" value={queue?.stats?.total} tone="gray" />
-            <StatCard label="Waiting" value={queue?.stats?.waiting} tone="amber" />
-            <StatCard label="Serving" value={queue?.stats?.serving} tone="blue" />
-            <StatCard label="Completed" value={queue?.stats?.completed} tone="green" />
-            <StatCard label="Missed" value={queue?.stats?.missed} tone="red" />
+          <div className="stat-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+            <div className="opdx-stat-card slate">
+              <div className="opdx-stat-title">Total Patients</div>
+              <div className="opdx-stat-number">{queue?.stats?.total ?? 0}</div>
+            </div>
+            <div className="opdx-stat-card amber">
+              <div className="opdx-stat-title">Waiting</div>
+              <div className="opdx-stat-number">{queue?.stats?.waiting ?? 0}</div>
+            </div>
+            <div className="opdx-stat-card blue">
+              <div className="opdx-stat-title">Now Serving</div>
+              <div className="opdx-stat-number">{queue?.stats?.serving ?? 0}</div>
+            </div>
+            <div className="opdx-stat-card green">
+              <div className="opdx-stat-title">Completed</div>
+              <div className="opdx-stat-number">{queue?.stats?.completed ?? 0}</div>
+            </div>
+            <div className="opdx-stat-card red">
+              <div className="opdx-stat-title">Missed / Skipped</div>
+              <div className="opdx-stat-number">{queue?.stats?.missed ?? 0}</div>
+            </div>
           </div>
 
           <Card title="Queue" actions={<Button size="sm" variant="ghost" onClick={load}>Refresh</Button>}>

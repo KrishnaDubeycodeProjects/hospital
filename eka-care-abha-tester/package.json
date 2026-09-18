@@ -1,0 +1,14 @@
+﻿{
+  "name": "eka-care-abha-tester",
+  "version": "1.0.0",
+  "description": "Eka Care ABDM ABHA API Terminal Tester & Verification Suite",
+  "main": "src/cli.js",
+  "scripts": {
+    "test": "node src/test_endpoints.js",
+    "start": "node src/cli.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7"
+  }
+}

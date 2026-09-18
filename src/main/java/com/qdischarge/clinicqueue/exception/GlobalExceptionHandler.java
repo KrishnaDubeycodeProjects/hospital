@@ -3,94 +3,114 @@ package com.qdischarge.clinicqueue.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.FileNotFoundException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-/**
- * Safety net for anything not already caught inside a controller method
- * (each controller mirrors the original Express routes' own try/catch, so
- * this mostly covers things like malformed JSON request bodies).
- */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<Map<String, Object>> handleBadJson(HttpMessageNotReadableException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body(false, "Invalid or malformed request body."));
+    @ExceptionHandler(ReferralQuotaExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleReferralQuotaExceeded(ReferralQuotaExceededException ex) {
+        log.warn("Referral quota exceeded: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "REFERRAL_QUOTA_EXCEEDED");
+        body.put("message", ex.getMessage());
+        body.put("priorityTier", ex.getPriorityTier());
+        body.put("hospitalName", ex.getHospitalName());
+        body.put("activeCount", ex.getActiveCount());
+        body.put("maxQuota", ex.getMaxQuota());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    /** Bean validation failure on a @Valid request body (e.g. blank phone/username/status). */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "ACCESS_DENIED");
+        body.put("message", "Access denied: Doctor has no active referral or treating relationship for this clinical record.");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Map<String, Object>> handleSecurityException(SecurityException ex) {
+        log.warn("Security violation: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "SECURITY_VIOLATION");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(fe -> fe.getDefaultMessage())
-                .orElse("Invalid request.");
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body(false, message));
+    public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
+        String detail = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        log.warn("Validation error: {}", detail);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "VALIDATION_FAILED");
+        body.put("message", detail);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    /**
-     * No matching static resource and no bundled frontend/index.html to fall
-     * back to (see WebConfig's SPA resolver) -> 404, same as Express's
-     * default handling when res.sendFile() can't find frontend/dist/index.html.
-     */
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<Void> handleNoResource(NoResourceFoundException e) {
-        return ResponseEntity.notFound().build();
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Bad argument: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "INVALID_ARGUMENT");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    /**
-     * Handles client disconnects silently (e.g. browser closed tab, ngrok tunnel timeout,
-     * or connection aborted by host machine while writing response).
-     */
-    @ExceptionHandler({
-            org.springframework.web.context.request.async.AsyncRequestNotUsableException.class,
-            org.apache.catalina.connector.ClientAbortException.class
-    })
-    public void handleClientDisconnect(Exception e) {
-        log.debug("Client closed connection before response completed: {}", e.getMessage());
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
+        log.warn("Illegal state: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "INVALID_STATE");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    @ExceptionHandler(java.io.IOException.class)
-    public void handleIOException(java.io.IOException e) {
-        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
-        if (msg.contains("aborted") || msg.contains("broken pipe") || msg.contains("connection reset")) {
-            log.debug("Client connection aborted: {}", e.getMessage());
-        } else {
-            log.error("I/O error during request processing: {}", e.getMessage());
-        }
+    @ExceptionHandler(FileNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleFileNotFound(FileNotFoundException ex) {
+        log.warn("File not found: {}", ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "NOT_FOUND");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("error", "RESOURCE_NOT_FOUND");
+        body.put("message", "The requested path does not exist on this API server.");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneric(Exception e) {
-        // Ignore client abort exceptions wrapped inside other exceptions
-        Throwable cause = e;
-        while (cause != null) {
-            String msg = cause.getMessage() != null ? cause.getMessage().toLowerCase() : "";
-            if (msg.contains("aborted by the software in your host machine") || msg.contains("broken pipe") || msg.contains("connection reset")) {
-                log.debug("Client aborted request: {}", cause.getMessage());
-                return null;
-            }
-            cause = cause.getCause();
-        }
-        log.error("Unhandled error", e);
+    public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
+        log.error("Unhandled server error: ", ex);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", false);
-        body.put("error", e.getMessage());
+        body.put("error", "INTERNAL_SERVER_ERROR");
+        body.put("message", "An unexpected error occurred. Please try again later.");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
-    }
-
-    private Map<String, Object> body(boolean success, String message) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("success", success);
-        body.put("message", message);
-        return body;
     }
 }

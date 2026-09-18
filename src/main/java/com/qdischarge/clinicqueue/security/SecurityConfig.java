@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -31,6 +32,7 @@ import java.util.List;
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -97,6 +99,22 @@ public class SecurityConfig {
                         // number (identified from the token, see CurrentUser) -- there's no "public"
                         // patient endpoint here, login *is* OtpController's /verify.
                         .requestMatchers("/api/patients/**").hasRole("PATIENT")
+                        // Family Unit management (public lookup for booking flow, full management requires PATIENT)
+                        .requestMatchers("/api/family/public/**").permitAll()
+                        .requestMatchers("/api/family/**").hasRole("PATIENT")
+                        // Course & Clinical Records
+                        .requestMatchers("/api/courses/patient").hasRole("PATIENT")
+                        .requestMatchers(HttpMethod.POST, "/api/courses/**").hasRole("DOCTOR")
+                        .requestMatchers(HttpMethod.GET, "/api/courses/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
+                        // Referral Engine
+                        .requestMatchers("/api/referrals/patient").hasRole("PATIENT")
+                        .requestMatchers(HttpMethod.GET, "/api/referrals/*/qr").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
+                        .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
+                        // Drugs & ABDM open/utility APIs
+                        .requestMatchers("/api/drugs/**").permitAll()
+                        .requestMatchers("/api/abdm/check-address").permitAll()
+                        .requestMatchers("/api/abdm/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .anyRequest().permitAll())
@@ -113,8 +131,11 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        configuration.setAllowedOrigins(origins);
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        if (origins.contains("*")) {
+            configuration.setAllowedOriginPatterns(List.of("*"));
+        } else {
+            configuration.setAllowedOrigins(origins);
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(false);

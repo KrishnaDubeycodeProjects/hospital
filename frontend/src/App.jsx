@@ -7,6 +7,7 @@ import { RoleShell } from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Book from './pages/Book';
+import SelectPatient from './pages/SelectPatient';
 import FindHospital from './pages/FindHospital';
 import Track from './pages/Track';
 import TokenDetail from './pages/TokenDetail';
@@ -18,11 +19,18 @@ import AdminHistory from './pages/admin/AdminHistory';
 import AdminHospitals from './pages/admin/AdminHospitals';
 
 import PatientQueue from './pages/patient/PatientQueue';
+import PatientFamily from './pages/patient/PatientFamily';
+import PatientRecordsHub from './pages/patient/PatientRecordsHub';
+import PatientCourses from './pages/patient/PatientCourses';
+import PatientReferrals from './pages/patient/PatientReferrals';
 import PatientHistory from './pages/patient/PatientHistory';
 import PatientDocuments from './pages/patient/PatientDocuments';
 import PatientAccess from './pages/patient/PatientAccess';
 
 import DoctorProfile from './pages/doctor/DoctorProfile';
+import DoctorConsultation from './pages/doctor/DoctorConsultation';
+import DoctorCourses from './pages/doctor/DoctorCourses';
+import DoctorReferrals from './pages/doctor/DoctorReferrals';
 import DoctorAccess from './pages/doctor/DoctorAccess';
 import DoctorPatients from './pages/doctor/DoctorPatients';
 
@@ -34,6 +42,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/book" element={<Book />} />
+            <Route path="/select-patient" element={<SelectPatient />} />
             <Route path="/find-hospital" element={<FindHospital />} />
             <Route path="/track" element={<Track />} />
             <Route path="/track/:phone" element={<Track />} />
@@ -50,6 +59,10 @@ export default function App() {
 
             <Route path="/patient" element={<RoleShell role="patient" />}>
               <Route index element={<PatientQueue />} />
+              <Route path="family" element={<PatientFamily />} />
+              <Route path="records" element={<PatientRecordsHub />} />
+              <Route path="courses" element={<PatientCourses />} />
+              <Route path="referrals" element={<PatientReferrals />} />
               <Route path="history" element={<PatientHistory />} />
               <Route path="documents" element={<PatientDocuments />} />
               <Route path="access" element={<PatientAccess />} />
@@ -57,6 +70,9 @@ export default function App() {
 
             <Route path="/doctor" element={<RoleShell role="doctor" />}>
               <Route index element={<DoctorProfile />} />
+              <Route path="consultation" element={<DoctorConsultation />} />
+              <Route path="courses" element={<DoctorCourses />} />
+              <Route path="referrals" element={<DoctorReferrals />} />
               <Route path="access" element={<DoctorAccess />} />
               <Route path="patients" element={<DoctorPatients />} />
             </Route>

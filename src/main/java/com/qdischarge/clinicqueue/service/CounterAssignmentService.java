@@ -51,7 +51,6 @@ public class CounterAssignmentService {
     private final NamedParameterJdbcTemplate jdbc;
     private final QueueManagerService queueManagerService;
     private final HospitalDepartmentService hospitalDepartmentService;
-    private final WhatsAppService whatsAppService;
 
     private static final RowMapper<TokenDto> TOKEN_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenDto.class);
 
@@ -147,14 +146,8 @@ public class CounterAssignmentService {
             return;
         }
         TokenDto token = rows.get(0);
-        if ("completed".equals(status)) {
-            whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                    "✅ Token #" + token.displayNumber() + " has been served. Thank you for visiting! 🙏");
-        } else {
-            whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                    "⚠️ You missed your turn at Counter " + counterId + " for Token #" + token.displayNumber()
-                            + ".\n\n📌 Please send \"Hi\" again to generate a new token.");
-        }
+        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
+        log.info("Token #{} counter status changed to {}. WhatsApp notification skipped.", token.displayNumber(), status);
     }
 
     private void claimIntoCounter(int hospitalId, String category, int counterId) {
@@ -170,8 +163,7 @@ public class CounterAssignmentService {
         // 'waiting' anyway, so this just avoids a stale tag lingering on the row.
         jdbc.update("UPDATE tokens SET counter_id = :c, reserved_counter_id = NULL WHERE id = :id",
                 Map.of("c", counterId, "id", claimed.getId()));
-        whatsAppService.sendWhatsAppMessage(claimed.getPhone(),
-                "🎉 It's your turn! Please proceed to Counter " + counterId + " for Token #" + claimed.displayNumber() + ".");
+        log.info("Token #{} claimed into Counter {}. WhatsApp notification skipped.", claimed.displayNumber(), counterId);
 
         int activeCounters = hospitalDepartmentService.activeCounters(hospitalId, category);
         refreshReservations(hospitalId, category, activeCounters);
@@ -274,8 +266,8 @@ public class CounterAssignmentService {
                 nextCounterIdx--; // lost the race -- this counter's slot is still open, retry it on the next candidate
                 continue;
             }
-            whatsAppService.sendWhatsAppMessage((String) candidate.get("phone"),
-                    "🔔 You're up next for Counter " + counterId + "! Please be ready -- we'll call you there shortly.");
+            // Proactive WhatsApp notifications from server removed (only respond when user initiates)
+            log.info("Token reserved for counter {}. WhatsApp notification skipped.", counterId);
         }
     }
 }

@@ -1,0 +1,271 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Ayushman Bharat PM-JAY - WhatsApp Service Flow</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style data-purpose="custom-layout">
+    body {
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: #0b141a;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* Hide scrollbar for clean app experience */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+<style data-purpose="chat-backdrop">
+    .whatsapp-bg {
+      background-color: #efeae2;
+      background-image: radial-gradient(#d5cdc4 1px, transparent 1px);
+      background-size: 16px 16px;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 flex justify-center items-center min-h-screen p-0 sm:p-6 antialiased">
+<!-- BEGIN: PhoneFrameWrapper -->
+<!-- Container mimicking a realistic modern mobile screen layout -->
+<main class="w-full max-w-[440px] h-screen sm:h-[880px] bg-white flex flex-col relative overflow-hidden sm:rounded-[32px] shadow-2xl border border-slate-200/80" data-purpose="mobile-viewport">
+<!-- Drag Indicator -->
+<div class="w-full pt-3 pb-1 flex justify-center items-center shrink-0">
+<div class="w-10 h-1 bg-slate-300 rounded-full"></div>
+</div>
+<!-- Top Navigation Header -->
+<header class="px-5 py-3 flex items-center justify-between border-b border-slate-100 shrink-0 bg-white/95 backdrop-blur z-10" data-purpose="modal-header">
+<button aria-label="Go Back" class="w-9 h-9 flex items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors -ml-1.5 focus:outline-none" type="button">
+<svg class="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<h1 class="text-[17px] font-semibold text-slate-800 tracking-tight text-center">
+      Choose your service
+    </h1>
+<div class="relative">
+<button aria-label="Sheet menu" class="w-9 h-9 flex items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors -mr-1.5 focus:outline-none" id="menuToggleBtn" type="button">
+<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+<path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
+</svg>
+</button>
+<div class="hidden absolute right-0 top-10 w-40 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50 transition-all" id="serviceDropdown">
+<button class="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100 flex items-center space-x-2">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4m0-4h.01"></path></svg>
+<span>Help &amp; Support</span>
+</button>
+<button class="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100 flex items-center space-x-2">
+<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+<span>Report an issue</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Scrollable Service List -->
+<div class="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-2.5" data-purpose="services-container">
+<!-- 1. About PM-JAY -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-sky-50/40 border border-slate-100 hover:border-sky-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#E0F2FE] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#0284C7]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<line x1="12" x2="12" y1="16" y2="12"></line>
+<line x1="12" x2="12.01" y1="8" y2="8"></line>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-sky-700 transition-colors">
+          About PM-JAY
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Scheme benefits, coverage &amp; guidelines</p>
+</div>
+<div class="text-slate-300 group-hover:text-sky-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 2. Claims and Treatments process -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-indigo-50/40 border border-slate-100 hover:border-indigo-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#EEF2FF] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#4F46E5]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight leading-snug group-hover:text-indigo-700 transition-colors">
+          Claims and Treatments process
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Pre-auth steps &amp; claim tracking</p>
+</div>
+<div class="text-slate-300 group-hover:text-indigo-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 3. Check Eligibility -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-emerald-50/40 border border-slate-100 hover:border-emerald-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#ECFDF5] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#059669]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-emerald-700 transition-colors">
+          Check Eligibility
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Verify your beneficiary status instantly</p>
+</div>
+<div class="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 4. E-Card Services -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-purple-50/40 border border-slate-100 hover:border-purple-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#F5F3FF] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#7C3AED]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<rect height="19" rx="3" stroke-width="2" width="13" x="5.5" y="2.5"></rect>
+<path d="M10 5.5h4M9.5 18.5h5" stroke-linecap="round" stroke-width="1.8"></path>
+<rect fill="#DDD6FE" height="6" rx="1" stroke="#7C3AED" stroke-width="1" width="9" x="7.5" y="8.5"></rect>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-purple-700 transition-colors">
+          E-Card Services
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Download &amp; manage Ayushman Golden Card</p>
+</div>
+<div class="text-slate-300 group-hover:text-purple-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 5. Wallet Balance -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-amber-50/40 border border-slate-100 hover:border-amber-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#FEF3C7] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#D97706]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<rect height="13" rx="2" width="18" x="3" y="6"></rect>
+<path d="M3 10h18"></path>
+<circle cx="16" cy="14.5" fill="#D97706" r="1.5"></circle>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-amber-700 transition-colors">
+          Wallet Balance
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Check remaining coverage up to ₹5,00,000</p>
+</div>
+<div class="text-slate-300 group-hover:text-amber-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 6. Find Hospitals -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-rose-50/40 border border-slate-100 hover:border-rose-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#FEE2E2] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#DC2626]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-16 0H3m6-12h6m-3-3v6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-rose-700 transition-colors">
+          Find Hospitals
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Empaneled government &amp; private hospitals</p>
+</div>
+<div class="text-slate-300 group-hover:text-rose-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 7. Grievances and Feedback -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-pink-50/40 border border-slate-100 hover:border-pink-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#FFE4E6] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#E11D48]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-pink-700 transition-colors">
+          Grievances and Feedback
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Register complaints or share experience</p>
+</div>
+<div class="text-slate-300 group-hover:text-pink-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- 8. Awareness and FAQ -->
+<button class="w-full flex items-center p-3.5 rounded-2xl bg-slate-50/70 hover:bg-amber-50/40 border border-slate-100 hover:border-amber-200/70 transition-all group text-left shadow-sm active:scale-[0.99]" type="button">
+<div class="w-12 h-12 rounded-2xl bg-[#FFFBEB] flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+<svg class="w-6 h-6 text-[#D97706]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<div class="ml-3.5 flex-1 pr-2">
+<div class="text-[15.5px] font-semibold text-slate-800 tracking-tight group-hover:text-amber-700 transition-colors">
+          Awareness and FAQ
+        </div>
+<p class="text-xs text-slate-500 font-normal mt-0.5">Common queries, videos &amp; educational guides</p>
+</div>
+<div class="text-slate-300 group-hover:text-amber-600 transition-colors shrink-0">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+</div>
+<!-- Bottom Sticky Action Area -->
+<footer class="w-full px-5 pt-3.5 pb-6 bg-white border-t border-slate-100 flex flex-col items-center shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]" data-purpose="bottom-sheet-footer">
+<!-- Continue CTA Button -->
+<button class="w-full py-3.5 rounded-2xl bg-[#00A884] hover:bg-[#008f70] active:bg-[#007a60] text-white font-semibold text-[15.5px] tracking-wide transition-all shadow-md shadow-emerald-500/20 active:scale-[0.99] flex items-center justify-center space-x-2 focus:outline-none" type="button">
+<span>Continue</span>
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+<path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Managed By Footer -->
+<div class="flex items-center space-x-2 mt-3.5 text-[12.5px] text-slate-500">
+<div class="w-4 h-4 rounded-full border border-emerald-500 flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-emerald-600"></div>
+</div>
+<span>Managed by <strong class="font-medium text-slate-700">Ayushman Sarathi.</strong></span>
+<a class="text-emerald-600 font-medium hover:underline hover:text-emerald-700 transition-colors" href="#learn-more">Learn more</a>
+</div>
+</footer>
+</main>
+<!-- END: PhoneFrameWrapper -->
+<!-- BEGIN: InteractiveHandlers -->
+<script data-purpose="ui-interactions">
+    document.addEventListener('DOMContentLoaded', () => {
+      const menuBtn = document.getElementById('menuToggleBtn');
+      const menuDropdown = document.getElementById('serviceDropdown');
+
+      if (menuBtn && menuDropdown) {
+        menuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuDropdown.classList.toggle('hidden');
+        });
+
+        // Close dropdown when tapping anywhere outside
+        document.addEventListener('click', (e) => {
+          if (!menuDropdown.contains(e.target) && e.target !== menuBtn) {
+            menuDropdown.classList.add('hidden');
+          }
+        });
+      }
+    });
+  </script>
+<!-- END: InteractiveHandlers -->
+</body></html>

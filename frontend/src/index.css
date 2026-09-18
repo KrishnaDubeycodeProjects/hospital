@@ -5,6 +5,7 @@
    =========================================================================== */
 
 :root {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --primary: #0284c7;
   --primary-hover: #0369a1;
   --primary-gradient: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
@@ -48,7 +49,7 @@
   --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -60,16 +61,27 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.6;
   color: var(--text);
   background: var(--surface-sunken);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Universal typography for all buttons, inputs, selects, and text controls */
+button,
+input,
+optgroup,
+select,
+textarea {
+  font-family: var(--font-sans);
 }
 
 h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
   color: var(--text);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1367,7 +1379,7 @@ a:hover {
 .clean-landing {
   background-color: #f8fafc;
   color: #0f172a;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   min-height: 100vh;
 }
 
@@ -1926,6 +1938,433 @@ a:hover {
     padding: 10px 12px;
     font-size: 13px;
   }
+}
+
+/* ===========================================================================
+   ArogyaFlow Mobile App Experience & WhatsApp Service Menu Theme
+   =========================================================================== */
+
+.arogyaflow-backdrop {
+  background-color: #f1f5f9;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (min-width: 640px) {
+  .arogyaflow-backdrop {
+    padding: 24px 16px;
+    background-color: #e2e8f0;
+  }
+}
+
+.arogyaflow-phone-frame {
+  width: 100%;
+  max-width: 440px;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+  border: 1px solid #e2e8f0;
+}
+
+@media (min-width: 640px) {
+  .arogyaflow-phone-frame {
+    height: 92vh;
+    min-height: 720px;
+    max-height: 860px;
+    border-radius: 28px;
+  }
+}
+
+/* Drag indicator for modal/sheet style */
+.arogyaflow-drag-handle {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 12px;
+  padding-bottom: 4px;
+}
+
+.arogyaflow-drag-bar {
+  width: 40px;
+  height: 4px;
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
+
+/* Top App Bar */
+.arogyaflow-top-bar {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.arogyaflow-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #334155;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.arogyaflow-icon-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.arogyaflow-icon-btn:active {
+  background-color: #e2e8f0;
+}
+
+.arogyaflow-bar-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e293b;
+  text-align: center;
+  letter-spacing: -0.01em;
+  margin: 0;
+  flex: 1;
+}
+
+/* Dropdown Menu */
+.arogyaflow-dropdown {
+  position: absolute;
+  right: 16px;
+  top: 56px;
+  width: 180px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  border: 1px solid #f1f5f9;
+  padding: 6px;
+  z-index: 50;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.arogyaflow-menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s ease;
+}
+
+.arogyaflow-menu-item:hover {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Scrollable Service List */
+.arogyaflow-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.arogyaflow-list::-webkit-scrollbar {
+  display: none;
+}
+.arogyaflow-list {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Minimalist Card Design */
+.arogyaflow-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background-color: #ffffff;
+  border: 1px solid #f1f5f9;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.arogyaflow-card:hover {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.arogyaflow-card.selected {
+  border-color: #00A884;
+  background-color: #fafffd;
+  box-shadow: 0 4px 16px rgba(0, 168, 132, 0.12);
+}
+
+.arogyaflow-card:active {
+  transform: scale(0.99);
+}
+
+/* Card Internal Layout */
+.arogyaflow-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.arogyaflow-card:hover .arogyaflow-card-icon {
+  transform: scale(1.05);
+}
+
+.arogyaflow-card-content {
+  margin-left: 14px;
+  flex: 1;
+  padding-right: 8px;
+}
+
+.arogyaflow-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.01em;
+}
+
+.arogyaflow-card-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.arogyaflow-card-chevron {
+  color: #cbd5e1;
+  font-size: 18px;
+  font-weight: 600;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+}
+
+.arogyaflow-card:hover .arogyaflow-card-chevron,
+.arogyaflow-card.selected .arogyaflow-card-chevron {
+  color: #00A884;
+  transform: translateX(2px);
+}
+
+/* Sticky Bottom Section */
+.arogyaflow-bottom-section {
+  padding: 14px 20px 20px;
+  border-top: 1px solid #f1f5f9;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+  position: relative;
+  flex-shrink: 0;
+  z-index: 30;
+}
+
+.arogyaflow-btn-continue {
+  width: 100%;
+  padding: 15px 24px;
+  border-radius: 9999px;
+  background-color: #F2EFEA;
+  color: #8E959F;
+  font-size: 15.5px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.01em;
+}
+
+.arogyaflow-btn-continue:hover {
+  background-color: #ECE7DE;
+  color: #728499;
+}
+
+.arogyaflow-btn-continue.active-green {
+  background-color: #00A884;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 168, 132, 0.32);
+}
+
+.arogyaflow-btn-continue.active-green:hover {
+  background-color: #008f70;
+  box-shadow: 0 6px 18px rgba(0, 168, 132, 0.38);
+  transform: translateY(-1px);
+}
+
+.arogyaflow-btn-continue:active {
+  transform: scale(0.99);
+}
+
+.arogyaflow-footer-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.arogyaflow-green-dot-outer {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid #00A884;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.arogyaflow-green-dot-inner {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #00A884;
+}
+
+.arogyaflow-learn-more {
+  color: #00A884;
+  font-weight: 600;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.arogyaflow-learn-more:hover {
+  text-decoration: underline;
+  color: #008f70;
+}
+
+/* Hero Banner Card */
+.arogyaflow-hero-card {
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background-color: #ffffff;
+}
+
+.arogyaflow-hero-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+/* Service Selector Button */
+.arogyaflow-service-selector-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.arogyaflow-service-selector-btn:hover {
+  border-color: #cbd5e1;
+}
+
+.arogyaflow-service-selector-text {
+  font-size: 15.5px;
+  color: #64748b;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+.arogyaflow-service-selector-text.selected {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.arogyaflow-chevron-icon {
+  width: 16px;
+  height: 16px;
+  color: #4b5563;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.arogyaflow-chevron-icon.open {
+  transform: rotate(90deg);
+  color: #00A884;
+}
+
+/* Spacer */
+.arogyaflow-spacer {
+  flex: 1;
+  min-height: 140px;
+}
+
+/* Content Container */
+.arogyaflow-content {
+  padding: 10px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 

@@ -51,7 +51,6 @@ import java.util.Map;
 public class QueueManagerService {
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final WhatsAppService whatsAppService;
     private final AppProperties appProperties;
     private final HospitalService hospitalService;
     private final HospitalDepartmentService hospitalDepartmentService;
@@ -344,6 +343,48 @@ public class QueueManagerService {
                 Map.of("name", known.name(), "age", known.age(), "gender", known.gender(), "id", draft.getId()),
                 TOKEN_ROW_MAPPER);
         return updated.isEmpty() ? draft : updated.get(0);
+    }
+
+    /**
+     * Opens draft registration in awaiting_family_selection step.
+     */
+    public TokenDto createFamilyRegisteringToken(String phone) {
+        TokenDto active = getActiveToken(phone);
+        if (active != null) {
+            return active;
+        }
+        String sql = """
+                INSERT INTO tokens (name, phone, status, session_step)
+                VALUES ('Patient', :phone, 'registering_name', 'awaiting_family_selection')
+                RETURNING *
+                """;
+        List<TokenDto> rows = jdbc.query(sql, Map.of("phone", phone), TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public TokenDto selectFamilyMember(int tokenId, Integer familyMemberId, String name, Integer age, String gender) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("id", tokenId);
+        params.put("memberId", familyMemberId);
+        params.put("name", name != null ? name : "Patient");
+        params.put("age", age);
+        params.put("gender", gender);
+        List<TokenDto> rows = jdbc.query(
+                """
+                UPDATE tokens
+                SET family_member_id = :memberId, name = :name, age = :age, gender = :gender, session_step = 'awaiting_category'
+                WHERE id = :id
+                RETURNING *
+                """,
+                params, TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public TokenDto setSessionStep(int tokenId, String step) {
+        List<TokenDto> rows = jdbc.query(
+                "UPDATE tokens SET session_step = :step WHERE id = :id RETURNING *",
+                Map.of("step", step, "id", tokenId), TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     /** STEP 1: name captured -> next asks gender. */
@@ -784,7 +825,8 @@ public class QueueManagerService {
         Lang lang = resolveLang(token.getPhone());
         String message = botMessages.headingToHospitalNotification(
                 lang, token.getName(), token.displayNumber(), token.getCategory(), hospital.getName());
-        whatsAppService.sendWhatsAppMessage(token.getPhone(), message);
+        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
+        log.info("Heading-to-hospital trigger for Token #{}. WhatsApp notification skipped.", token.displayNumber());
         twilioStudioCallService.triggerHeadToHospitalCall(token.getPhone(), message, lang);
     }
 
@@ -837,13 +879,13 @@ public class QueueManagerService {
     }
 
     private void sendTurnNotification(String phone, int displayNumber) {
-        whatsAppService.sendWhatsAppMessage(phone,
-                "🎉 It's your turn now! Please come to the counter for Token #" + displayNumber + ".");
+        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
+        log.info("Turn notification for Token #{}. WhatsApp notification skipped.", displayNumber);
     }
 
     private void sendNextInLineNotification(String phone, int displayNumber) {
-        whatsAppService.sendWhatsAppMessage(phone,
-                "🔔 You are next in line for Token #" + displayNumber + "! There is only 1 person ahead of you. Please be ready.");
+        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
+        log.info("Next-in-line notification for Token #{}. WhatsApp notification skipped.", displayNumber);
     }
 
     public UpdateStatusResult updateTokenStatus(String idStr, String status) {
@@ -893,13 +935,9 @@ public class QueueManagerService {
 
             if ("completed".equals(status)) {
                 archiveToHistory(updatedToken);
-                whatsAppService.sendWhatsAppMessage(updatedToken.getPhone(),
-                        "✅ Token #" + updatedToken.displayNumber() + " has been served. Thank you for visiting "
-                                + appProperties.getClinicName() + "! 🙏");
+                log.info("Token #{} served. WhatsApp notification skipped.", updatedToken.displayNumber());
             } else {
-                whatsAppService.sendWhatsAppMessage(updatedToken.getPhone(),
-                        "⚠️ You missed your turn for Token #" + updatedToken.displayNumber()
-                                + ".\n\n📌 Please send \"Hi\" or \"Hello\" again to generate a new token.");
+                log.info("Token #{} status set to {}. WhatsApp notification skipped.", updatedToken.displayNumber(), status);
             }
 
             Integer nextServingId = advanceToNextEligibleWaiting(updatedToken.getHospitalId(), updatedToken.getCategory());
@@ -1152,23 +1190,7 @@ public class QueueManagerService {
         TokenDto token = rows.get(0);
         TokenDto details = getTokenDetails(String.valueOf(token.getId()));
 
-        Integer pos = details != null ? details.getPosition() : null;
-        String positionText = (pos != null && pos != 0) ? (pos == 1 ? "1st" : pos + "th") : "In Queue";
-
-        String welcomeMsg = """
-                🏥 *WELCOME TO THE HOSPITAL!*
-
-                Hello *%s*,
-
-                Your queue Token *#%d* has been scanned and *VERIFIED* by our reception desk! ✅
-
-                📍 *Status:* Checked-In & Verified
-                👥 *Queue Position:* %s
-
-                Thank you for visiting %s. Please take a seat in our waiting room. We will notify you on WhatsApp as soon as your turn arrives! 🙏"""
-                .formatted(token.getName(), token.displayNumber(), positionText, appProperties.getClinicName());
-
-        whatsAppService.sendWhatsAppMessage(token.getPhone(), welcomeMsg);
+        log.info("Token #{} verified at reception. WhatsApp notification skipped.", token.displayNumber());
 
         return details;
     }
@@ -1270,9 +1292,7 @@ public class QueueManagerService {
             return null;
         }
         TokenDto token = rows.get(0);
-        whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                "✅ Good news! Reception has reinstated your Token #" + token.displayNumber()
-                        + " and moved it to the FRONT of the queue. Please come to the counter now.");
+        log.info("Token #{} reinstated to front of queue. WhatsApp notification skipped.", token.displayNumber());
         return getTokenDetails(String.valueOf(id));
     }
 
@@ -1285,9 +1305,7 @@ public class QueueManagerService {
             return null;
         }
         TokenDto token = rows.get(0);
-        whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                "❌ Your missed Token #" + token.displayNumber() + " has been closed by reception. "
-                        + "Please send \"Hi\" to generate a new token if you'd still like to visit.");
+        log.info("Token #{} rejected/closed. WhatsApp notification skipped.", token.displayNumber());
         return token;
     }
 
@@ -1377,9 +1395,7 @@ public class QueueManagerService {
                 Map.of("count", noShowCount + 1, "id", tokenId));
 
         TokenDto moved = movePatientToPosition(tokenId, targetPosition);
-        whatsAppService.sendWhatsAppMessage(token.getPhone(),
-                "⏭️ We called Token #" + token.displayNumber() + " but you weren't ready, so you've been moved back "
-                        + skip + " position" + (skip == 1 ? "" : "s") + " in the queue. Please stay nearby.");
+        log.info("Token #{} moved back {} position(s). WhatsApp notification skipped.", token.displayNumber(), skip);
         return moved;
     }
 

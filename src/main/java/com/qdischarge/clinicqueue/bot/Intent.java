@@ -10,7 +10,7 @@ import java.util.Set;
  */
 public enum Intent {
     GENERATE_TOKEN("btn_generate_token", Set.of(
-            "1", "generate token", "token", "new token", "book token",
+            "1", "generate token", "token", "new token", "book token", "book",
             "टोकन", "टोकन बनाएं", "टोकन बनाओ",
             "टोकन तयार करा", "नवीन टोकन")),
     CHECK_STATUS("btn_check_status", Set.of(

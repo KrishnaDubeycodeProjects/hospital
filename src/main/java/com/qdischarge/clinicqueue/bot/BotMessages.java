@@ -99,6 +99,31 @@ public class BotMessages {
     // Registration
     // -------------------------------------------------------------
 
+    public String familyMemberPrompt(Lang lang, List<com.qdischarge.clinicqueue.dto.FamilyMemberDto> members) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(switch (lang) {
+            case EN -> "👨‍👩‍👧‍👦 *Book appointment for:*\n\n";
+            case HI -> "👨‍👩‍👧‍👦 *अपॉइंटमेंट किसके लिए बुक करना चाहते हैं:*\n\n";
+            case MR -> "👨‍👩‍👧‍👦 *अपॉइंटमेंट कोणासाठी बुक करायची आहे:*\n\n";
+        });
+        int idx = 1;
+        for (com.qdischarge.clinicqueue.dto.FamilyMemberDto m : members) {
+            String abhaBadge = Boolean.TRUE.equals(m.getIsAbhaLinked()) ? " [ABHA ✓]" : "";
+            sb.append(idx++).append("️⃣ *").append(m.getName()).append("* (").append(m.getRelationship()).append(")").append(abhaBadge).append("\n");
+        }
+        sb.append(idx).append("️⃣ ➕ *").append(switch (lang) {
+            case EN -> "Add new family member";
+            case HI -> "नया परिवार सदस्य जोड़ें";
+            case MR -> "नवीन कुटुंब सदस्य जोडा";
+        }).append("*\n\n");
+        sb.append(switch (lang) {
+            case EN -> "👉 Reply with the number to select.";
+            case HI -> "👉 चुनने के लिए संख्या के साथ उत्तर दें।";
+            case MR -> "👉 निवडण्यासाठी क्रमांकासह उत्तर द्या.";
+        });
+        return sb.toString();
+    }
+
     public String nameRegistrationPrompt(Lang lang) {
         return switch (lang) {
             case EN -> "✍️ *PATIENT REGISTRATION*\n\nPlease reply with your *Full Name* to generate your queue token.\n\n_Example: Yash Dubey_";
@@ -499,6 +524,42 @@ public class BotMessages {
             case EN -> "❌ Couldn't find an active access grant with that number for your phone.";
             case HI -> "❌ आपके फ़ोन के लिए उस नंबर से कोई सक्रिय पहुंच नहीं मिली।";
             case MR -> "❌ तुमच्या फोनसाठी त्या क्रमांकाचा कोणताही सक्रिय प्रवेश आढळला नाही.";
+        };
+    }
+
+    // -------------------------------------------------------------
+    // Family Booking Prompts
+    // -------------------------------------------------------------
+
+    public String familySelectionPrompt(Lang lang, String optionsText) {
+        return switch (lang) {
+            case EN -> "👨‍👩‍👧 *Who is this appointment for?*\n\n" + optionsText + "\n\nReply with the number of your choice (e.g. 1 or 2).";
+            case HI -> "👨‍👩‍👧 *यह अपॉइंटमेंट किसके लिए है?*\n\n" + optionsText + "\n\nकृपया अपने विकल्प का नंबर लिखकर भेजें (उदा. 1 या 2)।";
+            case MR -> "👨‍👩‍👧 *ही अपॉइंटमेंट कोणासाठी आहे?*\n\n" + optionsText + "\n\nकृपया आपल्या पर्यायाचा क्रमांक पाठवा (उदा. 1 किंवा 2).";
+        };
+    }
+
+    public String newMemberNamePrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "👤 Please enter the family member's full name:";
+            case HI -> "👤 कृपया परिवार के सदस्य का पूरा नाम दर्ज करें:";
+            case MR -> "👤 कृपया कुटुंब सदस्याचे पूर्ण नाव प्रविष्ट करा:";
+        };
+    }
+
+    public String newMemberRelationPrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "🤝 What is their relationship to you? (e.g. Spouse, Child, Parent, Sibling, Other):";
+            case HI -> "🤝 आपका उनसे क्या संबंध है? (उदा. पति/पत्नी, बच्चा, माता/पिता, भाई/बहन, अन्य):";
+            case MR -> "🤝 त्यांचे तुमच्याशी काय नाते आहे? (उदा. पती/पत्नी, मूल, आई/वडील, इतर):";
+        };
+    }
+
+    public String newMemberAgePrompt(Lang lang) {
+        return switch (lang) {
+            case EN -> "🎂 Please enter their age in years (e.g. 28):";
+            case HI -> "🎂 कृपया उनकी आयु (वर्षों में) दर्ज करें (उदा. 28):";
+            case MR -> "🎂 कृपया त्यांचे वय (वर्षांमध्ये) प्रविष्ट करा (उदा. 28):";
         };
     }
 }

@@ -335,3 +335,170 @@ CREATE TABLE IF NOT EXISTS time_slot_doctors (
 );
 
 CREATE INDEX IF NOT EXISTS idx_time_slot_doctors_doctor ON time_slot_doctors (doctor_id);
+
+-- ----------------------------------------------------------------------------
+-- family_units & family_members: Local Family Account management
+-- Primary user links family members with or without ABHA.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS family_units (
+  id SERIAL PRIMARY KEY,
+  primary_phone VARCHAR(50) NOT NULL UNIQUE,
+  head_name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_units_phone ON family_units (primary_phone);
+
+CREATE TABLE IF NOT EXISTS family_members (
+  id SERIAL PRIMARY KEY,
+  family_unit_id INT NOT NULL REFERENCES family_units(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  dob DATE,
+  age INT,
+  gender VARCHAR(10),
+  relationship VARCHAR(50) NOT NULL,
+  phone VARCHAR(50),
+  abha_number VARCHAR(100),
+  abha_address VARCHAR(100),
+  is_abha_linked BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_members_unit ON family_members (family_unit_id);
+CREATE INDEX IF NOT EXISTS idx_family_members_abha ON family_members (abha_number);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_family_members_unit_name_rel ON family_members (family_unit_id, name, relationship);
+
+-- ----------------------------------------------------------------------------
+-- courses (EpisodeOfCare): Condition-centric continuity of care container
+-- Groups all visits, prescriptions, labs, and referrals for a clinical journey
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS courses (
+  id SERIAL PRIMARY KEY,
+  patient_phone VARCHAR(50) NOT NULL,
+  patient_name VARCHAR(100) NOT NULL,
+  family_member_id INT REFERENCES family_members(id),
+  course_type VARCHAR(100) NOT NULL, -- 'tb_treatment', 'anc_pregnancy', 'hypertension', etc.
+  title VARCHAR(200) NOT NULL,
+  diagnosis VARCHAR(200) NOT NULL,
+  icd10_code VARCHAR(20),
+  status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'cancelled')),
+  started_by_doctor_id INT,
+  started_at_hospital_id INT,
+  current_summary TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  closed_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_courses_phone ON courses (patient_phone);
+CREATE INDEX IF NOT EXISTS idx_courses_family_member ON courses (family_member_id);
+CREATE INDEX IF NOT EXISTS idx_courses_status ON courses (status);
+
+-- ----------------------------------------------------------------------------
+-- course_encounters: Individual doctor consultations within a course
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS course_encounters (
+  id SERIAL PRIMARY KEY,
+  course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  doctor_id INT NOT NULL,
+  hospital_id INT NOT NULL,
+  visit_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  chief_complaint TEXT,
+  clinical_notes TEXT,
+  examination_findings TEXT,
+  plan TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_encounters_course ON course_encounters (course_id);
+
+-- ----------------------------------------------------------------------------
+-- course_prescriptions: FHIR MedicationRequest items linked to a course/encounter
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS course_prescriptions (
+  id SERIAL PRIMARY KEY,
+  course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  encounter_id INT REFERENCES course_encounters(id),
+  doctor_id INT NOT NULL,
+  medicine_name VARCHAR(200) NOT NULL,
+  snomed_code VARCHAR(50),
+  dosage VARCHAR(50) NOT NULL,
+  frequency VARCHAR(50) NOT NULL,
+  duration_days INT NOT NULL,
+  route VARCHAR(50) DEFAULT 'Oral',
+  instructions TEXT,
+  is_nlem BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_prescriptions_course ON course_prescriptions (course_id);
+
+-- ----------------------------------------------------------------------------
+-- course_referrals: Tiered priority referrals (Urgent 7d, Semi-Urgent 14d, Routine 30d)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS course_referrals (
+  id SERIAL PRIMARY KEY,
+  course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  encounter_id INT REFERENCES course_encounters(id),
+  referring_doctor_id INT NOT NULL,
+  from_hospital_id INT NOT NULL,
+  to_hospital_id INT NOT NULL,
+  target_department VARCHAR(100) NOT NULL,
+  referred_doctor_id INT,
+  reason TEXT NOT NULL,
+  priority_tier VARCHAR(20) NOT NULL CHECK (priority_tier IN ('urgent_7d', 'semi_urgent_14d', 'routine_30d')),
+  valid_until DATE NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'issued' CHECK (status IN ('issued', 'booked', 'completed', 'expired', 'cancelled')),
+  qr_payload TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  visited_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_referrals_course ON course_referrals (course_id);
+CREATE INDEX IF NOT EXISTS idx_course_referrals_to_hospital ON course_referrals (to_hospital_id, status);
+
+-- ----------------------------------------------------------------------------
+-- course_documents: PDF / Scanned files within a course (Mode 2)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS course_documents (
+  id SERIAL PRIMARY KEY,
+  course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  encounter_id INT REFERENCES course_encounters(id),
+  doc_type VARCHAR(100) NOT NULL, -- 'Chest X-ray', 'Lab Report', 'Discharge Summary', etc.
+  file_name VARCHAR(255) NOT NULL,
+  content_type VARCHAR(100) NOT NULL,
+  file_size INT NOT NULL,
+  storage_path VARCHAR(500),
+  file_hash VARCHAR(64),
+  file_data BYTEA,
+  uploaded_by_doctor_id INT,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_documents_course ON course_documents (course_id);
+CREATE INDEX IF NOT EXISTS idx_course_documents_hash ON course_documents (file_hash);
+
+-- Alterations for backward compatibility and upgrades
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS storage_path VARCHAR(500);
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS file_hash VARCHAR(64);
+ALTER TABLE course_documents ALTER COLUMN file_data DROP NOT NULL;
+
+-- Tokens table alterations
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS family_member_id INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS course_id INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS referral_id INT;
+
+-- Hospitals table alterations for referral quotas
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS urgent_referral_quota INT DEFAULT 5;
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS standard_referral_quota INT DEFAULT 15;
+
+-- Family members table alterations for abha_number and abha_address length
+ALTER TABLE family_members ALTER COLUMN abha_number TYPE VARCHAR(100);
+ALTER TABLE family_members ALTER COLUMN abha_address TYPE VARCHAR(100);
+
+-- ABDM HFR (Health Facility Registry) and HPR (Healthcare Professional Registry) Identifiers
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS hfr_id VARCHAR(100) DEFAULT 'IN0001DEMO';
+ALTER TABLE doctors ADD COLUMN IF NOT EXISTS hpr_id VARCHAR(100) DEFAULT '91-0000-0000-0000@hpr.abdm';

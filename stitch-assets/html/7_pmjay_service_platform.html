@@ -1,0 +1,214 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>PM-JAY Service Portal</title>
+<!-- Tailwind CSS CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              green: '#005b41',
+              accent: '#0d7d59',
+              lightGray: '#f5f5f5',
+              border: '#d1d5db'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom styling for smooth presentation -->
+<style data-purpose="custom-layout">
+    body {
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+    }
+    .mobile-container {
+      width: 100%;
+      max-width: 440px;
+      min-height: 100vh;
+      background-color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      position: relative;
+    }
+    .select-tap:active {
+      background-color: #f9fafb;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased text-gray-900">
+<!-- BEGIN: MainWebViewSheet -->
+<div class="mobile-container relative flex flex-col justify-between overflow-hidden">
+<!-- Top Content Area -->
+<div class="w-full flex flex-col">
+<!-- Drag Handle Indicator -->
+<div class="w-full flex justify-center pt-3 pb-1" data-purpose="drag-handle-bar">
+<div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+</div>
+<!-- BEGIN: ModalHeader -->
+<header class="flex items-center justify-between px-5 py-3 border-b border-transparent" data-purpose="modal-header">
+<!-- Close Button (X) -->
+<button aria-label="Close" class="p-1 text-gray-800 hover:text-gray-600 transition-colors" type="button">
+<svg class="w-5 h-5 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Centered Title -->
+<h1 class="text-base font-bold tracking-tight text-gray-900">PM-JAY</h1>
+<!-- More Options Menu Button (Three Dots) -->
+<button aria-label="More options" class="p-1 text-gray-800 hover:text-gray-600 transition-colors" type="button">
+<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+<path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
+</svg>
+</button>
+</header>
+<!-- END: ModalHeader -->
+<!-- BEGIN: MainContent -->
+<main class="px-5 pt-3 flex flex-col gap-6" data-purpose="sheet-content">
+<!-- BEGIN: HeroCard -->
+<section class="w-full rounded-xl overflow-hidden border border-teal-100/60 shadow-sm relative" data-purpose="hero-banner">
+<!-- Background & Hospital Illustration Representation -->
+<div class="relative w-full h-[184px] bg-gradient-to-b from-[#e3f4fc] via-[#d6f0fb] to-[#c1e8f6] flex flex-col justify-between overflow-hidden">
+<!-- Watermark / Hospital buildings background illustration -->
+<div class="absolute inset-0 opacity-40 pointer-events-none">
+<svg class="w-full h-full" fill="none" preserveAspectRatio="none" viewBox="0 0 400 200">
+<!-- Sky elements & Clouds -->
+<path d="M0 70 L400 70 L400 200 L0 200 Z" fill="#b9e7f5"></path>
+<!-- Stylized hospital architectures -->
+<rect fill="#a7dcf0" height="120" opacity="0.6" width="60" x="10" y="35"></rect>
+<rect fill="#ffffff" height="8" opacity="0.8" width="8" x="20" y="45"></rect>
+<rect fill="#ffffff" height="8" opacity="0.8" width="8" x="35" y="45"></rect>
+<rect fill="#ffffff" height="8" opacity="0.8" width="8" x="20" y="60"></rect>
+<rect fill="#ffffff" height="8" opacity="0.8" width="8" x="35" y="60"></rect>
+<rect fill="#9cd5ec" height="135" opacity="0.7" width="85" x="75" y="20"></rect>
+<rect fill="#9cd5ec" height="135" opacity="0.7" width="85" x="240" y="20"></rect>
+<rect fill="#a7dcf0" height="120" opacity="0.6" width="60" x="330" y="35"></rect>
+<path d="M0 145 Q200 135 400 145 L400 200 L0 200 Z" fill="#69b9da" opacity="0.5"></path>
+</svg>
+</div>
+<!-- Top Header Logo Section inside Card -->
+<div class="relative z-10 flex items-center justify-center gap-2 pt-3 px-2">
+<!-- PM-JAY Circular Emblem -->
+<div class="w-10 h-10 rounded-full bg-white border border-emerald-600 p-0.5 shadow-sm flex items-center justify-center flex-shrink-0">
+<svg class="w-full h-full" viewBox="0 0 100 100">
+<circle cx="50" cy="50" fill="none" r="46" stroke="#22c55e" stroke-width="4"></circle>
+<path d="M50 20 C40 35, 25 45, 25 60 C25 75, 45 80, 50 80 C55 80, 75 75, 75 60 C75 45, 60 35, 50 20 Z" fill="#22c55e" opacity="0.85"></path>
+<path d="M50 35 C45 45, 38 52, 38 62 C38 72, 47 75, 50 75 C53 75, 62 72, 62 62 C62 52, 55 45, 50 35 Z" fill="#ffffff"></path>
+<circle cx="50" cy="62" fill="#f97316" r="5"></circle>
+</svg>
+</div>
+<!-- Typography for Scheme -->
+<div class="flex flex-col">
+<span class="text-[11px] font-extrabold text-gray-800 tracking-wider uppercase leading-tight">PRADHAN MANTRI</span>
+<span class="text-[10px] font-bold text-gray-700 tracking-normal uppercase leading-tight">JAN AROGYA YOJANA</span>
+</div>
+</div>
+<!-- Dark Green Banner Tag -->
+<div class="relative z-10 mx-auto mt-1 px-4 py-1 bg-[#1e6150] text-white text-[11.5px] font-medium rounded shadow-sm text-center">
+              Welcome to PM-JAY service platform.
+            </div>
+<!-- Healthcare Beneficiaries & Doctor Visual Representation -->
+<div class="relative z-10 flex items-end justify-center px-4 pt-1 pb-0 overflow-hidden">
+<svg class="w-full h-24 max-h-24 object-cover" fill="none" viewBox="0 0 340 95">
+<!-- Beneficiary 1: Rural Male (White Kurta/Vest) -->
+<g transform="translate(45, 12)">
+<circle cx="16" cy="14" fill="#c48a68" r="10"></circle>
+<path d="M10 10 Q16 4 22 10 Q20 18 16 18 Q12 18 10 10 Z" fill="#2d2d2d"></path>
+<path d="M4 42 C4 26 28 26 28 42 L28 65 L4 65 Z" fill="#3b7a57"></path>
+<path d="M7 36 L25 36" stroke="#ffffff" stroke-width="1.5"></path>
+</g>
+<!-- Beneficiary 2: Woman in Saree (Orange/Red) -->
+<g transform="translate(85, 15)">
+<circle cx="16" cy="13" fill="#bc7f5d" r="9"></circle>
+<path d="M9 12 C9 5 23 5 23 12 C23 17 9 17 9 12 Z" fill="#1f1f1f"></path>
+<circle cx="16" cy="11" fill="#dc2626" r="1.5"></circle>
+<path d="M3 42 C3 25 29 25 29 42 L29 65 L3 65 Z" fill="#ea580c"></path>
+<path d="M12 28 L27 48" stroke="#facc15" stroke-width="3"></path>
+</g>
+<!-- Beneficiary 3: Woman with Folded Hands (Namaste - Blue) -->
+<g transform="translate(125, 14)">
+<circle cx="18" cy="13" fill="#bd8262" r="9"></circle>
+<path d="M10 13 C10 4 26 4 26 13 C26 18 10 18 10 13 Z" fill="#1a1a1a"></path>
+<path d="M5 42 C5 25 31 25 31 42 L31 65 L5 65 Z" fill="#0284c7"></path>
+<path d="M15 32 L21 32 L19 44 L17 44 Z" fill="#d49372" stroke="#0369a1" stroke-width="0.5"></path>
+</g>
+<!-- Beneficiary 4: Elderly Man with Turban/Beard -->
+<g transform="translate(165, 10)">
+<!-- Turban -->
+<path d="M8 12 C8 4 26 4 26 12 C26 15 8 15 8 12 Z" fill="#e5e7eb" stroke="#d1d5db" stroke-width="1"></path>
+<circle cx="17" cy="16" fill="#bc7f5d" r="8"></circle>
+<!-- White Beard -->
+<path d="M11 18 Q17 26 23 18 L21 24 Q17 28 13 24 Z" fill="#f3f4f6"></path>
+<path d="M4 44 C4 28 30 28 30 44 L30 65 L4 65 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"></path>
+</g>
+<!-- Beneficiary 5: Senior Person (Pink Shirt) -->
+<g transform="translate(205, 14)">
+<circle cx="16" cy="13" fill="#b97c5a" r="9"></circle>
+<path d="M9 10 C12 6 20 6 23 10 C23 16 9 16 9 10 Z" fill="#9ca3af"></path>
+<path d="M3 42 C3 25 29 25 29 42 L29 65 L3 65 Z" fill="#fb7185"></path>
+</g>
+<!-- Beneficiary 6: Doctor with Stethoscope & Lab Coat -->
+<g transform="translate(245, 8)">
+<circle cx="18" cy="14" fill="#c28866" r="10"></circle>
+<path d="M11 11 C13 5 23 5 25 11 C24 18 12 18 11 11 Z" fill="#1e293b"></path>
+<!-- White Coat & Blue Shirt -->
+<path d="M5 45 C5 27 31 27 31 45 L31 65 L5 65 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"></path>
+<path d="M13 28 L23 28 L21 42 L15 42 Z" fill="#0284c7"></path>
+<!-- Stethoscope -->
+<path d="M12 28 C12 36 24 36 24 28" fill="none" stroke="#475569" stroke-width="1.5"></path>
+<circle cx="18" cy="38" fill="#64748b" r="2.5"></circle>
+</g>
+</svg>
+</div>
+</div>
+</section>
+<!-- END: HeroCard -->
+<!-- BEGIN: ServiceSelector -->
+<section class="w-full" data-purpose="service-dropdown-selector">
+<label class="sr-only" for="service-selector">Choose your service</label>
+<button class="select-tap w-full flex items-center justify-between px-4 py-4 rounded-xl border border-gray-400/80 bg-white text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-emerald-700/30" id="service-selector" type="button">
+<span class="text-[17px] text-gray-600 font-normal tracking-wide">Choose your service</span>
+<!-- Small Chevron Right Arrow -->
+<svg class="w-4 h-4 text-gray-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+<polygon points="6,3 16,10 6,17"></polygon>
+</svg>
+</button>
+</section>
+<!-- END: ServiceSelector -->
+</main>
+<!-- END: MainContent -->
+</div>
+<!-- BEGIN: FooterActions -->
+<footer class="w-full px-5 pb-6 pt-12 mt-auto flex flex-col items-center gap-4" data-purpose="bottom-navigation-container">
+<!-- Primary Action Button (Disabled State per UI) -->
+<button class="w-full py-3.5 bg-[#f4f1ea] text-[#9ca3af] font-semibold text-[15px] rounded-full cursor-not-allowed text-center transition select-none tracking-normal" disabled="" type="button">
+        Continue
+      </button>
+<!-- Attribution & Trust Indicator -->
+<div class="flex items-center justify-center gap-1.5 text-xs text-gray-700 select-none">
+<!-- Tiny PM-JAY / NHA Emblem -->
+<div class="w-3.5 h-3.5 rounded-full border border-emerald-600 flex items-center justify-center flex-shrink-0">
+<svg class="w-full h-full p-0.5" viewBox="0 0 100 100">
+<circle cx="50" cy="50" fill="#15803d" r="40"></circle>
+<circle cx="50" cy="50" fill="#ffffff" r="16"></circle>
+</svg>
+</div>
+<span>Managed by Ayushman Sarathi.</span>
+<a class="text-[#0e7453] font-medium hover:underline" href="#learn-more">Learn more</a>
+</div>
+</footer>
+<!-- END: FooterActions -->
+</div>
+<!-- END: MainWebViewSheet -->
+</body></html>

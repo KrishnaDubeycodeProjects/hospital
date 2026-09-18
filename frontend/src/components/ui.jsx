@@ -103,7 +103,7 @@ export function Spinner({ label = 'Loading…' }) {
   );
 }
 
-export function Modal({ open, onClose, title, children, wide }) {
+export function Modal({ open = true, onClose, title, children, wide }) {
   if (!open) return null;
   return (
     <div className="modal-overlay" onClick={onClose}>

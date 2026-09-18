@@ -40,6 +40,11 @@ public class HospitalDto {
     private String genderSpecific;
     private List<String> categories;
 
+    /** Quota of reserved OPD slots for urgent (7-day) referrals */
+    private Integer urgentReferralQuota;
+    /** Quota of reserved OPD slots for standard/semi-urgent (14-30 day) referrals */
+    private Integer standardReferralQuota;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

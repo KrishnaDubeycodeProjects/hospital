@@ -63,6 +63,8 @@ public class HospitalService {
             .accreditation(splitCsv(rs.getString("accreditation")))
             .genderSpecific(rs.getString("gender_specific"))
             .categories(splitCsv(rs.getString("categories")))
+            .urgentReferralQuota(getNullableInt(rs, "urgent_referral_quota", 5))
+            .standardReferralQuota(getNullableInt(rs, "standard_referral_quota", 15))
             .createdAt(rs.getObject("created_at", LocalDateTime.class))
             .updatedAt(rs.getObject("updated_at", LocalDateTime.class))
             .build();
@@ -324,6 +326,16 @@ public class HospitalService {
         }
         return String.join(", ", values);
     }
+
+    private static Integer getNullableInt(java.sql.ResultSet rs, String col, int defaultValue) {
+        try {
+            Object obj = rs.getObject(col);
+            return obj != null ? ((Number) obj).intValue() : defaultValue;
+        } catch (java.sql.SQLException e) {
+            return defaultValue;
+        }
+    }
+
 
     public record LatLon(String digipin, double lat, double lon) {
     }

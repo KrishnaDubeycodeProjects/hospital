@@ -1,5 +1,0 @@
- : Error evaluating treatment-timing notify triggers: Failed to obtain JDBC Connection
-2026-08-18T11:27:23.451+05:30 ERROR 27604 --- [clinic-queue-backend] [   scheduling-1] c.q.c.service.QueueManagerService        : Error evaluating anomaly-control expiry: Failed to obtain JDBC Connection
-2026-08-18T11:27:43.476+05:30 ERROR 27604 --- [clinic-queue-backend] [   scheduling-1] c.q.c.service.QueueManagerService        : Error evaluating treatment-timing notify triggers: Failed to obtain JDBC Connection
-2026-08-18T11:27:48.487+05:30 ERROR 27604 --- [clinic-queue-backend] [   scheduling-1] c.q.c.service.QueueManagerService        : Error evaluating anomaly-control expiry: Failed to obtain JDBC Connection
-jdbc is connecting with supabase postgrest

@@ -1,482 +1,350 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { hospitalApi, queueApi } from '../api/client';
-import { EmptyState, Spinner } from '../components/ui';
-import {
-  HospitalIcon,
-  MapPinIcon,
-  SearchIcon,
-  UserIcon,
-  DoctorIcon,
-  ArrowRightIcon,
-  TicketIcon,
-  PhoneIcon,
-  BuildingIcon,
-  LockIcon,
-  ActivityIcon
-} from '../components/Icons';
-
-function isOpenNow(h) {
-  if (!h || !h.openTime || !h.closeTime) return true;
-  if (h.openTime === '00:00' && (h.closeTime === '23:59' || h.closeTime === '24:00')) return true;
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const parseMins = (str) => {
-    const [hh, mm] = str.split(':').map(Number);
-    return (hh || 0) * 60 + (mm || 0);
-  };
-
-  const openMins = parseMins(h.openTime);
-  const closeMins = parseMins(h.closeTime);
-
-  if (closeMins > openMins) {
-    return currentMinutes >= openMins && currentMinutes < closeMins;
-  } else {
-    // Overnight shift e.g. 20:00 to 06:00
-    return currentMinutes >= openMins || currentMinutes < closeMins;
-  }
-}
+import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import AyushmanFooter from '../components/AyushmanFooter';
 
 export default function Landing() {
-  const [hospitals, setHospitals] = useState([]);
-  const [selectedHospital, setSelectedHospital] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [queue, setQueue] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [phone, setPhone] = useState('');
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState(null);
+  const [isContinueActive, setIsContinueActive] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const selectorRef = useRef(null);
+  const contentRef = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = await hospitalApi.list();
-        if (!cancelled) {
-          const validList = list || [];
-          setHospitals(validList);
-          const first = validList[0];
-          if (first) {
-            setSelectedHospital(first);
-            const data = await queueApi.getQueue(first.id);
-            if (!cancelled) setQueue(data);
-          }
+  const services = [
+    {
+      id: 'book',
+      title: 'Book OPD Token',
+      subtitle: 'Join queue at a hospital near you',
+      color: '#E0F2FE',
+      iconColor: '#0284C7',
+      route: '/find-hospital',
+      renderIcon: () => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+          <path d="m9 16 2 2 4-4" />
+        </svg>
+      ),
+    },
+    {
+      id: 'track',
+      title: 'Track My Turn',
+      subtitle: 'Check live queue position & wait time',
+      color: '#FFEDD5',
+      iconColor: '#EA580C',
+      route: '/track',
+      renderIcon: () => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
+    },
+    {
+      id: 'records',
+      title: 'My Health Records',
+      subtitle: 'Prescriptions, lab reports, referrals',
+      color: '#F3E8FF',
+      iconColor: '#7C3AED',
+      route: '/login/patient',
+      renderIcon: () => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+      ),
+    },
+    {
+      id: 'hospitals',
+      title: 'Find Hospitals',
+      subtitle: 'Nearby OPDs with live queue status',
+      color: '#DCFCE7',
+      iconColor: '#059669',
+      route: '/find-hospital',
+      renderIcon: () => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0H5m14 0h2m-16 0H3m6-12h6m-3-3v6" />
+        </svg>
+      ),
+    },
+    {
+      id: 'family',
+      title: 'Family & ABHA',
+      subtitle: 'Manage family & link Ayushman card',
+      color: '#FFE4E6',
+      iconColor: '#E11D48',
+      route: '/login/patient',
+      renderIcon: () => (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
+  ];
+
+  const selectedItem = services.find((s) => s.id === selectedService);
+
+  function handleToggleSelector() {
+    const nextState = !selectorOpen;
+    setSelectorOpen(nextState);
+    if (nextState) {
+      setTimeout(() => {
+        if (contentRef.current && selectorRef.current) {
+          const targetOffset = selectorRef.current.offsetTop - 8;
+          contentRef.current.scrollTo({
+            top: targetOffset,
+            behavior: 'smooth',
+          });
         }
-      } catch {
-        // Public landing page renders gracefully even if backend is initializing
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleHospitalChange = async (h) => {
-    setSelectedHospital(h);
-    try {
-      const data = await queueApi.getQueue(h.id);
-      setQueue(data);
-    } catch {
-      setQueue(null);
+      }, 60);
     }
-    // On small screens, scroll down to the drawer element
-    if (window.innerWidth < 860) {
-      const drawer = document.getElementById('selected-hospital-drawer');
-      if (drawer) drawer.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  function trackToken(e) {
-    e.preventDefault();
-    if (phone.trim()) navigate(`/track/${encodeURIComponent(phone.trim())}`);
   }
 
-  const filteredHospitals = hospitals.filter(
-    (h) =>
-      h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (h.address && h.address.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  function handleSelectService(service) {
+    setSelectedService(service.id);
+    setIsContinueActive(true);
+    setSelectorOpen(false);
+  }
+
+  function handleContinue() {
+    setIsContinueActive(true);
+    const item = selectedItem || services[0];
+    if (selectedService) {
+      navigate(item.route);
+    } else {
+      setSelectedService(item.id);
+      setTimeout(() => {
+        navigate(item.route);
+      }, 200);
+    }
+  }
 
   return (
-    <div className="clean-landing">
-      {/* 1. Responsive Header */}
-      <header className="clean-header">
-        <div className="clean-header-inner">
-          <Link to="/" className="clean-brand">
-            <div className="clean-brand-icon">AF</div>
-            <h1 className="clean-brand-name">ArogyaFlow</h1>
-          </Link>
+    <div className="arogyaflow-backdrop">
+      <main
+        className="arogyaflow-phone-frame"
+        style={{
+          backgroundColor: '#ffffff',
+          height: '100dvh',
+          maxHeight: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+        aria-label="Aarogya Flow Platform"
+      >
+        {/* Top Drag Handle Bar */}
+        <div className="arogyaflow-drag-handle" data-purpose="drag-handle-bar">
+          <div className="arogyaflow-drag-bar" />
+        </div>
 
+        {/* 1. Top App Bar (Header): White background, 'X' on left, 'Aarogya Flow' center, kebab menu on right */}
+        <header className="arogyaflow-top-bar" style={{ borderBottom: 'none', backgroundColor: '#ffffff' }} data-purpose="modal-header">
+          {/* Left: Close Button (X) */}
           <button
-            className="mobile-nav-toggle"
-            onClick={() => setMobileNavOpen((o) => !o)}
-            aria-label="Toggle Navigation"
+            aria-label="Close"
+            className="arogyaflow-icon-btn"
+            type="button"
+            onClick={() => {
+              setSelectedService(null);
+              setIsContinueActive(false);
+              setSelectorOpen(false);
+            }}
           >
-            {mobileNavOpen ? '✕' : '☰'}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
 
-          <nav className={`clean-nav-links ${mobileNavOpen ? 'open' : ''}`}>
-            <a href="#directory" className="clean-nav-link" onClick={() => setMobileNavOpen(false)}>Hospital Directory</a>
-            <a href="#portals" className="clean-nav-link" onClick={() => setMobileNavOpen(false)}>Portals</a>
-            <a href="#security" className="clean-nav-link" onClick={() => setMobileNavOpen(false)}>Security & Privacy</a>
-            <div className="clean-mobile-actions">
-              <Link to="/track" className="clean-btn-secondary" onClick={() => setMobileNavOpen(false)}>
-                <SearchIcon size={16} /> Track Token
-              </Link>
-              <Link to="/book" className="clean-btn-primary" onClick={() => setMobileNavOpen(false)}>
-                <TicketIcon size={16} /> Book Token
-              </Link>
-            </div>
-          </nav>
+          {/* Center: Title "Aarogya Flow" in bold modern font */}
+          <h1 className="arogyaflow-bar-title" style={{ color: '#043c2c', fontSize: '18px', fontWeight: '700' }}>
+            Aarogya Flow
+          </h1>
 
-          <div className="clean-desktop-actions">
-            <Link to="/track" className="clean-btn-secondary" style={{ padding: '8px 16px', fontSize: '13px' }}>
-              <SearchIcon size={16} /> Track Token
-            </Link>
-            <Link to="/book" className="clean-btn-primary" style={{ padding: '8px 18px', fontSize: '13px' }}>
-              <TicketIcon size={16} /> Book Token
-            </Link>
-          </div>
-        </div>
-      </header>
+          {/* Right: Vertical three-dot (kebab) menu icon */}
+          <div style={{ position: 'relative' }}>
+            <button
+              aria-label="More options"
+              className="arogyaflow-icon-btn"
+              type="button"
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#374151">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+              </svg>
+            </button>
 
-      {/* 2. Hero Section */}
-      <section className="clean-hero">
-        <div className="clean-hero-inner">
-          <div>
-            <div className="clean-hero-badge">
-              <ActivityIcon size={14} /> Smart OPD Queue Orchestration
-            </div>
-
-            <h1 className="clean-hero-h1">
-              OPD Token Management & Live Queue Tracking
-            </h1>
-
-            <p className="clean-hero-p">
-              ArogyaFlow helps patients find OPD hospitals, book consultation tokens, and receive live SMS turn updates without standing in crowded waiting rooms.
-            </p>
-
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <Link to="/book" className="clean-btn-primary">
-                <TicketIcon size={18} /> Book Live Token
-              </Link>
-              <Link to="/find-hospital" className="clean-btn-secondary">
-                <HospitalIcon size={18} /> View Hospitals
-              </Link>
-            </div>
-          </div>
-
-          {/* Quick Track Box */}
-          <div className="clean-tracker-card">
-            <h3 className="clean-tracker-title">
-              <SearchIcon size={18} style={{ color: '#0284c7' }} /> Track Your Queue Position
-            </h3>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px' }}>
-              Enter the phone number used at booking to check real-time turn status.
-            </p>
-
-            <form onSubmit={trackToken}>
-              <div style={{ position: 'relative', marginBottom: '12px' }}>
-                <PhoneIcon size={18} style={{ position: 'absolute', left: '12px', top: '13px', color: '#94a3b8' }} />
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Enter Mobile Number (+91 9876543210)"
-                  required
-                  className="clean-input"
-                  style={{ paddingLeft: '40px' }}
-                />
-              </div>
-
-              <button type="submit" className="clean-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                Track Token Position <ArrowRightIcon size={16} />
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Real Dynamic Stats Strip */}
-      <section className="clean-stats-strip">
-        <div className="clean-stats-inner">
-          <div className="clean-stat-card">
-            <HospitalIcon size={24} style={{ color: '#0284c7' }} />
-            <div>
-              <div className="clean-stat-val">{hospitals.length || 25}</div>
-              <div className="clean-stat-lbl">Registered Hospitals</div>
-            </div>
-          </div>
-
-          <div className="clean-stat-card">
-            <ActivityIcon size={24} style={{ color: '#10b981' }} />
-            <div>
-              <div className="clean-stat-val">Live</div>
-              <div className="clean-stat-lbl">OPD Counter Synchronization</div>
-            </div>
-          </div>
-
-          <div className="clean-stat-card">
-            <PhoneIcon size={24} style={{ color: '#0284c7' }} />
-            <div>
-              <div className="clean-stat-val">SMS & Voice</div>
-              <div className="clean-stat-lbl">Instant Location Token Dispatch</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Hospital Directory Section */}
-      <section id="directory" className="clean-section">
-        <div className="clean-section-header">
-          <h2 className="clean-section-title">Hospital Directory & Live Status</h2>
-          <p className="clean-section-desc">Select a hospital to view departments, OPD timings, and active counter status.</p>
-        </div>
-
-        <div className="clean-directory-grid">
-          {/* Left List */}
-          <div>
-            <div style={{ position: 'relative', marginBottom: '14px' }}>
-              <SearchIcon size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search hospital by name or area..."
-                className="clean-input"
-                style={{ paddingLeft: '38px' }}
-              />
-            </div>
-
-            <div style={{ maxHeight: '480px', overflowY: 'auto', paddingRight: '4px' }}>
-              {filteredHospitals.slice(0, 20).map((h, idx) => {
-                const isSelected = selectedHospital?.id === h.id;
-                const opdOpen = isOpenNow(h);
-
-                return (
-                  <div
-                    key={h.id || h.slug || idx}
-                    onClick={() => handleHospitalChange(h)}
-                    className={`clean-hospital-card ${isSelected ? 'active' : ''}`}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <h4 className="clean-hospital-title">#{idx + 1} {h.name}</h4>
-                      {opdOpen ? (
-                        <span className="clean-pill" style={{ background: '#ecfdf5', color: '#047857' }}>🟢 OPD Open</span>
-                      ) : (
-                        <span className="clean-pill" style={{ background: '#fef2f2', color: '#b91c1c' }}>🔴 OPD Closed</span>
-                      )}
-                    </div>
-
-                    <div className="clean-hospital-meta" style={{ marginTop: '4px' }}>
-                      <MapPinIcon size={14} style={{ color: '#0284c7' }} />
-                      {h.address || 'Mumbai / Thane Region'}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                      <span className="clean-pill">⏰ OPD: {h.openTime || '08:00'} - {h.closeTime || '20:00'}</span>
-                      <span className="clean-pill">👨‍⚕️ {h.activeCounters || 2} Counters</span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {filteredHospitals.length === 0 && (
-                <EmptyState title="No matching hospitals found" hint="Try searching with a different location name." />
-              )}
-            </div>
-          </div>
-
-          {/* Right Selected Hospital Drawer */}
-          <div>
-            {selectedHospital ? (
-              <div id="selected-hospital-drawer" className="clean-drawer">
-                <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', marginBottom: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                      {selectedHospital.name}
-                    </h3>
-                    {isOpenNow(selectedHospital) ? (
-                      <span className="clean-pill" style={{ background: '#ecfdf5', color: '#047857' }}>🟢 OPD Open</span>
-                    ) : (
-                      <span className="clean-pill" style={{ background: '#fef2f2', color: '#b91c1c' }}>🔴 OPD Closed</span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: '13px', color: '#64748b', margin: '6px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <MapPinIcon size={14} style={{ color: '#0284c7' }} /> {selectedHospital.address}
-                  </p>
-                  {selectedHospital.digipin && (
-                    <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#0284c7', display: 'block', marginTop: '6px', fontWeight: 600 }}>
-                      📌 DIGIPIN: {selectedHospital.digipin}
-                    </span>
-                  )}
-                </div>
-
-                {/* Departments */}
-                <div style={{ marginBottom: '20px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>
-                    OPD Specializations
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {selectedHospital.categories?.map((cat) => (
-                      <span key={cat} className="clean-pill" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                        {cat}
-                      </span>
-                    )) || <span style={{ fontSize: '12px', color: '#64748b' }}>General Medicine</span>}
-                  </div>
-                </div>
-
-                {/* Live Status Box */}
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>
-                    Live Queue Counter Overview
-                  </div>
-
-                  {loading ? (
-                    <Spinner label="Loading counter status..." />
-                  ) : queue ? (
-                    <div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center', marginBottom: '12px' }}>
-                        <div style={{ background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                          <div style={{ fontSize: '18px', fontWeight: 800, color: '#d97706' }}>{queue.stats?.waiting || 0}</div>
-                          <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>WAITING</div>
-                        </div>
-                        <div style={{ background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                          <div style={{ fontSize: '18px', fontWeight: 800, color: '#0284c7' }}>{queue.stats?.serving || 0}</div>
-                          <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>SERVING</div>
-                        </div>
-                        <div style={{ background: '#ffffff', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                          <div style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>{queue.stats?.completed || 0}</div>
-                          <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>COMPLETED</div>
-                        </div>
-                      </div>
-
-                      {queue.currentServing ? (
-                        <div style={{ fontSize: '13px', color: '#047857', fontWeight: 600, background: '#ecfdf5', padding: '8px 12px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
-                          🟢 Token #{queue.currentServing} is currently at the counter
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
-                          Queue is clear right now.
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>Operational</div>
-                  )}
-                </div>
-
-                <Link
-                  to={`/book?hospitalId=${selectedHospital.id}&hospitalName=${encodeURIComponent(selectedHospital.name)}`}
-                  className="clean-btn-primary"
-                  style={{ width: '100%', justifyContent: 'center' }}
+            {menuOpen && (
+              <div className="arogyaflow-dropdown">
+                <button
+                  type="button"
+                  className="arogyaflow-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate('/find-hospital');
+                  }}
                 >
-                  <TicketIcon size={16} /> Book OPD Token at {selectedHospital.name.split(',')[0]}
-                </Link>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <span>Nearby OPDs</span>
+                </button>
+                <button
+                  type="button"
+                  className="arogyaflow-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate('/login/doctor');
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  <span>Doctor Portal</span>
+                </button>
+                <button
+                  type="button"
+                  className="arogyaflow-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate('/login/admin');
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                  <span>Staff Portal</span>
+                </button>
               </div>
-            ) : (
-              <EmptyState title="Select a hospital" hint="Choose a hospital from the list to view OPD details." />
             )}
           </div>
-        </div>
-      </section>
+        </header>
 
-      {/* 5. Portal Access */}
-      <section id="portals" className="clean-section" style={{ borderTop: '1px solid #e2e8f0' }}>
-        <div className="clean-section-header">
-          <h2 className="clean-section-title">Healthcare Portals</h2>
-          <p className="clean-section-desc">Access dedicated interfaces for patients, doctors, and staff.</p>
-        </div>
+        {/* 2 & 3: Content Area (Standard ~16px mobile margin) */}
+        <div className="arogyaflow-content" ref={contentRef}>
+          {/* 2. Hero Banner: illustration card with rounded corners & subtle drop shadow */}
+          <section className="arogyaflow-hero-card" data-purpose="hero-banner">
+            <img
+              src="/aarogya_flow_banner.png"
+              alt="Aarogya Flow: Care Closer. Healthier Tomorrow."
+              className="arogyaflow-hero-img"
+            />
+          </section>
 
-        <div className="clean-portals-grid">
-          <div className="clean-portal-box">
-            <div>
-              <div className="clean-portal-icon">
-                <UserIcon size={24} />
+          {/* 3. Middle Action Element: Choose your service sleek button */}
+          <section
+            ref={selectorRef}
+            style={{ width: '100%', position: 'relative', scrollMarginTop: '12px' }}
+            data-purpose="service-dropdown-selector"
+          >
+            <button
+              className="arogyaflow-service-selector-btn"
+              onClick={handleToggleSelector}
+              type="button"
+            >
+              {/* Left-aligned text: "Choose your service" in medium gray, regular weight */}
+              <span className={`arogyaflow-service-selector-text ${selectedItem ? 'selected' : ''}`}>
+                {selectedItem ? selectedItem.title : 'Choose your service'}
+              </span>
+
+              {/* Right-aligned icon: small refined chevron (>) */}
+              <svg
+                className={`arogyaflow-chevron-icon ${selectorOpen ? 'open' : ''}`}
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+
+            {/* Expandable Service Selection List */}
+            {selectorOpen && (
+              <div
+                style={{
+                  marginTop: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  paddingBottom: '16px',
+                }}
+              >
+                {services.map((item) => {
+                  const isSelected = selectedService === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleSelectService(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') handleSelectService(item);
+                      }}
+                      className={`arogyaflow-card ${isSelected ? 'selected' : ''}`}
+                    >
+                      <div
+                        className="arogyaflow-card-icon"
+                        style={{
+                          backgroundColor: item.color,
+                        }}
+                      >
+                        {item.renderIcon()}
+                      </div>
+                      <div className="arogyaflow-card-content">
+                        <div className="arogyaflow-card-title">
+                          {item.title}
+                        </div>
+                        <div className="arogyaflow-card-subtitle">
+                          {item.subtitle}
+                        </div>
+                      </div>
+                      <div className="arogyaflow-card-chevron">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>Patient Portal</h3>
-              <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                Track live OPD token positions, manage prescriptions, and share records with doctors via OTP consent.
-              </p>
-            </div>
-            <Link to="/login/patient" className="clean-btn-secondary" style={{ marginTop: '20px', justifyContent: 'center' }}>
-              Patient Login <ArrowRightIcon size={14} />
-            </Link>
-          </div>
+            )}
+          </section>
 
-          <div className="clean-portal-box">
-            <div>
-              <div className="clean-portal-icon">
-                <DoctorIcon size={24} />
-              </div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>Doctor Portal</h3>
-              <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                Scan patient check-in QR codes, access shared medical history, and issue digital prescriptions.
-              </p>
-            </div>
-            <Link to="/login/doctor" className="clean-btn-secondary" style={{ marginTop: '20px', justifyContent: 'center' }}>
-              Doctor Login <ArrowRightIcon size={14} />
-            </Link>
-          </div>
-
-          <div className="clean-portal-box">
-            <div>
-              <div className="clean-portal-icon">
-                <BuildingIcon size={24} />
-              </div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>Hospital Staff</h3>
-              <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                Manage counter token calling boards, dispatch next numbers, and oversee OPD queue operations.
-              </p>
-            </div>
-            <Link to="/login/admin" className="clean-btn-secondary" style={{ marginTop: '20px', justifyContent: 'center' }}>
-              Staff Login <ArrowRightIcon size={14} />
-            </Link>
-          </div>
+          {/* 4. Empty Space: Ample empty white space only when selector is closed */}
+          {!selectorOpen && <div className="arogyaflow-spacer" />}
         </div>
-      </section>
 
-      {/* 6. Privacy & Security */}
-      <section id="security" style={{ background: '#ffffff', borderTop: '1px solid #e2e8f0', padding: '40px 24px' }}>
-        <div style={{ maxWidth: '1140px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <LockIcon size={24} style={{ color: '#0284c7' }} />
-          <div>
-            <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>
-              Consent-Based Data Privacy & Security
-            </h4>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
-              All patient medical records are encrypted. Doctors can only view patient EMR records after receiving explicit OTP consent verification.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* 7. Footer */}
-      <footer className="clean-footer">
-        <div className="clean-footer-inner">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-            <div>
-              <strong style={{ color: '#ffffff', fontSize: '16px' }}>ArogyaFlow Healthcare</strong>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0' }}>
-                Smart OPD Queueing & Clinical Token Orchestration Platform
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '20px', fontSize: '13px' }}>
-              <Link to="/book" style={{ color: '#94a3b8', textDecoration: 'none' }}>Book Token</Link>
-              <Link to="/find-hospital" style={{ color: '#94a3b8', textDecoration: 'none' }}>Find Hospital</Link>
-              <Link to="/track" style={{ color: '#94a3b8', textDecoration: 'none' }}>Track Position</Link>
-            </div>
-          </div>
-
-          <div style={{ borderTop: '1px solid #1e293b', marginTop: '24px', paddingTop: '16px', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
-            © {new Date().getFullYear()} ArogyaFlow. All Rights Reserved.
-          </div>
-        </div>
-      </footer>
+        {/* 5. Bottom Sticky Footer: Pinned to bottom, full-width Continue pill + 2-line trust footer */}
+        <footer className="arogyaflow-bottom-section" style={{ flexShrink: 0, marginTop: 'auto' }}>
+          <button
+            type="button"
+            className={`arogyaflow-btn-continue ${isContinueActive ? 'active-green' : ''}`}
+            onClick={handleContinue}
+          >
+            Continue
+          </button>
+          <AyushmanFooter style={{ padding: '0', marginTop: '2px' }} />
+        </footer>
+      </main>
     </div>
   );
 }
+
+

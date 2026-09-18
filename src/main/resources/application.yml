@@ -92,7 +92,7 @@ app:
   avg-service-minutes: ${AVG_SERVICE_MINUTES:10}
 
   admin-username: ${ADMIN_USERNAME:admin}
-  admin-password: ${ADMIN_PASSWORD:adminpass}
+  admin-password: ${ADMIN_PASSWORD:}
   admin-password-hash: ${ADMIN_PASSWORD_HASH:}
   jwt-secret: ${JWT_SECRET:}
   jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:720}
@@ -148,12 +148,23 @@ app:
   # Messaging Service instead.
   otp-provider: ${OTP_PROVIDER:log}
   otp-required-for-registration: ${OTP_REQUIRED_FOR_REGISTRATION:false}
-  twilio-account-sid: ${TWILIO_ACCOUNT_SID:ACdummy0000000000000000000000000}
-  twilio-auth-token: ${TWILIO_AUTH_TOKEN:dummy_auth_token}
-  twilio-verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:VAdummy00000000000000000000000000}
+  twilio-account-sid: ${TWILIO_ACCOUNT_SID:}
+  twilio-auth-token: ${TWILIO_AUTH_TOKEN:}
+  twilio-verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
   twilio-messaging-service-sid: ${TWILIO_MESSAGING_SERVICE_SID:}
   otp-ttl-minutes: ${OTP_TTL_MINUTES:10}
   rate-limit-otp-per-minute: ${RATE_LIMIT_OTP_PER_MINUTE:5}
+
+  # Eka Care ABDM / ABHA Gateway Integration
+  eka-client-id: ${EKA_CLIENT_ID:}
+  eka-client-secret: ${EKA_CLIENT_SECRET:}
+  eka-base-url: ${EKA_BASE_URL:https://api.eka.care}
+  eka-token-refresh-buffer-seconds: ${EKA_TOKEN_REFRESH_BUFFER_SECONDS:300}
+
+  # Document Storage (off-database file storage)
+  storage-upload-dir: ${DOCUMENT_UPLOAD_DIR:./storage/documents}
+  storage-max-file-size-mb: ${DOCUMENT_MAX_FILE_SIZE_MB:10}
+  storage-allowed-types: ${DOCUMENT_ALLOWED_TYPES:application/pdf,image/jpeg,image/png}
 
 management:
   endpoints:

@@ -1,0 +1,671 @@
+<!DOCTYPE html><html lang="en"><head></head><body class="bg-slate-50 text-slate-800 antialiased flex h-screen overflow-hidden"><svg class="inline-defs-container" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"></svg>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>OPDX Hospital Queue OS - Patient Flow &amp; Department Analytics</title>
+<!-- Tailwind CSS v3 with Forms & Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            slate: {
+              850: '#172033',
+              900: '#0f172a',
+              950: '#0b0f19',
+            },
+            teal: {
+              500: '#14b8a6',
+              600: '#0d9488',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<!-- Typography & Global Layout Styles -->
+<style data-purpose="typography">
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+<!-- Custom Micro-Interactions & Transitions -->
+<style data-purpose="interactive-styles">
+    .chart-point:hover {
+      r: 6;
+      transition: all 0.2s ease-in-out;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" data-snapdom="injected-import">
+
+<!-- BEGIN: MainSidebar -->
+<aside class="w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 border-r border-slate-800 select-none z-20">
+<!-- Brand Logo Section -->
+<div class="h-16 flex items-center px-6 gap-3 border-b border-slate-800 bg-slate-950/40">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-brand-600 to-teal-500 flex items-center justify-center text-white font-bold shadow-md shadow-brand-600/20">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path>
+</svg>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-bold text-white tracking-tight text-base">OPDX</span>
+<span class="text-xs px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-400 font-semibold border border-brand-500/30">CORE</span>
+</div>
+<p class="text-[11px] text-slate-400 font-medium">Hospital Queue OS</p>
+</div>
+</div>
+<!-- Admin Hospital Facility Badge -->
+<div class="px-4 py-3 border-b border-slate-800/80 bg-slate-850/60 flex items-center gap-3">
+<div class="relative">
+<div class="w-9 h-9 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-white text-xs font-semibold">
+          ES
+        </div>
+<span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900"></span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-xs font-semibold text-slate-200 truncate">Hospital Admin</p>
+<p class="text-[11px] text-slate-400 truncate">ESIS Central Hospital</p>
+</div>
+<button aria-label="Facility Settings" class="text-slate-400 hover:text-white transition" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+<!-- Navigation Menu Items -->
+<nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+<!-- Section: Clinical Operations -->
+<div class="px-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+        Operational Suites
+      </div>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Hospital Overview</span>
+</a>
+<!-- Active: Patient Flow & Analytics -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-brand-600 text-white shadow-sm shadow-brand-600/30" href="#">
+<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Flow &amp; Analytics</span>
+<span class="ml-auto w-1.5 h-1.5 rounded-full bg-white"></span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Departments</span>
+</a>
+<a class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<div class="flex items-center gap-3">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Manage Doctors</span>
+</div>
+<span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300 font-semibold border border-slate-700">12</span>
+</a>
+<a class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<div class="flex items-center gap-3">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Reception Desks</span>
+</div>
+<span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-300 font-semibold border border-slate-700">4</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>View All Patients</span>
+</a>
+<!-- Communications Section -->
+<div class="pt-4 px-3 pb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+        Communication &amp; Notice
+      </div>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Announcements</span>
+</a>
+<a class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<div class="flex items-center gap-3">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Internal Messages</span>
+</div>
+<span class="w-2 h-2 rounded-full bg-brand-500"></span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition group" href="#">
+<svg class="w-4 h-4 text-slate-400 group-hover:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>System Settings</span>
+</a>
+</nav>
+<!-- Sidebar Bottom: Logout & Help -->
+<div class="p-3 border-t border-slate-800 bg-slate-950/60">
+<button class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/40 transition" type="button">
+<svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Log Out Facility Session</span>
+</button>
+</div>
+</aside>
+<!-- END: MainSidebar -->
+<!-- BEGIN: MainContentWrapper -->
+<div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
+<!-- BEGIN: TopBar -->
+<header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10">
+<!-- Breadcrumb & Real-time Indicator -->
+<div class="flex items-center gap-4">
+<nav class="flex items-center text-xs text-slate-500 font-medium">
+<span>Hospital Operations</span>
+<svg class="w-3.5 h-3.5 mx-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-brand-600 font-semibold">Patient Flow &amp; Queue Analytics</span>
+</nav>
+<div class="h-4 w-px bg-slate-200"></div>
+<div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/70 text-emerald-700 text-xs font-medium">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+</span>
+<span>Live Queue Feed Active</span>
+</div>
+</div>
+<!-- Header Quick Actions -->
+<div class="flex items-center gap-3">
+<!-- Quick Search -->
+<div class="relative w-64">
+<svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<input class="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-100/80 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition" placeholder="Search patient, token, MRN..." type="text">
+</div>
+<!-- Sync Button -->
+<button class="p-2 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-slate-100 transition border border-transparent hover:border-slate-200" title="Sync Latest Queue Records" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Notification Bell -->
+<button class="relative p-2 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-slate-100 transition border border-transparent hover:border-slate-200" title="Notifications" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full"></span>
+</button>
+<div class="h-4 w-px bg-slate-200 mx-1"></div>
+<!-- Export Dropdown -->
+<button class="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-sm shadow-brand-600/20 transition" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Export Report</span>
+</button>
+</div>
+</header>
+<!-- END: TopBar -->
+<!-- BEGIN: DashboardBody -->
+<main class="flex-1 overflow-y-auto px-8 py-6 space-y-6 custom-scrollbar">
+<!-- Page Title & Header Info -->
+<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+<div>
+<h1 class="text-2xl font-bold text-slate-900 tracking-tight">Patient Flow Analysis</h1>
+<p class="text-sm text-slate-500 mt-0.5">Comprehensive volume tracking, registration intake, and department patient load.</p>
+</div>
+<!-- Live Status summary pills -->
+<div class="flex items-center gap-3">
+<div class="bg-white border border-slate-200 px-3.5 py-1.5 rounded-lg shadow-xs flex items-center gap-3">
+<span class="text-xs text-slate-500">Facility Status:</span>
+<span class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Normal Flow Rate
+            </span>
+</div>
+<div class="bg-white border border-slate-200 px-3.5 py-1.5 rounded-lg shadow-xs text-xs text-slate-600">
+            Current Wait Estimate: <span class="font-bold text-slate-900">~14 mins</span>
+</div>
+</div>
+</div>
+<!-- BEGIN: FilterAndMetricsControls -->
+<div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+<!-- Top Row: Selectors and Date Range Filters -->
+<div class="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
+<div class="flex flex-wrap items-center gap-3">
+<!-- Department Dropdown -->
+<div class="flex items-center gap-2">
+<label class="text-xs font-semibold text-slate-600" for="dept-select">Department:</label>
+<select class="text-xs bg-slate-50 border-slate-200 text-slate-700 rounded-lg py-1.5 pl-3 pr-8 focus:ring-brand-500 focus:border-brand-500 font-medium" id="dept-select">
+<option selected="">All Departments (6 Active)</option>
+<option>General OPD</option>
+<option>Cardiology</option>
+<option>Pediatrics</option>
+<option>Orthopedics</option>
+<option>ENT &amp; Pulmonology</option>
+<option>Diagnostic &amp; Imaging</option>
+</select>
+</div>
+<!-- Doctor Dropdown -->
+<div class="flex items-center gap-2">
+<label class="text-xs font-semibold text-slate-600" for="doctor-select">Doctor:</label>
+<select class="text-xs bg-slate-50 border-slate-200 text-slate-700 rounded-lg py-1.5 pl-3 pr-8 focus:ring-brand-500 focus:border-brand-500 font-medium" id="doctor-select">
+<option selected="">All Doctors (12 On-Duty)</option>
+<option>Dr. Marcus Vance (Cardiology)</option>
+<option>Dr. Elena Rostova (Pediatrics)</option>
+<option>Dr. Chen Wei (General OPD)</option>
+<option>Dr. Sarah Jenkins (Orthopedics)</option>
+</select>
+</div>
+</div>
+<!-- Time-range Pill Selectors -->
+<div class="inline-flex p-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-600">
+<button class="px-3 py-1.5 rounded-md hover:text-slate-900 transition" type="button">Today</button>
+<button class="px-3.5 py-1.5 rounded-md bg-brand-600 text-white font-semibold shadow-xs transition" type="button">Last Week</button>
+<button class="px-3 py-1.5 rounded-md hover:text-slate-900 transition" type="button">Last Month</button>
+<button class="px-3 py-1.5 rounded-md hover:text-slate-900 transition" type="button">Last Year</button>
+<button class="px-3 py-1.5 rounded-md hover:text-slate-900 transition" type="button">All Time</button>
+</div>
+</div>
+<!-- Bottom Row: Select Metrics To Display Checkboxes -->
+<div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+<div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+<svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span>Metrics to Display:</span>
+</div>
+<div class="flex flex-wrap items-center gap-4 text-xs">
+<!-- Registered Patients Metric -->
+<label class="inline-flex items-center gap-2 cursor-pointer select-none">
+<input checked="" class="rounded border-slate-300 text-brand-600 focus:ring-brand-500 h-4 w-4" type="checkbox">
+<span class="flex items-center gap-1.5 font-semibold text-slate-700">
+<span class="w-2.5 h-2.5 rounded-full bg-brand-600"></span>
+                Registered Patients
+              </span>
+</label>
+<!-- Completed Patients Metric -->
+<label class="inline-flex items-center gap-2 cursor-pointer select-none">
+<input checked="" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500 h-4 w-4" type="checkbox">
+<span class="flex items-center gap-1.5 font-semibold text-slate-700">
+<span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+                Completed Consultations
+              </span>
+</label>
+<!-- In Queue / Waiting Metric -->
+<label class="inline-flex items-center gap-2 cursor-pointer select-none">
+<input checked="" class="rounded border-slate-300 text-amber-500 focus:ring-amber-500 h-4 w-4" type="checkbox">
+<span class="flex items-center gap-1.5 font-semibold text-slate-700">
+<span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                In Waiting Queue
+              </span>
+</label>
+<!-- Canceled / No-shows Metric -->
+<label class="inline-flex items-center gap-2 cursor-pointer select-none">
+<input checked="" class="rounded border-slate-300 text-rose-500 focus:ring-rose-500 h-4 w-4" type="checkbox">
+<span class="flex items-center gap-1.5 font-semibold text-slate-700">
+<span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                Canceled / No-Shows
+              </span>
+</label>
+</div>
+</div>
+</div>
+<!-- END: FilterAndMetricsControls -->
+<!-- BEGIN: PatientFlowChartCard -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+<div class="flex items-center justify-between mb-4">
+<div>
+<h2 class="text-base font-bold text-slate-800">Weekly Patient Load Timeline</h2>
+<p class="text-xs text-slate-400">Total patient volume progression tracked Monday through Sunday</p>
+</div>
+<!-- Quick stat summary badges -->
+<div class="flex items-center gap-6">
+<div class="text-right">
+<span class="block text-[11px] text-slate-400 font-medium">Total Registered</span>
+<span class="text-base font-bold text-slate-900">2,840</span>
+</div>
+<div class="text-right">
+<span class="block text-[11px] text-slate-400 font-medium">Consulted (89.2%)</span>
+<span class="text-base font-bold text-teal-600">2,534</span>
+</div>
+<div class="text-right">
+<span class="block text-[11px] text-slate-400 font-medium">Drop-off / Canceled</span>
+<span class="text-base font-bold text-rose-500">142</span>
+</div>
+</div>
+</div>
+<!-- SVG Flow Visualizer -->
+<div class="relative w-full h-80 bg-gradient-to-b from-slate-50/50 to-white rounded-lg border border-slate-100 p-2 overflow-hidden">
+<!-- Background Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none p-6 text-slate-300 text-[10px] font-medium select-none">
+<div class="w-full border-b border-dashed border-slate-200 flex justify-between"><span>500 pts</span></div>
+<div class="w-full border-b border-dashed border-slate-200 flex justify-between"><span>375 pts</span></div>
+<div class="w-full border-b border-dashed border-slate-200 flex justify-between"><span>250 pts</span></div>
+<div class="w-full border-b border-dashed border-slate-200 flex justify-between"><span>125 pts</span></div>
+<div class="w-full border-b border-slate-200 flex justify-between"><span>0 pts</span></div>
+</div>
+<!-- Interactive SVG Chart -->
+<svg class="w-full h-full relative z-10" preserveAspectRatio="none" viewBox="0 0 800 300">
+<defs>
+<!-- Primary Registered Gradient -->
+<linearGradient id="gradBlue" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#2563eb" stop-opacity="0.25"></stop>
+<stop offset="100%" stop-color="#2563eb" stop-opacity="0.0"></stop>
+</linearGradient>
+<!-- Completed Teal Gradient -->
+<linearGradient id="gradTeal" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#0d9488" stop-opacity="0.20"></stop>
+<stop offset="100%" stop-color="#0d9488" stop-opacity="0.0"></stop>
+</linearGradient>
+</defs>
+<!-- Registered Area Fill -->
+<polygon fill="url(#gradBlue)" points="50,220 160,180 270,140 380,170 490,90 600,120 720,70 720,280 50,280"></polygon>
+<!-- Completed Area Fill -->
+<polygon fill="url(#gradTeal)" points="50,235 160,195 270,158 380,185 490,105 600,135 720,85 720,280 50,280"></polygon>
+<!-- Registered Line (Blue) -->
+<polyline fill="none" points="50,220 160,180 270,140 380,170 490,90 600,120 720,70" stroke="#2563eb" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"></polyline>
+<!-- Completed Line (Teal) -->
+<polyline fill="none" points="50,235 160,195 270,158 380,185 490,105 600,135 720,85" stroke="#0d9488" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></polyline>
+<!-- In Waiting Queue Line (Amber) -->
+<polyline fill="none" points="50,265 160,250 270,240 380,245 490,220 600,235 720,225" stroke="#f59e0b" stroke-dasharray="4 4" stroke-linecap="round" stroke-width="2"></polyline>
+<!-- Canceled / Drop-off Line (Rose) -->
+<polyline fill="none" points="50,270 160,268 270,262 380,265 490,255 600,260 720,258" stroke="#ef4444" stroke-linecap="round" stroke-width="1.8"></polyline>
+<!-- Data Point Anchors for Friday Peak (490,90) -->
+<g class="cursor-pointer">
+<!-- Friday Vertical guideline -->
+<line stroke="#94a3b8" stroke-dasharray="3 3" stroke-width="1" x1="490" x2="490" y1="30" y2="280"></line>
+<circle class="chart-point" cx="490" cy="90" fill="#2563eb" r="4.5" stroke="#ffffff" stroke-width="2"></circle>
+<circle class="chart-point" cx="490" cy="105" fill="#0d9488" r="4" stroke="#ffffff" stroke-width="2"></circle>
+<circle class="chart-point" cx="490" cy="220" fill="#f59e0b" r="3.5" stroke="#ffffff" stroke-width="1.5"></circle>
+<circle class="chart-point" cx="490" cy="255" fill="#ef4444" r="3.5" stroke="#ffffff" stroke-width="1.5"></circle>
+</g>
+<!-- Other Registered Circles -->
+<circle cx="50" cy="220" fill="#2563eb" r="3.5" stroke="#ffffff" stroke-width="2"></circle>
+<circle cx="160" cy="180" fill="#2563eb" r="3.5" stroke="#ffffff" stroke-width="2"></circle>
+<circle cx="270" cy="140" fill="#2563eb" r="3.5" stroke="#ffffff" stroke-width="2"></circle>
+<circle cx="380" cy="170" fill="#2563eb" r="3.5" stroke="#ffffff" stroke-width="2"></circle>
+<circle cx="600" cy="120" fill="#2563eb" r="3.5" stroke="#ffffff" stroke-width="2"></circle>
+<circle cx="720" cy="70" fill="#2563eb" r="4.5" stroke="#ffffff" stroke-width="2"></circle>
+</svg>
+<!-- Floating High-Fidelity Tooltip on Peak Day (Friday) -->
+<div class="absolute left-[58%] top-6 -translate-x-1/2 bg-slate-900/95 text-white text-xs p-3 rounded-lg shadow-xl border border-slate-700 pointer-events-none backdrop-blur-sm z-30">
+<div class="font-bold border-b border-slate-700 pb-1.5 mb-1.5 flex items-center justify-between gap-4">
+<span>Friday, Peak Load</span>
+<span class="text-[10px] text-slate-400 font-normal">Day Summary</span>
+</div>
+<div class="space-y-1 text-[11px]">
+<div class="flex items-center justify-between gap-4">
+<span class="flex items-center gap-1 text-slate-300">
+<span class="w-2 h-2 rounded-full bg-brand-500"></span> Registered:
+                </span>
+<span class="font-bold text-white">482 patients</span>
+</div>
+<div class="flex items-center justify-between gap-4">
+<span class="flex items-center gap-1 text-slate-300">
+<span class="w-2 h-2 rounded-full bg-teal-400"></span> Consulted:
+                </span>
+<span class="font-bold text-teal-300">436 patients</span>
+</div>
+<div class="flex items-center justify-between gap-4">
+<span class="flex items-center gap-1 text-slate-300">
+<span class="w-2 h-2 rounded-full bg-amber-400"></span> In Queue:
+                </span>
+<span class="font-bold text-amber-300">31 active</span>
+</div>
+<div class="flex items-center justify-between gap-4">
+<span class="flex items-center gap-1 text-slate-300">
+<span class="w-2 h-2 rounded-full bg-rose-400"></span> Canceled:
+                </span>
+<span class="font-bold text-rose-300">15 cases</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Days Axis Labels -->
+<div class="flex justify-between px-10 text-xs font-semibold text-slate-400 mt-2">
+<span>Monday</span>
+<span>Tuesday</span>
+<span>Wednesday</span>
+<span>Thursday</span>
+<span class="text-brand-600 font-bold">Friday (Peak)</span>
+<span>Saturday</span>
+<span>Sunday (Today)</span>
+</div>
+<!-- Legend and Mini Performance Metrics Below Chart -->
+<div class="mt-6 pt-4 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="bg-slate-50/80 rounded-lg p-3 border border-slate-100">
+<span class="text-[11px] text-slate-400 font-medium">Daily Patient Throughput</span>
+<div class="text-lg font-bold text-slate-800 mt-0.5">405 pts / day</div>
+<span class="text-[10px] text-emerald-600 font-semibold inline-flex items-center gap-0.5">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+              +12.4% vs last week
+            </span>
+</div>
+<div class="bg-slate-50/80 rounded-lg p-3 border border-slate-100">
+<span class="text-[11px] text-slate-400 font-medium">Average Doctor Consult Time</span>
+<div class="text-lg font-bold text-slate-800 mt-0.5">11.8 mins</div>
+<span class="text-[10px] text-teal-600 font-semibold">Optimal clinical band</span>
+</div>
+<div class="bg-slate-50/80 rounded-lg p-3 border border-slate-100">
+<span class="text-[11px] text-slate-400 font-medium">Reception Intake Velocity</span>
+<div class="text-lg font-bold text-slate-800 mt-0.5">1.9 mins / check-in</div>
+<span class="text-[10px] text-emerald-600 font-semibold">Fast digital queue</span>
+</div>
+<div class="bg-slate-50/80 rounded-lg p-3 border border-slate-100">
+<span class="text-[11px] text-slate-400 font-medium">Queue No-Show Rate</span>
+<div class="text-lg font-bold text-slate-800 mt-0.5">5.0%</div>
+<span class="text-[10px] text-emerald-600 font-semibold inline-flex items-center gap-0.5">
+<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 14l-7 7m0 0l-7-7m7 7V3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+              -2.1% lower than avg
+            </span>
+</div>
+</div>
+</section>
+<!-- END: PatientFlowChartCard -->
+<!-- BEGIN: DepartmentPerformanceComparison -->
+<section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-100">
+<div>
+<h2 class="text-base font-bold text-slate-800">Department Performance Comparison</h2>
+<p class="text-xs text-slate-400">Breakdown of patient volume share, average wait time, and throughput efficiency across clinics</p>
+</div>
+<button class="text-xs font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 self-start sm:self-auto" type="button">
+<span>View Full Department Metrics</span>
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+<!-- Horizontal Distribution Bar Visual -->
+<div class="space-y-2 mb-6">
+<div class="flex justify-between items-center text-xs font-medium text-slate-500">
+<span>Hospital Department Caseload Distribution (Total: 2,840 Patients)</span>
+<span class="text-[11px] text-slate-400">100% Volume Tracked</span>
+</div>
+<div class="w-full h-3 bg-slate-100 rounded-full flex overflow-hidden">
+<div class="bg-brand-600 h-full hover:opacity-90 transition" style="width: 34%" title="General OPD: 34%"></div>
+<div class="bg-teal-500 h-full hover:opacity-90 transition" style="width: 22%" title="Cardiology: 22%"></div>
+<div class="bg-sky-500 h-full hover:opacity-90 transition" style="width: 18%" title="Pediatrics: 18%"></div>
+<div class="bg-indigo-500 h-full hover:opacity-90 transition" style="width: 15%" title="Orthopedics: 15%"></div>
+<div class="bg-purple-500 h-full hover:opacity-90 transition" style="width: 11%" title="ENT &amp; Diagnostics: 11%"></div>
+</div>
+<!-- Legend Badges for Distribution -->
+<div class="flex flex-wrap items-center gap-4 text-xs pt-1">
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-brand-600"></span> General OPD (34%)</span>
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span> Cardiology (22%)</span>
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span> Pediatrics (18%)</span>
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Orthopedics (15%)</span>
+<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> ENT &amp; Diagnostics (11%)</span>
+</div>
+</div>
+<!-- Comparative Department Metric Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+<!-- General OPD -->
+<div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-brand-200 hover:shadow-sm transition">
+<div class="flex items-center justify-between mb-2">
+<span class="font-bold text-slate-800 text-xs truncate">General OPD</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700">965 pts</span>
+</div>
+<div class="space-y-1 text-xs">
+<div class="flex justify-between text-slate-500">
+<span>Avg Wait Time:</span>
+<span class="font-semibold text-slate-700">12 min</span>
+</div>
+<div class="flex justify-between text-slate-500">
+<span>Turn-Around:</span>
+<span class="font-semibold text-slate-700">22 min</span>
+</div>
+<div class="flex justify-between text-slate-500 pt-1 border-t border-slate-200/60">
+<span>Efficiency:</span>
+<span class="font-bold text-emerald-600">94.8%</span>
+</div>
+</div>
+</div>
+<!-- Cardiology -->
+<div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-teal-200 hover:shadow-sm transition">
+<div class="flex items-center justify-between mb-2">
+<span class="font-bold text-slate-800 text-xs truncate">Cardiology</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700">624 pts</span>
+</div>
+<div class="space-y-1 text-xs">
+<div class="flex justify-between text-slate-500">
+<span>Avg Wait Time:</span>
+<span class="font-semibold text-slate-700">18 min</span>
+</div>
+<div class="flex justify-between text-slate-500">
+<span>Turn-Around:</span>
+<span class="font-semibold text-slate-700">34 min</span>
+</div>
+<div class="flex justify-between text-slate-500 pt-1 border-t border-slate-200/60">
+<span>Efficiency:</span>
+<span class="font-bold text-emerald-600">91.2%</span>
+</div>
+</div>
+</div>
+<!-- Pediatrics -->
+<div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-sky-200 hover:shadow-sm transition">
+<div class="flex items-center justify-between mb-2">
+<span class="font-bold text-slate-800 text-xs truncate">Pediatrics</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-700">512 pts</span>
+</div>
+<div class="space-y-1 text-xs">
+<div class="flex justify-between text-slate-500">
+<span>Avg Wait Time:</span>
+<span class="font-semibold text-slate-700">09 min</span>
+</div>
+<div class="flex justify-between text-slate-500">
+<span>Turn-Around:</span>
+<span class="font-semibold text-slate-700">19 min</span>
+</div>
+<div class="flex justify-between text-slate-500 pt-1 border-t border-slate-200/60">
+<span>Efficiency:</span>
+<span class="font-bold text-emerald-600">96.0%</span>
+</div>
+</div>
+</div>
+<!-- Orthopedics -->
+<div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-indigo-200 hover:shadow-sm transition">
+<div class="flex items-center justify-between mb-2">
+<span class="font-bold text-slate-800 text-xs truncate">Orthopedics</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">426 pts</span>
+</div>
+<div class="space-y-1 text-xs">
+<div class="flex justify-between text-slate-500">
+<span>Avg Wait Time:</span>
+<span class="font-semibold text-slate-700">16 min</span>
+</div>
+<div class="flex justify-between text-slate-500">
+<span>Turn-Around:</span>
+<span class="font-semibold text-slate-700">28 min</span>
+</div>
+<div class="flex justify-between text-slate-500 pt-1 border-t border-slate-200/60">
+<span>Efficiency:</span>
+<span class="font-bold text-emerald-600">88.5%</span>
+</div>
+</div>
+</div>
+<!-- ENT & Diagnostics -->
+<div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-purple-200 hover:shadow-sm transition">
+<div class="flex items-center justify-between mb-2">
+<span class="font-bold text-slate-800 text-xs truncate">ENT &amp; Diag.</span>
+<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">313 pts</span>
+</div>
+<div class="space-y-1 text-xs">
+<div class="flex justify-between text-slate-500">
+<span>Avg Wait Time:</span>
+<span class="font-semibold text-slate-700">14 min</span>
+</div>
+<div class="flex justify-between text-slate-500">
+<span>Turn-Around:</span>
+<span class="font-semibold text-slate-700">21 min</span>
+</div>
+<div class="flex justify-between text-slate-500 pt-1 border-t border-slate-200/60">
+<span>Efficiency:</span>
+<span class="font-bold text-emerald-600">93.1%</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: DepartmentPerformanceComparison -->
+</main>
+<!-- END: DashboardBody -->
+<!-- BEGIN: DashboardFooterStatusBar -->
+<footer class="h-8 bg-white border-t border-slate-200 px-8 flex items-center justify-between text-[11px] text-slate-400 select-none">
+<div class="flex items-center gap-4">
+<span>OPDX Queue Architecture v4.8.2-enterprise</span>
+<span class="w-1 h-1 rounded-full bg-slate-300"></span>
+<span>Connected Gateway: ESIS-SRV-04</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-slate-500 font-medium">Server Latency: 24ms</span>
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+<span>Encrypted Cloud Sync Active</span>
+</div>
+</footer>
+<!-- END: DashboardFooterStatusBar -->
+</div>
+<!-- END: MainContentWrapper -->
+</body></html>

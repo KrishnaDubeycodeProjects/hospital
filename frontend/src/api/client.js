@@ -220,6 +220,70 @@ export const patientApi = {
   revokeAccess: (grantId) => postD(`/api/patients/access/${grantId}/revoke`, {}, authFor('PATIENT')),
 };
 
+// ------------------------------------------------------------- Courses ----
+
+export const courseApi = {
+  create: (payload) => postD('/api/courses', payload, authFor('DOCTOR')),
+  get: (id, role = 'DOCTOR') => getD(`/api/courses/${id}`, authFor(role)),
+  timeline: (id, role = 'DOCTOR') => getD(`/api/courses/${id}/timeline`, authFor(role)),
+  consentBundle: (id) => getD(`/api/courses/${id}/consent-bundle`, authFor('DOCTOR')),
+  addEncounter: (id, payload) => postD(`/api/courses/${id}/encounters`, payload, authFor('DOCTOR')),
+  completeAndNext: (id, payload) => postD(`/api/courses/${id}/complete-and-next`, payload, authFor('DOCTOR')),
+  uploadDocument: (id, formData) =>
+    postD(`/api/courses/${id}/documents`, formData, {
+      ...authFor('DOCTOR'),
+      headers: { ...authFor('DOCTOR').headers, 'Content-Type': 'multipart/form-data' },
+    }),
+  documentDownloadUrl: (id, docId) => `${API_URL}/api/courses/${id}/documents/${docId}/download`,
+  close: (id) => postD(`/api/courses/${id}/close`, {}, authFor('DOCTOR')),
+  patientCourses: () => getD('/api/courses/patient', authFor('PATIENT')),
+};
+
+// ----------------------------------------------------------- Referrals ----
+
+export const referralApi = {
+  create: (payload) => postD('/api/referrals', payload, authFor('DOCTOR')),
+  get: (id, role = 'DOCTOR') => getD(`/api/referrals/${id}`, authFor(role)),
+  qrUrl: (id) => `${API_URL}/api/referrals/${id}/qr`,
+  priorContext: (courseId, toHospitalId) =>
+    getD('/api/referrals/prior-context', { params: { courseId, toHospitalId }, ...authFor('DOCTOR') }),
+  patientReferrals: () => getD('/api/referrals/patient', authFor('PATIENT')),
+  complete: (id) => postD(`/api/referrals/${id}/complete`, {}, authFor('DOCTOR')),
+  cancel: (id) => postD(`/api/referrals/${id}/cancel`, {}, authFor('DOCTOR')),
+};
+
+// -------------------------------------------------------------- Family ----
+
+export const familyApi = {
+  getUnit: () => getD('/api/family', authFor('PATIENT')),
+  listMembers: () => getD('/api/family/members', authFor('PATIENT')),
+  listPublicMembers: (phone = '8850934544') => getD('/api/family/public/members', { params: { phone } }),
+  addMember: (payload) => postD('/api/family/members', payload, authFor('PATIENT')),
+  linkAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/link-abha`, payload, authFor('PATIENT')),
+};
+
+// --------------------------------------------------------------- Drugs ----
+
+export const drugApi = {
+  search: (query) => getD('/api/drugs/search', { params: { query } }),
+  searchLabs: (query) => getD('/api/drugs/labs', { params: { query } }),
+  templates: () => getD('/api/drugs/templates'),
+};
+
+// ---------------------------------------------------------------- ABDM ----
+
+export const abdmApi = {
+  getStatus: () => getD('/api/abdm/status'),
+  checkAddress: (abhaAddress) => getD('/api/abdm/check-address', { params: { abhaAddress } }),
+  initKyc: (type, value) => postD('/api/abdm/kyc/init', { type, value }),
+  verifyKyc: (txnId, otp) => postD('/api/abdm/kyc/verify', { txnId, otp }),
+  linkCareContext: (payload) => postD('/api/abdm/care-context/link', payload),
+  getEncounterFhir: (courseId, encounterId) => getD(`/api/abdm/courses/${courseId}/encounters/${encounterId}/fhir`),
+  initConsent: (payload) => postD('/api/abdm/consent/init', payload),
+  getConsentStatus: (id) => getD(`/api/abdm/consent/${id}/status`),
+};
+
+
 /** For <img>/<a> tags hitting a protected binary route (document/QR download) -- fetches with the Bearer header and hands back an object URL. */
 export async function fetchAsObjectUrl(url, role) {
   const res = await client.get(url, { ...authFor(role), responseType: 'blob' });

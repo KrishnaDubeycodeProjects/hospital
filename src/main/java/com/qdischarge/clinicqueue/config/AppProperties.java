@@ -96,4 +96,16 @@ public class AppProperties {
     private String twilioMessagingServiceSid;
     private int otpTtlMinutes;
     private int rateLimitOtpPerMinute;
+
+    // --- Eka Care ABDM API config ---
+    private String ekaClientId;
+    private String ekaClientSecret;
+    private String ekaBaseUrl;
+    private int ekaTokenRefreshBufferSeconds = 300;
+
+    // --- Secure Document Storage ---
+    private String storageUploadDir = "./storage/documents";
+    private int storageMaxFileSizeMb = 10;
+    private String storageAllowedTypes = "application/pdf,image/jpeg,image/png";
 }
+

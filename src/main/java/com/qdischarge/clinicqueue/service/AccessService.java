@@ -6,6 +6,7 @@ import com.qdischarge.clinicqueue.bot.WaSessionService;
 import com.qdischarge.clinicqueue.dto.AccessGrantDto;
 import com.qdischarge.clinicqueue.dto.AccessRequestDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -26,10 +27,10 @@ import java.util.Map;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AccessService {
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final WhatsAppService whatsAppService;
     private final WaSessionService waSessionService;
     private final BotMessages botMessages;
 
@@ -119,10 +120,8 @@ public class AccessService {
     }
 
     private void notifyPatientOfNewAccess(AccessGrantDto grant) {
-        WaSessionService.WaSession session = waSessionService.get(grant.getPatientPhone());
-        Lang lang = (session != null && session.language() != null) ? session.language() : Lang.EN;
-        whatsAppService.sendWhatsAppMessage(grant.getPatientPhone(),
-                botMessages.accessGranted(lang, grant.getDoctorName(), grant.getHospitalName(), grant.getId()));
+        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
+        log.info("Access grant {} created for patient {}. WhatsApp notification skipped (only user-initiated responses permitted).", grant.getId(), grant.getPatientPhone());
     }
 
     private String generateCode() {

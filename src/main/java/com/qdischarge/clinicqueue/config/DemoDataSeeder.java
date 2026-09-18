@@ -129,6 +129,36 @@ public class DemoDataSeeder implements ApplicationRunner {
             // SPECIAL DEMO CASE 3: Intentional Delay / No-Show subjected to Exponential Backoff Penalty
             seedToken(mainHospitalId, "General Medicine", 10, "Rohan Mehta (Delayed Patient)", 42, "male", "+919100000012", "waiting", null, null, 2, 1.2, 5.0, null);
 
+            // 6. Seed Family Unit & Members for +91 88509 34544
+            List<Integer> existingUnits = jdbc.query(
+                    "SELECT id FROM family_units WHERE REPLACE(REPLACE(REPLACE(primary_phone, '+', ''), ' ', ''), '-', '') LIKE '%8850934544' LIMIT 1",
+                    Map.of(), (rs, rowNum) -> rs.getInt("id"));
+            int ahujaUnitId;
+            if (existingUnits.isEmpty()) {
+                ahujaUnitId = jdbc.queryForObject(
+                        "INSERT INTO family_units (primary_phone, head_name) VALUES ('8850934544', 'Kavish Ahuja') RETURNING id",
+                        Map.of(), Integer.class);
+            } else {
+                ahujaUnitId = existingUnits.get(0);
+            }
+
+            Integer fCount = jdbc.queryForObject(
+                    "SELECT count(*) FROM family_members WHERE family_unit_id = :uId",
+                    Map.of("uId", ahujaUnitId), Integer.class);
+            if (fCount == null || fCount < 4) {
+                jdbc.update("DELETE FROM family_members WHERE family_unit_id = :uId", Map.of("uId", ahujaUnitId));
+                jdbc.update(
+                        """
+                        INSERT INTO family_members (family_unit_id, name, age, gender, relationship, phone, is_abha_linked) VALUES
+                        (:uId, 'Kavish Ahuja', 20, 'male', 'Self', '8850934544', TRUE),
+                        (:uId, 'Sonia Ahuja', 48, 'female', 'Mother', null, FALSE),
+                        (:uId, 'Subhash Ahuja', 52, 'male', 'Father', null, FALSE),
+                        (:uId, 'Ayush Ahuja', 16, 'male', 'Brother', null, FALSE)
+                        """,
+                        Map.of("uId", ahujaUnitId));
+                log.info("✅ Seeded 4 family members in DB for Ahuja family (8850934544)");
+            }
+
             log.info("✅ 3 Video Demo Scenarios & Credentials successfully seeded!");
             log.info("1️⃣ 30-min Close Time Block: Handled when booking within 30 min of OPD close time.");
             log.info("2️⃣ Distance Anomaly: Token #9 (Farhan Akhtar, 18.5 km away) flagged in Anomaly Section.");

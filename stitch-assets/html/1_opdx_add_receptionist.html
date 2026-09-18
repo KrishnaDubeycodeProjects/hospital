@@ -1,0 +1,184 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>OPDX - Add Receptionist Modal</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              200: '#bfdbfe',
+              300: '#93c5fd',
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            clinical: {
+              surface: '#F8FAFC',
+              border: '#E2E8F0',
+              navy: '#0F172A',
+              muted: '#64748B'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif']
+          },
+          boxShadow: {
+            'modal': '0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8)'
+          }
+        }
+      }
+    }
+  </script>
+<!-- Google Font: Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style data-purpose="custom-scroll-and-visuals">
+    /* Subtle focus ring styling for clinical clean feel */
+    input:focus, select:focus, button:focus {
+      outline: none;
+    }
+    .frosted-glass {
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+  </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased h-screen overflow-hidden select-none">
+<!-- BEGIN: DashboardBackgroundContext -->
+<!-- Simulated blurred OPDX Hospital Queue OS dashboard backdrop -->
+<div aria-hidden="true" class="fixed inset-0 flex flex-col pointer-events-none filter blur-sm opacity-40 select-none">
+<!-- Top Bar -->
+<header class="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
+<div class="flex items-center space-x-4">
+<div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold">O</div>
+<span class="font-bold text-slate-900 tracking-tight">OPDX <span class="font-normal text-slate-500">QueueOS</span></span>
+</div>
+<div class="flex items-center space-x-3">
+<div class="w-8 h-8 rounded-full bg-slate-200"></div>
+<div class="w-24 h-4 bg-slate-200 rounded"></div>
+</div>
+</header>
+<!-- Main Body Area -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-64 bg-slate-50 border-r border-slate-200 p-4 space-y-2">
+<div class="h-9 rounded-lg bg-blue-50 border border-blue-100"></div>
+<div class="h-9 rounded-lg bg-slate-100"></div>
+<div class="h-9 rounded-lg bg-slate-100"></div>
+<div class="h-9 rounded-lg bg-slate-100"></div>
+</aside>
+<!-- Content Grid -->
+<main class="flex-1 p-8 space-y-6">
+<div class="h-12 w-80 bg-slate-200 rounded-lg"></div>
+<div class="grid grid-cols-3 gap-6">
+<div class="h-44 bg-white rounded-xl border border-slate-200 p-5"></div>
+<div class="h-44 bg-white rounded-xl border border-slate-200 p-5"></div>
+<div class="h-44 bg-white rounded-xl border border-slate-200 p-5"></div>
+</div>
+<div class="h-72 bg-white rounded-xl border border-slate-200"></div>
+</main>
+</div>
+</div>
+<!-- END: DashboardBackgroundContext -->
+<!-- BEGIN: ModalOverlay -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 frosted-glass bg-slate-900/40 transition-opacity" data-purpose="modal-overlay">
+<!-- BEGIN: ModalCard -->
+<div aria-labelledby="modal-title" aria-modal="true" class="w-full max-w-xl bg-white rounded-2xl shadow-modal border border-slate-200/80 overflow-hidden transform transition-all" data-purpose="modal-card" role="dialog">
+<!-- Modal Header -->
+<header class="px-7 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between"><div class="flex items-center space-x-3"><div class="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg></div><div class="flex items-center space-x-2.5"><h2 class="text-lg font-bold text-slate-900 tracking-tight" id="modal-title">Add Receptionist</h2><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-200/60">Desk Staff</span></div></div><div class="flex items-center space-x-2"><kbd class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded">ESC</kbd><button aria-label="Close modal" class="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition-colors" type="button"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div></header>
+<!-- Modal Body / Form -->
+<form class="p-7 space-y-5" id="addReceptionistForm" onsubmit="event.preventDefault();">
+<!-- Field 1: Department Selector -->
+<div><label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" for="departmentSelect">Department</label><div class="relative"><select id="departmentSelect" class="block w-full px-3 py-2 text-sm text-slate-800 bg-white border border-slate-200 rounded-lg shadow-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition cursor-pointer"><option value="General OPD" selected="">General OPD</option><option value="Pediatrics">Pediatrics</option><option value="Cardiology">Cardiology</option><option value="Emergency">Emergency</option><option value="Orthopedics">Orthopedics</option></select></div></div>
+<!-- Field 2 & 3: Full Name & Staff Email (Grid) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<!-- Full Name -->
+<div>
+<label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" for="receptionistName">Full Name</label>
+<div class="relative rounded-lg shadow-sm">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<input class="block w-full pl-9 pr-3 py-2 text-sm text-slate-900 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 placeholder-slate-400 transition" id="receptionistName" placeholder="Sarah Jenkins" required="" type="text">
+</div>
+</div>
+<!-- Hospital Email -->
+<div>
+<label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" for="receptionistEmail">Hospital Email</label>
+<div class="relative rounded-lg shadow-sm">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<input class="block w-full pl-9 pr-3 py-2 text-sm text-slate-900 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 placeholder-slate-400 transition" id="receptionistEmail" placeholder="sarah@hospital.org" required="" type="email">
+</div>
+</div>
+</div>
+<!-- Field 4: Temporary Password / PIN with Auto-Generator Button -->
+<div>
+<label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5" for="initialPassword">Temporary Passkey</label>
+<div class="flex space-x-2">
+<div class="relative flex-1 rounded-lg shadow-sm">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</div>
+<input class="block w-full pl-9 pr-10 py-2 text-sm font-mono tracking-wide text-slate-800 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition" id="initialPassword" type="text" value="OPDX-7842">
+</div>
+<!-- Dice Generator Button -->
+<button class="px-3 py-2 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600 rounded-lg text-sm flex items-center space-x-1 transition font-medium" title="Generate Secure PIN" type="button"><svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span class="text-xs font-medium text-slate-700">Generate</span></button>
+</div>
+</div>
+<!-- Field 5: Counter & Shift Assignment -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1"><div><label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Desk Counter</label><div class="grid grid-cols-4 gap-2"><label class="cursor-pointer text-center"><input checked="" class="peer sr-only" name="desk_counter" type="radio" value="C1"><div class="h-10 flex items-center justify-center text-sm font-semibold rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm">1</div></label><label class="cursor-pointer text-center"><input class="peer sr-only" name="desk_counter" type="radio" value="C2"><div class="h-10 flex items-center justify-center text-sm font-semibold rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm">2</div></label><label class="cursor-pointer text-center"><input class="peer sr-only" name="desk_counter" type="radio" value="C3"><div class="h-10 flex items-center justify-center text-sm font-semibold rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm">3</div></label><label class="cursor-pointer text-center"><input class="peer sr-only" name="desk_counter" type="radio" value="C4"><div class="h-10 flex items-center justify-center text-sm font-semibold rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm">4</div></label></div></div><div><label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Assigned Shift</label><div class="grid grid-cols-3 gap-2"><label class="cursor-pointer"><input checked="" class="peer sr-only" name="shift" type="radio" value="morning"><div class="h-10 flex items-center justify-center space-x-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg><span class="text-xs font-semibold">Morning</span></div></label><label class="cursor-pointer"><input class="peer sr-only" name="shift" type="radio" value="evening"><div class="h-10 flex items-center justify-center space-x-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg><span class="text-xs font-semibold">Evening</span></div></label><label class="cursor-pointer"><input class="peer sr-only" name="shift" type="radio" value="night"><div class="h-10 flex items-center justify-center space-x-1.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white transition text-slate-700 shadow-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"></path></svg><span class="text-xs font-semibold">Night</span></div></label></div></div></div>
+<!-- Notification Toggle -->
+<div class="pt-1"><label class="flex items-center space-x-2.5 cursor-pointer select-none"><input checked="" class="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500" type="checkbox"><span class="text-xs font-medium text-slate-600">Email credentials to staff</span></label></div>
+<!-- Actions / Footer -->
+<div class="pt-4 border-t border-slate-100 flex items-center justify-end space-x-3">
+<button class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" type="button">
+            Cancel
+          </button>
+<button class="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 active:bg-brand-800 rounded-lg shadow-sm flex items-center space-x-2 transition focus:ring-2 focus:ring-offset-2 focus:ring-brand-500" type="submit">
+<span class="">Add Receptionist</span>
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+</form>
+</div>
+<!-- END: ModalCard -->
+</div>
+<!-- END: ModalOverlay -->
+<script data-purpose="simple-pin-generator">
+    // Interactive dice generator for quick credential testing
+    document.addEventListener('DOMContentLoaded', () => {
+      const pinBtn = document.querySelector('button[title="Generate Secure PIN"]');
+      const pinInput = document.getElementById('initialPassword');
+      if (pinBtn && pinInput) {
+        pinBtn.addEventListener('click', () => {
+          const randomNum = Math.floor(1000 + Math.random() * 9000);
+          pinInput.value = `OPDX-${randomNum}`;
+        });
+      }
+    });
+  </script>
+
+
+
+
+</body></html>

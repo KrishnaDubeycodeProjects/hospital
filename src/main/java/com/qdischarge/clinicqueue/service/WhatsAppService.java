@@ -83,7 +83,7 @@ public class WhatsAppService {
     }
 
     // -------------------------------------------------------------
-    // Synchronous implementation via Evolution API
+    // Synchronous implementation via Meta Cloud API or Evolution API
     // -------------------------------------------------------------
 
     private Map<String, Object> sendWhatsAppMessageSync(String phone, String text) {
@@ -93,11 +93,52 @@ public class WhatsAppService {
             return null;
         }
 
+        String provider = appProperties.getWaProvider();
+        if ("meta".equalsIgnoreCase(provider) || (appProperties.getMetaAccessToken() != null && !appProperties.getMetaAccessToken().isBlank())) {
+            return sendMetaMessage(cleaned, text);
+        }
+
+        return sendEvolutionMessage(cleaned, text);
+    }
+
+    private Map<String, Object> sendMetaMessage(String cleanedPhone, String text) {
+        String url = String.format("https://graph.facebook.com/%s/%s/messages",
+                appProperties.getMetaApiVersion(), appProperties.getMetaPhoneNumberId());
+        log.info("\n📤 [META CLOUD API] Sending Text to [{}]:\n{}\n", cleanedPhone, text);
+
+        Map<String, Object> textObj = Map.of("preview_url", false, "body", text);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("messaging_product", "whatsapp");
+        body.put("recipient_type", "individual");
+        body.put("to", cleanedPhone);
+        body.put("type", "text");
+        body.put("text", textObj);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(appProperties.getMetaAccessToken());
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
+            log.info("✅ Meta Cloud API text sent successfully to {}", cleanedPhone);
+            return response.getBody();
+        } catch (RestClientException e) {
+            log.error("❌ Meta Cloud API error for {}: {}", cleanedPhone, extractError(e));
+            // Fallback to Evolution API if configured
+            if (appProperties.getEvolutionApiKey() != null && !appProperties.getEvolutionApiKey().isBlank()) {
+                log.info("🔄 Falling back to Evolution API for {}", cleanedPhone);
+                return sendEvolutionMessage(cleanedPhone, text);
+            }
+            return null;
+        }
+    }
+
+    private Map<String, Object> sendEvolutionMessage(String cleanedPhone, String text) {
         String url = appProperties.getEvolutionApiUrl() + "/message/sendText/" + appProperties.getInstanceName();
-        log.info("\n📤 [EVOLUTION API] Sending Text to [{}]:\n{}\n", cleaned, text);
+        log.info("\n📤 [EVOLUTION API] Sending Text to [{}]:\n{}\n", cleanedPhone, text);
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("number", cleaned);
+        body.put("number", cleanedPhone);
         body.put("text", text);
 
         HttpHeaders headers = new HttpHeaders();
@@ -106,14 +147,14 @@ public class WhatsAppService {
 
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-            log.info("✅ Evolution API text sent successfully to {}", cleaned);
+            log.info("✅ Evolution API text sent successfully to {}", cleanedPhone);
             return response.getBody();
         } catch (RestClientException e) {
             String errStr = extractError(e);
             if (errStr != null && errStr.contains("Connection Closed")) {
-                log.warn("⚠️ Evolution API Notice for [{}]: Cannot send message to the bot's own connected number (Connection Closed). Please test from a separate mobile number.", cleaned);
+                log.warn("⚠️ Evolution API Notice for [{}]: Cannot send message to the bot's own connected number (Connection Closed). Please test from a separate mobile number.", cleanedPhone);
             } else {
-                log.error("❌ Evolution API error for {}: {}", cleaned, errStr);
+                log.error("❌ Evolution API error for {}: {}", cleanedPhone, errStr);
             }
             return null;
         }

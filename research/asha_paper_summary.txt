@@ -1,0 +1,1107 @@
+
+--- Page 1 ---
+Challenges in data documentation and retrieval in the ASHA diary from a 
+usability perspective
+Sakshi Patel , Puneet Tandon
+*
+Social Innovation Lab, PDPM Indian Institute of Information Technology, Design and Manufacturing, Jabalpur, Madhya Pradesh, 482005, India
+ARTICLE INFO
+Handling editor: Social Epidemiology Office
+Keywords:
+ASHA workers
+ASHA diary
+Usability issues
+Health information documentation
+Health information retrieval
+ABSTRACT
+In India, Accredited Social Health Activists (ASHA) serve as indispensable connectors between healthcare sys -
+tems and underserved communities, ensuring the delivery of essential health services. At the core of their re -
+sponsibilities lies the meticulous documentation of patient information in ASHA diaries. ASHA diaries are 
+essential tools for documenting and retrieving accurate information, enabling the monitoring of health status, 
+tracking of interventions, and supporting data-driven decision-making. However, navigating and extracting 
+relevant information from ASHA diaries presents significant challenges for ASHA workers. Therefore, the pri -
+mary objective of this research is to assess the usability of the current ASHA diary by identifying the key 
+challenges ASHA workers encounter in documenting and retrieving effective data. An empirical study encom -
+passing both qualitative and quantitative methods was carried out involving fifty-seven ASHA workers. Quan -
+titative data was collected through a modified questionnaire. Qualitative data were gathered via observation, 
+informal interviews, and task analysis to better understand the difficulties in using the diary. Descriptive sta -
+tistics and factor analyses were conducted to analyze and describe the factors contributing to usability issues. The 
+findings reveal various challenges, including poor visual cues (visibility, readability, legibility), difficulty in 
+comprehension, inconsistent data presentation, excessive cognitive load, inappropriate resource utilization, etc. 
+By identifying these usability challenges, this research provides substantial insights for improving the design of 
+ASHA diaries, ultimately enhancing data documentation and retrieval processes for ASHA workers. This research 
+makes a meaningful contribution to optimizing healthcare information systems to better meet the needs of ASHA 
+workers and improve healthcare delivery in marginalized communities.
+1. Introduction
+The National Rural Health Mission (NRHM) was launched by the 
+Government of India (GoI) in 2005 to strengthen the public healthcare 
+system, particularly in rural areas, to achieve the Millennium Develop -
+ment Goals (MDGs). The primary objective of NRHM is to provide 
+accessible, accountable, affordable, effective, and reliable primary 
+healthcare, addressing various health determinants such as maternal 
+and childcare, nutrition, sanitation, etc. Under the mission, a network of 
+female health volunteers known as “ Accredited Social Health Activists ” 
+(ASHA) was introduced for each village across the country to serve as a 
+vital link between underserved communities and healthcare systems 
+( Das and Dasgupta, 2015 ; Kumar et al., 2013 ; Panda et al., 2019 ; 
+Sugandha and Jagannath, 2019 ). Over time, the ASHA program has 
+globally become the largest community health worker (CHW) initiative 
+(Ministry of External Affairs. Government of India, 2022 ; Tripathy et al., 
+2016 ). ASHA workers are selected from the same community or village 
+they serve. One ASHA worker, preferably within the age group of 25 – 45 
+years, is assigned for every one-thousand population. The minimum 
+educational qualification for an ASHA worker is set at the 8th standard, 
+but this requirement is relaxed to the 5th standard if a suitable candidate 
+is unavailable. The primary responsibilities of ASHA workers include 
+health education, escorting patients to hospitals, diagnosing and coun -
+selling, community mobilization, providing essential medicines, raising 
+community awareness, and conducting health surveys ( Gopalan et al., 
+2012 ; Shet et al., 2018 ; Shrivastava et al., 2023 ). National evaluation 
+surveys have shown gradual improvements in maternal and child health 
+(MCH) following the implementation of the ASHA program ( Kaur et al., 
+2022 ; Shilpa et al., 2020 ).
+There is a global shortage of health workers (HW), especially in the 
+South-East Asia Region ( World Health Organization, 2018 ). As of 2020, 
+approximately 9,14,101 ASHA workers were employed, falling short of 
+* Corresponding author.
+E-mail address: ptandon@iiitdmj.ac.in (P. Tandon). 
+Contents lists available at ScienceDirect
+Social Science & Medicine
+journal homepag e: www.el sevier.com/loc ate/socsc imed
+https://doi.org/10.1016/j.socscimed.2025.118370
+Received 30 December 2024; Received in revised form 16 April 2025; Accepted 2 July 2025  
+Social Science & Medicine 382 (2025) 118370 
+Available online 3 July 2025 
+0277-9536/© 2025 Elsevier Ltd. All rights are reserved, including those for text and data mining, AI training, and similar technologies. 
+--- Page 2 ---
+the target of 9,56,672 workers ( Press Information Bureau. Government 
+of India, 2020 ; Ministry of Health and Family Welfare. Government of 
+India, 2021 ). Shihundla et al. (2016) highlighted that CHWs experience 
+heavy workloads in healthcare systems due to their positioning at the 
+sharp end of the system. According to ASHA operational guidelines, 
+their standard working hours were expected to be 16 h per week or 2 – 3 h 
+daily ( Agarwal et al., 2019 ). However, the scope of the program has 
+expanded over time, including additional tasks, surveys, and pro -
+grammes. Currently, the ASHA program includes more than 30 tasks, 
+some of which are unrelated to health and may take precedence over 
+health-related responsibilities ( Manjunath et al., 2022 ; Shelley et al., 
+2018 ; Smith et al., 2014 ; Tripathy et al., 2016 ). Eventually, the growing 
+responsibilities have extended the duty limit beyond 8 h per day, leaving 
+minimal personal time ( Abdel-All et al., 2019 ). This excessive workload 
+has further contributed to significant stress, fatigue, and burnout among 
+health workers ( Pulagam and Satyanarayana, 2021 ; Gopalan et al., 
+2012 ).
+Research indicates that burdening HWs with numerous re -
+sponsibilities, leading to role confusion, difficulty in prioritizing tasks, 
+and reducing service quality ( Manjunath et al., 2022 ; Shelley et al., 
+2018 ; Smith et al., 2014 ). Additionally, an increased workload can result 
+in mismanagement of the information, leading to incomplete patient 
+records or inaccurate documentation, which may cause the omission of 
+critical data ( Mondal and Murhekar, 2018 ; Mutshatshi et al., 2018 ; 
+Shihundla et al., 2016 ).
+Documentation is essential for tracking the activities and services 
+provided by ASHA workers for patient treatment ( Marini ˇc, 2015 ; 
+Oztekin et al., 2013 ). It plays a key role in maintaining records of health 
+interventions, service delivery, and community engagement, which are 
+vital for evaluating the program ’ s effectiveness and functionality 
+( Ministry of Health and Family Welfare. Government of India, 2013 ; 
+World Health Organization, 2009 ). However, various studies high -
+lighted that the exchange of accurate information is challenging, espe -
+cially in rural areas where timely communication is essential for 
+managing community health conditions ( Aceto et al., 2018 ; Jackson 
+et al., 2017 ; Sokey et al., 2018 ). O ’ Mahony et al. (2014) and Verdezoto 
+et al. (2021) discussed the challenges HWs face in collecting, managing, 
+and reporting quality health data across the country. Globally, there is a 
+growing emphasis on improving the quality of health workers ’ docu -
+mentation ( Khattak et al., 2016 ; Nakate et al., 2022 ; Okaisu et al., 2016 ; 
+World Health Organization, 2009 ). Gencturk et al. (2017) , Kruk et al. 
+(2018) , and Mutshatshi et al. (2018) highlighted that maintaining 
+detailed records facilitates effective communication within and across 
+healthcare systems, ensuring quality care.
+The literature underscores the importance of maintaining high- 
+quality health records ( Kruk et al., 2018 ; Shihundla et al., 2016 ). 
+ASHA workers are responsible for documenting various health records 
+and assisting in monitoring the health status of the community through 
+the ASHA diary, which is an official paper record (PPR). Muinga et al. 
+(2021) noted that PPRs are pivotal in facilitating multidisciplinary team 
+care and tracking patient progress. Despite the increasing adoption of 
+electronic patient records (EPRs), PPRs remain a dominant medium for 
+recording patient care, especially in low- and middle-income countries 
+(LMICs). However, the lack of research on how PPR development 
+hampers efforts to improve the designs and their quality. It is important 
+to note that many existing records are outdated and inefficient, affecting 
+patient care. Bist et al. (2023) and Kohli et al. (2015) reported that ASHA 
+workers often struggle with understanding the diary, filling out exten -
+sive information, and needing sufficient time to complete the ASHA 
+diary. These challenges result in errors, inaccuracies, incomplete re -
+cords, unnecessary burdens in interpreting information, poor 
+decision-making, delays in information delivery, and reduced patient 
+care time ( Ash et al., 2004 ; Kim et al., 2017 ; Pool et al., 2024 ). Conse -
+quently, these inefficiencies in the documentation process impact the 
+performance of ASHA workers and the overall quality of healthcare 
+delivery in rural areas.
+Thus, based on the literature, the usability of PPRs remains a critical 
+factor that influences the efficiency and effectiveness of healthcare de -
+livery. Effective usability of PPRs ensures that healthcare providers can 
+easily access, record, and retrieve patient information, directly impact -
+ing the quality of care. The usability of PPRs is essential for facilitating 
+effective communication, reducing errors, saving time, and preparing 
+the groundwork for future digital systems ( Emmerich, 2023 ; Muinga 
+et al., 2021 ; Pfeuffer et al., 2022 ).
+Addressing these issues, the ability to track health information over 
+time is invaluable in rural settings, where resources are often limited, 
+and formal health infrastructure may be sparse. By maintaining detailed 
+records, ASHA workers can identify at-risk individuals early, ensuring 
+timely interventions and improving health outcomes. Accurate and up- 
+to-date records enable ASHA workers to provide essential information to 
+higher-level healthcare providers, such as doctors and nurses, who may 
+be based in distant health centers. Thus, usability is crucial not only for 
+enhancing the speed, accuracy, and quality of tasks performed by 
+workers but also for ensuring the success of the documentation system. 
+To the best of our knowledge, the usability of the ASHA diary has not 
+been evaluated yet. Therefore, the primary objective of the current 
+research is to conduct a comprehensive analysis to assess the usability of 
+the ASHA diary by identifying the key challenges ASHA workers face in 
+documenting and retrieving information. The results of this study will 
+aid in designing more effective and efficient document systems for ASHA 
+workers, improving their usability, and helping maintain accurate 
+health records within rural health systems.
+2. Methods
+This research employed an empirical research design to investigate 
+the usability challenges ASHA workers face in documenting and 
+retrieving rural health information using the ASHA diary. A mixed- 
+method approach was used for data collection, with a detailed expla -
+nation of participant selection. The data collection methods were 
+designed to thoroughly analyze usability issues by integrating relevant 
+usability principles.
+2.1. Study design
+An empirical study was conducted using a mixed-method approach 
+with a combination of quantitative and qualitative analysis between 
+April and July in Jabalpur, India. The quantitative component was 
+analyzed, simultaneously with qualitative analysis, for an in-depth un -
+derstanding of the factors affecting ASHA workers. To maintain their 
+diary, a data collection tool is provided yearly by the government in the 
+months of March and April every year. A set of modified questionnaires 
+(kindly refer to Appendix A ) was used to collect data, followed by the 
+conduction of interviews, task analysis, and observational study to un -
+derstand the pattern of the problem more deeply ( Bist et al., 2023 ; De 
+Groot et al., 2022 ; Khairat et al., 2019 ; Koopmann et al., 2023 ; Meena 
+et al., 2020 ).
+2.2. Participants
+The investigation employed the multistage sampling design recom -
+mended by the National Health Systems Resource Center (NHSRC), New 
+Delhi, to evaluate the ASHA program in India ( Mahajan and Kaur, 
+2022 ). The sampling process involved several stages: selecting a district, 
+then blocks, and finally villages (see Fig. 1 ). The district was chosen 
+purposively sampling technique based on the data from the Ministry of 
+Health and Family Welfare (MoHFW), focusing on areas where women 
+had fewer than four antenatal care visits and had become mothers be -
+tween the ages of 15 – 19 years, with early marriages, i.e., before 18 years 
+(referred to as “ NHM-MP ” ). Within the selected district, two under -
+performing blocks were identified and included in the study through 
+purposive sampling. Four primary health centers (PHCs) were randomly 
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+2 
+--- Page 3 ---
+selected from the two underperforming blocks based on the research 
+convenience. Subsequently, eighteen sub-health centers (SHCs) were 
+then chosen along with nearby Anganwadi centers (AWCs) within a 
+range of 10 – 15 km. This process resulted in the selection of approxi -
+mately seventy-four villages for the current research. All ASHA workers 
+from the selected villages, including those managing 2 – 3 villages, were 
+invited to participate, and all 57 ASHA workers agreed. Participation 
+was voluntary with no exclusion criteria ( Kohli et al., 2015 ; Shihundla 
+et al., 2016 ).
+2.3. Data collection
+In quantitative research methods, a modified set of usability ques -
+tionnaire was developed, expecting to comprehensively cover all major 
+aspects of usability constructs in a detailed and unified manner. Initially, 
+the questions incorporated several well-validated usability frameworks 
+identified from existing models and standards in the literature ( Bevan, 
+1995 ; Brooke, 1996 ; Koopmann et al., 2023 ; Lee and Kozar, 2012 ; Lund, 
+2001 ; Murphy et al., 2019 ; Oztekin et al., 2013 ; Seffah et al., 2006 ). 
+Subsequently, the constructs were obtained and refined for relevance, 
+applicability, and convenience, incorporating overlapping constructs 
+from modified questionnaires. To address the diverse usability criteria of 
+the ASHA diary, the research adopted 11 relevant usability criteria and 
+included 37 specific metric items. A 5-point Likert scale ranging from 
+“ Strongly disagree ” to “ Strongly agree ” , with a neutral category of 
+“ Neither agree nor disagree ” , was used to gather appropriate responses 
+( Brooke, 1996 ; Gopalan et al., 2012 ; WHO, 2019). The questionnaire 
+included closed-ended questions to record the socio-demographic 
+profile of ASHA workers ( Kohli et al., 2015 ; Panda et al., 2019 ). The 
+questionnaire, initially in English and later translated into the local 
+language for accurate data collection, was pilot-tested on 10 subjects. 
+Based on their feedback, the instrument was finalized with improve -
+ments in language structure, clarity, and spelling. A total of 45 questions 
+were used to determine the demographic profile and usability factors 
+affecting ASHA workers in documenting and retrieving information 
+from the ASHA Diary.
+In the qualitative research method, a proficient female researcher 
+conducted observations, informal interviews, and task analyses to un -
+derstand the challenges ASHA workers encountered in documenting and 
+retrieving information. Being fluent in the local language helps the 
+researcher to collect data effectively by creating an environment where 
+they feel comfortable and can discuss their concerns. The observations 
+were conducted in real-world settings, such as rural health clinics and 
+community centers (SHC and AWC), where ASHA workers typically 
+perform their tasks. The observation focused on management burden, 
+environmental effects, retrieval difficulties, and cognitive loads. Face-to- 
+face informal interviews were conducted at convenient locations, such 
+as residences and AWC, with follow-up questions posed based on the 
+depth of discussion and participant engagement. The informal interview 
+focused on usability concerns and system understanding. Additionally, 
+two to three diverse tasks were administered to thoroughly dissect 
+challenges such as time completion, navigation difficulties, and execu -
+tion delays in documenting and retrieving information. The process 
+spanned 70 – 75 min, during which the investigator diligently recorded 
+the data using field notes and, where permissible, audio-video re -
+cordings to capture detailed interactions and usability issues ( Murphy 
+Fig. 1. Process of selection of participants.
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+3 
+--- Page 4 ---
+et al., 2019 ; Shihundla et al., 2016 ; Bist et al., 2023 ). This integrated 
+Quanti-Quali Triangulation (see Fig. 2 ) design enabled both statistical 
+validation and contextual interpretation of usability challenges faced by 
+ASHA workers, enhancing the robustness and applicability of the find -
+ings ( Jick, 1979 ).
+2.4. Measurement
+The data was collected to examine the usability problem of ASHA 
+workers in documenting and retrieving information from the ASHA 
+Diary. For evaluation, we defined the assessment areas based on us -
+ability principles that overlapped with the research as follows: Visual 
+cues (VC) are defined as readability, legibility, and visibility being easily 
+understood and conveniently done for routine workflow ( Lee and Kozar, 
+2012 ; Oztekin et al., 2013 ; Seffah et al., 2006 ). Content relevance (CR) is 
+defined as the extent to which the content is pertinent and up-to-date 
+( Lee and Kozar, 2012 ). Comprehensibility/Learnability (CL) is defined 
+in the context of ASHA workers, who can understand the intended 
+meaning, easily learn the functionality and gain proficiency to complete 
+the tasks ( Koopmann et al., 2023 ; Lee and Kozar, 2012 ). Simplicity (SL) 
+is defined as the extraneous elements that are eliminated from the user 
+interface without significant loss of information ( Lee and Kozar, 2012 ; 
+Seffah et al., 2006 ). Consistency (Co) is defined as the degree of uni -
+formity among elements of the user interface and whether they offer 
+meaningful metaphors to users ( Lee and Kozar, 2012 ; Oztekin et al., 
+2013 ; Seffah et al., 2006 ). Findability/Navigability (FN) means whether 
+users can move around in the interface efficiently and locate the relevant 
+content ( Lee and Kozar, 2012 ; Seffah et al., 2006 ). Information priori -
+tization (IP) refers to organizing information based on its relevance and 
+frequency of use, ensuring it is easily accessible and appropriately 
+positioned ( Murphy et al., 2019 ). Error prevention (EP) is defined as 
+anticipating potential mistakes and incorporating features to guide, 
+restrict, and inform users in a way that minimizes the chance of errors 
+and their impact ( Bevan et al., 2015 ; Koopmann et al., 2023 ; Oztekin 
+et al., 2013 ). Minimal memory load (MM) is defined as whether a user is 
+required to keep a minimal amount of information in mind to achieve a 
+specified task ( Murphy et al., 2019 ; Oztekin et al., 2013 ). Resources 
+utilization (RU) is defined as if the dairy can consume appropriate 
+amounts and types of resources for a given timeline ( Bevan et al., 2015 ; 
+Seffah et al., 2006 ). Portability (Po) is defined as whether the tools can 
+be transferred from one environment to another ( Bevan et al., 2015 ).
+2.5. Data analysis plan
+The main purpose of this research was to explore the dimensions of 
+usability that influence the ease and efficiency with which ASHA 
+workers complete their diaries. In this study, exploratory factor analysis 
+(EFA), a statistical method, was employed to determine the underlying 
+constructs from the questionnaire ( Alnaami et al., 2020 ; Sigudla and 
+Maritz, 2023 ; Yu and Richardson, 2015 ). Descriptive statistics were also 
+analyzed using mean and standard deviation (SD) to understand the 
+demographic characteristics of ASHA workers ( Pfeuffer et al., 2022 ; 
+Shihundla et al., 2016 ).
+The suitability of the data for factor analysis was verified using the 
+Kaiser-Meyer-Olkin (KMO) test and Bartlett ’ s Test of Sphericity, con -
+firming the adequacy of the sample size and the presence of correlations 
+among the variables. Factors were extracted using principal component 
+analysis (PCA), with an eigenvalue as the criterion for factor retention. 
+To enhance interpretability, varimax rotation was applied, leading to 
+the identification of distinct factors representing different usability di -
+mensions ( Koopmann et al., 2023 ; Sigudla and Maritz, 2023 ; Yu and 
+Richardson, 2015 ; Zhou et al., 2019 ; Taherdoost et al., 2014 ). To ensure 
+reliability, internal consistency was tested using Cronbach ’ s alpha 
+( Alnaami et al., 2020 ; Shrestha, 2021 ; Sigudla and Maritz, 2023 ; Yu and 
+Richardson, 2015 ). The analysis was performed using IBM SPSS Statis -
+tics, Version 29.
+The queries analyzed from questionnaire were integrated with re -
+sponses from informal interviews, task analysis, and field observations 
+to ensure accuracy and reliability. Qualitative data complemented the 
+quantitative findings (see Fig. 2 ), offering deeper insights into the us -
+ability challenges of the ASHA diary. The qualitative analysis followed a 
+structured manual approach, where data from observations, informal 
+interviews, and task analysis were transcribed and coded using a direct 
+content analysis method. Codes were cross-compared to eliminate dis -
+crepancies and categorized into broader themes, while recurring pat -
+terns were analyzed for consistency and external validity, which is 
+tabulated in Appendix B ( Das and Dasgupta, 2015 ; Shihundla et al., 
+2016 ; Bist et al., 2023 ).
+3. Results
+3.1. Descriptive data
+Table 1 shows the socio-demographic profile of ASHA workers. The 
+workers ’ mean age ( ± SD) was 40.17 ± 5.09 years. Maximum, 25 ASHA 
+workers (43.9 %) belonged to the age group of 39 – 46 years, followed by 
+20 workers (35.1 %) in the age group of 32 – 39 years. The majority (43.9 
+%) of ASHAs were educated up to higher secondary school, and most of 
+them, 23 (40.4 %), had experience in a range of 5 – 10 years. 52.6 % of 
+ASHA workers lived in joint families, while 47.4 % lived in nuclear 
+families. 52.6 % have pucca houses with proper space or rooms, and 
+31.6 % have semi-pucca houses categorized by space limitation. For 
+example, some ASHA workers lived in homes with only 1 or 2 rooms, 
+where they shared the space with their husbands and children and 
+stored all their belongings. Apart from space limitations, the places 
+where they usually live have poor lighting conditions. Thus, it ’ s hard for 
+them to organize their stuff properly. Moreover, a few (33.3 %) of them 
+Fig. 2. Quanti-quali triangulation.
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+4 
+--- Page 5 ---
+had children who were under 8th standard, mostly dependent on their 
+mothers. Most ASHA workers, 32 (56.1 %), travelled more than 1 – 5 km 
+to cover the delegated population. Notably, 22 (38.6 %) of them were 
+catering to a population of 1000 – 1199. The mean ( ± SD) of the popu -
+lation catered 1089.75 ( ± 364.93).
+3.2. Sample adequacy and data suitability for factor analysis
+A sample size of 57 ASHA workers was selected for this study. The 
+size of the sample was a significant issue when conducting EFA. Several 
+researchers recommended various guidelines on sample size 
+( MacCallum et al., 1999 ; Sigudla and Maritz, 2023 ). For instance, 
+Costello and Osborne (2005) suggested that smaller sample sizes can be 
+justified in social science studies. Additionally, Appendix A presents the 
+overall distribution of responses, including means and SDs.
+KMO and Barlett ’ s test of Sphericity was initially conducted to 
+examine the adequacy of the sample and the suitability of the data for 
+factor analysis. KMO values range from 0 to 1, with values between 0.8 
+and 1.0 indicating adequate sampling, 0.7 and 0.79 indicating moderate 
+sampling, and 0.6 and 0.69 indicating mediocre sampling. Values below 
+0.6 suggested inadequate sampling for factor analysis ( Sigudla and 
+Maritz, 2023 ). A KMO correlation value greater than 0.6 was considered 
+acceptable for conducting EFA, especially for samples under 100 
+( MacCallum et al., 1999 ; Samuels, 2017 ). In this study, the KMO value 
+was 0.608, which indicated that items in the dataset were strongly 
+correlated with other items in the EFA correlation matrix, making the 
+sample adequate for analyzing the EFA output (see Table 2 ). Bartlett ’ s 
+test of Sphericity (Bartlett, 1950) provided a chi-square output that must 
+be significant to justify the use of factor analysis. The significant results 
+indicated that the correlation matrix was not an identity matrix, 
+ensuring that the variables were correlated enough for factor analysis. 
+The degree of freedom (df) in Bartlett ’ s test represents the number of 
+unique correlations being tested. A higher df suggests that more vari -
+ables contribute to the correlation structure, making the test more 
+robust. A p -value less than 0.05 is considered good, while a p -value less 
+than 0.001 is considered best ( Shrestha, 2021 ; Tavakol and Wetzel, 
+2020 ). The results presented in Table 2 show that Bartlett ’ s test of 
+Sphericity was significant ( χ 2 = 1803.55, df = 666, p < 0.001), con -
+firming that the correlations among variables were sufficient to justify 
+the use of factor analysis.
+3.3. Extraction and retention of constructs: documentation and retrieval
+PCA was used to extract the factors, as it is considered the best- 
+performing data reduction approach while retaining most of the vari -
+ance from the matrix ( Costello and Osborne, 2005 ). For this study, the 
+cumulative percent of variance extracted, Kaiser ’ s criteria (eigenvalue 
+> 1 rule) (Kaiser, 1960), and the Scree test were the methods employed 
+for retention of factors to determine the number of constructs to retain 
+for rotation.
+The eigenvalues greater than 1 are considered to draw distinctions 
+between constructs. Table 3 depicted that these constructs have rotation 
+sum of squared loadings accounting 84.66 % of the total variance, well 
+above the acceptable threshold of 60 % ( Sigudla and Maritz, 2023 ; 
+Taherdoost et al., 2014 ). However, eleven constructs were identified, 
+explaining about 85 % of the total variance, consistent with the eigen -
+value > 1 rule, ensuring that PCA effectively captured the main usability 
+constructs in ASHA diary documentation. The scree plot in Fig. 3 further 
+confirmed that these constructs account for most of the total variability 
+in the data, while the remaining constructs contributed minimally, 
+indicating they are less significant ( Yu and Richardson, 2015 ). There -
+fore, selecting these eleven constructs is considered an optimal choice 
+for analysis.
+3.4. Rotated factor loadings: usability issues in ASHA diary 
+documentation and retrieval
+Varimax rotation was used to obtain the factor loadings, which were 
+crucial for extracting the observed items associated with underlying 
+constructs. The relationship between each item and the underlying 
+constructs was described by the factor loading values. There was a 
+known relationship between sample size and acceptable factor loading 
+values. Factor loadings were considered “ high ” or “ good ” if they were 
+0.8 or greater, although achieving this level was rare in real data, 
+particularly in social science studies. Typically, factor loadings in social 
+Table 1 
+Sociodemographic characteristics of ASHA workers.
+Characteristics Frequency % [N =
+57]
+Age (in years) Below 25 years 0 00.0
+25 – 32 years 4 7.00
+32 – 39 years 20 35.1
+39 – 46 years 25 43.9
+Above 46 years 8 14.0
+Mean (in years) 40.17 ​
+Age range (in years) 29 – 51 ​
+Education Primary (5th passed) 01 1.80
+Middle (8th passed) 14 24.6
+Higher Secondary 
+(10th passed)
+25 43.9
+Senior secondary (12th 
+passed)
+11 19.3
+Graduate (above 12) 06 10.5
+Experience Less than 5 years 09 15.8
+5 – 10 years 23 40.4
+10 – 15 years 18 31.6
+15 – 20 years 07 12.3
+More than 20 years 00 00.0
+Family type Nuclear 27 47.4
+Joint 30 52.6
+Type of house Kuccha 09 15.8
+Pucca 30 52.6
+Semi pucca 18 31.6
+Number of children below 8th 
+standards
+0 child 38 66.7
+1 or 2 children 19 33.3
+≥ 3 children 00 00.0
+Distance between home to 
+workplace
+0 = < 1 km 24 42.1
+1 – 5 km 32 56.1
+≥ 5 km 01 1.80
+Population covered = < 999 19 33.3
+1000 – 1199 22 38.6
+1200 – 1299 06 10.5
+≥ 1300 10 17.5
+Table 2 
+Effectiveness of factor analysis.
+Kaiser-Meyer-Olkin Measure of Sampling Adequacy 0.608
+Bartlett ’ s Test of Sphericity Approx. Chi-Square ( χ 2) 1803.55
+Degree of freedom (df) 666
+Significance ( p ) < 0.001
+Table 3 
+Eigenvalues.
+Component Total Percentage of Variance (%) Cumulative Percentage (%)
+1 6.40 17.29 17.29
+2 5.77 15.61 32.89
+3 3.95 10.69 43.58
+4 2.76 7.47 51.05
+5 2.63 7.10 58.15
+6 2.47 6.68 64.82
+7 1.75 4.72 69.54
+8 1.63 4.42 73.96
+9 1.46 3.96 77.92
+10 1.42 3.84 81.76
+11 1.08 2.91 84.66
+* Extraction Method: Principal Component Analysis.
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+5 
+--- Page 6 ---
+sciences range from low to moderate, with communalities between 0.40 
+and 0.70 ( Costello and Osborne, 2005 ). MacCallum et al. (1999) stated 
+that the detrimental effect of sample sizes was minimized when the 
+communalities were consistently high, generally above 0.6. This 
+research interpreted the rotational factor pattern using the criterion of 
+communalities greater than 0.6. The items reflected the eleven con -
+structs in the dataset, each having communalities greater than 0.6 after 
+the extraction (see Table 4 ).
+3.5. Reliability analysis for the construct: research characteristics
+Cronbach ’ s alpha values demonstrated the internal consistency 
+reliability of constructs. The criteria for the interpretation of Cronbach ’ s 
+alpha coefficient for reliability were a value above 0.8 was a good 
+reliability, in the range of 0.6 – 0.8 was an acceptable reliability, and a 
+value below 0.6 was an unacceptable reliability for exploratory research 
+( Koopmann et al., 2023 ; Sigudla and Maritz, 2023 ; Zhou et al., 2019 ). 
+The analysis was conducted on each set of items for each construct in the 
+questionnaire. Cronbach ’ s alpha value for all eleven constructs is 
+collectively 0.822 and is individually tabulated in Table 5 , indicating 
+Fig. 3. Scree plot.
+Table 4 
+Rotated component matrix.
+Components
+1 2 3 4 5 6 7 8 9 10 11
+VC3 0.836 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+VC5 0.820 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+VC2 0.807 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+VC1 0.796 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+VC4 0.756 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​
+S4 ​ 0.947 ​ ​ ​ ​ ​ ​ ​ ​ ​
+S1 ​ 0.943 ​ ​ ​ ​ ​ ​ ​ ​ ​
+S2 ​ 0.932 ​ ​ ​ ​ ​ ​ ​ ​ ​
+S3 ​ 0.806 ​ ​ ​ ​ ​ ​ ​ ​ ​
+CR3 ​ ​ 0.918 ​ ​ ​ ​ ​ ​ ​ ​
+CR1 ​ ​ 0.896 ​ ​ ​ ​ ​ ​ ​ ​
+CR4 ​ ​ 0.879 ​ ​ ​ ​ ​ ​ ​ ​
+CR2 ​ ​ 0.859 ​ ​ ​ ​ ​ ​ ​ ​
+EP4 ​ ​ ​ 0.910 ​ ​ ​ ​ ​ ​ ​
+EP3 ​ ​ ​ 0.896 ​ ​ ​ ​ ​ ​ ​
+EP1 ​ ​ ​ 0.823 ​ ​ ​ ​ ​ ​ ​
+EP2 ​ ​ ​ 0.745 ​ ​ ​ ​ ​ ​ ​
+FN1 ​ ​ ​ ​ 0.816 ​ ​ ​ ​ ​ ​
+FN4 ​ ​ ​ ​ 0.805 ​ ​ ​ ​ ​ ​
+FN3 ​ ​ ​ ​ 0.802 ​ ​ ​ ​ ​ ​
+FN2 ​ ​ ​ ​ 0.779 ​ ​ ​ ​ ​ ​
+CL2 ​ ​ ​ ​ ​ 0.924 ​ ​ ​ ​ ​
+CL3 ​ ​ ​ ​ ​ 0.894 ​ ​ ​ ​ ​
+CL1 ​ ​ ​ ​ ​ 0.794 ​ ​ ​ ​ ​
+RU3 ​ ​ ​ ​ ​ ​ 0.903 ​ ​ ​ ​
+RU1 ​ ​ ​ ​ ​ ​ 0.834 ​ ​ ​ ​
+RU2 ​ ​ ​ ​ ​ ​ 0.807 ​ ​ ​ ​
+Co2 ​ ​ ​ ​ ​ ​ ​ 0.878 ​ ​ ​
+Co1 ​ ​ ​ ​ ​ ​ ​ 0.754 ​ ​ ​
+Co3 ​ ​ ​ ​ ​ ​ ​ 0.723 ​ ​ ​
+MM3 ​ ​ ​ ​ ​ ​ ​ ​ 0.861 ​ ​
+MM1 ​ ​ ​ ​ ​ ​ ​ ​ 0.854 ​ ​
+MM2 ​ ​ ​ ​ ​ ​ ​ ​ 0.620 ​ ​
+Po1 ​ ​ ​ ​ ​ ​ ​ ​ ​ 0.928 ​
+Po2 ​ ​ ​ ​ ​ ​ ​ ​ ​ 0.898 ​
+IP1 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ 0.896
+IP2 ​ ​ ​ ​ ​ ​ ​ ​ ​ ​ 0.870
+*Loading values less than 0.6 have been removed, Components explained in Appendix A .
+Table 5 
+Reliability analysis.
+Constructs Cronbach ’ s 
+alpha
+Number of 
+items
+Visual Cues 0.898 5
+Content Relevance 0.938 4
+Comprehensibility (or Learnability) 0.856 3
+Simplicity 0.930 4
+Consistency 0.856 3
+Findability (or Searchability or Complex 
+Navigation)
+0.866 4
+Information Prioritization 0.852 2
+Error Prevention 0.866 4
+Minimal Memory Load 0.819 3
+Resources utilization 0.864 3
+Portability 0.915 2
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+6 
+--- Page 7 ---
+good reliability of the constructs.
+3.6. Qualitative findings
+The findings highlighted various usability and environmental chal -
+lenges ASHA workers faced in documenting and retrieving information. 
+Field observations in rural areas revealed significant design flaws in the 
+ASHA diary, leading to many diaries being partially or entirely empty as 
+workers struggled to record data. However, those who were highly 
+dedicated, had fewer household responsibilities, faced minimal social 
+disturbances, and experienced no major health issues were more likely 
+to complete the diary despite these challenges. The diary ’ s complex and 
+detailed format overwhelmed workers, making documentation 
+burdensome. Additionally, the diary lacked quick and accurate infor -
+mation retrieval features, forcing workers to flip through multiple pages, 
+increasing cognitive load and reducing overall efficiency. Environ -
+mental factors such as poor sitting postures, inadequate lighting, limited 
+storage in the home, frequent travel, work in different weather, and poor 
+infrastructure further hindered usability, particularly in remote areas.
+Informal interviews highlighted missing key information, repetitive 
+tasks, and workers relying on self-made registers instead of the ASHA 
+diary. One of the ASHA workers stated: “ I first collect all the information in 
+my self-made registers, which is easy to use, then forcibly transfer the in -
+formation to the diary because the inspection officers only check the ASHA 
+diary . ” Many workers found the system misaligned with their workflow 
+and comfort, leading to frustration, errors, and reluctance to complete 
+entries. Task analysis revealed prolonged documentation times and 
+difficulties in navigating and locating unclear labeling, formatting, and 
+cross-reference entries. The lack of structured guidance makes the pro -
+cess tedious and prone to errors. Overall, the cumulative findings (see 
+Appendix B ) highlight the urgent need for a more user-friendly, well- 
+structured, and accessible diary format that improves data documenta -
+tion and retrieval.
+4. Discussion
+The design of the ASHA diary is pivotal for the effective work of 
+ASHA workers and for improving communication within health systems, 
+particularly in rural settings. This study examined the usability issues in 
+the existing paper-based ASHA diaries that ASHA workers use to record 
+patients ’ health information in rural areas. It identified key usability 
+constructs, redeveloped them to capture broader issues, and validated 
+the measurement instruments. This study also qualitatively investigated 
+quantitative data to gain an accurate and deeper understanding. 
+Comprehensive usability constructs are revealed through a modified 
+questionnaire and pattern coding analysis. While there are challenges in 
+generalizing the findings of this research, the study successfully 
+demonstrated that the identified constructs possess strong psychometric 
+properties and account for a significant amount of variance in the ASHA 
+diary ’ s effectiveness. As summarized in Table 4 , this research identified 
+the usability problems associated with the ASHA diary and those expe -
+rienced by ASHA workers. The key constructs influencing effective 
+documentation and information retrieval include visual cues, content 
+relevance, comprehensibility or learnability, simplicity, consistency, 
+findability, information prioritization, error prevention, minimal 
+memory load, resource utilization, and portability.
+The visual cue construct encompasses visibility, readability, and 
+legibility, and consists of five items with high reliability (Cronbach ’ s 
+alpha = 0.898, exceeding the 0.8 threshold). Factor loadings (0.79, 0.80, 
+0.83, 0.75, and 0.82) surpass the acceptable 0.6 threshold, confirming 
+their strong contribution. This factor significantly influences usability, 
+explaining 17.29 % of the total variance with an eigenvalue of 6.40. It is 
+crucial to ensure the ASHA diary ’ s elements remain visible under 
+various conditions, with high contrast and appropriately sized text. 
+Readability facilitates text processing, while legibility ensures clear 
+character distinction through suitable fonts and adequate spacing, 
+aligning with prior research ( Lee and Kozar, 2012 ; Oztekin et al., 2013 ; 
+Seffah et al., 2006 ). Qualitative findings further support this, as one of 
+the ASHA workers noted: “ I have to wear my spectacles before filling out the 
+diary because the text is too small. ”
+Content relevance is another key construct, comprising four items. It 
+focused on delivering accurate, up-to-date, and task-relevant informa -
+tion for community health workers. High reliability (Cronbach ’ s alpha 
+= 0.938) and strong factor loadings (0.918, 0.96, 0.879, 0.859) confirm 
+its significance, explaining 10.69 % of the variance with an eigenvalue 
+of 3.95 ( Lee and Kozar, 2012 ). ASHA workers highlighted usability 
+concerns, stating: (ASHA-1): “ There is only space to tick for vaccination 
+completion, but no option to write the vaccination date. Since we require the 
+information of date, I separately write it in my register. ” ASHA-2 opined, “ I 
+have noticed that some column in the diary is never used. ” These insights 
+underscore the need for design improvements, ensuring essential in -
+formation is efficiently recorded while eliminating redundant or 
+underutilized sections.
+Comprehensibility (or learnability) accounts for 6.68 % of the vari -
+ance (eigenvalue = 2.47) with high reliability (Cronbach ’ s alpha =
+0.856) and strong factor loadings (0.924, 0.894, 0.794) across three 
+items. The findings highlight that clear instructions and simple language 
+enhance understanding, reduce errors, and improve health intervention 
+efficiency. Simplicity, another critical construct, explains 15.61 % of the 
+variance (eigenvalue = 5.77). It comprises four highly reliable items 
+(Cronbach ’ s alpha = 0.930) with strong factor loadings (0.947, 0.943, 
+0.932, 0806), indicating that a simple and concise interface minimizes 
+unnecessary complexity, providing clear steps and facilitating efficient 
+documentation. However, the diary was observed to be overly cluttered 
+and text-heavy, potentially hindering usability. Consistency accounts for 
+4.42 % variance (eigenvalue = 1.63) with high reliability (Cronbach 
+alpha = 0.856) and strong factor loadings (0.878, 0.754, 0.723). These 
+findings indicate that maintaining consistency in structure, terminology, 
+formatting, and language improves usability by reducing confusion, 
+allowing ASHA workers to navigate the diary more easily and efficiently 
+( Lee and Kozar, 2012 ).
+Findability (or navigation) identified as a crucial usability factor, 
+comprising four items (factor loading = 0.816, 0.805, 0.802, 0.779) with 
+high reliability (Cronbach ’ s alpha = 0.866). This construct explains 
+7.10 % of the variance (eigenvalue of 2.63), highlighting challenges in 
+locating required information swiftly, especially in time-sensitive situ -
+ations ( Lee and Kozar, 2012 ; Seffah et al., 2006 ). This is consistent with 
+qualitative findings where one ASHA worker stated: “ I find the infor -
+mation I need by looking at headings from the title page and then searching 
+manually, ” confirming that poor indexing hinders usability. Information 
+prioritization explains 2.91 % of the variance (eigenvalue = 1.08) with 
+high reliability (Cronbach ’ s alpha = 0.852) and strong factor loadings 
+(0.896, 0.870) across two items. However, the current information 
+arrangement in the diary is inadequate, making data documentation and 
+retrieval difficult ( Murphy et al., 2019 ). Task analysis further confirmed 
+navigation challenges, as workers struggled to locate relevant informa -
+tion efficiently.
+Error prevention is a key construct, explaining 7.47 % of the variance 
+(eigenvalue = 2.76), exhibits high reliability (Cronbach ’ s alpha =
+0.866) and strong factor loadings (0.910, 0.896, 0.823, 0.745). It 
+highlights the need for clear instructions, and redundancy is essential to 
+minimize errors. Qualitative findings reveal frequent mistakes due to 
+complex layouts and repetitive documentation. One ASHA worker 
+stated, “ I sometimes accidently move from one section to another without 
+realizing it. ” A well-informed design can prevent such errors in health -
+care documentation. Additionally, the memory load is another concern, 
+as high-effort tasks can cause frustration, impair communication, and 
+delay decision-making, especially in stressful or demanding environ -
+ments ( Alshehri and Alanazi, 2023 ; Oztekin et al., 2013 ). The construct 
+explains 3.96 % of the variance (eigenvalue = 1.46) with high reliability 
+(Cronbach ’ s alpha = 0.819) and strong factor loadings (0.861, 0.854, 
+0.620) across three items, emphasizing the need for a simplified, 
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+7 
+--- Page 8 ---
+intuitive design to reduce cognitive burden.
+Resource utilization, comprising three items, is another critical fac -
+tor (Cronbach ’ s alpha = 0.864, factor loadings = 0.903, 0.834, 0.807), 
+explaining 4.72 % of the variance (eigenvalue = 1.75). This is consistent 
+with qualitative findings where one ASHA worker stated, “ I use self-made 
+registers because some columns, like the due-list, fill up within one or two 
+months, making the diary unusable. ” This highlights the need for a cost- 
+effective, durable, flexible, and easily updatable diary for long-term 
+usability and practicality. Additionally, poor lighting conditions nega -
+tively affected the documentation. Portability emerged as a significant 
+usability construct, containing two items (factor loadings = 0.928, 
+0.898) with high reliability (Cronbach ’ s alpha = 0.915). It accounts for 
+3.84 % of the variance (eigenvalue 1.42). The ASHA diary ’ s weight, size, 
+and bulky design demands greater physical effort, especially as ASHA 
+workers travel long distances to visit patients by foot or bicycle ( Seffah 
+et al., 2006 ; Gore et al., 2022 ). The impracticality is heightened in 
+constrained or crowded environments like small homes or community 
+meetings. One worker stated: “ Carrying the diary while cycling to villages is 
+difficult, so I sometimes leave it at home and note things down later. ” This 
+suggests that usability improvements should consider the diary ’ s size 
+and practical use to enhance portability.
+Further, most ASHA diaries were found to be partially or completely 
+empty, as many workers preferred using self-made registers. Regardless 
+of their age, education, or experience level, they struggled with main -
+taining the diary due to its complex structure, time-consuming nature, 
+and frequent errors. The data entry is challenging, especially when they 
+are constantly on the move, visiting households, assisting in childbirth, 
+managing immunizations, and responding to emergencies. It was also 
+observed that some physically fit workers with fewer household re -
+sponsibilities modified their diaries by simplifying entries to better suit 
+their needs. This highlights the lack of adaptability in the official diary 
+format, prompting workers to develop their own solutions for efficiency.
+Poor working conditions at their workplaces, such as SHC and AWC, 
+further hinder documentation. In many cases, workers are forced to sit 
+on uneven floors and write in dimly lit crowded rooms, making it 
+difficult to maintain neat and organized records. Additionally, diaries 
+often suffer damage from dust, moisture, and poor storage, complicating 
+data retrieval. These challenges impact the accuracy and completeness 
+of health records, forcing ASHA workers to rely on memory or informal 
+notes, leading to inconsistencies. The absence of a user-friendly, acces -
+sible, and durable documentation system remains a significant barrier to 
+effective healthcare data management in rural India.
+This study presents several practical and policy-relevant implications 
+for improving the effectiveness of tools like the ASHA diary. A human- 
+centered design approach is essential to enhance usability and ensure 
+the diary aligns with the cognitive and operational capacities of ASHA 
+workers ( International Organization for Standardization, 2019 ). Trying 
+harder will not work; instead, changing the system of care will. As Kruk 
+et al. (2018) said, effective health systems in the 21st century must be 
+people-centered to deliver high-quality, outcome-driven services. 
+Redesigning the ASHA diary to reflect this principle is therefore 
+imperative. The Ministry of Health and Family Welfare should adopt 
+user-friendly design standards for all health documentation tools, which 
+would facilitate easier data entry, enhance information retrieval, and 
+support more accurate record-keeping at the community level.
+Specific improvements such as simplifying the ASHA diary format, 
+using visual cues and color coding, and aligning the structure with daily 
+tasks can significantly reduce the documentation burden and improve 
+data accuracy. Focused training on diary use and basic data aggregation 
+can further minimize cognitive load and errors. Admon et al. (2013)
+suggested that if knowledgeable and capable ASHA workers are 
+appointed as data assistants of peers, and further supervised by trained 
+personnel at the PHC level, it can enhance the accuracy of monthly 
+reporting, streamline data processes, and support overburdened and 
+uncleared frontline workers. Collectively, these measures can strengthen 
+data quality and management while allowing ASHA workers to focus 
+more on patient care.
+While this study provides valuable insights, it has some limitations. 
+The sample size is small and limited to a specific geographic area, which 
+may affect the generalizability of the findings. Additionally, a broader 
+range of age groups should be covered to identify which groups are more 
+influenced by usability problems. The study found very little work done 
+to evaluate usability issues in the paper-based documentation process, 
+so the criteria used may not be sufficient to identify all problems, 
+especially for ASHA workers. However, the evidence generated by this 
+research highlights current efforts to improve PPRs in LMICs. Future 
+research should consider larger and more diverse samples and usability 
+criteria to validate these results more accurately.
+5. Conclusions
+Improvement in documentation and information retrieval for ASHA 
+workers cannot be done without enhancing the usability of the ASHA 
+diary. The findings of this study underscore the critical role of a well- 
+designed ASHA diary to augment the functionality and effectiveness of 
+ASHA workers, particularly in rural healthcare settings. This study 
+developed a comprehensive set of questionnaires for improving the us -
+ability of paper-based health records, ranging from visual cues and 
+content relevance to portability and cognitive load. The rigorous 
+methodological approach of the study, including the development and 
+validation of robust usability constructs, not only illuminates the com -
+plexities of ASHA diary usage but also offers practical solutions to 
+mitigate these challenges. The implications are far-reaching. It sug -
+gested that a human-centered redesign of the ASHA diary and assis -
+tantship could lead to significant improvements in documentation 
+accuracy, efficiency, and overall user satisfaction. Such improvements 
+are likely to directly impact the quality of healthcare delivery in rural 
+areas, enabling ASHA workers to perform their duties more effectively 
+and with less cognitive strain and workload. This research urges poli -
+cymakers, designers, and healthcare professionals to prioritize usability 
+in health documentation tools, ensuring ASHA workers are well- 
+equipped to provide optimal care. The study ’ s recommendations 
+should guide future innovations, fostering more effective, user-friendly 
+systems that support CHWs in LMICs.
+CRediT authorship contribution statement
+Sakshi Patel: Writing – original draft, Formal analysis, Validation, 
+Data curation, Writing – review & editing, Methodology, Conceptuali -
+zation. Puneet Tandon: Supervision, Conceptualization, Writing – re -
+view & editing.
+Ethics approval
+The evaluation was approved by the institutional review board at 
+PDPM Indian Institute of Information Technology, Design and 
+Manufacturing, Jabalpur, Madhya Pradesh, India. Moreover, oral 
+approval from each participant was obtained before the data collection.
+Funding
+This research did not receive any specific grant from funding 
+agencies in the public, commercial, or not-for-profit sectors.
+Declaration of competing interest
+The authors declare that they have no known competing financial 
+interests or personal relationships that could have appeared to influence 
+the work reported in this paper.
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+8 
+--- Page 9 ---
+Acknowledgements
+The authors would like to express gratitude to Dr. Prabir Mukho -
+padhyay for continuously providing feedback and giving valuable sug -
+gestions for the research. Additionally, thanks to all participating ASHA 
+workers for their willingness and enthusiasm to participate in the 
+research.
+Appendix A. Supplementary data
+Supplementary data to this article can be found online at https://doi. 
+org/10.1016/j.socscimed.2025.118370 .
+Data availability
+The datasets collected and/or analyzed during the current work are 
+available from the corresponding author upon reasonable request.
+References
+Abdel-All, M., Abimbola, S., Praveen, D., Joshi, R., 2019. What do accredited social 
+health activists need to provide comprehensive care that incorporates non- 
+communicable diseases? Findings from a qualitative study in Andhra Pradesh, India. 
+Hum. Resour. Health 17 (1). https://doi.org/10.1186/s12960-019-0418-9 .
+Aceto, G., Persico, V., Pescap ´e, A., 2018. The role of information and communication 
+technologies in healthcare: taxonomies, perspectives, and challenges. J. Netw. 
+Comput. Appl. 107, 125 – 154. https://doi.org/10.1016/j.jnca.2018.02.008 . July 
+2017. 
+Admon, A.J., Bazile, J., Makungwa, H., Kalilani-Phiri, L., Hoffman, R.M., 2013. Assessing 
+and improving data quality from community health workers: a successful 
+intervention in Neno, Malawi. J. Glob. Health 3 (2), 020403. https://doi.org/ 
+10.7189/jogh.03.020403 .
+Agarwal, S., Curtis, S.L., Angeles, G., Speizer, I.S., Singh, K., Thomas, J.C., 2019. The 
+impact of India ’ s accredited social health activist (ASHA) program on the utilization 
+of maternity services: a nationally representative longitudinal modelling study. 
+Hum. Resour. Health 17, 1 – 13 .
+Alnaami, N., Haqwi, A. Al, Masuadi, E., 2020. Clinical learning evaluation questionnaire: 
+a confirmatory factor analysis. Adv. Med. Educ. Pract. 11, 953 – 961. https://doi.org/ 
+10.2147/AMEP.S243614 .
+Alshehri, A.A., Alanazi, A., 2023. Usability study of an electronic medical record from the 
+nurse practitioners ’ practice: a qualitative study using the think-aloud technique. 
+Cureus 15 (7), 1 – 13. https://doi.org/10.7759/cureus.41603 .
+Ash, J.S., Berg, M., Coiera, E., 2004. Some unintended consequences of information 
+technology in health care: the nature of patient care information system-related 
+errors. J. Am. Med. Inf. Assoc.: JAMIA 11 (2), 104 – 112. https://doi.org/10.1197/ 
+jamia.M1471 .
+Bevan, N., 1995. Measuring usability as quality of use. Softw. Qual. J. 4, 115 – 130. 
+https://doi.org/10.1007/BF00402715 .
+Bevan, N., Carter, J., Harker, S., 2015. ISO 9241-11 revised: what have we learnt about 
+usability since 1998?. In: Human-Computer Interaction: Design and Evaluation: 
+17Th International Conference, HCI International 2015, Los Angeles, CA, USA, 
+August 2-7, 2015, Proceedings, Part I 17. Springer International Publishing, 
+pp. 143 – 151 .
+Bist, R.R., Patel, K., Pradhan, S., Patro, B.K., Tripathy, S.K., Gollapalli, P.K., Jena, S., 
+2023. What they know about their work, barriers, and challenges faced by the 
+community health workers while performing their multiple roles: mixed method 
+study in India. International Journal of Community Medicine and Public Health 10 
+(6), 2228 – 2233. https://doi.org/10.18203/2394-6040.ijcmph20231708 .
+Brooke, J., 1996. SUS-A quick and dirty usability scale. Usability evaluation in industry 
+189 (194), 4 – 7 .
+Costello, A.B., Osborne, J., 2005. Best practices in exploratory factor analysis: four 
+recommendations for getting the Most from your analysis. Practical Assess. Res. 
+Eval. 10 (1). https://doi.org/10.7275/jyj1-4868 .
+Das, A., Dasgupta, A., 2015. An exploratory analysis of knowledge and practice, job- 
+related difficulties and dissatisfaction of ASHAs in rural India. Article in 
+International Journal of Current Research and Review. https://ijcrr.com/abstract.ph 
+p?article_id = 539#/ .
+De Groot, K., De Veer, A.J.E., Munster, A.M., Francke, A.L., Paans, W., 2022. Nursing 
+documentation and its relationship with perceived nursing workload: a mixed- 
+methods study among community nurses. BMC Nurs. 21 (1), 1 – 12. https://doi.org/ 
+10.1186/s12912-022-00811-7 .
+Emmerich, E., 2023. Benchmark study: impact of electronic health records vs. paper- 
+based records-based records. MSN Capstone Projects Nursing Spring 4 – 16. http://h 
+dl.handle.net/10950/4210 .
+Gencturk, N., Ay, F., Demirci, S ¸ ., Acamur, Z., Izdes, S., Bulut, A., 2017. An examination of 
+the nursing records of cerebrovascular disease patients in intensive care. Int. J. 
+Caring Sci. 10 (1), 413 – 420 .
+Gopalan, S.S., Mohanty, S., Das, A., 2012. Assessing community health workers ’ 
+performance motivation: a mixed-methods approach on India ’ s Accredited Social 
+Health Activists (ASHA) programme. BMJ Open 2 (5), 1 – 10. https://doi.org/ 
+10.1136/bmjopen-2012-001557 .
+Gore, M., Kawade, A., Smith, P., Pinnock, H., Juvekar, S., 2022. Working as frontline 
+health facilitators, service providers, program supporters, and social health activists 
+in Indian hilly terrain areas: a qualitative study of accredited social health activists ’ 
+experiences before and during the COVID-19 pandemic. J. Glob. Health 12, 1 – 11. 
+https://doi.org/10.7189/JOGH.12.05052 .
+International Organization for Standardization, 2019. ISO 9241-210:2019, Ergonomics 
+of Human System Interaction - Part 210: Human-Centred Design for Interactive 
+Systems .
+Jackson, J., MacKean, G., Cooke, T., Lahtinen, M., 2017. Patient and provider 
+experiences with relationship, information, and management continuity. Patient 
+Experience Journal 4 (3), 38 – 47. https://doi.org/10.35680/2372-0247.1192 .
+Jick, T.D., 1979. Mixing qualitative and quantitative methods: triangulation in action. 
+Adm. Sci. Q. 24 (4), 602 – 611. https://doi.org/10.2307/2392366 .
+Kaur, M., Oberoi, S., Singh, J., Kaler, N., Balgir, R., 2022. Assessment of knowledge of 
+ASHA workers regarding MCH services and practices followed by mothers - a field 
+study. J. Fam. Med. Prim. Care 11 (12), 7863. https://doi.org/10.4103/jfmpc.jfmpc_ 
+812_22 .
+Khairat, S., Coleman, C., Newlin, T., Rand, V., Ottmar, P., Bice, T., Carson, S.S., 2019. 
+A mixed-methods evaluation framework for electronic health records usability 
+studies. J. Biomed. Inf. 94 (April), 103175. https://doi.org/10.1016/j. 
+jbi.2019.103175 .
+Khattak, I.U., Zaman, T., Ghani, S., 2016. Knowledge and practice of nurses regarding 
+nursing documentation: a cross-sectional study in tertiary care hospitals of 
+Peshawar, Khyber Pakhtunkhwa. Journal of Rehman Medical Institute 2 (3), 47 – 54 .
+Kim, M.O., Coiera, E., Magrabi, F., 2017. Problems with health information technology 
+and their effects on care delivery and patient outcomes: a systematic review. J. Am. 
+Med. Inf. Assoc.: JAMIA 24 (2), 246 – 250. https://doi.org/10.1093/jamia/ocw154 .
+Kohli, C., Kishore, J., Sharma, S., Nayak, H., 2015. Knowledge and practice of accredited 
+social health activists for maternal healthcare delivery in Delhi. J. Fam. Med. Prim. 
+Care 4 (3), 359. https://doi.org/10.4103/2249-4863.161317 .
+Koopmann, M., Wandtner, B., Thorwarth, M., Nebe, K., 2023. Measuring subjective 
+usability of medical devices - questionnaire development and evaluation. In: 
+Healthcare and Medical Devices, vol. 79. AHFE International. https://doi.org/ 
+10.54941/ahfe1003489 .
+Kruk, M.E., Gage, A.D., Arsenault, C., Jordan, K., Leslie, H.H., Roder-DeWan, S., et al., 
+2018. High-quality health systems in the sustainable development goals era: time for 
+a revolution. Lancet Global Health 6 (11), e1196 – e1252. https://doi.org/10.1016/ 
+S2214-109X(18)30386-3 .
+Kumar, C., Rai, R.K., Singh, P.K., Singh, L., 2013. Socioeconomic disparities in maternity 
+care among Indian adolescents, 1990-2006. PLoS One 8 (7), 1 – 10. https://doi.org/ 
+10.1371/journal.pone.0069094 .
+Lee, Y., Kozar, K.A., 2012. Understanding of website usability: specifying and measuring 
+constructs and their relationships. Decis. Support Syst. 52 (2), 450 – 463. https://doi. 
+org/10.1016/j.dss.2011.10.004 .
+Lund, A., 2001. Measuring usability with the use questionnaire. Usability interface 8 (2), 
+3 – 6 .
+MacCallum, R., Widaman, K., Zhang, S., Hong, S., 1999. Sample size for factor analysis. 
+Psychol. Methods 4 (1), 84 – 99. https://doi.org/10.1037/1082-989X.4.1.84 .
+Mahajan, N., Kaur, B., 2022. Community health workers in rural Punjab, India: analyzing 
+their role, expectations and challenges. Journal of Health Research 36 (2), 255 – 264. 
+https://doi.org/10.1108/JHR-04-2020-0103 .
+Manjunath, U., Sarala, R., Rajendra, D., Deepashree, M.R., Chokshi, M., Mokashi, T., 
+N, M.S., 2022. Assessment of workload of ASHAs: a multi-stakeholder perspective 
+study for task-sharing and task-shifting. J. Health Manag. 24 (1), 62 – 73. https://doi. 
+org/10.1177/09720634221079084 .
+Marini ˇc, M., 2015. The importance of health records. Health 7 (5), 617 – 624. https://doi. 
+org/10.4236/health.2015.75073 .
+Meena, S., Rathore, M., Kumawat, P., Singh, A., 2020. Challenges faced by ASHAs during 
+their field works: a cross-sectional observational study in rural area of Jaipur, 
+Rajasthan. Int. J. Med. Publ. Health 10 (3), 97 – 99. https://doi.org/10.5530/ 
+ijmedph.2020.3.20 .
+Ministry of External Affairs, Government of India, 2022. English translation of Prime 
+Minister ’ s remarks at the session on “ Stronger Together ” . https://www.mea.gov.in 
+/Speeches-Statements.htm?dtl/35451/English_Translation_of_Prime_Ministers_re 
+marks_at_the_session_on_Stronger_Together . (Accessed 23 August 2024).
+Ministry of Health and Family Welfare, Government of India, 2013. Update on the ASHA 
+Programme (July 2013). National Health Systems Resource Centre. https://nhm. 
+gov.in/images/pdf/communitisation/asha/Reports/Update_on_ASHA_Program_ 
+July_2013.pdf . (Accessed 22 July 2024).
+Ministry of Health and Family Welfare, Government of India, 2021. Annual ASHA update 
+2020 – 21. National Health Systems Resource Centre. https://nhsrcindia.org/sites/ 
+default/files/2022-07/Annual%20ASHA%20Update%202020-21.pdf . (Accessed 22 
+July 2024).
+Mondal, N., Murhekar, M.V., 2018. Factors associated with low performance of 
+Accredited Social Health Activist (ASHA) regarding maternal care in Howrah 
+district, West Bengal, 2015- ’ 16: an unmatched case control study. Clinical 
+Epidemiology and Global Health 6 (1), 21 – 28. https://doi.org/10.1016/j. 
+cegh.2017.05.003 .
+Muinga, N., Abejirinde, I.O.O., Paton, C., English, M., Zweekhorst, M., 2021. Designing 
+paper-based records to improve the quality of nursing documentation in hospitals: a 
+scoping review. J. Clin. Nurs. 30 (1 – 2), 56 – 71. https://doi.org/10.1111/jocn.15545 .
+Murphy, D.R., Giardina, T.D., Satterly, T., Sittig, D.F., Singh, H., 2019. An exploration of 
+barriers, facilitators, and suggestions for improving electronic health record inbox- 
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+9 
+--- Page 10 ---
+related usability: a qualitative analysis. JAMA Netw. Open 2 (10), E1912638. 
+https://doi.org/10.1001/jamanetworkopen.2019.12638 .
+Mutshatshi, T.E., Mothiba, T.M., Mamogobo, P.M., Mbombi, M.O., 2018. Record- 
+keeping: challenges experienced by nurses in selected public hospitals. Curationis 41 
+(1), 1 – 6. https://doi.org/10.4102/curationis.v41i1.1931 .
+Nakate, M.G., Moleki, M., Sarki, A., Fleming, V., 2022. Health workers ’ documentation 
+process as a prerequisite to the integration of patient care at a regional referral 
+hospital in Uganda. Open J. Nurs. 12 (9), 616 – 632. https://doi.org/10.4236/ 
+ojn.2022.129042 .
+Okaisu, E.M., Kalikwani, F., Wanyana, G., Coetzee, M., Child, T., Practice, N., et al., 
+2016. Improving the quality of nursing documentation: an action research project 
+improving the quality of nursing documentation: an action research project. 
+Curationis 37 (2), 8577 .
+Oztekin, A., Delen, D., Turkyilmaz, A., Zaim, S., 2013. A machine learning-based 
+usability evaluation method for eLearning systems. Decis. Support Syst. 56 (1), 
+63 – 73. https://doi.org/10.1016/j.dss.2013.05.003 .
+O ’ Mahony, D., Wright, G., Yogeswaran, P., Govere, F., 2014. Knowledge and attitudes of 
+nurses in community health centres about electronic medical records. Curationis 37 
+(1), 1150. https://doi.org/10.4102/curationis.v37i1.1150 .
+Panda, M., Nanda, S., Giri, R.C., 2019. A study on the work profile of ASHA workers in a 
+district of Odisha in eastern India. International Journal of Community Medicine and 
+Public Health 6 (2), 675. https://doi.org/10.18203/2394-6040.ijcmph20190190 .
+Pfeuffer, N., Beyer, A., Penndorf, P., Leiz, M., Radicke, F., Hoffmann, W., van den 
+Berg, N., 2022. Evaluation of a health information exchange system for geriatric 
+health care in rural areas: development and technical acceptance study. JMIR 
+Human Factors 9 (3), 1 – 18. https://doi.org/10.2196/34568 .
+Pool, J., Akhlaghpour, S., Fatehi, F., Burtons-Jones, A., 2024. A systematic analysis of 
+failures in protecting personal health data: a scoping review. Int. J. Inf. Manag. 74. 
+https://doi.org/10.1016/j.ijinfomgt.2023.102719 .
+Press information bureau. Government of India, 2020. Ministry of Health and family 
+welfare. ASHA workers. Delhi. https://pib.gov.in/Pressreleaseshare.aspx? 
+PRID = 1606212 . (Accessed 23 August 2024).
+Pulagam, P., Satyanarayana, P., 2021. Stress, anxiety, work-related burnout among 
+primary health care worker: a community based cross sectional study in Kolar. 
+J. Fam. Med. Prim. Care 10 (5), 1845. https://doi.org/10.4103/jfmpc.jfmpc_2059_ 
+20 .
+Samuels, P., 2017. Advice on exploratory factor analysis. https://www.open-access.bcu. 
+ac.uk/id/eprint/6076 .
+Seffah, A., Donyaee, M., Kline, R.B., Padda, H.K., 2006. Usability measurement and 
+metrics: a consolidated model. Softw. Qual. J. 14 (2), 159 – 178. https://doi.org/ 
+10.1007/s11219-006-7600-8 .
+Shelley, K.D., Frumence, G., Mpembeni, R., George, A.S., Stuart, E.A., Killewo, J., et al., 
+2018. Can volunteer community health workers manage multiple roles? An 
+interrupted time-series analysis of combined HIV and maternal and child health 
+promotion in Iringa, Tanzania. Health Pol. Plann. 33 (10), 1096 – 1106. https://doi. 
+org/10.1093/heapol/czy104 .
+Shet, S., Sumit, K., Phadnis, S., 2018. A study on assessment of ASHA ’ s work profile in 
+the context of Udupi Taluk, Karnataka, India. Clinical Epidemiology and Global 
+Health 6 (3), 143 – 147. https://doi.org/10.1016/j.cegh.2017.08.004 .
+Shihundla, R.C., Lebese, R.T., Maputle, M.S., 2016. Effects of increased nurses ’ workload 
+on quality documentation of patient information at selected primary health care 
+facilities in Vhembe District, Limpopo Province. Curationis 39 (1), 1545. https://doi. 
+org/10.4102/curationis.v39i1.1545 .
+Shilpa, D.M., Naik, P., Shewade, H., Sudarshan, H., 2020. Assessing the implementation 
+of a mobile app-based electronic health record: a mixed-method study from South 
+India. J. Educ. Health Promot. 9 (1). https://doi.org/10.4103/jehp.jehp_749_19 .
+Shrestha, N., 2021. Factor analysis as a tool for survey analysis. Am. J. Appl. Math. Stat. 
+9 (1), 4 – 11. https://doi.org/10.12691/ajams-9-1-2 .
+Shrivastava, R., Sharma, L., Jolly, M., Ahuja, R., Sharma, R., Naslund, J.A., et al., 2023. 
+“ We are everyone ’ s ASHAs but who ’ s there for us? ” a qualitative exploration of 
+perceptions of work stress and coping among rural frontline workers in Madhya 
+Pradesh, India. Soc. Sci. Med. 336 (October 2022). https://doi.org/10.1016/j. 
+socscimed.2023.116234 .
+Sigudla, J., Maritz, J.E., 2023. Exploratory factor analysis of constructs used for 
+investigating research uptake for public healthcare practice and policy in a resource- 
+limited setting, South Africa. BMC Health Serv. Res. 23 (1). https://doi.org/ 
+10.1186/s12913-023-10165-8 .
+Smith, S., Deveridge, A., Berman, J., Negin, J., Mwambene, N., Chingaipe, E., et al., 
+2014. Task-shifting and prioritization: a situational analysis examining the role and 
+experiences of community health workers in Malawi. Hum. Resour. Health 12 (1), 
+1 – 13. https://doi.org/10.1186/1478-4491-12-24 .
+Sokey, P.P., Adjei, E., Ankrah, E., Sokey, P.P., Adjei, E., Ankrah, E., 2018. Media use for 
+health information dissemination to rural communities by the Ghana health service. 
+J. Inf. Sci. 2 (1), 1 – 18 .
+Sugandha, B.K., Jagannath, P., 2019. Knowledge of ASHA workers about maternal and 
+child health services in Mysuru. Public Health Rev.: International Journal of Public 
+Health Research 6 (4), 169 – 176. https://doi.org/10.17511/ijphr.2019.i4.06 .
+Taherdoost, H., Sahibuddin, S., Jalaliyoon, N., 2014. Exploratory factor analysis; 
+concepts and theory. Advances in applied and pure mathematics 27, 375 – 382 .
+Tavakol, M., Wetzel, A., 2020. Factor analysis: a means for theory and instrument 
+development in support of construct validity. Int. J. Med. Educ. 11, 245 – 247. 
+https://doi.org/10.5116/ijme.5f96.0f4a .
+Tripathy, J.P., Goel, S., Kumar, A.M.V., 2016. Measuring and understanding motivation 
+among community health workers in rural health facilities in India-a mixed method 
+study. BMC Health Serv. Res. 16 (1), 1 – 10. https://doi.org/10.1186/s12913-016- 
+1614-0 .
+Verdezoto, N., Bagalkot, N., Akbar, S.Z., Sharma, S., MacKintosh, N., Harrington, D., 
+Griffiths, P., 2021. The invisible work of maintenance in community health: 
+challenges and opportunities for digital health to support frontline health workers in 
+Karnataka, South India. Proceedings of the ACM on Human-Computer Interaction 5 
+(CSCW1), 1 – 31. https://doi.org/10.1145/3449165 .
+World Health Organization, 2009. Systems thinking for health systems strengthening. 
+Retrieved: https://www.who.int/alliance-hpsr/resources/9789241563895/en/ .
+World Health Organization, 2018. Decade for health workforce strengthening in the 
+South-East Asia Region 2015-2024; second review of progress. Retrieved: https://iri 
+s.who.int/bitstream/handle/10665/274310/9789290226574-eng.pdf?sequence = 1 .
+Yu, T., Richardson, J.C., 2015. An exploratory factor analysis and reliability analysis of 
+the student online learning readiness (SOLR) instrument. Online Learning Journal 19 
+(5), 120 – 141. https://doi.org/10.24059/olj.v19i5.593 .
+Zhou, L., Bao, J., Setiawan, I.M.A., Saptono, A., Parmanto, B., 2019. The mhealth app 
+usability questionnaire (MAUQ): development and validation study. JMIR mHealth 
+and uHealth 7 (4). https://doi.org/10.2196/11500 .
+Glossary
+ASHA (Accredited Social Health Activist): Community health workers in India who bridge 
+the gap between healthcare systems and rural populations, providing essential health 
+services and documentation
+ASHA Diary: An official record-keeping tool used by ASHA workers to document and 
+retrieve community health-related data
+PPR (Paper Patient Record): Physical documents used for manually recording and man -
+aging healthcare information
+Usability: The ease and efficiency with which ASHA workers can use the ASHA diary to 
+perform documentation and retrieval tasks accurately
+Exploratory Factor Analysis (EFA): A statistical method is used to identify underlying re -
+lationships among observed variables, reducing them into meaningful constructs or 
+factors without a predefined structure
+S. Patel and P. Tandon                                                                                                                                                                                                                        Social Science & Medicine 382 (2025) 118370 
+10 

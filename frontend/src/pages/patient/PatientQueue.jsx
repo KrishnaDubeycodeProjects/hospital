@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { hospitalApi, queueApi } from '../../api/client';
+import { familyApi, hospitalApi, queueApi } from '../../api/client';
 import TokenCard from '../../components/TokenCard';
 import { Button, Card, EmptyState, Field, Input, Select, Spinner } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
@@ -41,6 +41,7 @@ export default function PatientQueue() {
 
 function BookForm({ phone, onBooked }) {
   const [categories, setCategories] = useState([]);
+  const [familyMembers, setFamilyMembers] = useState([]);
   const [form, setForm] = useState({ name: '', age: '', gender: '', category: '' });
   const [location, setLocation] = useState(null);
   const [locating, setLocating] = useState(false);
@@ -52,7 +53,25 @@ function BookForm({ phone, onBooked }) {
       .categories()
       .then(setCategories)
       .catch(() => {});
+    familyApi
+      .listMembers()
+      .then(setFamilyMembers)
+      .catch(() => {});
   }, []);
+
+  function handleMemberSelect(e) {
+    const memberId = e.target.value;
+    if (!memberId) return;
+    const member = familyMembers.find((m) => String(m.id) === String(memberId));
+    if (member) {
+      setForm((f) => ({
+        ...f,
+        name: member.name,
+        age: member.age || '',
+        gender: member.gender || '',
+      }));
+    }
+  }
 
   function useMyLocation() {
     if (!navigator.geolocation) {
@@ -105,6 +124,19 @@ function BookForm({ phone, onBooked }) {
     <Card title="You don't have an active token">
       <EmptyState title="Book a new token to join the queue." />
       <form onSubmit={submit} className="stack-md">
+        {familyMembers.length > 0 && (
+          <Field label="Quick Select Family Member" hint="Auto-fill details from your registered family unit">
+            <Select onChange={handleMemberSelect}>
+              <option value="">— Or enter patient manually below —</option>
+              {familyMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.relationship || 'Member'}{m.age ? `, ${m.age} yrs` : ''})
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+
         <Field label="Full Name">
           <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
         </Field>

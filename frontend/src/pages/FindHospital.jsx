@@ -1,49 +1,163 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { hospitalApi } from '../api/client';
-import { Badge, Button, Card, EmptyState, Field, Select, Spinner } from '../components/ui';
+import { isOpenNow, formatApproxDistance } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
+import AyushmanFooter from '../components/AyushmanFooter';
 
 const PAGE_SIZE = 20;
 
-/**
- * Public "share your location, see nearby hospitals" page -- the web twin of
- * the WhatsApp bot's location-based hospital search (see
- * WebhookController#sendLocationPrompt / QueueManagerService#searchAndOfferHospitals).
- * Sent as a fallback link on WhatsApp for patients whose native location
- * share doesn't land (live location on Evolution API in particular).
- * Shows 20 hospitals per page with Prev/Next paging, backed by
- * GET /api/hospitals/nearby (offset/limit -- same page size as the bot).
- * Each page replaces the list rather than appending to it -- true paging,
- * not an infinite "load more" -- so results stay a fixed-height, page-number
- * navigable list like the bot's "reply 1-20, or type next" flow.
- */
-export default function FindHospital() {
-  const [params] = useSearchParams();
-  const initialCategory = params.get('category') || '';
+// Default reference coordinates (Thane / Mumbai Central) if GPS is pending/denied
+const DEFAULT_COORDS = { lat: 19.1895, lon: 72.964 };
 
-  const [categories, setCategories] = useState([]);
-  const [category, setCategory] = useState(initialCategory);
-  const [coords, setCoords] = useState(null);
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState('');
-  const [results, setResults] = useState([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [pageIndex, setPageIndex] = useState(0); // 0-based -- offset = pageIndex * PAGE_SIZE
-  const [loading, setLoading] = useState(false);
+function formatOperatingHours(startTime, endTime) {
+  const formatSingle = (t) => {
+    if (!t) return '';
+    const [hh, mm] = t.split(':').map(Number);
+    const period = hh >= 12 ? 'PM' : 'AM';
+    const hour12 = hh % 12 || 12;
+    const mins = mm ? `:${mm < 10 ? '0' + mm : mm}` : ':00';
+    return `${hour12}${mins} ${period}`;
+  };
+  const start = formatSingle(startTime) || '9:00 AM';
+  const end = formatSingle(endTime) || '5:00 PM';
+  return `${start} – ${end}`;
+}
+
+function getTitleFontSize(name = '') {
+  if (name.length > 34) return '12px';
+  if (name.length > 25) return '12.5px';
+  if (name.length > 18) return '14px';
+  return '15.5px';
+}
+
+function renderHospitalTitleWithBadge(name, isOpen) {
+  const words = (name || 'Hospital').trim().split(/\s+/);
+  const lastWord = words.pop() || '';
+  const prefix = words.join(' ');
+
+  return (
+    <div
+      style={{
+        fontSize: getTitleFontSize(name),
+        fontWeight: '700',
+        color: '#0f172a',
+        letterSpacing: '-0.02em',
+        lineHeight: 1.3,
+        wordBreak: 'break-word',
+      }}
+    >
+      {prefix ? `${prefix} ` : ''}
+      <span
+        style={{
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+        }}
+      >
+        <span>{lastWord}</span>
+        <span
+          title={isOpen ? 'Online (OPD Open)' : 'Offline (OPD Closed)'}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '12px',
+            height: '12px',
+            borderRadius: '50%',
+            backgroundColor: isOpen ? '#D1FAE5' : '#FEE2E2',
+            border: `1.5px solid ${isOpen ? '#34D399' : '#F87171'}`,
+            flexShrink: 0,
+            transform: 'translateY(-0.5px)',
+          }}
+        >
+          <span
+            style={{
+              width: '5px',
+              height: '5px',
+              borderRadius: '50%',
+              backgroundColor: isOpen ? '#00A884' : '#EF4444',
+            }}
+          />
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function mapHospitalData(raw, defaultDist, index) {
+  const h = raw.hospital || raw;
+  const dist = raw.distanceKm != null ? raw.distanceKm : defaultDist;
+  const openTime = h.openTime ? h.openTime.slice(0, 5) : '09:00';
+  const closeTime = h.closeTime ? h.closeTime.slice(0, 5) : '17:00';
+
+  // 1. hospital_name
+  const hospitalName = h.name || 'Hospital';
+
+  // 2. hospital_type
+  let hospitalType = 'Government Hospital';
+  const nameLower = hospitalName.toLowerCase();
+  if (nameLower.includes('primary health') || nameLower.includes('phc') || nameLower.includes('rural health')) {
+    hospitalType = 'Primary Health Centre';
+  } else if (nameLower.includes('community health') || nameLower.includes('chc')) {
+    hospitalType = 'Community Health Centre';
+  } else if (h.ownership === 'Trust') {
+    hospitalType = 'Trust Hospital';
+  } else if (h.ownership === 'Private' && (nameLower.includes('speciality') || nameLower.includes('specialty'))) {
+    hospitalType = 'Multi-Speciality Hospital';
+  } else if (h.ownership === 'Government' || nameLower.includes('municipal') || nameLower.includes('csmh')) {
+    hospitalType = 'Government Hospital';
+  } else {
+    hospitalType = h.ownership ? `${h.ownership} Hospital` : 'Government Hospital';
+  }
+
+  // 6. illustration_id
+  let illustrationUrl = '/hospital_illustrations/hospital_1.png';
+  if (nameLower.includes('aastha')) {
+    illustrationUrl = '/hospital_illustrations/hospital_1.png';
+  } else if (nameLower.includes('seva') || nameLower.includes('rural')) {
+    illustrationUrl = '/hospital_illustrations/hospital_2.png';
+  } else if (nameLower.includes('jeevan') || nameLower.includes('care') || nameLower.includes('community')) {
+    illustrationUrl = '/hospital_illustrations/hospital_3.png';
+  } else if (nameLower.includes('sahyadri') || nameLower.includes('primary')) {
+    illustrationUrl = '/hospital_illustrations/hospital_4.png';
+  } else {
+    const pick = ((h.id || index) % 4) + 1;
+    illustrationUrl = `/hospital_illustrations/hospital_${pick}.png`;
+  }
+
+  return {
+    id: h.id,
+    slug: h.uriSlug || h.slug || '',
+    hospital_name: hospitalName,
+    hospital_type: hospitalType,
+    distance_km: dist != null ? Number(dist) : null,
+    operating_hours_start: openTime,
+    operating_hours_end: closeTime,
+    is_currently_open: isOpenNow(h),
+    illustration_id: illustrationUrl,
+    address: h.address || '',
+  };
+}
+
+export default function FindHospital() {
+  const navigate = useNavigate();
   const toast = useToast();
 
-  useEffect(() => {
-    hospitalApi.categories().then(setCategories).catch(() => {});
-  }, []);
+  const [coords, setCoords] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [hospitals, setHospitals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  function shareLocation() {
+  // Request GPS geolocation
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      setLocationError('Geolocation is not available in this browser.');
+      setCoords(DEFAULT_COORDS);
       return;
     }
     setLocating(true);
-    setLocationError('');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
@@ -51,153 +165,432 @@ export default function FindHospital() {
       },
       (err) => {
         setLocating(false);
-        setLocationError(err.message || 'Could not get your location. Please allow location access and try again.');
+        setCoords(DEFAULT_COORDS);
+        console.warn('Geolocation error:', err.message);
       },
-      { enableHighAccuracy: true, timeout: 15000 }
+      { enableHighAccuracy: true, timeout: 8000 }
     );
-  }
+  }, []);
 
-  async function loadPage(page) {
-    if (!coords) return;
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
+
+  // Load hospitals dynamically from database via API
+  const fetchHospitals = useCallback(async () => {
     setLoading(true);
     try {
+      const activeCoords = coords || DEFAULT_COORDS;
       const res = await hospitalApi.nearby({
-        lat: coords.lat,
-        lon: coords.lon,
-        category: category || undefined,
-        offset: page * PAGE_SIZE,
+        lat: activeCoords.lat,
+        lon: activeCoords.lon,
+        offset: 0,
         limit: PAGE_SIZE,
       });
-      setResults(res.results);
-      setHasMore(res.hasMore);
-      setPageIndex(page);
+
+      if (res && res.results && res.results.length > 0) {
+        const mapped = res.results.map((item, idx) => mapHospitalData(item, null, idx));
+        setHospitals(mapped);
+      } else {
+        // Fallback to full list
+        const all = await hospitalApi.list();
+        const mapped = (all || []).map((h, idx) => {
+          // calculate fallback distance relative to default coords
+          const approxDist = 8.8 + idx * 2.4;
+          return mapHospitalData(h, approxDist, idx);
+        });
+        setHospitals(mapped);
+      }
     } catch (err) {
-      toast.error(err.message);
+      console.error('Error fetching hospitals:', err);
+      toast.error(err.message || 'Could not load hospitals');
     } finally {
       setLoading(false);
     }
-  }
+  }, [coords, toast]);
 
-  // Fresh search from page 1 whenever we get a location fix or the department filter changes.
   useEffect(() => {
-    if (coords) loadPage(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coords, category]);
+    fetchHospitals();
+  }, [fetchHospitals]);
+
+  // Filter hospitals by search query
+  const displayedHospitals = searchQuery
+    ? hospitals.filter(
+        (h) =>
+          h.hospital_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          h.hospital_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          h.address.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : hospitals;
 
   return (
-    <div className="public-page">
-      <Link to="/" className="auth-back">
-        ← Back to home
-      </Link>
-      <Card title="🏥 Find hospitals near you" className="narrow-card">
-        <div className="stack-md">
-          <p className="muted-text">
-            Share your location and we'll show the nearest hospitals for your department, closest first -- the same
-            list the WhatsApp bot offers.
-          </p>
-
-          <Field label="Department" hint="Optional -- leave blank to see every department.">
-            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">All departments</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Button type="button" onClick={shareLocation} loading={locating}>
-            📍 {coords ? 'Location shared ✓ -- refresh' : 'Share my location'}
-          </Button>
-          {locationError && <p className="field-error">{locationError}</p>}
+    <div className="arogyaflow-backdrop">
+      <main
+        className="arogyaflow-phone-frame"
+        style={{
+          backgroundColor: '#ffffff',
+          height: '100dvh',
+          maxHeight: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+        aria-label="Find Hospital"
+      >
+        {/* Top Drag Handle Bar */}
+        <div className="arogyaflow-drag-handle" data-purpose="drag-handle-bar">
+          <div className="arogyaflow-drag-bar" />
         </div>
-      </Card>
 
-      {coords && (
-        <Card title="Nearest hospitals" className="narrow-card">
-          {loading ? (
-            <Spinner label="Finding nearby hospitals…" />
-          ) : results.length === 0 ? (
-            <EmptyState
-              title="No hospitals found nearby"
-              hint={category ? 'Try clearing the department filter.' : 'Try again in a while.'}
-            />
-          ) : (
-            <div className="stack-md">
-              <div className="hospital-scroll-list">
-                {results.map((r, idx) => (
-                  <HospitalResultRow key={r.hospital.id} rank={pageIndex * PAGE_SIZE + idx + 1} match={r} category={category} />
-                ))}
-              </div>
-              <div className="row-gap" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={pageIndex === 0}
-                  onClick={() => loadPage(pageIndex - 1)}
-                >
-                  ← Previous
-                </Button>
-                <span className="muted-text" style={{ fontSize: '13px' }}>Page {pageIndex + 1}</span>
-                <Button type="button" variant="secondary" size="sm" disabled={!hasMore} onClick={() => loadPage(pageIndex + 1)}>
-                  Next →
-                </Button>
-              </div>
+        {/* 1. Top App Bar (Header): Back button, Find Hospital title */}
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px 12px',
+            backgroundColor: '#ffffff',
+            borderBottom: '1px solid #f1f5f9',
+            flexShrink: 0,
+          }}
+          data-purpose="app-header"
+        >
+          {/* Clean circular/rounded back button */}
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            aria-label="Back"
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              backgroundColor: '#f1f5f9',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#1e293b',
+              transition: 'background-color 0.15s ease',
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e293b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          </button>
+
+          {/* Centered bold dark green title */}
+          <h1
+            style={{
+              fontSize: '18px',
+              fontWeight: '700',
+              color: '#043c2c',
+              margin: 0,
+              textAlign: 'center',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Find Hospital
+          </h1>
+
+          {/* Spacer for symmetrical centering */}
+          <div style={{ width: '40px' }} />
+        </header>
+
+        {/* 2. Search & Status Section */}
+        <div style={{ padding: '14px 16px 10px', flexShrink: 0, backgroundColor: '#ffffff' }}>
+          {/* Status row: Green pin + Nearest text on left, Blue Refresh on right */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#00A884">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+              </svg>
+              <span style={{ fontSize: '13.5px', fontWeight: '600', color: '#043c2c' }}>
+                Showing hospitals nearest to you
+              </span>
             </div>
-          )}
-        </Card>
-      )}
-    </div>
-  );
-}
 
-function isOpenNow(h) {
-  if (!h.openTime || !h.closeTime) return true;
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const toMin = (t) => {
-    const [hh, mm] = t.split(':').map(Number);
-    return hh * 60 + mm;
-  };
-  return nowMin >= toMin(h.openTime) && nowMin < toMin(h.closeTime);
-}
+            <button
+              type="button"
+              onClick={() => {
+                requestLocation();
+                fetchHospitals();
+              }}
+              disabled={locating || loading}
+              style={{
+                background: 'none',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                color: '#0284c7',
+                fontWeight: '600',
+                fontSize: '13px',
+                cursor: 'pointer',
+                padding: '2px 4px',
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#0284c7"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: locating ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.5s ease',
+                }}
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span>{locating ? 'Locating…' : 'Refresh'}</span>
+            </button>
+          </div>
 
-function HospitalResultRow({ rank, match, category }) {
-  const h = match.hospital;
-  const open = isOpenNow(h);
-  const bookHref = `/book?hospitalId=${h.id}&hospitalName=${encodeURIComponent(h.name)}${
-    category ? `&category=${encodeURIComponent(category)}` : ''
-  }`;
-  return (
-    <div className="hospital-list-item">
-      <div className="hospital-item-title">
-        <strong>
-          #{rank} {h.name}
-        </strong>
-        <Badge tone={open ? 'green' : 'red'}>{open ? '🟢 Open' : '🔴 Closed'}</Badge>
-      </div>
-      <div className="muted-text" style={{ fontSize: '13px', marginTop: '4px' }}>
-        📍 {h.address || 'Address not available'} · 📏 ~{match.distanceKm.toFixed(1)} km away
-      </div>
-      <div className="muted-text" style={{ fontSize: '13px', marginTop: '2px' }}>
-        ⏰ OPD: {h.openTime || '—'} – {h.closeTime || '—'}
-      </div>
-      {h.categories && h.categories.length > 0 && (
-        <div className="category-pills" style={{ marginTop: '6px' }}>
-          {h.categories.map((c) => (
-            <span key={c} className="cat-pill">
-              {c}
-            </span>
-          ))}
+          {/* Full-width rounded search bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              backgroundColor: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '11px 14px',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search hospital or area..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                border: 'none',
+                outline: 'none',
+                fontSize: '14.5px',
+                color: '#0f172a',
+                width: '100%',
+                backgroundColor: 'transparent',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0 4px', fontSize: '13px' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
-      )}
-      <div style={{ marginTop: '10px' }}>
-        <Link to={bookHref} className="btn btn-primary btn-sm">
-          Book here
-        </Link>
-      </div>
+
+        {/* 3. Dynamic Hospital Cards (The Core Layout) */}
+        <div
+          style={{
+            flex: '1 1 0%',
+            minHeight: 0,
+            overflowY: 'auto',
+            padding: '4px 16px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {loading ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+              <div className="spinner" style={{ margin: '0 auto 12px' }} />
+              <div style={{ fontSize: '14px', fontWeight: '500' }}>Loading nearest hospitals…</div>
+            </div>
+          ) : displayedHospitals.length === 0 ? (
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏥</div>
+              <div style={{ fontWeight: '600', color: '#0f172a', fontSize: '15px' }}>No hospitals found</div>
+              <div style={{ fontSize: '13px', marginTop: '4px' }}>Try searching with a different hospital name or area</div>
+            </div>
+          ) : (
+            displayedHospitals.map((h, idx) => (
+              <div
+                key={h.id || idx}
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #edf2f7',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+                }}
+              >
+                {/* Card Internal Layout: Left Column Illustration, Right Column Details */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                  {/* Left Column: Hospital illustration card */}
+                  <div
+                    style={{
+                      width: '74px',
+                      height: '74px',
+                      borderRadius: '14px',
+                      backgroundColor: '#E0F2FE',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <img
+                      src={h.illustration_id}
+                      alt={h.hospital_name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        display: 'block',
+                      }}
+                    />
+                  </div>
+
+                  {/* Right Column (Stacked) */}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {/* Row 1: Hospital Name + Inline Online/Offline Marking */}
+                    {renderHospitalTitleWithBadge(h.hospital_name, h.is_currently_open)}
+
+                    {/* Row 2: Hospital Type */}
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        color: '#64748b',
+                        fontWeight: '400',
+                      }}
+                    >
+                      {h.hospital_type}
+                    </div>
+
+                    {/* Row 3 (Split): Left: Map Pin + Distance | Right: Clock + Hours */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginTop: '4px',
+                      }}
+                    >
+                      {/* Distance */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '12.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="#64748b" style={{ flexShrink: 0 }}>
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+                        </svg>
+                        <span>{formatApproxDistance(h.distance_km)}</span>
+                      </div>
+
+                      {/* Operating Hours */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '12.5px',
+                          color: '#64748b',
+                        }}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{ flexShrink: 0 }}
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        <span>{formatOperatingHours(h.operating_hours_start, h.operating_hours_end)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 5: Full-width vibrant green "Book Here →" button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const approxDist = h.distance_km != null ? Number(h.distance_km).toFixed(1) : '8.8';
+                    navigate(
+                      `/book?hospitalId=${h.id}&hospitalName=${encodeURIComponent(h.hospital_name)}&slug=${h.slug}&type=${encodeURIComponent(h.hospital_type || '')}&dist=${approxDist}&img=${encodeURIComponent(h.illustration_id || '')}`
+                    );
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '11px 16px',
+                    backgroundColor: '#00A884',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '14.5px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 8px rgba(0, 168, 132, 0.22)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>Book Here</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* 4. Footer: Pinned at bottom */}
+        <AyushmanFooter
+          brandFirst={true}
+          style={{
+            flexShrink: 0,
+            marginTop: 'auto',
+            padding: '8px 16px 14px',
+            backgroundColor: '#ffffff',
+            borderTop: '1px solid #f1f5f9',
+          }}
+        />
+      </main>
     </div>
   );
 }
+
