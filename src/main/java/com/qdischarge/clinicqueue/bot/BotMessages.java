@@ -289,9 +289,9 @@ public class BotMessages {
 
     public String locationPrompt(Lang lang) {
         return switch (lang) {
-            case EN -> "📍 *YOUR LOCATION*\n\nTap below to share your current location, so we can find the nearest hospitals for you.\n\n_Can't share it? Reply with a DIGIPIN instead._";
-            case HI -> "📍 *आपका स्थान*\n\nनिकटतम अस्पताल खोजने के लिए नीचे टैप करके अपना वर्तमान स्थान साझा करें।\n\n_साझा नहीं कर सकते? इसके बजाय DIGIPIN भेजें।_";
-            case MR -> "📍 *तुमचे स्थान*\n\nजवळचे रुग्णालय शोधण्यासाठी खाली टॅप करून तुमचे सध्याचे स्थान शेअर करा.\n\n_शेअर करू शकत नाही? त्याऐवजी DIGIPIN पाठवा._";
+            case EN -> "📍 *YOUR LOCATION*\n\n1️⃣ Tap 📎 below to share your *Location Pin*, OR\n2️⃣ Type your *6-digit PIN Code* (e.g. 411001), OR\n3️⃣ Type your *Town / City name* (e.g. Baramati, Pune, Satara).";
+            case HI -> "📍 *आपका स्थान*\n\n1️⃣ नीचे 📎 टैप करके अपना *स्थान (Location Pin)* भेजें, या\n2️⃣ अपना *6 अंकों का पिन कोड* भेजें (उदा. 411001), या\n3️⃣ अपने *शहर / कस्बे का नाम* लिखें (उदा. बारामती, पुणे, सतारा)।";
+            case MR -> "📍 *तुमचे स्थान*\n\n1️⃣ खाली 📎 टॅप करून तुमचे *लोकेशन पिन* शेअर करा, किंवा\n2️⃣ तुमचा *6-अंकी पिन कोड* पाठवा (उदा. 411001), किंवा\n3️⃣ तुमच्या *गावाचे / शहराचे नाव* लिहा (उदा. बारामती, पुणे, सातारा).";
         };
     }
 
@@ -314,9 +314,9 @@ public class BotMessages {
 
     public String invalidLocationReminder(Lang lang) {
         return switch (lang) {
-            case EN -> "📍 *LOCATION NEEDED*\n\nPlease share your current location (the 📎/location icon), or type a valid 10-character DIGIPIN.";
-            case HI -> "📍 *स्थान आवश्यक है*\n\nकृपया अपना वर्तमान स्थान साझा करें (📎/स्थान आइकन), या एक मान्य 10-अक्षर का DIGIPIN टाइप करें।";
-            case MR -> "📍 *स्थान आवश्यक आहे*\n\nकृपया तुमचे सध्याचे स्थान शेअर करा (📎/स्थान आयकॉन), किंवा वैध 10-अक्षरी DIGIPIN टाइप करा.";
+            case EN -> "📍 *LOCATION NEEDED*\n\nPlease share your location (📎 icon), or type your *6-digit PIN Code* (e.g. 411001) or town name.";
+            case HI -> "📍 *स्थान आवश्यक है*\n\nकृपया अपना स्थान (📎 आइकन) भेजें, या अपना *6-अंकों का पिन कोड* (उदा. 411001) या शहर का नाम लिखें।";
+            case MR -> "📍 *स्थान आवश्यक आहे*\n\nकृपया तुमचे लोकेशन (📎 आयकॉन) शेअर करा, किंवा तुमचा *6-अंकी पिन कोड* (उदा. 411001) किंवा गावाचे नाव लिहा.";
         };
     }
 
@@ -650,6 +650,157 @@ public class BotMessages {
             case EN -> "🎂 Please enter their age in years (e.g. 28):";
             case HI -> "🎂 कृपया उनकी आयु (वर्षों में) दर्ज करें (उदा. 28):";
             case MR -> "🎂 कृपया त्यांचे वय (वर्षांमध्ये) प्रविष्ट करा (उदा. 28):";
+        };
+    }
+
+    public List<com.qdischarge.clinicqueue.dto.WaListSection> quickDepartmentSections(Lang lang) {
+        return switch (lang) {
+            case EN -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaListSection("⭐ Common Health Needs", List.of(
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_General Medicine / Internal Medicine", "🩺 General / Fever / Cold", "Fever, cough, body pain, BP, Sugar"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Paediatrics", "👶 Child Care (Bal Rog)", "Infants, kids sickness & vaccination"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Obstetrics & Gynaecology", "🌸 Women & Maternity", "Pregnancy, delivery, women's health"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Orthopaedics", "🦴 Bone & Joint Pain", "Fracture, joint pain, spine & backache")
+                    )),
+                    new com.qdischarge.clinicqueue.dto.WaListSection("➕ More Specialties", List.of(
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_all_list", "📋 All 33 Departments", "Heart, Eye, Dental, Skin, Surgery & more")
+                    ))
+            );
+            case HI -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaListSection("⭐ मुख्य आवश्यकताएं", List.of(
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_General Medicine / Internal Medicine", "🩺 सामान्य / बुखार / खांसी", "बुखार, सर्दी, कमजोरी, बीपी, शुगर"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Paediatrics", "👶 बाल रोग (बच्चे)", "बच्चों की बीमारी व टीकाकरण"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Obstetrics & Gynaecology", "🌸 महिला व प्रसूति", "गर्भावस्था, प्रसव व स्त्री रोग"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Orthopaedics", "🦴 हड्डी व जोड़ दर्द", "फ्रैक्चर, जोड़ों व कमर का दर्द")
+                    )),
+                    new com.qdischarge.clinicqueue.dto.WaListSection("➕ अन्य विभाग", List.of(
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_all_list", "📋 सभी ३३ विभाग देखें", "आंख, दांत, हृदय, चमड़ी व अन्य")
+                    ))
+            );
+            case MR -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaListSection("⭐ मुख्य गरज", List.of(
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_General Medicine / Internal Medicine", "🩺 सामान्य / ताप / खोकला", "ताप, सर्दी, कमजोरी, बीपी, शुगर"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Paediatrics", "👶 बालरोग (लहान मुले)", "लहान मुलांचे आजार व लसीकरण"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Obstetrics & Gynaecology", "🌸 महिला व प्रसूती", "गरोदरपण, प्रसूती व स्त्रीरोग"),
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_Orthopaedics", "🦴 हाडे व सांधेदुखी", "फ्रॅक्चर, सांधे व कंबरदुखी")
+                    )),
+                    new com.qdischarge.clinicqueue.dto.WaListSection("➕ इतर विभाग", List.of(
+                            new com.qdischarge.clinicqueue.dto.WaListRow("dept_all_list", "📋 सर्व ३३ विभाग पहा", "डोळे, दात, हृदय, त्वचा व इतर")
+                    ))
+            );
+        };
+    }
+
+    public String familyMemberManageCard(Lang lang, com.qdischarge.clinicqueue.dto.FamilyMemberDto m) {
+        String abhaStatus = Boolean.TRUE.equals(m.getIsAbhaLinked()) 
+                ? (m.getAbhaAddress() != null && !m.getAbhaAddress().isBlank() ? "Linked (" + m.getAbhaAddress() + ") ✅" : "Linked ✅")
+                : "Not Linked ⚠️";
+        String rel = m.getRelationship() != null ? m.getRelationship() : "Self";
+        String ageGender = (m.getAge() != null ? m.getAge() + " yrs" : "") + (m.getGender() != null ? " · " + m.getGender() : "");
+
+        return switch (lang) {
+            case EN -> """
+                    👤 *PATIENT PROFILE*
+                    ━━━━━━━━━━━━━━━━━━━━━━
+                    • Name: *%s*
+                    • Relation: %s
+                    • Age / Gender: %s
+                    • ABHA Status: %s
+                    ━━━━━━━━━━━━━━━━━━━━━━
+                    What would you like to do for this member?""".formatted(m.getName(), rel, ageGender, abhaStatus);
+            case HI -> """
+                    👤 *मरीज़ प्रोफ़ाइल*
+                    ━━━━━━━━━━━━━━━━━━━━━━
+                    • नाम: *%s*
+                    • संबंध: %s
+                    • आयु / लिंग: %s
+                    • आभा स्थिति: %s
+                    ━━━━━━━━━━━━━━━━━━━━━━
+                    आप इस सदस्य के लिए क्या करना चाहते हैं?""".formatted(m.getName(), rel, ageGender, abhaStatus);
+            case MR -> """
+                    👤 *रुग्ण प्रोफाइल*
+                    ━━━━━━━━━━━━━━━━━━━━━━
+                    • नाव: *%s*
+                    • नाते: %s
+                    • वय / लिंग: %s
+                    • आभा स्थिती: %s
+                    ━━━━━━━━━━━━━━━━━━━━━━
+                    या सदस्यासाठी आपण काय करू इच्छिता?""".formatted(m.getName(), rel, ageGender, abhaStatus);
+        };
+    }
+
+    public List<com.qdischarge.clinicqueue.dto.WaButton> familyMemberManageButtons(Lang lang, int memberId) {
+        return switch (lang) {
+            case EN -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton("fam_book_" + memberId, "🎫 Book OPD Token"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("fam_records_" + memberId, "📁 Health Records"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_main_menu", "🏠 Main Menu")
+            );
+            case HI -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton("fam_book_" + memberId, "🎫 टोकन बुक करें"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("fam_records_" + memberId, "📁 स्वास्थ्य रिकॉर्ड"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_main_menu", "🏠 मुख्य मेनू")
+            );
+            case MR -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton("fam_book_" + memberId, "🎫 टोकन बुक करा"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("fam_records_" + memberId, "📁 आरोग्य नोंदी"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_main_menu", "🏠 मुख्य मेनू")
+            );
+        };
+    }
+
+    public String instantPrescriptionPrompt(Lang lang, String patientName) {
+        return switch (lang) {
+            case EN -> "📄 *DOCUMENT / PRESCRIPTION RECEIVED!*\n\nWe detected a prescription or medical report. Would you like to save this to *" + patientName + "*'s Health Vault?";
+            case HI -> "📄 *दस्तावेज़ / पर्चा प्राप्त हुआ!*\n\nहमें एक मेडिकल पर्चा या रिपोर्ट मिली है। क्या आप इसे *" + patientName + "* के हेल्थ वॉल्ट में सहेजना चाहते हैं?";
+            case MR -> "📄 *कागदपत्र / प्रिस्क्रिप्शन मिळाले!*\n\nआम्हाला वैद्यकीय प्रिस्क्रिप्शन किंवा अहवाल मिळाला आहे. आपण हे *" + patientName + "* च्या Health Vault मध्ये जतन करू इच्छिता?";
+        };
+    }
+
+    public List<com.qdischarge.clinicqueue.dto.WaButton> instantPrescriptionButtons(Lang lang) {
+        return switch (lang) {
+            case EN -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_save_doc_yes", "✅ Yes, Save to Vault"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_save_doc_other", "👤 Other Family Member")
+            );
+            case HI -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_save_doc_yes", "✅ हां, वॉल्ट में सहेजें"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_save_doc_other", "👤 अन्य सदस्य चुनें")
+            );
+            case MR -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_save_doc_yes", "✅ होय, Vault मध्ये जतन करा"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_save_doc_other", "👤 इतर सदस्य निवडा")
+            );
+        };
+    }
+
+    public String emptyHospitalsRecoveryPrompt(Lang lang, String category, String operatingHospitalName) {
+        String hosp = operatingHospitalName != null ? operatingHospitalName : "District Civil Hospital";
+        return switch (lang) {
+            case EN -> "📍 *NO CLINIC IN IMMEDIATE RADIUS*\n\nWe could not find a local clinic within 5 km for *" + category + "*.\n\nWould you like to book at the nearest *" + hosp + "* or search with another PIN Code?";
+            case HI -> "📍 *पास में कोई क्लीनिक नहीं मिला*\n\nहमें *" + category + "* के लिए 5 किमी के भीतर कोई क्लीनिक नहीं मिला।\n\nक्या आप निकटतम *" + hosp + "* में बुक करना चाहते हैं या नया पिन कोड दर्ज करना चाहते हैं?";
+            case MR -> "📍 *जवळ कोणतेही रुग्णालय आढळले नाही*\n\n*" + category + "* साठी 5 किमी अंतरावर क्लिनिक आढळले नाही.\n\nआपण जवळच्या *" + hosp + "* मध्ये बुक करू इच्छिता की दुसरा पिन कोड टाकू इच्छिता?";
+        };
+    }
+
+    public List<com.qdischarge.clinicqueue.dto.WaButton> emptyHospitalsButtons(Lang lang, Integer operatingHospitalId) {
+        String hospBtn = (operatingHospitalId != null) ? "hosp_" + operatingHospitalId : "btn_book_main";
+        return switch (lang) {
+            case EN -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton(hospBtn, "🏛️ District Hospital"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_retry_location", "📍 Change PIN/Location"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_main_menu", "🏠 Main Menu")
+            );
+            case HI -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton(hospBtn, "🏛️ जिला अस्पताल"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_retry_location", "📍 पिन कोड बदलें"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_main_menu", "🏠 मुख्य मेनू")
+            );
+            case MR -> List.of(
+                    new com.qdischarge.clinicqueue.dto.WaButton(hospBtn, "🏛️ जिल्हा रुग्णालय"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_retry_location", "📍 पिन कोड बदला"),
+                    new com.qdischarge.clinicqueue.dto.WaButton("btn_main_menu", "🏠 मुख्य मेनू")
+            );
         };
     }
 }

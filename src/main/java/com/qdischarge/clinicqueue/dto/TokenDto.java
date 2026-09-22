@@ -34,6 +34,7 @@ public class TokenDto {
     private String category;
     private String status;
     private String sessionStep;
+    private String prevSessionStep;
     private LocalDateTime createdAt;
     private LocalDateTime servedAt;
     private LocalDateTime completedAt;

@@ -2,38 +2,31 @@ package com.qdischarge.clinicqueue.bot;
 
 import java.util.Set;
 
-/**
- * The three menu actions the WhatsApp bot understands, matched against
- * either a Meta interactive-button id or free-typed text -- in English,
- * Hindi, or Marathi, regardless of which language the session is currently
- * in, so a patient can always fall back to typing the English word too.
- */
 public enum Intent {
-    GENERATE_TOKEN("srv_book", Set.of(
-            "btn_generate_token", "btn_book_token", "1", "generate token", "token", "new token", "book token", "book", "appointment", "book appointment",
-            "टोकन", "टोकन बनाएं", "टोकन बनाओ", "अपॉइंटमेंट", "बुक",
-            "टोकन तयार करा", "नवीन टोकन", "अपॉइंटमेंट बुक करा")),
-    CHECK_STATUS("srv_track", Set.of(
-            "btn_check_status", "btn_track_token", "2", "check status", "status", "track", "track patient", "live token", "queue",
-            "स्थिति", "स्थिति देखें", "स्टेटस", "ट्रैक",
-            "स्थिती", "स्थिती पहा", "ट्रॅक")),
-    DOCUMENTS("srv_records", Set.of(
-            "btn_documents", "btn_referrals", "btn_records", "3", "documents", "prescriptions", "records", "my documents", "medication", "referrals", "referral",
-            "दस्तावेज़", "पर्चे", "कागदपत्रे", "औषधे", "रेफरल")),
-    FAMILY("srv_family", Set.of(
-            "btn_family", "4", "family", "family members", "my family", "view family", "switch member", "switch", "change member", "change patient",
-            "परिवार", "कुटुंब", "सदस्य बदलें", "बदलो")),
-    SERVICES("btn_services", Set.of(
-            "services", "more services", "more", "menu",
-            "सेवाएं", "अन्य सेवाएं", "सेवा",
-            "इतर सेवा", "अधिक सेवा")),
-    CANCEL_TOKEN("btn_cancel_token", Set.of(
-            "cancel token", "cancel",
-            "रद्द करें", "टोकन रद्द करें", "रद्द",
-            "रद्द करा", "टोकन रद्द करा"));
+    // Main services (buttonId = the WA list row id)
+    APPOINTMENT("srv_appointment", Set.of("srv_appointment", "appointment", "opd", "book", "book appointment", "opd appointment", "token", "अपॉइंटमेंट", "अपॉइंटमेंट बुक", "ओपीडी", "अपॉइंटमेंट बुक करा")),
+    FAMILY_ABHA("srv_family_abha", Set.of("srv_family_abha", "family", "abha", "family abha", "परिवार", "कुटुंब", "आभा")),
+    HEALTH_RECORDS("srv_health_records", Set.of("srv_health_records", "health records", "records", "documents", "medical records", "रिकॉर्ड", "दस्तावेज़", "नोंदी")),
+    REFERRALS("srv_referrals", Set.of("srv_referrals", "referrals", "referral", "follow up", "रेफरल", "फॉलो अप")),
+    CHANGE_LANGUAGE("srv_lang_change", Set.of("srv_lang_change", "change language", "language", "भाषा बदलें", "भाषा", "भाषा बदला")),
+    
+    // Sub-service intents
+    BOOK_APPOINTMENT("apt_book", Set.of("apt_book", "book appointment", "book token", "बुक", "टोकन बुक", "नोंदणी करा")),
+    TRACK_APPOINTMENT("apt_track", Set.of("apt_track", "track", "status", "check status", "live status", "ट्रैक", "स्थिति", "स्थिती")),
+    
+    UPLOAD_RECORD("rec_upload", Set.of("rec_upload", "upload", "upload document", "अपलोड", "दस्तावेज़ अपलोड")),
+    VIEW_RECORDS("rec_view", Set.of("rec_view", "view", "view records", "देखें", "पहा")),
+    
+    // Navigation
+    GO_BACK("btn_go_back", Set.of("btn_go_back", "back", "go back", "पीछे", "वापस", "मागे", "पुन्हा")),
+    MAIN_MENU("btn_main_menu", Set.of("btn_main_menu", "menu", "main menu", "home", "मेनू", "मुख्य मेनू", "होम")),
+    
+    // Token actions (kept for backwards compatibility)
+    CANCEL_TOKEN("btn_cancel_token", Set.of("btn_cancel_token", "cancel", "cancel token", "रद्द", "रद्द करें", "रद्द करा")),
+    SERVICES("btn_services", Set.of("btn_services", "services", "सेवाएं", "सेवा"));
 
     /** Words that mean "start over" in any supported language -- never valid as a patient's name. */
-    public static final Set<String> GREETING_WORDS = Set.of("hi", "hello", "hey", "नमस्ते", "नमस्कार", "हाय");
+    public static final Set<String> GREETING_WORDS = Set.of("hi", "hello", "hey", "नमस्ते", "नमस्कार", "हाय", "helo", "namaste");
 
     private final String buttonId;
     private final Set<String> keywords;

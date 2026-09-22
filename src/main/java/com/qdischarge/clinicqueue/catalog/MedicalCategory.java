@@ -97,8 +97,50 @@ public final class MedicalCategory {
         }
 
         String lower = trimmed.toLowerCase();
+
+        // Colloquial / symptom / vernacular matching for rural patients
+        if (matchesAny(lower, "fever", "cold", "cough", "bukhar", "khasi", "sardi", "taap", "khokla", "headache", "sar dard", "dokedukhi", "infection", "weakness", "kamjori", "bp", "sugar", "diabetes", "general", "opd", "medicine", "dawa", "bukhar")) {
+            return "General Medicine / Internal Medicine";
+        }
+        if (matchesAny(lower, "bone", "joint", "fracture", "haddi", "haad", "sandhe", "kamar dard", "back pain", "sprain", "ortho", "plaster", "leg pain", "haadache", "sandhi")) {
+            return "Orthopaedics";
+        }
+        if (matchesAny(lower, "women", "maternity", "pregnancy", "pregnant", "delivery", "mahila", "stree", "garbhvati", "periods", "gynae", "gynec", "baalpan")) {
+            return "Obstetrics & Gynaecology";
+        }
+        if (matchesAny(lower, "child", "baby", "infant", "bachha", "bal", "lhaan", "mul", "pediatric", "paediatric", "vaccine", "teeka", "lasikaran")) {
+            return "Paediatrics";
+        }
+        if (matchesAny(lower, "eye", "vision", "aankh", "dola", "netra", "chashma", "motiyabind", "cataract")) {
+            return "Ophthalmology";
+        }
+        if (matchesAny(lower, "tooth", "teeth", "dant", "daad", "dental", "dentist", "root canal")) {
+            return "Dentistry";
+        }
+        if (matchesAny(lower, "heart", "cardiac", "chest pain", "dil", "hriday", "chhati", "attack")) {
+            return "Cardiology";
+        }
+        if (matchesAny(lower, "stomach", "digestion", "pet dard", "acidity", "gas", "ulti", "vomiting", "pott", "liver", "gastro", "diarrhea", "dast", "julab")) {
+            return "Gastroenterology";
+        }
+        if (matchesAny(lower, "skin", "allergy", "rash", "khujli", "twacha", "chamdi", "pimple", "derma", "itch")) {
+            return "Dermatology";
+        }
+        if (matchesAny(lower, "ear", "nose", "throat", "kaan", "naak", "gala", "ent", "tonsil")) {
+            return "ENT (Otorhinolaryngology)";
+        }
+
         List<String> substringHits = ALL.stream().filter(c -> c.toLowerCase().contains(lower)).toList();
         return substringHits.size() == 1 ? substringHits.get(0) : null;
+    }
+
+    private static boolean matchesAny(String input, String... keywords) {
+        for (String kw : keywords) {
+            if (input.contains(kw)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** "1. General Medicine / Internal Medicine\n2. General Surgery\n..." -- the plain numbered picker sent over WhatsApp. */

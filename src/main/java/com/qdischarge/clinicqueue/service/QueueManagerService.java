@@ -70,6 +70,7 @@ public class QueueManagerService {
     private static final RowMapper<TokenHistoryDto> TOKEN_HISTORY_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenHistoryDto.class);
     /** Ordering expression: a requeued-to-front token's negative priority_rank sorts before every plain id. */
     private static final String QUEUE_ORDER = "COALESCE(priority_rank, id) ASC";
+    public static final String DEPT_ROW_PREFIX = "dept_";
     /** How many hospitals the WhatsApp booking flow shows per page ("5 options, then Show more"). */
     public static final int HOSPITAL_PAGE_SIZE = 20;
     /** R formula headstart: the first 3 genuinely-ahead tokens don't add wait time (see computeTreatmentRemainingMinutes). */
@@ -392,7 +393,7 @@ public class QueueManagerService {
     /** STEP 1: name captured -> next asks gender. */
     public TokenDto captureName(int tokenId, String name) {
         List<TokenDto> rows = jdbc.query(
-                "UPDATE tokens SET name = :name, session_step = 'awaiting_gender' WHERE id = :id RETURNING *",
+                "UPDATE tokens SET name = :name, session_step = 'awaiting_gender', prev_session_step = 'awaiting_name' WHERE id = :id RETURNING *",
                 Map.of("name", name, "id", tokenId), TOKEN_ROW_MAPPER);
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -400,7 +401,7 @@ public class QueueManagerService {
     /** STEP 2: gender captured -> next asks age. */
     public TokenDto captureGender(int tokenId, String gender) {
         List<TokenDto> rows = jdbc.query(
-                "UPDATE tokens SET gender = :gender, session_step = 'awaiting_age' WHERE id = :id RETURNING *",
+                "UPDATE tokens SET gender = :gender, session_step = 'awaiting_age', prev_session_step = 'awaiting_gender' WHERE id = :id RETURNING *",
                 Map.of("gender", gender, "id", tokenId), TOKEN_ROW_MAPPER);
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -408,8 +409,62 @@ public class QueueManagerService {
     /** STEP 3: age captured -> next asks category (department). Token is not queued yet -- that only happens on confirmBooking. */
     public TokenDto captureAge(int tokenId, int age) {
         List<TokenDto> rows = jdbc.query(
-                "UPDATE tokens SET age = :age, session_step = 'awaiting_category' WHERE id = :id RETURNING *",
+                "UPDATE tokens SET age = :age, session_step = 'awaiting_department_selection', prev_session_step = 'awaiting_age' WHERE id = :id RETURNING *",
                 Map.of("age", age, "id", tokenId), TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public TokenDto setSessionStepWithPrev(int tokenId, String step, String prevStep) {
+        List<TokenDto> rows = jdbc.query(
+                "UPDATE tokens SET session_step = :step, prev_session_step = :prev WHERE id = :id RETURNING *",
+                Map.of("step", step, "prev", prevStep != null ? prevStep : "", "id", tokenId), TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /**
+     * New department list flow: patient selects a dept_ list row.
+     * Stores category and advances to awaiting_location.
+     */
+    public TokenDto captureDepartment(int tokenId, String category) {
+        List<TokenDto> rows = jdbc.query(
+                "UPDATE tokens SET category = :category, session_step = 'awaiting_location', " +
+                "prev_session_step = 'awaiting_department_selection' WHERE id = :id RETURNING *",
+                Map.of("category", category, "id", tokenId), TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public String getPrevSessionStep(int tokenId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT prev_session_step FROM tokens WHERE id = :id", Map.of("id", tokenId));
+        if (rows.isEmpty()) return null;
+        Object val = rows.get(0).get("prev_session_step");
+        return val != null ? val.toString() : null;
+    }
+
+    public TokenDto goBackOneStep(int tokenId) {
+        String prev = getPrevSessionStep(tokenId);
+        if (prev == null || prev.isBlank()) return getRaw(tokenId);
+        // Swap current and prev
+        List<TokenDto> rows = jdbc.query(
+                "UPDATE tokens SET session_step = :prev, prev_session_step = NULL WHERE id = :id RETURNING *",
+                Map.of("prev", prev, "id", tokenId), TOKEN_ROW_MAPPER);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /**
+     * Returns or creates a lightweight draft token used as a session anchor 
+     * for non-appointment flows (health records member selection etc.).
+     * Unlike createRegisteringToken, this does NOT start a name-capture flow.
+     */
+    public TokenDto getOrCreateServiceDraftToken(String phone) {
+        TokenDto active = getActiveToken(phone);
+        if (active != null) return active;
+        String sql = """
+                INSERT INTO tokens (name, phone, status, session_step)
+                VALUES ('Patient', :phone, 'registering_name', 'service_draft')
+                RETURNING *
+                """;
+        List<TokenDto> rows = jdbc.query(sql, Map.of("phone", phone), TOKEN_ROW_MAPPER);
         return rows.isEmpty() ? null : rows.get(0);
     }
 

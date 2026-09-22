@@ -288,4 +288,93 @@ public class PatientDocumentService {
                 .createdAt(createdAt != null ? createdAt.toLocalDateTime() : null)
                 .build();
     }
+
+    /**
+     * Downloads a WhatsApp media file using its Meta media ID and saves it as a
+     * patient document in the health vault.
+     *
+     * @param phone      patient phone number (used to find family unit)
+     * @param memberId   family member ID to attach the document to
+     * @param mediaId    Meta WhatsApp media ID (from message payload)
+     * @param mediaType  "document" or "image" from the message type field
+     * @param label      patient-supplied document name/label
+     * @param accessToken Meta API access token for downloading
+     * @param apiVersion  Meta API version string (e.g. "v19.0")
+     * @return saved PatientDocumentDto or null on failure
+     */
+    public PatientDocumentDto saveFromWhatsAppMedia(
+            String phone, Integer memberId, String mediaId,
+            String mediaType, String label,
+            String accessToken, String apiVersion) {
+        try {
+            // Step 1: Get media URL from Meta API
+            org.springframework.web.client.RestTemplate rt = new org.springframework.web.client.RestTemplate();
+            String metaUrl = "https://graph.facebook.com/" + apiVersion + "/" + mediaId;
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setBearerAuth(accessToken);
+            org.springframework.http.ResponseEntity<Map> metaResp = rt.exchange(
+                    metaUrl, org.springframework.http.HttpMethod.GET,
+                    new org.springframework.http.HttpEntity<>(headers), Map.class);
+            if (metaResp.getBody() == null) return null;
+            String downloadUrl = (String) metaResp.getBody().get("url");
+            String mimeType = (String) metaResp.getBody().getOrDefault("mime_type", "application/octet-stream");
+            if (downloadUrl == null) return null;
+
+            // Step 2: Download the actual file bytes
+            org.springframework.http.HttpHeaders dlHeaders = new org.springframework.http.HttpHeaders();
+            dlHeaders.setBearerAuth(accessToken);
+            org.springframework.http.ResponseEntity<byte[]> dlResp = rt.exchange(
+                    downloadUrl, org.springframework.http.HttpMethod.GET,
+                    new org.springframework.http.HttpEntity<>(dlHeaders), byte[].class);
+            if (dlResp.getBody() == null) return null;
+            byte[] fileBytes = dlResp.getBody();
+
+            // Step 3: Determine file extension
+            String ext = ".bin";
+            if (mimeType.contains("pdf")) ext = ".pdf";
+            else if (mimeType.contains("jpeg") || mimeType.contains("jpg")) ext = ".jpg";
+            else if (mimeType.contains("png")) ext = ".png";
+
+            String safeLabel = label != null && !label.isBlank() ? label : "WhatsApp Document";
+            String fileName = safeLabel.replaceAll("[^a-zA-Z0-9\\\\-_ ]", "_") + ext;
+
+            // Step 4: Lookup member details to map correctly
+            String pName = safeLabel;
+            Integer pAge = null;
+            if (memberId != null) {
+                List<Map<String, Object>> mems = jdbc.queryForList(
+                        "SELECT name, age FROM family_members WHERE id = :id", Map.of("id", memberId));
+                if (!mems.isEmpty()) {
+                    pName = (String) mems.get(0).get("name");
+                    Object ageObj = mems.get(0).get("age");
+                    if (ageObj instanceof Integer) pAge = (Integer) ageObj;
+                }
+            }
+
+            // Save directly to DB as file_data since we don't have a MultipartFile
+            Map<String, Object> params = new HashMap<>();
+            params.put("phone", phone);
+            params.put("name", pName);
+            params.put("age", pAge);
+            params.put("docType", "report"); // default to report for WA media
+            params.put("fileName", fileName);
+            params.put("contentType", mimeType);
+            params.put("fileSize", fileBytes.length);
+            params.put("fileData", fileBytes);
+
+            Integer id = jdbc.queryForObject(
+                    """
+                    INSERT INTO patient_documents (patient_phone, patient_name, patient_age, doc_type,
+                                                  file_name, content_type, file_size, file_data)
+                    VALUES (:phone, :name, :age, :docType, :fileName, :contentType, :fileSize, :fileData)
+                    RETURNING id
+                    """, params, Integer.class);
+
+            log.info("WhatsApp media document saved: {} for member {}", safeLabel, memberId);
+            return getMetadata(id);
+        } catch (Exception e) {
+            log.error("Failed to save WhatsApp media document: {}", e.getMessage());
+            return null;
+        }
+    }
 }

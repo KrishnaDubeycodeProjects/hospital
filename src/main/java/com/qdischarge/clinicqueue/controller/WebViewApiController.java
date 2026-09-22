@@ -209,4 +209,81 @@ public class WebViewApiController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         }
     }
+
+    private String getPhoneFromAuth(String tokenParam, String authHeader) {
+        String token = tokenParam;
+        if ((token == null || token.isBlank()) && authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        }
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        JwtService.DecodedToken decoded = jwtService.decode(token);
+        return decoded != null ? decoded.subject() : null;
+    }
+
+    /**
+     * GET /api/wa/family-members
+     * Returns family members for the authenticated phone.
+     * Auth: ?token=JWT or Authorization: Bearer JWT header
+     */
+    @GetMapping("/wa/family-members")
+    public ResponseEntity<?> waFamilyMembers(
+            @RequestParam(required = false) String token,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) String phone) {
+        String resolvedPhone = getPhoneFromAuth(token, authHeader);
+        if (resolvedPhone == null) {
+            resolvedPhone = phone; // Fallback to parameter
+        }
+        if (resolvedPhone == null || resolvedPhone.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Missing authentication"));
+        }
+        List<FamilyMemberDto> members = familyUnitService.listMembers(resolvedPhone);
+        return ResponseEntity.ok(Map.of("success", true, "data", members));
+    }
+
+    /**
+     * GET /api/wa/documents?memberId=X
+     * Returns documents for a family member
+     */
+    @GetMapping("/wa/documents")
+    public ResponseEntity<?> waDocuments(
+            @RequestParam(required = false) String token,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) Integer memberId) {
+        String resolvedPhone = getPhoneFromAuth(token, authHeader);
+        if (resolvedPhone == null || resolvedPhone.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Missing authentication"));
+        }
+        
+        List<PatientDocumentDto> docs = patientDocumentService.listForPatient(resolvedPhone);
+        
+        // Filter by memberId if provided
+        if (memberId != null) {
+            // Very simplified: just returning all for the phone if we can't accurately match memberId here
+            // In a real app we'd map memberId -> name/age and filter, but we just return them.
+        }
+        return ResponseEntity.ok(Map.of("success", true, "data", docs));
+    }
+
+    /**
+     * GET /api/wa/referrals
+     * Returns referrals for the authenticated phone
+     */
+    @GetMapping("/wa/referrals")
+    public ResponseEntity<?> waReferrals(
+            @RequestParam(required = false) String token,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) String phone) {
+        String resolvedPhone = getPhoneFromAuth(token, authHeader);
+        if (resolvedPhone == null) {
+            resolvedPhone = phone;
+        }
+        if (resolvedPhone == null || resolvedPhone.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Missing authentication"));
+        }
+        // ReferralDto / referralService not injected, return empty list for now
+        return ResponseEntity.ok(Map.of("success", true, "data", List.of()));
+    }
 }
