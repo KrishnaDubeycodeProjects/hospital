@@ -13,13 +13,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app")
 public class AppProperties {
 
-    private String frontendUrl;
+    private String frontendUrl = "https://hospital-ten-blond.vercel.app";
     private String clinicName;
     private int tokenExpiryHours;
     private int avgServiceMinutes;
 
     public String getFrontendUrl() {
-        if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost")) {
+        if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost") && !frontendUrl.contains("ngrok")) {
             return frontendUrl.replaceAll("/+$", "");
         }
         return "https://hospital-ten-blond.vercel.app";

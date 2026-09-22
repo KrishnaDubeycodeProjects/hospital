@@ -100,7 +100,9 @@ public class WebhookController {
                 }
             }
         }
-        return sb.toString();
+        String finalUrl = sb.toString();
+        log.info("🌐 Built Webview URL: {}", finalUrl);
+        return finalUrl;
     }
 
     // -------------------------------------------------------------
@@ -311,6 +313,68 @@ public class WebhookController {
                     queueManagerService.setSelectedTravelMinutes(activeToken.getId(), mins);
                     TokenDto booked = queueManagerService.confirmBooking(activeToken.getId());
                     sendTokenDashboardCard(fromPhone, booked, lang);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+            }
+
+            if (incomingMessage.startsWith("#SERVICE:")) {
+                String srv = incomingMessage.substring(9).trim().toLowerCase();
+                if ("book".equals(srv)) {
+                    if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                        List<com.qdischarge.clinicqueue.dto.FamilyMemberDto> members = familyUnitService.listMembersByCleanPhone(fromPhone);
+                        if (members != null && members.size() > 1) {
+                            queueManagerService.createFamilyRegisteringToken(fromPhone);
+                            String familyUrl = buildAuthWebviewUrl("/wa/family.html", fromPhone, Map.of("action", "select"));
+                            whatsAppService.sendUrlButtonMessage(fromPhone, "👨‍👩‍👧 Select Family Member",
+                                    "Who needs the appointment today? Tap below to choose a family member:",
+                                    "👥 Choose Member", familyUrl, appProperties.getClinicName());
+                            return ResponseEntity.ok("EVENT_RECEIVED");
+                        } else if (members != null && members.size() == 1) {
+                            TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
+                            com.qdischarge.clinicqueue.dto.FamilyMemberDto head = members.get(0);
+                            queueManagerService.selectFamilyMember(draft.getId(), head.getId(), head.getName(), head.getAge(), head.getGender());
+                            String deptUrl = buildAuthWebviewUrl("/wa/departments.html", fromPhone, Map.of("lang", lang.name().toLowerCase()));
+                            whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Department",
+                                    "Appointment for *" + head.getName() + "*. Please select the medical department:",
+                                    "🩺 Select Dept", deptUrl, appProperties.getClinicName());
+                            return ResponseEntity.ok("EVENT_RECEIVED");
+                        }
+                        TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
+                        String deptUrl = buildAuthWebviewUrl("/wa/departments.html", fromPhone, Map.of("lang", lang.name().toLowerCase()));
+                        whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Department",
+                                "Please select the clinical department for your visit:",
+                                "🩺 Select Dept", deptUrl, appProperties.getClinicName());
+                    } else {
+                        whatsAppService.sendWhatsAppMessage(fromPhone,
+                                botMessages.alreadyActiveToken(lang, activeToken.displayNumber(), activeToken.getStatus()));
+                        sendTokenDashboardCard(fromPhone, activeToken, lang);
+                    }
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else if ("track".equals(srv)) {
+                    if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                        String liveUrl = buildAuthWebviewUrl("/wa/track.html", fromPhone, Map.of("key", fromPhone.replaceAll("[^0-9]", "")));
+                        whatsAppService.sendUrlButtonMessage(fromPhone, "📊 Live Queue Tracker",
+                                "You do not have an active OPD token right now. You can view the live queue tracker below or book a new token:",
+                                "📊 View Tracker", liveUrl, appProperties.getClinicName());
+                    } else {
+                        sendStatusCard(fromPhone, activeToken, lang);
+                    }
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else if ("records".equals(srv)) {
+                    String docUrl = buildAuthWebviewUrl("/wa/documents.html", fromPhone, Map.of());
+                    String refUrl = buildAuthWebviewUrl("/wa/referrals.html", fromPhone, Map.of());
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "💊 Medical Vault & Referrals",
+                            "View and upload doctor prescriptions, lab test reports, and referral passes:\n\n📋 *Referrals:* " + refUrl,
+                            "💊 Open Vault", docUrl, appProperties.getClinicName());
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else if ("hospitals".equals(srv)) {
+                    sendLocationPrompt(fromPhone, lang, "General OPD");
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else if ("family".equals(srv)) {
+                    String famUrl = buildAuthWebviewUrl("/wa/family.html", fromPhone, Map.of("action", "manage"));
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "👨‍👩‍👧 Family Unit",
+                            "Manage your linked family members, view age/gender, and link ABHA health ID cards:",
+                            "👨‍👩‍👧 Open Family", famUrl, appProperties.getClinicName());
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
             }
@@ -678,9 +742,13 @@ public class WebhookController {
     private void sendServicesMenu(String phone, Lang lang) {
         String title = botMessages.welcomeTitle(lang, appProperties.getClinicName());
         String description = botMessages.welcomeDescription(lang);
-        whatsAppService.sendListMessage(phone, title, description,
-                botMessages.servicesListSections(lang),
-                appProperties.getClinicName(), "📋 Choose Service");
+        String servicesUrl = buildAuthWebviewUrl("/wa/services.html", phone, Map.of("lang", lang.name().toLowerCase()));
+
+        whatsAppService.sendUrlButtonMessage(phone, title,
+                description + "\n\n✨ Tap below to open our interactive service portal with hospital search, token booking, live tracker, and records:",
+                "✨ Choose Service",
+                servicesUrl,
+                appProperties.getClinicName());
     }
 
     private void sendGenderPrompt(String phone, Lang lang) {

@@ -41,7 +41,7 @@ public class WebViewApiController {
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getConfig() {
         Map<String, Object> config = new LinkedHashMap<>();
-        config.put("botPhoneNumber", appProperties.getBotPhoneNumber() != null ? appProperties.getBotPhoneNumber() : "918850934544");
+        config.put("botPhoneNumber", appProperties.getBotPhoneNumber() != null ? appProperties.getBotPhoneNumber() : "919120123877");
         config.put("frontendUrl", appProperties.getFrontendUrl());
         config.put("clinicName", appProperties.getClinicName() != null ? appProperties.getClinicName() : "Ayushman Smart Clinic");
         return ResponseEntity.ok(config);
