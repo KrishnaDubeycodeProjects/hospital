@@ -1,8 +1,10 @@
 package com.qdischarge.clinicqueue.service;
 
 import com.qdischarge.clinicqueue.dto.*;
+import com.qdischarge.clinicqueue.event.PatientRecordCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class CourseService {
     private final NamedParameterJdbcTemplate jdbc;
     private final DocumentStorageService documentStorageService;
     private final EkaCareAbdmService ekaCareAbdmService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final RowMapper<CourseDto> COURSE_MAPPER = (rs, rowNum) -> {
         Timestamp ca = rs.getTimestamp("created_at");
@@ -109,6 +112,7 @@ public class CourseService {
     }
 
     public List<CourseDto> listCoursesForPatient(String phone) {
+        List<String> phones = getPhoneVariants(phone);
         return jdbc.query(
                 """
                 SELECT c.*, d.name AS started_by_doctor_name, h.name AS started_at_hospital_name,
@@ -118,10 +122,10 @@ public class CourseService {
                 FROM courses c
                 LEFT JOIN doctors d ON c.started_by_doctor_id = d.id
                 LEFT JOIN hospitals h ON c.started_at_hospital_id = h.id
-                WHERE c.patient_phone = :phone
+                WHERE c.patient_phone IN (:phones)
                 ORDER BY c.status = 'active' DESC, c.updated_at DESC
                 """,
-                Map.of("phone", phone.trim()),
+                Map.of("phones", phones),
                 (rs, rowNum) -> {
                     CourseDto dto = COURSE_MAPPER.mapRow(rs, rowNum);
                     if (dto != null) {
@@ -170,10 +174,32 @@ public class CourseService {
         // ABDM Milestone 2: Asynchronously link consultation encounter as ABDM care context
         tryLinkAbdmCareContext(req.courseId(), encId, req.chiefComplaint());
 
+        // Publish dual-write sync event for Eka Care ABDM
+        if (eventPublisher != null) {
+            Map<String, Object> patientInfo = getCoursePatientInfo(req.courseId());
+            String abha = (String) patientInfo.get("abha_address");
+            if (abha == null || abha.isBlank()) {
+                abha = (String) patientInfo.get("abha_number");
+            }
+            String phone = (String) patientInfo.get("patient_phone");
+            String name = (String) patientInfo.get("patient_name");
+
+            eventPublisher.publishEvent(PatientRecordCreatedEvent.builder()
+                    .recordType(PatientRecordCreatedEvent.RecordType.ENCOUNTER)
+                    .recordId((long) encId)
+                    .courseId(req.courseId())
+                    .encounterId(encId)
+                    .patientPhone(phone)
+                    .patientName(name)
+                    .abhaIdentifier(abha)
+                    .idempotencyKey("ENC-" + encId)
+                    .build());
+        }
+
         return getEncounterById(encId);
     }
 
-    private void tryLinkAbdmCareContext(int courseId, int encounterId, String chiefComplaint) {
+    private Map<String, Object> getCoursePatientInfo(int courseId) {
         try {
             List<Map<String, Object>> rows = jdbc.queryForList(
                     """
@@ -184,7 +210,46 @@ public class CourseService {
                     """,
                     Map.of("courseId", courseId));
             if (!rows.isEmpty()) {
-                Map<String, Object> r = rows.get(0);
+                Map<String, Object> info = new HashMap<>(rows.get(0));
+                String abha = (String) info.get("abha_address");
+                if (abha == null || abha.isBlank()) {
+                    abha = (String) info.get("abha_number");
+                }
+                // Fallback to family parent/head ABHA if member has none
+                if ((abha == null || abha.isBlank()) && info.get("patient_phone") != null) {
+                    String ptPhone = (String) info.get("patient_phone");
+                    List<String> pPhones = getPhoneVariants(ptPhone);
+                    List<Map<String, Object>> parentRows = jdbc.queryForList(
+                            """
+                            SELECT m.abha_address, m.abha_number FROM family_members m
+                            JOIN family_units u ON m.family_unit_id = u.id
+                            WHERE u.primary_phone IN (:phones)
+                              AND (m.is_abha_linked = TRUE OR m.abha_address IS NOT NULL OR m.abha_number IS NOT NULL)
+                            ORDER BY 
+                              CASE WHEN LOWER(m.relationship) IN ('self', 'head', 'myself') THEN 0
+                                   WHEN LOWER(m.relationship) IN ('father', 'mother', 'parent') THEN 1
+                                   ELSE 2 END,
+                              m.id ASC
+                            LIMIT 1
+                            """,
+                            Map.of("phones", pPhones));
+                    if (!parentRows.isEmpty()) {
+                        info.put("abha_address", parentRows.get(0).get("abha_address"));
+                        info.put("abha_number", parentRows.get(0).get("abha_number"));
+                    }
+                }
+                return info;
+            }
+        } catch (Exception e) {
+            log.warn("ABDM patient info lookup non-blocking fallback: {}", e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
+
+    private void tryLinkAbdmCareContext(int courseId, int encounterId, String chiefComplaint) {
+        try {
+            Map<String, Object> r = getCoursePatientInfo(courseId);
+            if (!r.isEmpty()) {
                 String abha = (String) r.get("abha_address");
                 if (abha == null || abha.isBlank()) {
                     abha = (String) r.get("abha_number");
@@ -231,7 +296,30 @@ public class CourseService {
                 """,
                 params, Integer.class);
 
-        return getPrescriptionById(id);
+        CoursePrescriptionDto dto = getPrescriptionById(id);
+
+        if (eventPublisher != null) {
+            Map<String, Object> patientInfo = getCoursePatientInfo(courseId);
+            String abha = (String) patientInfo.get("abha_address");
+            if (abha == null || abha.isBlank()) {
+                abha = (String) patientInfo.get("abha_number");
+            }
+            String phone = (String) patientInfo.get("patient_phone");
+            String name = (String) patientInfo.get("patient_name");
+
+            eventPublisher.publishEvent(PatientRecordCreatedEvent.builder()
+                    .recordType(PatientRecordCreatedEvent.RecordType.PRESCRIPTION)
+                    .recordId((long) id)
+                    .courseId(courseId)
+                    .encounterId(encounterId)
+                    .patientPhone(phone)
+                    .patientName(name)
+                    .abhaIdentifier(abha)
+                    .idempotencyKey("RX-" + id)
+                    .build());
+        }
+
+        return dto;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -262,7 +350,38 @@ public class CourseService {
                 """,
                 params, Integer.class);
 
-        return getDocumentMetadata(id);
+        CourseDocumentDto doc = getDocumentMetadata(id);
+
+        if (eventPublisher != null) {
+            try {
+                Map<String, Object> patientInfo = getCoursePatientInfo(courseId);
+                String abha = (String) patientInfo.get("abha_address");
+                if (abha == null || abha.isBlank()) {
+                    abha = (String) patientInfo.get("abha_number");
+                }
+                String phone = (String) patientInfo.get("patient_phone");
+                String name = (String) patientInfo.get("patient_name");
+
+                eventPublisher.publishEvent(PatientRecordCreatedEvent.builder()
+                        .recordType(PatientRecordCreatedEvent.RecordType.COURSE_DOCUMENT)
+                        .recordId((long) id)
+                        .courseId(courseId)
+                        .encounterId(encounterId)
+                        .patientPhone(phone)
+                        .patientName(name)
+                        .abhaIdentifier(abha)
+                        .fileBytes(file.getBytes())
+                        .fileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : stored.fileName())
+                        .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
+                        .docType(docType != null ? docType.trim() : "Other")
+                        .idempotencyKey("DOC-" + id)
+                        .build());
+            } catch (Exception e) {
+                log.warn("Failed to publish PatientRecordCreatedEvent for course document #{}: {}", id, e.getMessage());
+            }
+        }
+
+        return doc;
     }
 
     public CourseTimelineDto getCourseTimeline(int courseId) {
@@ -520,5 +639,15 @@ public class CourseService {
                 .notes(rs.getString("notes"))
                 .createdAt(ca != null ? ca.toLocalDateTime() : null)
                 .build();
+    }
+
+    private static List<String> getPhoneVariants(String phone) {
+        if (phone == null || phone.isBlank()) return List.of();
+        String p = phone.trim();
+        String digits = p.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) {
+            digits = digits.substring(digits.length() - 10);
+        }
+        return List.of(p, digits, "+91" + digits, "91" + digits);
     }
 }

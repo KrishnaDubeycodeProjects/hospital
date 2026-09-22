@@ -30,6 +30,7 @@ class FamilyBookingBotFlowTest {
     private BotMessages botMessages;
     private AccessService accessService;
     private FamilyUnitService familyUnitService;
+    private com.qdischarge.clinicqueue.security.JwtService jwtService;
     private WebhookController webhookController;
     private ObjectMapper objectMapper;
 
@@ -41,10 +42,13 @@ class FamilyBookingBotFlowTest {
         whatsAppService = mock(WhatsAppService.class);
         appProperties = new AppProperties();
         appProperties.setClinicName("Arogya Clinic");
+        appProperties.setFrontendUrl("http://localhost:8080");
         waSessionService = mock(WaSessionService.class);
         botMessages = new BotMessages();
         accessService = mock(AccessService.class);
         familyUnitService = mock(FamilyUnitService.class);
+        jwtService = mock(com.qdischarge.clinicqueue.security.JwtService.class);
+        when(jwtService.generatePatientToken(anyString())).thenReturn("mock-jwt-token");
         objectMapper = new ObjectMapper();
 
         webhookController = new WebhookController(
@@ -56,19 +60,27 @@ class FamilyBookingBotFlowTest {
                 waSessionService,
                 botMessages,
                 accessService,
-                familyUnitService
+                familyUnitService,
+                jwtService
         );
     }
 
-    private ObjectNode createMessagePayload(String phone, String text) {
+    private ObjectNode createMetaMessagePayload(String phone, String text) {
+        String cleanPhone = phone.replace("+", "");
         ObjectNode root = objectMapper.createObjectNode();
-        ObjectNode data = root.putObject("data");
-        ObjectNode key = data.putObject("key");
-        key.put("remoteJid", phone + "@s.whatsapp.net");
-        key.put("fromMe", false);
-        data.put("pushName", "Ramesh");
-        ObjectNode message = data.putObject("message");
-        message.put("conversation", text);
+        root.put("object", "whatsapp_business_account");
+        var entryArr = root.putArray("entry");
+        var entry = entryArr.addObject();
+        var changesArr = entry.putArray("changes");
+        var change = changesArr.addObject();
+        var value = change.putObject("value");
+        var contacts = value.putArray("contacts");
+        contacts.addObject().putObject("profile").put("name", "Ramesh");
+        var messages = value.putArray("messages");
+        var msg = messages.addObject();
+        msg.put("from", cleanPhone);
+        msg.put("type", "text");
+        msg.putObject("text").put("body", text);
         return root;
     }
 
@@ -85,26 +97,22 @@ class FamilyBookingBotFlowTest {
                 FamilyMemberDto.builder().id(2).name("Sunita Kumar").relationship("Spouse").age(38).gender("female").build()
         );
         when(familyUnitService.listMembers(phone)).thenReturn(members);
+        when(familyUnitService.getMemberById(2)).thenReturn(members.get(1));
 
         TokenDto familyDraft = TokenDto.builder().id(50).sessionStep("awaiting_family_selection").build();
         when(queueManagerService.createFamilyRegisteringToken(phone)).thenReturn(familyDraft);
 
         // Step 1: User sends "book"
-        ResponseEntity<String> r1 = webhookController.receive(createMessagePayload(phone, "book"));
+        ResponseEntity<String> r1 = webhookController.receive(createMetaMessagePayload(phone, "book"));
         assertEquals(200, r1.getStatusCode().value());
 
-        // Verify family selection prompt was sent containing both members
-        ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
-        verify(whatsAppService).sendWhatsAppMessage(eq(phone), msgCaptor.capture());
-        String prompt = msgCaptor.getValue();
-        assertTrue(prompt.contains("Ramesh Kumar"));
-        assertTrue(prompt.contains("Sunita Kumar"));
-        assertTrue(prompt.contains("Add Family Member"));
+        // Verify family selection CTA URL button was sent
+        verify(whatsAppService).sendUrlButtonMessage(eq(phone), anyString(), anyString(), anyString(), anyString(), anyString());
 
-        // Step 2: User replies "2" to choose Sunita Kumar
+        // Step 2: User returns via #MEMBER:2 from WebView
         when(queueManagerService.getActiveToken(phone)).thenReturn(familyDraft);
 
-        ResponseEntity<String> r2 = webhookController.receive(createMessagePayload(phone, "2"));
+        ResponseEntity<String> r2 = webhookController.receive(createMetaMessagePayload(phone, "#MEMBER:2"));
         assertEquals(200, r2.getStatusCode().value());
 
         // Verify Sunita Kumar was selected with memberId = 2

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { patientApi } from '../../api/client';
 import QrScanner from '../../components/QrScanner';
-import { Button, Card, Field, Input, Modal, Spinner, Table, fmtDateTime } from '../../components/ui';
+import { Button, EmptyState, Field, Input, Modal, Spinner, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
 export default function PatientAccess() {
@@ -62,129 +62,245 @@ export default function PatientAccess() {
   }
 
   return (
-    <div className="stack-lg">
-      <div className="card-head">
-        <div>
-          <h1>Doctor Access & Privacy Control</h1>
-          <p className="muted-text">
-            Scan your doctor's QR code or enter their access code to grant temporary permission to view your medical reports.
-          </p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Title */}
+      <div>
+        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', margin: '0 0 4px 0' }}>
+          Doctor Access & Privacy
+        </h2>
+        <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
+          Grant temporary permission for your consulting doctor to review your medical documents.
+        </p>
       </div>
 
-      <div className="landing-grid-layout">
-        <Card
-          title="Grant Access to a Doctor"
-          extra={
-            <Button size="sm" variant="secondary" onClick={() => setScanOpen(true)}>
-              📷 Scan Doctor QR
-            </Button>
-          }
-        >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              accept(code);
-            }}
-            className="stack-md"
-          >
-            <p className="muted-text">
-              Enter the 8-character access code displayed on your doctor's screen, or click above to open your camera scanner.
-            </p>
-            <Field label="8-Character Doctor Access Code">
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="e.g. AB12CD34"
-                required
-                style={{ fontSize: '18px', letterSpacing: '0.1em', fontWeight: 'bold' }}
-              />
-            </Field>
-            <Button type="submit" loading={claiming} className="full-width">
-              Grant Doctor Medical Record Access
-            </Button>
-          </form>
-        </Card>
-
-        <Card title="Your Data Security & Controls">
-          <div className="stack-md">
-            <div className="callout callout-ok">
-              🛡️ <strong>Instant Control:</strong> You can revoke a doctor's access anytime with one tap. Access is also notified to your WhatsApp immediately upon granting.
-            </div>
-
-            <div className="stack-sm">
-              <div className="muted-text"><strong>What a doctor can see:</strong></div>
-              <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-muted)', fontSize: '14px' }}>
-                <li>Your uploaded Rx prescriptions & diagnostic lab reports</li>
-                <li>Your name and age associated with medical documents</li>
-                <li>Document upload dates and medical categories</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Card
-        title="Doctors with Active Access"
-        extra={
-          active && (
-            <span className="badge badge-blue">
-              {active.length} Active Grants
-            </span>
-          )
-        }
+      {/* Grant Access Card */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1.5px solid #004D40',
+          borderRadius: '16px',
+          padding: '16px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        }}
       >
-        {active ? (
-          <Table
-            columns={[
-              { key: 'doctorName', header: 'Doctor Name', render: (r) => <strong>Dr. {r.doctorName}</strong> },
-              { key: 'hospitalName', header: 'Hospital / Clinic', render: (r) => r.hospitalName || 'General Hospital' },
-              { key: 'grantedAt', header: 'Access Granted On', render: (r) => fmtDateTime(r.grantedAt) },
-              {
-                key: 'actions',
-                header: 'Action',
-                render: (r) => (
-                  <Button size="sm" variant="danger" onClick={() => revoke(r.id, r.doctorName)}>
-                    🚫 Revoke Access
-                  </Button>
-                ),
-              },
-            ]}
-            rows={active}
-            emptyText="No doctor currently has active access to your records."
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <span style={{ fontSize: '15px', fontWeight: '800', color: '#004D40' }}>
+            🔑 Grant Doctor Access
+          </span>
+          <button
+            type="button"
+            onClick={() => setScanOpen(true)}
+            style={{
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              color: '#166534',
+              borderRadius: '10px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            📷 Scan QR
+          </button>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            accept(code);
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+        >
+          <Field label="Enter 8-Character Doctor Code">
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. AB12CD34"
+              required
+              style={{
+                fontSize: '18px',
+                letterSpacing: '0.15em',
+                fontWeight: '800',
+                textAlign: 'center',
+                textTransform: 'uppercase',
+                borderRadius: '12px',
+                padding: '12px',
+              }}
+            />
+          </Field>
+
+          <button
+            type="submit"
+            disabled={claiming}
+            style={{
+              backgroundColor: '#004D40',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '13px',
+              fontSize: '14px',
+              fontWeight: '700',
+              cursor: claiming ? 'not-allowed' : 'pointer',
+              opacity: claiming ? 0.7 : 1,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {claiming ? 'Verifying...' : 'Grant Record Access to Doctor'}
+          </button>
+        </form>
+      </div>
+
+      {/* Active Grants Section */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>
+            Doctors with Active Access
+          </span>
+          {active && (
+            <span className="badge badge-green">
+              {active.length} Active
+            </span>
+          )}
+        </div>
+
+        {active === null ? (
+          <Spinner label="Loading access permissions..." />
+        ) : active.length === 0 ? (
+          <EmptyState
+            title="No Active Doctor Access"
+            hint="When you share an access code or scan a doctor's QR, their active permission card will appear here."
           />
         ) : (
-          <Spinner label="Loading active access grants..." />
-        )}
-      </Card>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {active.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '20px' }}>🩺</span>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                        Dr. {r.doctorName}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748B' }}>
+                        🏥 {r.hospitalName || 'General OPD Clinic'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="badge badge-green">Active</span>
+                </div>
 
+                <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                  Granted on: {fmtDateTime(r.grantedAt)}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => revoke(r.id, r.doctorName)}
+                  style={{
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #FECACA',
+                    color: '#DC2626',
+                    borderRadius: '10px',
+                    padding: '9px 14px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  🚫 Revoke Doctor Access
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Security & Privacy Banner */}
+      <div
+        style={{
+          backgroundColor: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          borderRadius: '16px',
+          padding: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+        }}
+      >
+        <div style={{ fontSize: '13px', fontWeight: '800', color: '#166534' }}>
+          🛡️ ABDM Privacy Guarantee
+        </div>
+        <p style={{ fontSize: '12px', color: '#15803D', margin: 0, lineHeight: 1.4 }}>
+          Access is limited only to your uploaded prescriptions and diagnostic reports. You retain 100% control and can revoke access anytime with one tap.
+        </p>
+      </div>
+
+      {/* History (if any) */}
       {history && history.length > 0 && (
-        <Card title="Access Grant History">
-          <Table
-            columns={[
-              { key: 'doctorName', header: 'Doctor Name', render: (r) => `Dr. ${r.doctorName}` },
-              { key: 'hospitalName', header: 'Hospital', render: (r) => r.hospitalName || '-' },
-              { key: 'grantedAt', header: 'Granted At', render: (r) => fmtDateTime(r.grantedAt) },
-              {
-                key: 'status',
-                header: 'Status',
-                render: (r) =>
-                  r.revokedAt ? (
-                    <span className="badge badge-amber">Revoked on {fmtDateTime(r.revokedAt)}</span>
-                  ) : (
-                    <span className="badge badge-green">Active</span>
-                  ),
-              },
-            ]}
-            rows={history}
-          />
-        </Card>
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748B', marginBottom: '8px', textTransform: 'uppercase' }}>
+            Past Access Grants ({history.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {history.map((h) => (
+              <div
+                key={h.id}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#334155' }}>
+                    Dr. {h.doctorName}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                    {fmtDateTime(h.grantedAt)}
+                  </div>
+                </div>
+                {h.revokedAt ? (
+                  <span className="badge badge-gray">Revoked</span>
+                ) : (
+                  <span className="badge badge-green">Active</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      <Modal open={scanOpen} title="Scan Doctor Access QR Code" onClose={() => setScanOpen(false)}>
-        <div className="stack-md">
-          <p className="muted-text">Position your camera over the doctor's QR code to scan automatically.</p>
-          {scanOpen && (
+      {/* Camera QR Scanner Modal */}
+      {scanOpen && (
+        <Modal title="Scan Doctor QR Code" onClose={() => setScanOpen(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
+              Point camera at the QR code displayed on your doctor's desk or screen.
+            </p>
             <QrScanner
               onResult={(scannedText) => {
                 if (scannedText) {
@@ -192,12 +308,12 @@ export default function PatientAccess() {
                 }
               }}
             />
-          )}
-          <Button variant="ghost" onClick={() => setScanOpen(false)} className="full-width">
-            Cancel
-          </Button>
-        </div>
-      </Modal>
+            <Button variant="ghost" onClick={() => setScanOpen(false)} style={{ width: '100%' }}>
+              Cancel
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

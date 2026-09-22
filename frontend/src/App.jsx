@@ -21,11 +21,8 @@ import AdminHospitals from './pages/admin/AdminHospitals';
 import PatientQueue from './pages/patient/PatientQueue';
 import PatientFamily from './pages/patient/PatientFamily';
 import PatientRecordsHub from './pages/patient/PatientRecordsHub';
-import PatientCourses from './pages/patient/PatientCourses';
-import PatientReferrals from './pages/patient/PatientReferrals';
-import PatientHistory from './pages/patient/PatientHistory';
-import PatientDocuments from './pages/patient/PatientDocuments';
 import PatientAccess from './pages/patient/PatientAccess';
+import HealthRecordsScreen from './pages/patient/HealthRecordsScreen';
 
 import DoctorProfile from './pages/doctor/DoctorProfile';
 import DoctorConsultation from './pages/doctor/DoctorConsultation';
@@ -48,6 +45,8 @@ export default function App() {
             <Route path="/track/:phone" element={<Track />} />
             <Route path="/token/:id" element={<TokenDetail />} />
             <Route path="/login/:role" element={<Login />} />
+            <Route path="/records-select" element={<HealthRecordsScreen />} />
+            <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
 
             <Route path="/admin" element={<RoleShell role="admin" />}>
               <Route index element={<AdminQueue />} />
@@ -61,10 +60,10 @@ export default function App() {
               <Route index element={<PatientQueue />} />
               <Route path="family" element={<PatientFamily />} />
               <Route path="records" element={<PatientRecordsHub />} />
-              <Route path="courses" element={<PatientCourses />} />
-              <Route path="referrals" element={<PatientReferrals />} />
-              <Route path="history" element={<PatientHistory />} />
-              <Route path="documents" element={<PatientDocuments />} />
+              <Route path="courses" element={<Navigate to="/patient/records?tab=courses" replace />} />
+              <Route path="referrals" element={<Navigate to="/patient/records?tab=referrals" replace />} />
+              <Route path="history" element={<Navigate to="/patient/records?tab=history" replace />} />
+              <Route path="documents" element={<Navigate to="/patient/records?tab=documents" replace />} />
               <Route path="access" element={<PatientAccess />} />
             </Route>
 

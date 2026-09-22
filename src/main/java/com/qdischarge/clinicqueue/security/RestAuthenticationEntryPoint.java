@@ -27,7 +27,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", false);
-        body.put("message", "Unauthorized. Admin token is missing or invalid.");
+        body.put("message", "Unauthorized. Authentication token is missing or invalid.");
         objectMapper.writeValue(response.getWriter(), body);
     }
 }

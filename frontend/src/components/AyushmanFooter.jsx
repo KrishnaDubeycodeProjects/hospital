@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function AyushmanFooter({ className = '', style = {}, brandFirst = false }) {
+export default function AyushmanFooter({ className = '', style = {}, brandFirst = false, variant = 'default' }) {
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -12,55 +12,92 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '5px',
-          padding: '10px 16px 14px',
+          gap: '4px',
+          padding: '8px 16px 12px',
           userSelect: 'none',
           ...style,
         }}
       >
         {/* Line 1: Leaf + Brand | A rural health initiative */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            fontSize: '12px',
-            color: '#6b7280',
-          }}
-        >
-          {/* Green Leaf Icon */}
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="#16a34a"
-            style={{ flexShrink: 0 }}
+        {variant === 'stacked' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                fontSize: '12px',
+                color: '#4b5563',
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="#16a34a"
+                style={{ flexShrink: 0 }}
+              >
+                <path d="M17 3c-4.5.5-8 4-8.5 8.5C8 10 6.5 8 3 8c0 5.5 3.5 10 9 10 0 2-1 3-2 3h4c0-2 1-4 3-6 4-4 4.5-9.5 0-12z" />
+              </svg>
+              <span>
+                <strong
+                  style={{ color: '#043c2c', fontWeight: '700', cursor: 'pointer' }}
+                  onClick={() => setShowModal(true)}
+                >
+                  Aarogya Flow
+                </strong>
+                <span style={{ color: '#d1d5db', marginLeft: '5px' }}>|</span>
+              </span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#6b7280', paddingLeft: '8px' }}>
+              A rural health initiative
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              color: '#6b7280',
+            }}
           >
-            <path d="M17 3c-4.5.5-8 4-8.5 8.5C8 10 6.5 8 3 8c0 5.5 3.5 10 9 10 0 2-1 3-2 3h4c0-2 1-4 3-6 4-4 4.5-9.5 0-12z" />
-          </svg>
-          {brandFirst ? (
-            <span>
-              <strong
-                style={{ color: '#043c2c', fontWeight: '700', cursor: 'pointer' }}
-                onClick={() => setShowModal(true)}
-              >
-                Aarogya Flow
-              </strong>
-              {' '}<span style={{ color: '#d1d5db', margin: '0 4px' }}>|</span> A rural health initiative
-            </span>
-          ) : (
-            <span>
-              A rural health initiative <span style={{ color: '#d1d5db', margin: '0 2px' }}>|</span> Powered by{' '}
-              <strong
-                style={{ color: '#043c2c', fontWeight: '700', cursor: 'pointer' }}
-                onClick={() => setShowModal(true)}
-              >
-                Aarogya Flow
-              </strong>
-            </span>
-          )}
-        </div>
+            {/* Green Leaf Icon */}
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="#16a34a"
+              style={{ flexShrink: 0 }}
+            >
+              <path d="M17 3c-4.5.5-8 4-8.5 8.5C8 10 6.5 8 3 8c0 5.5 3.5 10 9 10 0 2-1 3-2 3h4c0-2 1-4 3-6 4-4 4.5-9.5 0-12z" />
+            </svg>
+            {brandFirst ? (
+              <span>
+                <strong
+                  style={{ color: '#043c2c', fontWeight: '700', cursor: 'pointer' }}
+                  onClick={() => setShowModal(true)}
+                >
+                  Aarogya Flow
+                </strong>
+                {' '}<span style={{ color: '#d1d5db', margin: '0 4px' }}>|</span> A rural health initiative
+              </span>
+            ) : (
+              <span>
+                A rural health initiative <span style={{ color: '#d1d5db', margin: '0 2px' }}>|</span> Powered by{' '}
+                <strong
+                  style={{ color: '#043c2c', fontWeight: '700', cursor: 'pointer' }}
+                  onClick={() => setShowModal(true)}
+                >
+                  Aarogya Flow
+                </strong>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Line 2: Signal bars + Works even on low internet */}
         <div

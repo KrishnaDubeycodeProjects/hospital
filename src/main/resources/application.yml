@@ -58,6 +58,7 @@ spring:
       # typical pooler's own ~30min connection recycle window).
       idle-timeout: 600000
       max-lifetime: 1500000
+      leak-detection-threshold: 20000
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -86,7 +87,7 @@ spring:
 # Application-specific settings. Most env var names deliberately match the
 # original Node backend's .env; see README for the security-hardening additions.
 app:
-  frontend-url: ${FRONTEND_URL:https://princete.com}
+  frontend-url: ${FRONTEND_URL:https://hospital.princete.com}
   clinic-name: ${CLINIC_NAME:qDischarge}
   token-expiry-hours: ${TOKEN_EXPIRY_HOURS:24}
   avg-service-minutes: ${AVG_SERVICE_MINUTES:10}
@@ -98,17 +99,14 @@ app:
   jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:720}
 
   webhook-verify-token: ${WEBHOOK_VERIFY_TOKEN:clinic_queue_token}
-  allowed-origins: ${ALLOWED_ORIGINS:https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}
+  allowed-origins: ${ALLOWED_ORIGINS:https://hospital.princete.com,https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}
 
-  # WhatsApp provider: 'meta' (Meta Cloud API) or 'evolution' (Evolution API)
-  wa-provider: ${WA_PROVIDER:evolution}
-  meta-access-token: ${META_ACCESS_TOKEN:}
-  meta-phone-number-id: ${META_PHONE_NUMBER_ID:1337438019442398}
-  meta-api-version: ${META_API_VERSION:v25.0}
-
-  evolution-api-url: ${EVOLUTION_API_URL:http://localhost:8080}
-  evolution-api-key: ${EVOLUTION_API_KEY:}
-  instance-name: ${INSTANCE_NAME:clinic-bot}
+  # WhatsApp provider: 'meta' (Meta Cloud API exclusively)
+  wa-provider: ${WA_PROVIDER:meta}
+  meta-access-token: ${META_ACCESS_TOKEN:${WHATSAPP_TOKEN:${META_TOKEN:${WHATSAPP_ACCESS_TOKEN:EAAXvYwe64aEBSklskLlZARQx4bbq0QxCjmiLKxwZCahUONCAdjXXdpD2hft8dH9sQsjZCSFJC6qmIo09zCCw70o6BZBYwLwYD6u01fFGZAmZAgV0deDVZAYyoxLLSZB4x5e8SjporZA13ebv7dSkgYjDqafOZAZAmnyH5IEw8tY3uqTrEkkGDUKv3y0zWpFBqbGmMXh6TWd9e3GOZCboDSLxR1LSr3QdH2NBe5Ad56AGAjrSAQf9W0aYmt6S}}}}
+  meta-phone-number-id: ${META_PHONE_NUMBER_ID:${WHATSAPP_PHONE_NUMBER_ID:1309956365539677}}
+  meta-api-version: ${META_API_VERSION:v22.0}
+  bot-phone-number: ${BOT_PHONE_NUMBER:${WHATSAPP_BOT_NUMBER:919120123877}}
 
   rate-limit-login-per-minute: ${RATE_LIMIT_LOGIN_PER_MINUTE:10}
   rate-limit-webhook-per-minute: ${RATE_LIMIT_WEBHOOK_PER_MINUTE:120}
@@ -121,10 +119,15 @@ app:
   # Distance -> ETA fallback (see geo/GeoDistanceService; used only when TomTom is unavailable)
   geo-avg-speed-kmh: ${GEO_AVG_SPEED_KMH:25}
 
-  # Real routing ETA (TomTom) vs. queue treatment-time-remaining, anomaly-control
+  # Real routing ETA (MapMyIndia / Mappls) vs. queue treatment-time-remaining, anomaly-control
   # grace window, and the "head to the hospital now" voice call (see
-  # geo/TomTomRoutingService, service/TreatmentTimingScheduler, service/TwilioStudioCallService).
-  # Blank TOMTOM_API_KEY -> falls back to the haversine estimate above instead of failing booking.
+  # geo/MapMyIndiaRoutingService, service/TreatmentTimingScheduler, service/TwilioStudioCallService).
+  # Blank MAPPLS_API_KEY -> falls back to the haversine estimate above instead of failing booking.
+  mappls-api-key: ${MAPPLS_API_KEY:}
+  mappls-client-id: ${MAPPLS_CLIENT_ID:}
+  mappls-client-secret: ${MAPPLS_CLIENT_SECRET:}
+  mappls-base-url: ${MAPPLS_BASE_URL:https://apis.mappls.com/advancedmaps/v1}
+  mappls-server-ip: ${MAPPLS_SERVER_IP:}
   tomtom-api-key: ${TOMTOM_API_KEY:}
   twilio-caller-number: ${TWILIO_CALLER_NUMBER:}
   twilio-call-enabled: ${TWILIO_CALL_ENABLED:false}

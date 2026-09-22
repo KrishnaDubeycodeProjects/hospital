@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { familyApi, hospitalApi, queueApi } from '../../api/client';
 import TokenCard from '../../components/TokenCard';
 import { Button, Card, EmptyState, Field, Input, Select, Spinner } from '../../components/ui';
@@ -8,6 +9,7 @@ import { useToast } from '../../context/ToastContext';
 export default function PatientQueue() {
   const { patient } = useAuth();
   const phone = patient?.subject;
+  const navigate = useNavigate();
   const [token, setToken] = useState(undefined); // undefined = loading, null = none
 
   const load = useCallback(async () => {
@@ -27,12 +29,35 @@ export default function PatientQueue() {
 
   return (
     <div className="stack-lg">
-      <h1>My Queue</h1>
       {token === undefined && <Spinner />}
       {token === null && <BookForm phone={phone} onBooked={load} />}
       {token && (
         <Card title={`Token #${token.dailyNumber ?? token.id}`}>
           <TokenCard token={token} onRefresh={load} />
+          <button
+            type="button"
+            onClick={() => navigate(`/token/${token.id}`)}
+            style={{
+              marginTop: '16px',
+              width: '100%',
+              padding: '13px',
+              backgroundColor: '#004D40',
+              color: '#ffffff',
+              borderRadius: '12px',
+              fontSize: '14.5px',
+              fontWeight: '700',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(0, 77, 64, 0.2)',
+            }}
+          >
+            <span>Open Live Token Screen & QR Code</span>
+            <span style={{ fontSize: '16px' }}>→</span>
+          </button>
         </Card>
       )}
     </div>

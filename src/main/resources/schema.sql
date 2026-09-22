@@ -107,7 +107,9 @@ CREATE TABLE IF NOT EXISTS tokens (
   reserved_counter_id INT,
   no_show_count INT NOT NULL DEFAULT 0,
   search_offset INT NOT NULL DEFAULT 0,
-  daily_number INT
+  daily_number INT,
+  target_arrival_time TIMESTAMP,
+  selected_travel_minutes INT
 );
 
 -- Self-heals a "tokens" table created by an earlier version of this file.
@@ -131,6 +133,8 @@ ALTER TABLE tokens ADD COLUMN IF NOT EXISTS reserved_counter_id INT;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS no_show_count INT NOT NULL DEFAULT 0;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS search_offset INT NOT NULL DEFAULT 0;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS daily_number INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS target_arrival_time TIMESTAMP;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS selected_travel_minutes INT;
 
 -- Speeds up the hot paths in QueueManagerService: phone lookups, status-
 -- filtered queue reads, the "how many waiting tokens have a smaller
@@ -146,6 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_tokens_counter_id ON tokens (counter_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_reserved_counter_id ON tokens (reserved_counter_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_category ON tokens (category);
 CREATE INDEX IF NOT EXISTS idx_tokens_hospital_category_status ON tokens (hospital_id, category, status);
+CREATE INDEX IF NOT EXISTS idx_tokens_frozen ON tokens (hospital_id, category, status, target_arrival_time);
 
 -- ----------------------------------------------------------------------------
 -- otp_verifications: phone-number OTP hashes/expiry/attempts. See OtpService.
@@ -261,6 +266,12 @@ CREATE TABLE IF NOT EXISTS patient_documents (
 
 CREATE INDEX IF NOT EXISTS idx_patient_documents_phone ON patient_documents (patient_phone);
 CREATE INDEX IF NOT EXISTS idx_patient_documents_identity ON patient_documents (patient_phone, patient_name, patient_age);
+
+-- Self-heals patient_documents table for off-database file storage
+ALTER TABLE patient_documents
+  ADD COLUMN IF NOT EXISTS storage_path VARCHAR(500),
+  ADD COLUMN IF NOT EXISTS file_hash VARCHAR(64);
+ALTER TABLE patient_documents ALTER COLUMN file_data DROP NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- access_requests / access_grants: a doctor's outstanding "let me view your
@@ -502,3 +513,24 @@ ALTER TABLE family_members ALTER COLUMN abha_address TYPE VARCHAR(100);
 -- ABDM HFR (Health Facility Registry) and HPR (Healthcare Professional Registry) Identifiers
 ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS hfr_id VARCHAR(100) DEFAULT 'IN0001DEMO';
 ALTER TABLE doctors ADD COLUMN IF NOT EXISTS hpr_id VARCHAR(100) DEFAULT '91-0000-0000-0000@hpr.abdm';
+
+-- Eka Care & ABDM Dual-Write Sync Tracking Columns
+ALTER TABLE course_encounters ADD COLUMN IF NOT EXISTS eka_sync_status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE course_encounters ADD COLUMN IF NOT EXISTS eka_record_id VARCHAR(100);
+ALTER TABLE course_encounters ADD COLUMN IF NOT EXISTS eka_synced_at TIMESTAMP;
+ALTER TABLE course_encounters ADD COLUMN IF NOT EXISTS eka_error TEXT;
+
+ALTER TABLE course_prescriptions ADD COLUMN IF NOT EXISTS eka_sync_status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE course_prescriptions ADD COLUMN IF NOT EXISTS eka_record_id VARCHAR(100);
+ALTER TABLE course_prescriptions ADD COLUMN IF NOT EXISTS eka_synced_at TIMESTAMP;
+ALTER TABLE course_prescriptions ADD COLUMN IF NOT EXISTS eka_error TEXT;
+
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS eka_sync_status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS eka_record_id VARCHAR(100);
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS eka_synced_at TIMESTAMP;
+ALTER TABLE course_documents ADD COLUMN IF NOT EXISTS eka_error TEXT;
+
+ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS eka_sync_status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS eka_record_id VARCHAR(100);
+ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS eka_synced_at TIMESTAMP;
+ALTER TABLE patient_documents ADD COLUMN IF NOT EXISTS eka_error TEXT;

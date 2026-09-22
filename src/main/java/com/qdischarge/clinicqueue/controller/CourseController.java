@@ -242,6 +242,15 @@ public class CourseController {
         return ResponseEntity.ok(ok(courses));
     }
 
+    @GetMapping("/public/patient")
+    public ResponseEntity<Map<String, Object>> listPublicPatientCourses(@RequestParam(name = "phone", required = false) String phone) {
+        if (phone == null || phone.trim().isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Phone number parameter is required."));
+        }
+        List<CourseDto> courses = courseService.listCoursesForPatient(phone.trim());
+        return ResponseEntity.ok(ok(courses));
+    }
+
     private Map<String, Object> ok(Object data) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("success", true);

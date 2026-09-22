@@ -64,9 +64,11 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 .headers(headers -> headers
                         .contentTypeOptions(opts -> {})
-                        .frameOptions(frame -> frame.deny())
+                        .frameOptions(frame -> frame.sameOrigin())
                         .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true)))
                 .authorizeHttpRequests(auth -> auth
+                        // Public endpoints for WhatsApp WebViews
+                        .requestMatchers("/api/wa/**", "/wa/**").permitAll()
                         // NOTE: JwtAuthFilter now authenticates three token kinds (ROLE_ADMIN/
                         // ROLE_PATIENT/ROLE_DOCTOR, see JwtService), so every admin-only route below
                         // must say hasRole("ADMIN") explicitly -- a bare authenticated() would also
@@ -91,6 +93,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/counters/**").hasRole("ADMIN")
                         // Admin pushes a called-but-absent patient back in their own queue (exponential backoff).
                         .requestMatchers(HttpMethod.POST, "/api/queue/*/no-show").hasRole("ADMIN")
+                        // Public auth endpoints: OTP and ABHA address login flows
+                        .requestMatchers("/api/auth/otp/**", "/api/auth/abha/**").permitAll()
                         // Doctor registration/login prove identity via OTP (see OtpController), not a
                         // doctor JWT yet -- everything else a doctor does needs the token that returns.
                         .requestMatchers(HttpMethod.POST, "/api/doctors/register", "/api/doctors/login").permitAll()
@@ -98,22 +102,25 @@ public class SecurityConfig {
                         // Every /api/patients/** action is self-service on the caller's own phone
                         // number (identified from the token, see CurrentUser) -- there's no "public"
                         // patient endpoint here, login *is* OtpController's /verify.
+                        .requestMatchers("/api/patients/public/**").permitAll()
                         .requestMatchers("/api/patients/**").hasRole("PATIENT")
                         // Family Unit management (public lookup for booking flow, full management requires PATIENT)
                         .requestMatchers("/api/family/public/**").permitAll()
                         .requestMatchers("/api/family/**").hasRole("PATIENT")
                         // Course & Clinical Records
+                        .requestMatchers("/api/courses/public/**").permitAll()
                         .requestMatchers("/api/courses/patient").hasRole("PATIENT")
                         .requestMatchers(HttpMethod.POST, "/api/courses/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // Referral Engine
+                        .requestMatchers("/api/referrals/public/**").permitAll()
                         .requestMatchers("/api/referrals/patient").hasRole("PATIENT")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/*/qr").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // Drugs & ABDM open/utility APIs
                         .requestMatchers("/api/drugs/**").permitAll()
-                        .requestMatchers("/api/abdm/check-address").permitAll()
+                        .requestMatchers("/api/abdm/check-address", "/api/abdm/status", "/api/abdm/kyc/**", "/api/abdm/enroll/**", "/api/abdm/callback", "/api/abdm/consent/**", "/api/abdm/patients/**").permitAll()
                         .requestMatchers("/api/abdm/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")

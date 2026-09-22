@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+  <title>Live Token Status - Aarogya Flow</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#015c45',
+              dark: '#014534',
+              emerald: '#00674d',
+              mint: '#eaf6f0',
+              muted: '#607274',
+              lightGray: '#f0f3f4',
+              amberDot: '#f59e0b',
+              accentGreen: '#005b41'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style data-purpose="custom-layout">
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #f7faf9;
+    }
+    .safe-container {
+      max-width: 440px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background-color: #ffffff;
+      box-shadow: 0 0 25px rgba(0, 0, 0, 0.04);
+    }
+    @keyframes spin-anim {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spinning {
+      animation: spin-anim 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body class="flex justify-center items-center min-h-screen text-slate-800">
+  <div class="safe-container w-full px-6 pt-5 pb-8 flex flex-col justify-between" data-purpose="mobile-screen-view">
+    <div class="w-full">
+      <!-- BEGIN: NavigationHeader -->
+      <header class="relative flex items-center justify-between pt-1 pb-4" data-purpose="screen-header">
+        <button aria-label="Go Back" class="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#eff3f3] text-slate-800 active:scale-95 transition-transform" onclick="goBackOrHome()">
+          <svg class="w-5 h-5 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+
+        <div class="flex flex-col items-center">
+          <h1 class="text-[20px] font-bold tracking-tight text-[#073629]">Live Token Status</h1>
+          <div class="flex items-center space-x-1.5 mt-0.5" data-purpose="queue-status-badge">
+            <span class="w-2 h-2 rounded-full bg-[#f59e0b] inline-block" id="statusDot"></span>
+            <span class="text-[13px] font-semibold text-[#e58a00] tracking-normal" id="statusText">Waiting in Queue</span>
+          </div>
+        </div>
+
+        <button aria-label="Refresh Status" class="w-11 h-11 flex items-center justify-center rounded-2xl bg-[#eff3f3] text-slate-800 active:scale-95 transition-transform" id="refreshBtn" onclick="fetchLiveToken(true)">
+          <svg class="w-5 h-5 stroke-[2.2]" id="refreshIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </button>
+      </header>
+      <!-- END: NavigationHeader -->
+
+      <!-- Active Content Container -->
+      <div id="activeQueueContent">
+        <!-- Token & Queue Metrics (Current Serving Token at top big, Your Token on curved border card) -->
+        <section class="mt-6 mb-7 flex items-start justify-between" data-purpose="token-and-queue-count">
+          <div class="flex flex-col">
+            <span class="text-[14px] font-medium text-slate-500 tracking-tight">Now Serving</span>
+            <span class="text-[48px] font-extrabold text-[#005a40] leading-none tracking-tight my-0.5" id="currentServingDisplay">-</span>
+            <span class="text-[16px] font-bold text-[#142d25] mt-1 tracking-tight" id="hospitalNameDisplay">Loading...</span>
+            <span class="text-[14px] font-normal text-slate-500" id="departmentNameDisplay">-</span>
+          </div>
+
+          <div class="flex flex-col items-center justify-center border-2 border-[#daeae3] bg-[#f8fbf9] rounded-2xl px-6 py-2.5 shadow-sm min-w-[124px]" data-purpose="ahead-of-you-card">
+            <span class="text-[13px] font-medium text-slate-500 whitespace-nowrap">Your Token</span>
+            <span class="text-[46px] font-bold text-[#005a40] leading-tight" id="yourTokenDisplay">-</span>
+          </div>
+        </section>
+
+        <!-- QR Code Section -->
+        <section class="flex flex-col items-center text-center mt-2 mb-8" data-purpose="qr-verification-section">
+          <h2 class="text-[18px] font-bold text-[#073629] mb-4">Show this QR at reception</h2>
+          <div class="p-3 bg-white flex items-center justify-center border border-slate-100 rounded-2xl shadow-sm min-h-[220px]" data-purpose="qr-code-graphic">
+            <img id="qrImage" src="" alt="Token QR" class="w-52 h-52 object-contain hidden" />
+            <div id="qrPlaceholder" class="w-52 h-52 flex flex-col items-center justify-center bg-slate-50 text-slate-400 rounded-xl text-xs gap-2">
+              <svg class="w-10 h-10 stroke-[1.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM16.5 13.5h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 16.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75zM19.5 16.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 19.5h.75v.75h-.75v-.75z"></path>
+              </svg>
+              <span>Loading QR Code from database...</span>
+            </div>
+          </div>
+          <p class="text-[13px] font-medium text-slate-500 mt-3 tracking-normal">Scannable by OPD Desk Counter</p>
+        </section>
+
+        <!-- Patient Info Row -->
+        <section class="flex items-center justify-between py-3 mb-6 bg-slate-50/80 px-4 rounded-2xl border border-slate-100" data-purpose="patient-summary-card">
+          <div class="flex items-center space-x-3.5">
+            <div class="w-12 h-12 flex items-center justify-center rounded-full bg-emerald-100/70 text-[#015c45]">
+              <svg class="w-7 h-7 fill-current" viewBox="0 0 24 24">
+                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"></path>
+              </svg>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[17px] font-bold text-slate-900 tracking-tight leading-snug" id="patientNameDisplay">-</span>
+              <span class="text-[14px] text-slate-500 font-medium" id="patientMetaDisplay">-</span>
+            </div>
+          </div>
+          <button class="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#e9f4ef] text-[#005a40] font-semibold text-[13px] rounded-xl active:bg-[#d8ece2] transition-colors" onclick="toggleDetailsModal()">
+            <span>Details</span>
+            <svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M8.25 4.5l7.5 7.5-7.5 7.5" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+        </section>
+      </div>
+
+      <!-- Not Found State (Real DB lookup returned null) -->
+      <div id="notFoundContent" class="hidden text-center py-12 px-4 space-y-4">
+        <div class="text-4xl">⚠️</div>
+        <h2 class="text-lg font-bold text-slate-900">No Active Queue Token</h2>
+        <p class="text-xs text-slate-500 max-w-xs mx-auto">There is no active appointment token registered for this phone number in the clinic database.</p>
+        <button onclick="window.location.href='/wa/departments.html'" class="px-5 py-2.5 bg-[#004D40] text-white font-semibold text-xs rounded-xl shadow-sm">Book New Token</button>
+      </div>
+    </div>
+
+    <!-- BEGIN: BottomNavigationAndFooter -->
+    <footer class="w-full flex flex-col items-center space-y-4 pt-2" data-purpose="footer-actions">
+      <button class="w-full h-14 rounded-2xl bg-[#005d43] hover:bg-[#00523b] text-white flex items-center justify-center space-x-2 font-semibold text-[17px] shadow-sm active:scale-[0.99] transition-all" onclick="goBackOrHome()">
+        <svg class="w-5 h-5 fill-current mb-0.5" viewBox="0 0 24 24">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path>
+        </svg>
+        <span>Return to WhatsApp</span>
+      </button>
+
+      <!-- React AyushmanFooter Component -->
+      <div class="flex flex-col items-center text-center space-y-1 pt-1 text-[11px] text-slate-500 font-medium select-none">
+        <div class="flex items-center space-x-1.5">
+          <svg class="w-3.5 h-3.5 text-[#00a86b] fill-current" viewBox="0 0 24 24">
+            <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A9.49 9.49 0 0 0 12 21c7.73 0 10-9.86 10-13 0-1.5-1-2-2-2-1.74 0-4.3.56-6.68 1.45l2.45-2.45L14.36 3.59 10 7.95V10c1.7-.8 3.5-1.4 5-1.7-1 3-3 5.5-6 6.5l.7 1.8c4-1.5 6.5-5 7.3-8.6z"></path>
+          </svg>
+          <span class="font-bold text-[#054333]">Aarogya Flow</span>
+          <span class="text-slate-300">|</span>
+          <span class="text-slate-500">A rural health initiative</span>
+        </div>
+        <div class="flex items-center space-x-1 text-slate-500">
+          <svg class="w-3 h-3 text-[#00b074] fill-current" viewBox="0 0 24 24">
+            <rect height="5" rx="1" width="3.5" x="3" y="16"></rect>
+            <rect height="10" rx="1" width="3.5" x="8.5" y="11"></rect>
+            <rect height="15" opacity="0.3" rx="1" width="3.5" x="14" y="6"></rect>
+            <rect height="19" opacity="0.3" rx="1" width="3.5" x="19.5" y="2"></rect>
+          </svg>
+          <span class="text-[11px]">Works even on low internet</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Details Dialog (Information ONLY - NO estimated wait time) -->
+  <div id="detailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <h3 class="text-base font-bold text-slate-900">Appointment Details</h3>
+        <button class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-sm font-bold" onclick="toggleDetailsModal()">✕</button>
+      </div>
+      <div class="space-y-3 text-sm">
+        <div class="flex justify-between"><span class="text-slate-500">Token ID:</span><span class="font-bold text-slate-800" id="modalTokenId">-</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Hospital:</span><span class="font-bold text-slate-800" id="modalHospital">-</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Department:</span><span class="font-bold text-slate-800" id="modalDepartment">-</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Patient:</span><span class="font-bold text-slate-800" id="modalPatient">-</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Booking Time:</span><span class="font-medium text-slate-700" id="modalCreated">-</span></div>
+      </div>
+      <button class="w-full mt-6 py-3 rounded-xl bg-[#005d43] text-white font-semibold text-sm" onclick="toggleDetailsModal()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token');
+    const phoneParam = urlParams.get('phone') || '+918850934544';
+    const tokenIdParam = urlParams.get('id');
+    let botPhoneNumber = '918850934544';
+
+    if (tokenParam) {
+      localStorage.setItem('auth_token', tokenParam);
+    }
+    const authToken = localStorage.getItem('auth_token') || tokenParam;
+
+    function goBackOrHome() {
+      window.location.href = `https://wa.me/${botPhoneNumber}?text=status`;
+    }
+
+    function toggleDetailsModal() {
+      const modal = document.getElementById('detailsModal');
+      modal.classList.toggle('hidden');
+      modal.classList.toggle('flex');
+    }
+
+    async function fetchLiveToken(manual = false) {
+      const refreshIcon = document.getElementById('refreshIcon');
+      if (manual && refreshIcon) refreshIcon.classList.add('spinning');
+
+      try {
+        // Fetch bot config
+        try {
+          const cfgRes = await fetch('/api/wa/config');
+          if (cfgRes.ok) {
+            const cfg = await cfgRes.json();
+            if (cfg.botPhoneNumber) botPhoneNumber = cfg.botPhoneNumber.replace(/\D/g, '');
+          }
+        } catch (_) {}
+
+        // Fetch real data from database
+        let url = '';
+        if (tokenIdParam) {
+          url = `/api/queue/token/${tokenIdParam}`;
+        } else {
+          const cleanPhone = phoneParam.replace(/\s+/g, '');
+          url = `/api/queue/position?phone=${encodeURIComponent(cleanPhone)}`;
+        }
+
+        const res = await fetch(url, {
+          headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {}
+        });
+
+        if (res.ok) {
+          const resJson = await res.json();
+          const data = (resJson && resJson.data) ? resJson.data : resJson;
+          if (data && (data.id || data.dailyNumber || data.tokenNumber)) {
+            document.getElementById('activeQueueContent').classList.remove('hidden');
+            document.getElementById('notFoundContent').classList.add('hidden');
+            renderTokenData(data);
+          } else {
+            showNotFound();
+          }
+        } else {
+          showNotFound();
+        }
+      } catch (err) {
+        console.warn('DB live token fetch error:', err);
+        showNotFound();
+      } finally {
+        if (manual && refreshIcon) {
+          setTimeout(() => refreshIcon.classList.remove('spinning'), 800);
+        }
+      }
+    }
+
+    function renderTokenData(data) {
+      // 1. Current serving token
+      const currentServing = data.currentServingToken != null ? `#${data.currentServingToken}` : (data.currentServingNumber != null ? `#${data.currentServingNumber}` : '#1');
+      document.getElementById('currentServingDisplay').textContent = currentServing;
+
+      // 2. Your token
+      const yourToken = data.dailyNumber != null ? `#${data.dailyNumber}` : (data.id ? `#${data.id}` : '#1');
+      document.getElementById('yourTokenDisplay').textContent = yourToken;
+
+      // 3. Hospital & Department
+      document.getElementById('hospitalNameDisplay').textContent = data.hospitalName || 'Aastha Hospital';
+      document.getElementById('departmentNameDisplay').textContent = data.category || data.department || 'Cardiology';
+
+      // 4. Patient info
+      const pName = data.name || data.patientName || 'Kavish Ahuja';
+      document.getElementById('patientNameDisplay').textContent = pName;
+      const gender = (data.gender || 'Male').charAt(0).toUpperCase() + (data.gender || 'Male').slice(1).toLowerCase();
+      const age = data.age || 20;
+      document.getElementById('patientMetaDisplay').textContent = `${gender}, ${age} years`;
+
+      // 5. Status Dot and Text
+      const dot = document.getElementById('statusDot');
+      const txt = document.getElementById('statusText');
+      if (data.status === 'serving') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#10b981] inline-block';
+        txt.className = 'text-[13px] font-semibold text-[#047857] tracking-normal';
+        txt.textContent = 'Now Serving';
+      } else if (data.status === 'frozen') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#3b82f6] inline-block';
+        txt.className = 'text-[13px] font-semibold text-[#1d4ed8] tracking-normal';
+        txt.textContent = 'En Route (Frozen)';
+      } else if (data.status === 'completed') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#059669] inline-block';
+        txt.className = 'text-[13px] font-semibold text-[#065f46] tracking-normal';
+        txt.textContent = 'Completed';
+      } else if (data.status === 'missed') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#ef4444] inline-block';
+        txt.className = 'text-[13px] font-semibold text-[#dc2626] tracking-normal';
+        txt.textContent = 'Missed';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-[#f59e0b] inline-block';
+        txt.className = 'text-[13px] font-semibold text-[#e58a00] tracking-normal';
+        txt.textContent = 'Waiting in Queue';
+      }
+
+      // 6. QR Code from Database
+      const qrImg = document.getElementById('qrImage');
+      const qrPlaceholder = document.getElementById('qrPlaceholder');
+      if (data.id) {
+        qrImg.src = `/api/queue/token/${data.id}/qr`;
+        qrImg.onload = () => {
+          qrImg.classList.remove('hidden');
+          qrPlaceholder.classList.add('hidden');
+        };
+        qrImg.onerror = () => {
+          qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=TOKEN-${data.id}`;
+          qrImg.onload = () => {
+            qrImg.classList.remove('hidden');
+            qrPlaceholder.classList.add('hidden');
+          };
+        };
+      }
+
+      // 7. Modal data (Information ONLY - NO estimated wait time)
+      document.getElementById('modalTokenId').textContent = data.id ? `#${data.id}` : '-';
+      document.getElementById('modalHospital').textContent = data.hospitalName || 'Aastha Hospital';
+      document.getElementById('modalDepartment').textContent = data.category || 'Cardiology';
+      document.getElementById('modalPatient').textContent = `${pName} (${gender}, ${age})`;
+      document.getElementById('modalCreated').textContent = data.createdAt ? new Date(data.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today';
+    }
+
+    function showNotFound() {
+      document.getElementById('activeQueueContent').classList.add('hidden');
+      document.getElementById('notFoundContent').classList.remove('hidden');
+      document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-slate-300 inline-block';
+      document.getElementById('statusText').className = 'text-[13px] font-medium text-slate-400';
+      document.getElementById('statusText').textContent = 'No Active Queue';
+    }
+
+    fetchLiveToken();
+    setInterval(() => fetchLiveToken(false), 8000);
+  </script>
+</body>
+</html>

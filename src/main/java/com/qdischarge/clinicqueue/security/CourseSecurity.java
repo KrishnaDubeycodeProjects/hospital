@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
 @Component("courseSecurity")
@@ -35,9 +36,10 @@ public class CourseSecurity {
             if (phone == null || phone.isBlank()) {
                 return false;
             }
+            List<String> phones = getPhoneVariants(phone);
             Integer count = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM courses WHERE id = :courseId AND patient_phone = :phone",
-                    Map.of("courseId", courseId, "phone", phone.trim()),
+                    "SELECT COUNT(*) FROM courses WHERE id = :courseId AND patient_phone IN (:phones)",
+                    Map.of("courseId", courseId, "phones", phones),
                     Integer.class);
             return count != null && count > 0;
         }
@@ -82,17 +84,16 @@ public class CourseSecurity {
                     return true;
                 }
 
-                // 3. Active consent / access grant check
+                // 3. Active consent / access grant check for this doctor
                 Integer grantCount = jdbc.queryForObject(
                         """
                         SELECT COUNT(*) FROM access_grants ag
                         JOIN courses c ON ag.patient_phone = c.patient_phone
                         WHERE c.id = :courseId
-                          AND ag.hospital_id = :hospitalId
-                          AND ag.status = 'approved'
-                          AND (ag.expires_at IS NULL OR ag.expires_at > NOW())
+                          AND ag.doctor_id = :doctorId
+                          AND ag.revoked_at IS NULL
                         """,
-                        Map.of("courseId", courseId, "hospitalId", hospitalId),
+                        Map.of("courseId", courseId, "doctorId", doctorId),
                         Integer.class);
                 if (grantCount != null && grantCount > 0) {
                     return true;
@@ -116,13 +117,14 @@ public class CourseSecurity {
             if (phone == null || phone.isBlank()) {
                 return false;
             }
+            List<String> phones = getPhoneVariants(phone);
             Integer count = jdbc.queryForObject(
                     """
                     SELECT COUNT(*) FROM course_referrals r
                     JOIN courses c ON r.course_id = c.id
-                    WHERE r.id = :refId AND c.patient_phone = :phone
+                    WHERE r.id = :refId AND c.patient_phone IN (:phones)
                     """,
-                    Map.of("refId", referralId, "phone", phone.trim()),
+                    Map.of("refId", referralId, "phones", phones),
                     Integer.class);
             return count != null && count > 0;
         }
@@ -157,5 +159,15 @@ public class CourseSecurity {
         }
 
         return false;
+    }
+
+    private List<String> getPhoneVariants(String phone) {
+        if (phone == null || phone.isBlank()) return List.of();
+        String p = phone.trim();
+        String digits = p.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) {
+            digits = digits.substring(digits.length() - 10);
+        }
+        return List.of(p, digits, "+91" + digits, "91" + digits);
     }
 }

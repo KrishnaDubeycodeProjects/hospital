@@ -31,5 +31,7 @@ public class PatientDocumentDto {
     private String fileName;
     private String contentType;
     private Integer fileSize;
+    private String storagePath;
+    private String fileHash;
     private LocalDateTime createdAt;
 }

@@ -4,6 +4,7 @@ import com.qdischarge.clinicqueue.dto.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -19,6 +20,7 @@ class CourseServiceTest {
     private NamedParameterJdbcTemplate jdbc;
     private DocumentStorageService documentStorageService;
     private EkaCareAbdmService ekaCareAbdmService;
+    private ApplicationEventPublisher eventPublisher;
     private CourseService courseService;
 
     @BeforeEach
@@ -26,7 +28,8 @@ class CourseServiceTest {
         jdbc = mock(NamedParameterJdbcTemplate.class);
         documentStorageService = mock(DocumentStorageService.class);
         ekaCareAbdmService = mock(EkaCareAbdmService.class);
-        courseService = new CourseService(jdbc, documentStorageService, ekaCareAbdmService);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        courseService = new CourseService(jdbc, documentStorageService, ekaCareAbdmService, eventPublisher);
     }
 
     @Test

@@ -2,7 +2,10 @@ package com.qdischarge.clinicqueue.service;
 
 import com.qdischarge.clinicqueue.dto.DoctorPatientGroupDto;
 import com.qdischarge.clinicqueue.dto.PatientDocumentDto;
+import com.qdischarge.clinicqueue.event.PatientRecordCreatedEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,15 +29,18 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PatientDocumentService {
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final ApplicationEventPublisher eventPublisher;
+    private final DocumentStorageService documentStorageService;
 
-    private static final Set<String> VALID_DOC_TYPES = Set.of("prescription", "report");
-    private static final long MAX_FILE_SIZE_BYTES = 8L * 1024 * 1024; // 8MB -- see BYTEA-in-Postgres storage decision
+    private static final Set<String> VALID_DOC_TYPES = Set.of("prescription", "report", "lab_report", "discharge_summary", "lab", "diagnostic");
+    private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024; // 10MB aligned with AppProperties
 
     private static final String METADATA_COLUMNS =
-            "id, patient_phone, patient_name, patient_age, doc_type, hospital_id, uploaded_by_doctor_id, file_name, content_type, file_size, created_at";
+            "id, patient_phone, patient_name, patient_age, doc_type, hospital_id, uploaded_by_doctor_id, file_name, content_type, file_size, storage_path, file_hash, created_at";
 
     public PatientDocumentDto upload(String patientPhone, String patientName, Integer patientAge, String docType,
                                       Integer hospitalId, Integer uploadedByDoctorId, MultipartFile file) throws IOException {
@@ -42,15 +48,19 @@ public class PatientDocumentService {
             throw new IllegalArgumentException("A file is required.");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("File too large -- max 8MB.");
+            throw new IllegalArgumentException("File too large -- max 10MB.");
         }
-        String normalizedType = docType == null ? "" : docType.trim().toLowerCase();
-        if (!VALID_DOC_TYPES.contains(normalizedType)) {
-            throw new IllegalArgumentException("docType must be 'prescription' or 'report'.");
+        String inputType = docType == null ? "prescription" : docType.trim().toLowerCase();
+        String normalizedType = "prescription";
+        if (inputType.contains("report") || inputType.contains("lab") || inputType.contains("diagnostic") || inputType.contains("summary")) {
+            normalizedType = "report";
         }
         if (patientName == null || patientName.isBlank()) {
-            throw new IllegalArgumentException("patientName is required.");
+            patientName = "Self";
         }
+
+        // Store off-database with Apache Tika magic-bytes validation and hash computation
+        DocumentStorageService.StoredFile storedFile = documentStorageService.storeFile(file, "patient-docs");
 
         Map<String, Object> params = new HashMap<>();
         params.put("phone", patientPhone);
@@ -59,24 +69,110 @@ public class PatientDocumentService {
         params.put("docType", normalizedType);
         params.put("hospitalId", hospitalId);
         params.put("uploadedByDoctorId", uploadedByDoctorId);
-        params.put("fileName", file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload");
-        params.put("contentType", file.getContentType() != null ? file.getContentType() : "application/octet-stream");
-        params.put("fileSize", (int) file.getSize());
-        params.put("fileData", file.getBytes());
+        params.put("fileName", storedFile.fileName());
+        params.put("contentType", storedFile.contentType());
+        params.put("fileSize", (int) storedFile.fileSize());
+        params.put("storagePath", storedFile.storagePath());
+        params.put("fileHash", storedFile.fileHash());
 
         Integer id = jdbc.queryForObject(
                 """
-                INSERT INTO patient_documents (patient_phone, patient_name, patient_age, doc_type, hospital_id, uploaded_by_doctor_id, file_name, content_type, file_size, file_data)
-                VALUES (:phone, :name, :age, :docType, :hospitalId, :uploadedByDoctorId, :fileName, :contentType, :fileSize, :fileData)
+                INSERT INTO patient_documents (patient_phone, patient_name, patient_age, doc_type, hospital_id,
+                                              uploaded_by_doctor_id, file_name, content_type, file_size,
+                                              storage_path, file_hash)
+                VALUES (:phone, :name, :age, :docType, :hospitalId, :uploadedByDoctorId,
+                        :fileName, :contentType, :fileSize, :storagePath, :fileHash)
                 RETURNING id
                 """, params, Integer.class);
+
+        // Lookup ABHA identifier:
+        // 1. Direct match for the specific patient name being uploaded for
+        // 2. Fallback to Parent/Head/Self member in family unit (for children, elders, or unlinked members)
+        String abha = null;
+        try {
+            if (patientName != null && !patientName.isBlank()) {
+                List<Map<String, Object>> specificMember = jdbc.queryForList(
+                        """
+                        SELECT m.abha_address, m.abha_number FROM family_members m
+                        JOIN family_units u ON m.family_unit_id = u.id
+                        WHERE u.primary_phone = :phone AND LOWER(TRIM(m.name)) = LOWER(TRIM(:name))
+                          AND (m.is_abha_linked = TRUE OR m.abha_address IS NOT NULL OR m.abha_number IS NOT NULL)
+                        LIMIT 1
+                        """,
+                        Map.of("phone", patientPhone, "name", patientName.trim()));
+                if (!specificMember.isEmpty()) {
+                    abha = (String) specificMember.get(0).get("abha_address");
+                    if (abha == null || abha.isBlank()) {
+                        abha = (String) specificMember.get(0).get("abha_number");
+                    }
+                }
+            }
+
+            // Fallback: If this member does not have their own ABHA, inherit from parent/self/head of the family unit
+            if (abha == null || abha.isBlank()) {
+                List<Map<String, Object>> familyFallback = jdbc.queryForList(
+                        """
+                        SELECT m.name, m.relationship, m.abha_address, m.abha_number FROM family_members m
+                        JOIN family_units u ON m.family_unit_id = u.id
+                        WHERE u.primary_phone = :phone
+                          AND (m.is_abha_linked = TRUE OR m.abha_address IS NOT NULL OR m.abha_number IS NOT NULL)
+                        ORDER BY 
+                          CASE WHEN LOWER(m.relationship) IN ('self', 'head', 'myself') THEN 0
+                               WHEN LOWER(m.relationship) IN ('father', 'mother', 'parent') THEN 1
+                               ELSE 2 END,
+                          m.id ASC
+                        LIMIT 1
+                        """,
+                        Map.of("phone", patientPhone));
+                if (!familyFallback.isEmpty()) {
+                    abha = (String) familyFallback.get(0).get("abha_address");
+                    if (abha == null || abha.isBlank()) {
+                        abha = (String) familyFallback.get(0).get("abha_number");
+                    }
+                    if (abha != null && !abha.isBlank()) {
+                        log.info("ℹ️ Patient '{}' has no direct ABHA. Using family head/parent ({}: {}) ABHA: {} for Eka Care sync",
+                                patientName, familyFallback.get(0).get("relationship"), familyFallback.get(0).get("name"), abha);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Non-fatal error resolving ABHA for document upload: {}", e.getMessage());
+        }
+
+        if (eventPublisher != null) {
+            byte[] fileBytes;
+            try {
+                fileBytes = documentStorageService.loadFile(storedFile.storagePath());
+            } catch (Exception e) {
+                fileBytes = file.getBytes();
+            }
+
+            eventPublisher.publishEvent(PatientRecordCreatedEvent.builder()
+                    .recordType(PatientRecordCreatedEvent.RecordType.PATIENT_DOCUMENT)
+                    .recordId((long) id)
+                    .patientPhone(patientPhone)
+                    .patientName(patientName)
+                    .abhaIdentifier(abha)
+                    .fileBytes(fileBytes)
+                    .fileName(storedFile.fileName())
+                    .contentType(storedFile.contentType())
+                    .docType(normalizedType)
+                    .build());
+        }
+
         return getMetadata(id);
     }
 
     public List<PatientDocumentDto> listForPatient(String phone) {
+        String p = phone != null ? phone.trim() : "";
+        String digits = p.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) {
+            digits = digits.substring(digits.length() - 10);
+        }
+        List<String> phones = List.of(p, digits, "+91" + digits, "91" + digits);
         return jdbc.query(
-                "SELECT " + METADATA_COLUMNS + " FROM patient_documents WHERE patient_phone = :phone ORDER BY created_at DESC",
-                Map.of("phone", phone), PatientDocumentService::mapMetadata);
+                "SELECT " + METADATA_COLUMNS + " FROM patient_documents WHERE patient_phone IN (:phones) ORDER BY created_at DESC",
+                Map.of("phones", phones), PatientDocumentService::mapMetadata);
     }
 
     public PatientDocumentDto getMetadata(int id) {
@@ -91,12 +187,28 @@ public class PatientDocumentService {
 
     public FileContent getFile(int id) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT file_data, content_type, file_name FROM patient_documents WHERE id = :id", Map.of("id", id));
+                "SELECT storage_path, file_data, content_type, file_name FROM patient_documents WHERE id = :id", Map.of("id", id));
         if (rows.isEmpty()) {
             return null;
         }
         Map<String, Object> r = rows.get(0);
-        return new FileContent((byte[]) r.get("file_data"), (String) r.get("content_type"), (String) r.get("file_name"));
+        String storagePath = (String) r.get("storage_path");
+        String contentType = (String) r.get("content_type");
+        String fileName = (String) r.get("file_name");
+
+        byte[] data;
+        if (storagePath != null && !storagePath.isBlank()) {
+            try {
+                data = documentStorageService.loadFile(storagePath);
+            } catch (IOException e) {
+                // Fallback to legacy file_data BYTEA if file missing on disk
+                data = (byte[]) r.get("file_data");
+            }
+        } else {
+            data = (byte[]) r.get("file_data");
+        }
+
+        return new FileContent(data, contentType, fileName);
     }
 
     /**
@@ -152,6 +264,8 @@ public class PatientDocumentService {
         row.put("file_name", rs.getString("file_name"));
         row.put("content_type", rs.getString("content_type"));
         row.put("file_size", (Integer) rs.getObject("file_size"));
+        row.put("storage_path", rs.getString("storage_path"));
+        row.put("file_hash", rs.getString("file_hash"));
         row.put("created_at", rs.getTimestamp("created_at"));
         return row;
     }
@@ -169,6 +283,8 @@ public class PatientDocumentService {
                 .fileName((String) row.get("file_name"))
                 .contentType((String) row.get("content_type"))
                 .fileSize((Integer) row.get("file_size"))
+                .storagePath((String) row.get("storage_path"))
+                .fileHash((String) row.get("file_hash"))
                 .createdAt(createdAt != null ? createdAt.toLocalDateTime() : null)
                 .build();
     }

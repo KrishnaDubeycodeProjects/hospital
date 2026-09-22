@@ -12,15 +12,17 @@ import com.qdischarge.clinicqueue.dto.SetLocationRequest;
 import com.qdischarge.clinicqueue.dto.Stats;
 import com.qdischarge.clinicqueue.dto.TokenDto;
 import com.qdischarge.clinicqueue.dto.TokenHistoryDto;
+import com.qdischarge.clinicqueue.dto.TravelRangeDto;
 import com.qdischarge.clinicqueue.dto.UpdateStatusResult;
 import com.qdischarge.clinicqueue.geo.GeoDistanceService;
-import com.qdischarge.clinicqueue.geo.TomTomRoutingService;
+import com.qdischarge.clinicqueue.geo.MapMyIndiaRoutingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,8 +58,8 @@ public class QueueManagerService {
     private final HospitalDepartmentService hospitalDepartmentService;
     private final GeoDistanceService geoDistanceService;
     private final OtpService otpService;
-    /** Real routing ETA for the treatment-timing "go now" trigger (see runTreatmentTimingTick). */
-    private final TomTomRoutingService tomTomRoutingService;
+    /** MapMyIndia (Mappls) routing service with -10% to +50% range and Haversine fallback. */
+    private final MapMyIndiaRoutingService mapMyIndiaRoutingService;
     /** Voice-call half of the "go now" trigger (see runTreatmentTimingTick). */
     private final TwilioStudioCallService twilioStudioCallService;
     private final BotMessages botMessages;
@@ -76,14 +78,14 @@ public class QueueManagerService {
     private static final double ETA_FIXED_BUFFER_MINUTES = 2.0;
 
     // -----------------------------------------------------------------
-    // Expired-token cleanup (runs before every read, same as the original)
+    // Expired-token cleanup (executed periodically by QueueMaintenanceScheduler)
     // -----------------------------------------------------------------
-    private void cleanExpiredTokens() {
+    public void cleanExpiredTokens() {
         String sql = """
                 UPDATE tokens
                 SET status = 'missed', missed_at = NOW()
-                WHERE status IN ('waiting', 'serving', 'registering_name')
-                  AND created_at < NOW() - (:hours || ' hours')::INTERVAL
+                WHERE status IN ('waiting', 'serving', 'registering_name', 'frozen')
+                AND created_at < NOW() - (:hours || ' hours')::INTERVAL
                 """;
         try {
             jdbc.update(sql, Map.of("hours", String.valueOf(appProperties.getTokenExpiryHours())));
@@ -99,8 +101,6 @@ public class QueueManagerService {
 
     /** hospitalId/category null = no filter on that dimension (see class docs). */
     public QueueData getQueue(Integer hospitalId, String category) {
-        cleanExpiredTokens();
-
         StringBuilder sql = new StringBuilder("SELECT * FROM tokens WHERE status != 'registering_name'");
         Map<String, Object> params = new HashMap<>();
         appendScope(sql, params, hospitalId, category);
@@ -236,6 +236,8 @@ public class QueueManagerService {
         target.setPatientDigipin(raw.getPatientDigipin());
         target.setDistanceKm(raw.getDistanceKm());
         target.setTravelMinutes(raw.getTravelMinutes());
+        target.setSelectedTravelMinutes(raw.getSelectedTravelMinutes());
+        target.setTargetArrivalTime(raw.getTargetArrivalTime());
         target.setTreatmentRemainingMinutes(raw.getTreatmentRemainingMinutes());
         target.setNotifiedReadyAt(raw.getNotifiedReadyAt());
         target.setAnomalyControlUntil(raw.getAnomalyControlUntil());
@@ -270,7 +272,7 @@ public class QueueManagerService {
         String sql = """
                 SELECT * FROM tokens
                 WHERE (phone = :phone OR phone = '+' || :phone OR phone = REPLACE(:phone, '+', '') OR phone LIKE '%' || :phone)
-                  AND status IN ('waiting', 'serving', 'registering_name')
+                  AND status IN ('waiting', 'serving', 'registering_name', 'frozen')
                 LIMIT 1
                 """;
         List<TokenDto> rows = jdbc.query(sql, Map.of("phone", phone), TOKEN_ROW_MAPPER);
@@ -510,23 +512,64 @@ public class QueueManagerService {
                     + hospital.getName() + " OPD closes at " + closeTime + " (within 30 minutes). Please visit the reception counter directly or book for tomorrow.");
             }
         }
-        hospitalDepartmentService.ensure(hospital.getId(), draft.getCategory());
-
-        jdbc.update(
-                """
-                UPDATE tokens SET status = 'waiting', session_step = 'menu', created_at = NOW(),
-                    daily_number = :dailyNumber
-                WHERE id = :id
-                """,
-                Map.of("id", tokenId, "dailyNumber", nextDailyNumber(hospital.getId(), draft.getCategory())));
+        Double distanceKm = draft.getDistanceKm();
+        Double travelMinutes = draft.getTravelMinutes();
+        java.time.LocalDateTime targetArrivalTime = null;
+        Integer selectedTravelMinutes = draft.getSelectedTravelMinutes();
 
         if (draft.getPatientLat() != null && draft.getPatientLon() != null) {
             try {
-                applyPatientLocation(tokenId, new SetLocationRequest(draft.getPatientDigipin(), draft.getPatientLat(), draft.getPatientLon()), hospital);
+                TravelRangeDto range = mapMyIndiaRoutingService.estimate(
+                        hospital.getLatitude(), hospital.getLongitude(), draft.getPatientLat(), draft.getPatientLon());
+                distanceKm = range.distanceKm();
+                travelMinutes = range.baseMinutes();
+                if (selectedTravelMinutes == null || selectedTravelMinutes <= 0) {
+                    selectedTravelMinutes = (int) Math.round(range.baseMinutes());
+                }
+                targetArrivalTime = java.time.LocalDateTime.now().plusMinutes(selectedTravelMinutes);
             } catch (Exception e) {
-                log.error("Could not apply patient location on booking confirm for token {}: {}", tokenId, e.getMessage());
+                log.error("Could not calculate travel range on confirmBooking for token {}: {}", tokenId, e.getMessage());
             }
         }
+
+        boolean isFrozen = false;
+        Integer dailyNumber = null;
+        if (targetArrivalTime != null) {
+            double vacancyMinutes = computeDepartmentVacancyMinutes(hospital.getId(), draft.getCategory());
+            java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
+            if (projectedVacancyTime.isBefore(targetArrivalTime)) {
+                isFrozen = true;
+                log.info("Far patient #{} registered via WhatsApp with {} min travel ETA. Hospital vacant in {} min. Status: FROZEN.",
+                        tokenId, selectedTravelMinutes, String.format("%.1f", vacancyMinutes));
+            }
+        }
+
+        if (!isFrozen) {
+            dailyNumber = nextDailyNumber(hospital.getId(), draft.getCategory());
+        }
+
+        Map<String, Object> updateParams = new HashMap<>();
+        updateParams.put("id", tokenId);
+        updateParams.put("status", isFrozen ? "frozen" : "waiting");
+        updateParams.put("dailyNumber", dailyNumber);
+        updateParams.put("distanceKm", distanceKm);
+        updateParams.put("travelMinutes", travelMinutes);
+        updateParams.put("selectedTravelMinutes", selectedTravelMinutes);
+        updateParams.put("targetArrivalTime", targetArrivalTime);
+
+        jdbc.update(
+                """
+                UPDATE tokens SET status = :status, session_step = 'menu', created_at = NOW(),
+                    daily_number = :dailyNumber, distance_km = :distanceKm, travel_minutes = :travelMinutes,
+                    target_arrival_time = :targetArrivalTime, selected_travel_minutes = :selectedTravelMinutes
+                WHERE id = :id
+                """,
+                updateParams);
+
+        if (!isFrozen) {
+            unfreezeEligibleTokens(hospital.getId(), draft.getCategory());
+        }
+
         return getTokenDetails(String.valueOf(tokenId));
     }
 
@@ -541,9 +584,13 @@ public class QueueManagerService {
     // -----------------------------------------------------------------
 
     /** age/gender/location are all optional -- when location is given (current GPS or manually entered), the distance-based notify window is computed immediately. hospitalId is optional -- omit it to book into this deployment's single operating hospital. */
+    @Transactional(rollbackFor = Exception.class)
     public CreateTokenResult createToken(String name, Integer age, String gender, String category, String phone, SetLocationRequest location, Integer hospitalId) {
-        cleanExpiredTokens();
+        return createToken(name, age, gender, category, phone, location, hospitalId, null);
+    }
 
+    @Transactional(rollbackFor = Exception.class)
+    public CreateTokenResult createToken(String name, Integer age, String gender, String category, String phone, SetLocationRequest location, Integer hospitalId, Integer selectedTravelMinutes) {
         if (appProperties.isOtpRequiredForRegistration() && !otpService.isPhoneVerifiedRecently(phone)) {
             throw new IllegalStateException("Please verify your phone number with the OTP sent via SMS before registering.");
         }
@@ -583,6 +630,54 @@ public class QueueManagerService {
         }
 
         Integer resolvedHospitalId = hospital != null ? hospital.getId() : null;
+
+        Double distanceKm = null;
+        Double travelMinutes = null;
+        Integer finalSelectedTravelMinutes = selectedTravelMinutes;
+        java.time.LocalDateTime targetArrivalTime = null;
+        String patientDigipin = null;
+        Double patientLat = null;
+        Double patientLon = null;
+
+        if (location != null && hospital != null) {
+            try {
+                HospitalService.LatLon resolved = hospitalService.resolveLocation(location);
+                patientDigipin = resolved.digipin();
+                patientLat = resolved.lat();
+                patientLon = resolved.lon();
+
+                TravelRangeDto range = mapMyIndiaRoutingService.estimate(
+                        hospital.getLatitude(), hospital.getLongitude(), patientLat, patientLon);
+                distanceKm = range.distanceKm();
+
+                if (finalSelectedTravelMinutes != null && finalSelectedTravelMinutes > 0) {
+                    travelMinutes = finalSelectedTravelMinutes.doubleValue();
+                } else {
+                    finalSelectedTravelMinutes = (int) Math.round(range.baseMinutes());
+                    travelMinutes = range.baseMinutes();
+                }
+                targetArrivalTime = java.time.LocalDateTime.now().plusMinutes(finalSelectedTravelMinutes);
+            } catch (Exception e) {
+                log.error("Could not calculate travel range for booking: {}", e.getMessage());
+            }
+        }
+
+        boolean isFrozen = false;
+        Integer dailyNumber = null;
+        if (targetArrivalTime != null && resolvedHospitalId != null) {
+            double vacancyMinutes = computeDepartmentVacancyMinutes(resolvedHospitalId, canonicalCategory);
+            java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
+            if (projectedVacancyTime.isBefore(targetArrivalTime)) {
+                isFrozen = true;
+                log.info("Far patient registered with {} min travel ETA. Hospital vacant in {} min. Placing token in FROZEN state.",
+                        finalSelectedTravelMinutes, String.format("%.1f", vacancyMinutes));
+            }
+        }
+
+        if (!isFrozen) {
+            dailyNumber = nextDailyNumber(resolvedHospitalId, canonicalCategory);
+        }
+
         Map<String, Object> insertParams = new HashMap<>();
         insertParams.put("name", defaultName);
         insertParams.put("age", age);
@@ -590,22 +685,30 @@ public class QueueManagerService {
         insertParams.put("category", canonicalCategory);
         insertParams.put("phone", phone);
         insertParams.put("hospitalId", resolvedHospitalId);
-        insertParams.put("dailyNumber", nextDailyNumber(resolvedHospitalId, canonicalCategory));
+        insertParams.put("status", isFrozen ? "frozen" : "waiting");
+        insertParams.put("dailyNumber", dailyNumber);
+        insertParams.put("patientDigipin", patientDigipin);
+        insertParams.put("patientLat", patientLat);
+        insertParams.put("patientLon", patientLon);
+        insertParams.put("distanceKm", distanceKm);
+        insertParams.put("travelMinutes", travelMinutes);
+        insertParams.put("targetArrivalTime", targetArrivalTime);
+        insertParams.put("selectedTravelMinutes", finalSelectedTravelMinutes);
 
         Integer newId = jdbc.queryForObject(
                 """
-                INSERT INTO tokens (name, age, gender, category, phone, status, session_step, hospital_id, daily_number)
-                VALUES (:name, :age, :gender, :category, :phone, 'waiting', 'menu', :hospitalId, :dailyNumber)
+                INSERT INTO tokens (name, age, gender, category, phone, status, session_step, hospital_id, daily_number,
+                                    patient_digipin, patient_lat, patient_lon, distance_km, travel_minutes,
+                                    target_arrival_time, selected_travel_minutes)
+                VALUES (:name, :age, :gender, :category, :phone, :status, 'menu', :hospitalId, :dailyNumber,
+                        :patientDigipin, :patientLat, :patientLon, :distanceKm, :travelMinutes,
+                        :targetArrivalTime, :selectedTravelMinutes)
                 RETURNING id
                 """,
                 insertParams, Integer.class);
 
-        if (location != null && hospital != null) {
-            try {
-                applyPatientLocation(newId, location, hospital);
-            } catch (Exception e) {
-                log.error("Could not apply patient location for token {}: {}", newId, e.getMessage());
-            }
+        if (!isFrozen && resolvedHospitalId != null) {
+            unfreezeEligibleTokens(resolvedHospitalId, canonicalCategory);
         }
 
         return new CreateTokenResult(false, getTokenDetails(String.valueOf(newId)));
@@ -638,6 +741,7 @@ public class QueueManagerService {
     }
 
     /** Sets/updates a patient's location on an existing token and recomputes distance + notify window from it. */
+    @Transactional(rollbackFor = Exception.class)
     public TokenDto updateTokenLocation(int tokenId, SetLocationRequest location) {
         TokenDto token = getRaw(tokenId);
         if (token == null) {
@@ -654,16 +758,16 @@ public class QueueManagerService {
     }
 
     /**
-     * Resolves the patient's location to a real TomTom routing ETA (falling
-     * back to the straight-line estimate when TomTom isn't available -- see
-     * TomTomRoutingService) and stores it as this token's "reaching time".
+     * Resolves the patient's location to a real MapMyIndia (Mappls) routing ETA (falling
+     * back to the straight-line estimate when Mappls isn't available -- see
+     * MapMyIndiaRoutingService) and stores it as this token's "reaching time".
      * Clears any in-flight notify/anomaly-control state -- a relocation
      * invalidates whatever plan was computed off the old position -- so
      * runTreatmentTimingTick treats this token as freshly eligible again.
      */
     private void applyPatientLocation(int tokenId, SetLocationRequest location, HospitalDto hospital) {
         HospitalService.LatLon resolved = hospitalService.resolveLocation(location);
-        TomTomRoutingService.RouteEstimate route = tomTomRoutingService.estimate(
+        TravelRangeDto route = mapMyIndiaRoutingService.estimate(
                 hospital.getLatitude(), hospital.getLongitude(), resolved.lat(), resolved.lon());
 
         jdbc.update(
@@ -671,11 +775,39 @@ public class QueueManagerService {
                 UPDATE tokens
                 SET patient_digipin = :digipin, patient_lat = :lat, patient_lon = :lon,
                     distance_km = :distanceKm, travel_minutes = :travelMinutes,
+                    selected_travel_minutes = :selectedTravelMinutes,
+                    target_arrival_time = NOW() + (:minutes || ' minutes')::INTERVAL,
                     treatment_remaining_minutes = NULL, notified_ready_at = NULL, anomaly_control_until = NULL
                 WHERE id = :id
                 """,
                 Map.of("digipin", resolved.digipin(), "lat", resolved.lat(), "lon", resolved.lon(),
-                        "distanceKm", route.distanceKm(), "travelMinutes", route.travelMinutes(), "id", tokenId));
+                        "distanceKm", route.distanceKm(), "travelMinutes", route.baseMinutes(),
+                        "selectedTravelMinutes", (int) Math.round(route.baseMinutes()),
+                        "minutes", String.valueOf((int) Math.round(route.baseMinutes())),
+                        "id", tokenId));
+    }
+
+    public void setSelectedTravelMinutes(int tokenId, int minutes) {
+        jdbc.update(
+                """
+                UPDATE tokens
+                SET selected_travel_minutes = :minutes,
+                    target_arrival_time = NOW() + (:minStr || ' minutes')::INTERVAL
+                WHERE id = :id
+                """,
+                Map.of("minutes", minutes, "minStr", String.valueOf(minutes), "id", tokenId));
+    }
+
+
+    /** Pre-booking calculation of travel time range (-10% to +50%) from patient to hospital. */
+    public TravelRangeDto getTravelRange(SetLocationRequest location, Integer hospitalId) {
+        HospitalDto hospital = hospitalId != null ? hospitalService.getById(hospitalId) : hospitalService.getOperatingHospital();
+        if (hospital == null) {
+            throw new IllegalStateException("Hospital location is not configured yet.");
+        }
+        HospitalService.LatLon resolved = hospitalService.resolveLocation(location);
+        return mapMyIndiaRoutingService.estimate(
+                hospital.getLatitude(), hospital.getLongitude(), resolved.lat(), resolved.lon());
     }
 
     /**
@@ -707,8 +839,13 @@ public class QueueManagerService {
     // polling the API right now).
     // -----------------------------------------------------------------
 
-    /** One scheduler tick: fire any due "go now" triggers, then resolve any expired anomaly-control grace windows. */
+    /** One scheduler tick: unfreeze eligible tokens, fire due "go now" triggers, resolve expired anomaly windows. */
     public void runTreatmentTimingTick() {
+        try {
+            unfreezeEligibleTokens();
+        } catch (Exception e) {
+            log.error("Error unfreezing eligible tokens: {}", e.getMessage());
+        }
         try {
             evaluateNotifyTriggers();
         } catch (Exception e) {
@@ -719,6 +856,128 @@ public class QueueManagerService {
         } catch (Exception e) {
             log.error("Error evaluating anomaly-control expiry: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Calculates projected minutes until department counter(s) become vacant,
+     * using STRICTLY minimum service time per patient.
+     */
+    public double computeDepartmentVacancyMinutes(Integer hospitalId, String category) {
+        HospitalDto hospital = hospitalId != null ? hospitalService.getById(hospitalId) : hospitalService.getOperatingHospital();
+        int minService = 3;
+        if (hospital != null && hospital.getMinServiceMinutes() != null && hospital.getMinServiceMinutes() > 0) {
+            minService = hospital.getMinServiceMinutes();
+        }
+
+        int activeCounters = hospitalDepartmentService.activeCounters(hospitalId, category);
+        activeCounters = Math.max(1, activeCounters);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("hospitalId", hospitalId);
+        params.put("category", category);
+
+        Integer waitingCount = jdbc.queryForObject(
+                """
+                SELECT COUNT(*)::int FROM tokens
+                WHERE status = 'waiting'
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId
+                  AND category IS NOT DISTINCT FROM :category
+                """, params, Integer.class);
+        if (waitingCount == null) {
+            waitingCount = 0;
+        }
+
+        List<TokenDto> servingTokens = jdbc.query(
+                """
+                SELECT * FROM tokens
+                WHERE status = 'serving'
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId
+                  AND category IS NOT DISTINCT FROM :category
+                """, params, TOKEN_ROW_MAPPER);
+
+        double totalWorkloadMinutes = waitingCount * (double) minService;
+        if (servingTokens != null && !servingTokens.isEmpty()) {
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            for (TokenDto serving : servingTokens) {
+                if (serving.getServedAt() != null) {
+                    long minutesServed = java.time.Duration.between(serving.getServedAt(), now).toMinutes();
+                    double remaining = Math.max(0.0, minService - minutesServed);
+                    totalWorkloadMinutes += remaining;
+                } else {
+                    totalWorkloadMinutes += minService;
+                }
+            }
+        }
+
+        return totalWorkloadMinutes / activeCounters;
+    }
+
+    /** Unfreezes tokens across all hospitals/departments whose arrival deadline or vacancy threshold is reached. */
+    @Transactional(rollbackFor = Exception.class)
+    public List<TokenDto> unfreezeEligibleTokens() {
+        return unfreezeEligibleTokens(null, null);
+    }
+
+    /**
+     * Unfreezes eligible frozen tokens in strict FIFO order of booking timestamp (created_at ASC).
+     * Unfreezes if:
+     * 1. Target arrival time is reached (now >= target_arrival_time), OR
+     * 2. Department vacancy time has expanded past target arrival time (projectedVacancy >= target_arrival_time).
+     * Sequential daily_number is assigned at the moment of unfreezing.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public List<TokenDto> unfreezeEligibleTokens(Integer hospitalId, String category) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM tokens WHERE status = 'frozen'");
+        Map<String, Object> params = new HashMap<>();
+        appendScope(sql, params, hospitalId, category);
+        sql.append(" ORDER BY created_at ASC");
+
+        List<TokenDto> frozenTokens = jdbc.query(sql.toString(), params, TOKEN_ROW_MAPPER);
+        if (frozenTokens.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TokenDto> unfreezed = new java.util.ArrayList<>();
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        for (TokenDto frozen : frozenTokens) {
+            double vacancyMinutes = computeDepartmentVacancyMinutes(frozen.getHospitalId(), frozen.getCategory());
+            java.time.LocalDateTime projectedVacancyTime = now.plusSeconds((long) (vacancyMinutes * 60));
+
+            boolean targetReached = frozen.getTargetArrivalTime() == null || !now.isBefore(frozen.getTargetArrivalTime());
+            boolean vacancyReached = frozen.getTargetArrivalTime() != null && !projectedVacancyTime.isBefore(frozen.getTargetArrivalTime());
+
+            if (targetReached || vacancyReached) {
+                Integer dailyNumber = nextDailyNumber(frozen.getHospitalId(), frozen.getCategory());
+                jdbc.update(
+                        """
+                        UPDATE tokens
+                        SET status = 'waiting', daily_number = :dailyNumber, priority_rank = NULL
+                        WHERE id = :id AND status = 'frozen'
+                        """,
+                        Map.of("dailyNumber", dailyNumber, "id", frozen.getId()));
+
+                log.info("🔓 Unfreezed Token id {} for patient {}. Reason: {}. Assigned sequential Token #{}",
+                        frozen.getId(), frozen.getName(), targetReached ? "arrival time reached" : "queue gap filled", dailyNumber);
+
+                TokenDto updated = getTokenDetails(String.valueOf(frozen.getId()));
+                if (updated != null) {
+                    unfreezed.add(updated);
+                }
+            }
+        }
+
+        return unfreezed;
+    }
+
+    /** Returns frozen / travel-pending tokens for reception or admin visibility. */
+    public List<TokenDto> getFrozenQueue(Integer hospitalId, String category) {
+        cleanExpiredTokens();
+        StringBuilder sql = new StringBuilder("SELECT * FROM tokens WHERE status = 'frozen'");
+        Map<String, Object> params = new HashMap<>();
+        appendScope(sql, params, hospitalId, category);
+        sql.append(" ORDER BY created_at ASC");
+        return jdbc.query(sql.toString(), params, TOKEN_ROW_MAPPER);
     }
 
     /**
@@ -761,22 +1020,17 @@ public class QueueManagerService {
 
     /**
      * R = ((Ta >= 3 ? Ta - 3 : 0) * minimum-time-to-treat + 2) / active-counters,
-     * for this token's own (hospital, category) department. Ta is the count
-     * of *genuinely* waiting tokens ahead -- see countGenuinelyAheadForEta:
-     * a token that's unverified but still inside its anomaly-control grace
-     * window doesn't hold up anyone behind it for this estimate, since it's
-     * effectively set aside (not competing for a counter right now) until
-     * its grace ends and it's either pushed back or marked missed.
+     * for this token's own (hospital, category) department.
+     * Uses strictly minimum service time only (never average) per requirements.
      */
     private double computeTreatmentRemainingMinutes(TokenDto token, HospitalDto hospital) {
         int ta = countGenuinelyAheadForEta(token);
         int activeCounters = hospitalDepartmentService.activeCounters(token.getHospitalId(), token.getCategory());
-        Integer minServiceMinutes = hospital.getMinServiceMinutes() != null
-                ? hospital.getMinServiceMinutes() : hospital.getAvgServiceMinutes();
-        double minimumTime = minServiceMinutes != null ? minServiceMinutes : appProperties.getAvgServiceMinutes();
+        int minimumTime = (hospital.getMinServiceMinutes() != null && hospital.getMinServiceMinutes() > 0)
+                ? hospital.getMinServiceMinutes() : 3;
 
         int aheadBeyondHeadstart = ta >= ETA_WAITING_HEADSTART_TOKENS ? (ta - ETA_WAITING_HEADSTART_TOKENS) : 0;
-        return (aheadBeyondHeadstart * minimumTime + ETA_FIXED_BUFFER_MINUTES) / Math.max(1, activeCounters);
+        return (aheadBeyondHeadstart * (double) minimumTime + ETA_FIXED_BUFFER_MINUTES) / Math.max(1, activeCounters);
     }
 
     /**
@@ -807,9 +1061,7 @@ public class QueueManagerService {
     /**
      * Fires once per notify cycle: marks the token notified, opens an
      * anomaly-control grace window sized to whatever slack the patient's
-     * travel time buys them beyond their queue wait (0 if none -- the
-     * "reaching time < remaining time" case falls straight through to the
-     * exponential push-back almost immediately, per the product spec), and
+     * travel time buys them beyond their queue wait (0 if none), and
      * sends the localized WhatsApp message + Twilio voice call together.
      */
     private void fireHeadToHospitalTrigger(TokenDto token, HospitalDto hospital, double travelMinutes, double treatmentRemaining) {
@@ -838,10 +1090,7 @@ public class QueueManagerService {
 
     /**
      * Every waiting, not-yet-arrived token whose anomaly-control grace
-     * window has elapsed: push it back exponentially (same 1, 2, 4, 8, 16,
-     * ... rule as an admin's manual "not come yet"), unless it's already
-     * sitting at the very back of its department's queue with nowhere left
-     * to push back to -- at that point it's genuinely missed.
+     * window has elapsed: mark as missed directly to preserve sequential ordering.
      */
     private void evaluateAnomalyExpiry() {
         List<Map<String, Object>> due = jdbc.queryForList(
@@ -861,21 +1110,13 @@ public class QueueManagerService {
 
     /**
      * Shared by evaluateAnomalyExpiry() above and claimNextEligibleWaitingToken's
-     * "still not verified when their turn comes up" branch: push the token
-     * back exponentially if there's still room to (reuses pushBackNoShow, so
-     * the same no_show_count keeps growing 1, 2, 4, 8, 16, ... regardless of
-     * which of the two callers triggered it); otherwise it's already at the
-     * back of its own department's queue with nowhere further to go, so it's
-     * marked missed instead.
+     * "still not verified when their turn comes up" branch:
+     * Exponential backoff removed to preserve strict sequential offline token numbering.
+     * Transitions straight to 'missed' status.
      */
     private void handleNoShowOrMiss(TokenDto token) {
-        int queueSize = otherWaitingRanksInOrder(token).size() + 1;
-        int currentPosition = countWaitingAhead(token) + 1;
-        if (currentPosition >= queueSize) {
-            updateTokenStatus(String.valueOf(token.getId()), "missed");
-        } else {
-            pushBackNoShow(token.getId());
-        }
+        log.info("Token #{} did not show up on time. Marking as missed (sequential numbering preserved).", token.displayNumber());
+        updateTokenStatus(String.valueOf(token.getId()), "missed");
     }
 
     private void sendTurnNotification(String phone, int displayNumber) {
@@ -888,6 +1129,7 @@ public class QueueManagerService {
         log.info("Next-in-line notification for Token #{}. WhatsApp notification skipped.", displayNumber);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public UpdateStatusResult updateTokenStatus(String idStr, String status) {
         int tokenId = Integer.parseInt(idStr);
 
@@ -901,12 +1143,28 @@ public class QueueManagerService {
             scopeParams.put("id", tokenId);
             scopeParams.put("hospitalId", target.getHospitalId());
             scopeParams.put("category", target.getCategory());
-            jdbc.update(
-                    """
-                    UPDATE tokens SET status = 'completed', completed_at = NOW() WHERE status = 'serving' AND id != :id
-                      AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
-                    """,
-                    scopeParams);
+            scopeParams.put("counterId", target.getCounterId());
+
+            // If target token is assigned to a specific counter, only complete the previous serving token at THAT counter.
+            // If counterId is null, complete previous unassigned serving tokens in that department.
+            String prevServingSql = target.getCounterId() != null
+                    ? """
+                      UPDATE tokens SET status = 'completed', completed_at = NOW()
+                      WHERE status = 'serving' AND id != :id AND counter_id = :counterId
+                        AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                      RETURNING *
+                      """
+                    : """
+                      UPDATE tokens SET status = 'completed', completed_at = NOW()
+                      WHERE status = 'serving' AND id != :id AND counter_id IS NULL
+                        AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                      RETURNING *
+                      """;
+
+            List<TokenDto> previousServingTokens = jdbc.query(prevServingSql, scopeParams, TOKEN_ROW_MAPPER);
+            for (TokenDto prev : previousServingTokens) {
+                archiveToHistory(prev);
+            }
 
             List<TokenDto> rows = jdbc.query(
                     "UPDATE tokens SET status = 'serving', served_at = NOW(), no_show_count = 0 WHERE id = :id RETURNING *",
@@ -977,7 +1235,7 @@ public class QueueManagerService {
      * this one left 'waiting'/'serving'/'registering_name'; this is purely
      * the audit trail for that.
      */
-    private void archiveToHistory(TokenDto token) {
+    public void archiveToHistory(TokenDto token) {
         // Map.of() rejects null values outright, and age/gender/category/hospitalId/counterId/
         // servedAt can legitimately be null -- a plain HashMap tolerates them.
         Map<String, Object> params = new HashMap<>();
@@ -1001,11 +1259,16 @@ public class QueueManagerService {
                 params);
     }
 
-    /** Every past completed visit under this phone number, most recent first -- across however many different patients have used it. */
     public List<TokenHistoryDto> getPatientHistory(String phone) {
+        String p = phone != null ? phone.trim() : "";
+        String digits = p.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) {
+            digits = digits.substring(digits.length() - 10);
+        }
+        List<String> phones = List.of(p, digits, "+91" + digits, "91" + digits);
         return jdbc.query(
-                "SELECT * FROM token_history WHERE phone = :phone ORDER BY completed_at DESC NULLS LAST, id DESC",
-                Map.of("phone", phone), TOKEN_HISTORY_ROW_MAPPER);
+                "SELECT * FROM token_history WHERE phone IN (:phones) ORDER BY completed_at DESC NULLS LAST, id DESC",
+                Map.of("phones", phones), TOKEN_HISTORY_ROW_MAPPER);
     }
 
     /**
@@ -1126,6 +1389,7 @@ public class QueueManagerService {
      * actually expired is still resolved (pushed back / marked missed)
      * exactly as the single-counter version does.
      */
+    @Transactional(rollbackFor = Exception.class)
     public TokenDto claimNextEligibleWaitingTokenForCounter(Integer hospitalId, String category) {
         int guard = 0;
         while (guard++ < 200) {
@@ -1181,18 +1445,29 @@ public class QueueManagerService {
 
 
     public TokenDto verifyTokenByAdmin(int id) {
-        List<TokenDto> rows = jdbc.query(
-                "UPDATE tokens SET is_verified = TRUE, verified_at = NOW() WHERE id = :id RETURNING *",
-                Map.of("id", id), TOKEN_ROW_MAPPER);
-        if (rows.isEmpty()) {
+        TokenDto existing = getRaw(id);
+        if (existing == null) {
             return null;
         }
-        TokenDto token = rows.get(0);
-        TokenDto details = getTokenDetails(String.valueOf(token.getId()));
 
-        log.info("Token #{} verified at reception. WhatsApp notification skipped.", token.displayNumber());
+        if ("frozen".equals(existing.getStatus())) {
+            Integer dailyNumber = nextDailyNumber(existing.getHospitalId(), existing.getCategory());
+            jdbc.update(
+                    """
+                    UPDATE tokens
+                    SET status = 'waiting', daily_number = :dailyNumber, is_verified = TRUE, verified_at = NOW(), priority_rank = NULL
+                    WHERE id = :id
+                    """,
+                    Map.of("dailyNumber", dailyNumber, "id", id));
+            log.info("Frozen Token id {} verified early at reception. Assigned sequential Token #{}", id, dailyNumber);
+        } else {
+            jdbc.update(
+                    "UPDATE tokens SET is_verified = TRUE, verified_at = NOW() WHERE id = :id",
+                    Map.of("id", id));
+            log.info("Token #{} verified at reception. WhatsApp notification skipped.", existing.displayNumber());
+        }
 
-        return details;
+        return getTokenDetails(String.valueOf(id));
     }
 
     // -----------------------------------------------------------------
@@ -1379,24 +1654,18 @@ public class QueueManagerService {
      * the "go now" trigger (see runTreatmentTimingTick) again at its new
      * position instead of staying marked as already-notified forever.
      */
+    @Transactional(rollbackFor = Exception.class)
     public TokenDto pushBackNoShow(int tokenId) {
         TokenDto token = getRaw(tokenId);
         if (token == null || !"waiting".equals(token.getStatus())) {
-            throw new IllegalStateException("Only a waiting token can be pushed back.");
+            throw new IllegalStateException("Only a waiting token can be processed.");
         }
 
-        int noShowCount = token.getNoShowCount() == null ? 0 : token.getNoShowCount();
-        int skip = noShowCount == 0 ? 1 : (1 << noShowCount); // 1, 2, 4, 8, 16, ...
-        int queueSize = otherWaitingRanksInOrder(token).size() + 1; // + this token itself
-        int targetPosition = Math.min(skip + 1, queueSize); // not enough patients left -> straight to the back
-
-        jdbc.update(
-                "UPDATE tokens SET no_show_count = :count, notified_ready_at = NULL, anomaly_control_until = NULL WHERE id = :id",
-                Map.of("count", noShowCount + 1, "id", tokenId));
-
-        TokenDto moved = movePatientToPosition(tokenId, targetPosition);
-        log.info("Token #{} moved back {} position(s). WhatsApp notification skipped.", token.displayNumber(), skip);
-        return moved;
+        // Exponential backoff removed to preserve strict sequential offline token numbering.
+        // Direct transition to missed status so physical queue remains strictly sequential 1, 2, 3...
+        updateTokenStatus(String.valueOf(tokenId), "missed");
+        log.info("Token #{} marked as missed on no-show. Sequential numbering preserved.", token.displayNumber());
+        return getTokenDetails(String.valueOf(tokenId));
     }
 
     /** Every *other* waiting token in this token's own (hospital, category) department, in queue order. */

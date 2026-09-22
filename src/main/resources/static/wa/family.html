@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+  <title>Book OPD Token - Select Patient</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#004D40',
+              dark: '#00382e',
+              emerald: '#059669',
+              lightGreen: '#F0FDF4',
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+  <!-- Exact React SelectPatient.jsx Mobile Frame -->
+  <main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col min-h-[580px] h-[92vh] max-h-[740px] overflow-hidden relative border border-slate-100">
+    <!-- Drag handle -->
+    <div class="w-full flex justify-center pt-3 pb-1">
+      <div aria-hidden="true" class="w-10 h-1.5 bg-slate-300 rounded-full"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="px-4 pt-2 pb-3.5 flex items-center justify-between border-b border-slate-100 bg-white">
+      <button aria-label="Back" class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-transform" onclick="window.history.back()">
+        <svg class="w-4 h-4 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+      <div class="text-center flex-1 px-2">
+        <h1 class="text-lg font-bold text-[#043c2c] leading-tight tracking-tight">Book OPD Token</h1>
+        <p class="text-xs font-medium text-slate-500 mt-0.5">Select who the appointment is for</p>
+      </div>
+      <div class="w-9"></div>
+    </header>
+
+    <!-- Scrollable Body -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <!-- Primary Contact Card -->
+      <div class="bg-[#F0FDF4] border border-[#DCFCE7] rounded-2xl p-3.5 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-full bg-[#DCFCE7] flex items-center justify-center text-[#047857] shrink-0">
+            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+              <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="text-[15px] font-bold text-slate-900" id="primaryPhoneDisplay">+91 88509 34544</div>
+            <div class="text-xs text-slate-500 font-medium">Primary WhatsApp Account</div>
+          </div>
+        </div>
+        <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DCFCE7] text-[#047857] rounded-full">Active</span>
+      </div>
+
+      <!-- Family Members List -->
+      <div class="space-y-2.5" id="membersContainer">
+        <!-- Dynamically rendered or loaded from API -->
+      </div>
+
+      <!-- Add New Member Button -->
+      <button class="w-full py-3 px-4 border border-dashed border-slate-300 rounded-2xl text-slate-600 font-semibold text-sm hover:bg-slate-50 active:scale-[0.99] flex items-center justify-center gap-2 transition-all" onclick="promptAddMember()">
+        <svg class="w-4 h-4 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <span>Add Family Member</span>
+      </button>
+    </div>
+
+    <!-- Sticky Footer -->
+    <footer class="p-4 border-t border-slate-100 bg-white space-y-2">
+      <button class="w-full py-3.5 px-4 bg-[#004D40] hover:bg-[#00382e] active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-sm transition-all flex items-center justify-center gap-2" onclick="confirmMemberSelection()">
+        <span>Continue with Selected Member</span>
+      </button>
+    </footer>
+  </main>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const phoneParam = urlParams.get('phone') || '+918850934544';
+    let botPhone = '918850934544';
+    let selectedMemberId = 1;
+    let membersList = [];
+
+    const defaultMembers = [
+      { id: 1, name: 'Kavish Ahuja', relationship: 'Self', age: 20, gender: 'Male', avatarBg: '#D1FAE5', avatarColor: '#059669' },
+      { id: 2, name: 'Sonia Ahuja', relationship: 'Mother', age: 48, gender: 'Female', avatarBg: '#FFE4E6', avatarColor: '#E11D48' },
+      { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male', avatarBg: '#E0F2FE', avatarColor: '#0284C7' },
+      { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male', avatarBg: '#F3E8FF', avatarColor: '#9333EA' }
+    ];
+
+    document.getElementById('primaryPhoneDisplay').textContent = phoneParam;
+
+    fetch('/api/wa/config').then(r => r.json()).then(c => {
+      if (c.botPhoneNumber) botPhone = c.botPhoneNumber.replace(/\D/g, '');
+    }).catch(() => {});
+
+    async function loadMembers() {
+      try {
+        const cleanPhone = phoneParam.replace(/\D/g, '');
+        const res = await fetch(`/api/family/members?phone=${encodeURIComponent(cleanPhone)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            membersList = data.map((m, idx) => ({
+              ...m,
+              ...getAvatarVisual(m, idx)
+            }));
+            selectedMemberId = membersList[0].id;
+            renderMembers();
+            return;
+          }
+        }
+      } catch (_) {}
+      membersList = defaultMembers;
+      renderMembers();
+    }
+
+    function getAvatarVisual(m, idx) {
+      const rel = (m.relationship || '').toLowerCase();
+      if (rel === 'self' || rel === 'head') return { avatarBg: '#D1FAE5', avatarColor: '#059669' };
+      if (rel.includes('mother') || rel.includes('wife') || rel.includes('daughter')) return { avatarBg: '#FFE4E6', avatarColor: '#E11D48' };
+      if (rel.includes('father') || rel.includes('husband')) return { avatarBg: '#E0F2FE', avatarColor: '#0284C7' };
+      return { avatarBg: '#F3E8FF', avatarColor: '#9333EA' };
+    }
+
+    function renderMembers() {
+      const container = document.getElementById('membersContainer');
+      container.innerHTML = membersList.map(m => {
+        const isSelected = m.id === selectedMemberId;
+        return `
+          <div onclick="selectMember(${m.id})" class="p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${isSelected ? 'bg-emerald-50/60 border-[#059669] shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'}">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm" style="background-color: ${m.avatarBg || '#D1FAE5'}; color: ${m.avatarColor || '#059669'};">
+                ${(m.name || 'P').charAt(0)}
+              </div>
+              <div>
+                <div class="text-[15px] font-bold text-slate-900">${m.name}</div>
+                <div class="text-xs text-slate-500 font-medium">${m.gender || 'Male'}, ${m.age || 20} yrs • <span class="font-semibold text-emerald-800">${m.relationship || 'Member'}</span></div>
+              </div>
+            </div>
+            <div class="w-6 h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-[#004D40] bg-[#004D40]' : 'border-slate-300'}">
+              ${isSelected ? '<svg class="w-3.5 h-3.5 text-white stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectMember(id) {
+      selectedMemberId = id;
+      renderMembers();
+    }
+
+    function promptAddMember() {
+      const returnMsg = encodeURIComponent('#MEMBER:add');
+      window.location.href = `https://wa.me/${botPhone}?text=${returnMsg}`;
+    }
+
+    function confirmMemberSelection() {
+      const returnMsg = encodeURIComponent(`#MEMBER:${selectedMemberId}`);
+      window.location.href = `https://wa.me/${botPhone}?text=${returnMsg}`;
+    }
+
+    loadMembers();
+  </script>
+</body>
+</html>

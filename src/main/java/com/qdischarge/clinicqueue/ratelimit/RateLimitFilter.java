@@ -58,6 +58,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         } else if ("POST".equals(method) && (path.equals("/api/auth/otp/send") || path.equals("/api/auth/otp/verify"))) {
             limit = appProperties.getRateLimitOtpPerMinute();
             bucket = "otp";
+        } else if (path.startsWith("/api/family/public")) {
+            limit = 30; // Max 30 public family lookups per minute
+            bucket = "family-public";
         }
 
         if (limit != null) {
@@ -74,7 +77,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private String clientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            return xForwardedFor.split(",")[0].trim();
+            String candidate = xForwardedFor.split(",")[0].trim();
+            if (candidate.matches("^[0-9a-fA-F.:]+$")) {
+                return candidate;
+            }
         }
         return request.getRemoteAddr();
     }

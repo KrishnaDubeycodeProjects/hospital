@@ -85,4 +85,62 @@ class EkaCareAbdmServiceTest {
         assertEquals(true, status.get("authenticated"));
         assertEquals(true, status.get("liveMedicalDbAvailable"));
     }
+
+    @Test
+    void testInitPhrLoginSuccess() {
+        String authResponseJson = "{\"access_token\": \"dummy_token_12345\"}";
+        when(restTemplate.postForEntity(contains("/connect-auth/v1/account/login"), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(authResponseJson));
+
+        String phrInitResponseJson = "{\"status\": \"success\", \"txn_id\": \"txn-9988\", \"masked_mobile\": \"******4321\"}";
+        when(restTemplate.exchange(contains("/abdm/na/v1/profile/login/phr"), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(phrInitResponseJson));
+
+        EkaCareAbdmService.AbdmResult result = abdmService.initPhrLogin("kavish@abdm");
+        assertTrue(result.success());
+        assertEquals(200, result.status());
+    }
+
+    @Test
+    void testVerifyPhrLoginSuccess() {
+        String authResponseJson = "{\"access_token\": \"dummy_token_12345\"}";
+        when(restTemplate.postForEntity(contains("/connect-auth/v1/account/login"), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(authResponseJson));
+
+        String verifyResponseJson = """
+                {
+                  "status": "success",
+                  "data": {
+                    "name": "Kavish Ahuja",
+                    "mobile": "9876543210",
+                    "health_id_number": "91-1234-5678-9012",
+                    "health_id": "kavish@abdm",
+                    "gender": "MALE",
+                    "year_of_birth": "2004",
+                    "address": "Mumbai"
+                  }
+                }
+                """;
+        when(restTemplate.exchange(contains("/abdm/na/v1/profile/login/verify"), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(verifyResponseJson));
+
+        EkaCareAbdmService.AbdmResult result = abdmService.verifyPhrLogin("txn-9988", "123456", "kavish@abdm");
+        assertTrue(result.success());
+        assertNotNull(result.data());
+        assertTrue(result.data() instanceof com.qdischarge.clinicqueue.dto.PatientAbhaProfileDto);
+        com.qdischarge.clinicqueue.dto.PatientAbhaProfileDto profile = (com.qdischarge.clinicqueue.dto.PatientAbhaProfileDto) result.data();
+        assertEquals("Kavish Ahuja", profile.getName());
+        assertEquals("+919876543210", profile.getPhone());
+        assertEquals("91-1234-5678-9012", profile.getAbhaNumber());
+    }
+
+    @Test
+    void testFetchPatientMedicalHistory() {
+        var history = abdmService.fetchPatientMedicalHistory("kavish@abdm", "+919876543210");
+        assertNotNull(history);
+        assertFalse(history.isEmpty());
+        assertTrue(history.stream().anyMatch(r -> "Prescription".equalsIgnoreCase(r.getType())));
+        assertTrue(history.stream().anyMatch(r -> "DiagnosticReport".equalsIgnoreCase(r.getType())));
+    }
 }
+

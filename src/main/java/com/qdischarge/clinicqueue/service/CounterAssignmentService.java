@@ -102,6 +102,7 @@ public class CounterAssignmentService {
     }
 
     /** Counter finished normally: token -> completed, next eligible waiting token takes the freed counter. */
+    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public CounterBoard completeAtCounter(int hospitalId, String category, int counterId) {
         finishCounter(hospitalId, category, counterId, "completed");
         claimIntoCounter(hospitalId, category, counterId);
@@ -109,6 +110,7 @@ public class CounterAssignmentService {
     }
 
     /** Patient at this counter didn't show (admin gives up waiting): token -> missed, freed counter pulls the next one. */
+    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public CounterBoard missAtCounter(int hospitalId, String category, int counterId) {
         finishCounter(hospitalId, category, counterId, "missed");
         claimIntoCounter(hospitalId, category, counterId);
@@ -146,6 +148,9 @@ public class CounterAssignmentService {
             return;
         }
         TokenDto token = rows.get(0);
+        if ("completed".equals(status)) {
+            queueManagerService.archiveToHistory(token);
+        }
         // Proactive WhatsApp notifications from server removed (only respond when user initiates)
         log.info("Token #{} counter status changed to {}. WhatsApp notification skipped.", token.displayNumber(), status);
     }

@@ -1,5 +1,6 @@
 package com.qdischarge.clinicqueue.controller;
 
+import com.qdischarge.clinicqueue.dto.AbhaMedicalRecordDto;
 import com.qdischarge.clinicqueue.service.EkaCareAbdmService;
 import com.qdischarge.clinicqueue.service.FhirBundleService;
 import lombok.RequiredArgsConstructor;
@@ -7,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+
 
 @RestController
 @RequestMapping("/api/abdm")
@@ -19,6 +22,8 @@ public class AbdmController {
 
     public record KycInitRequest(String type, String value) {}
     public record KycVerifyRequest(String txnId, String otp) {}
+    public record EnrollAadhaarInitRequest(String aadhaar) {}
+    public record EnrollAadhaarVerifyRequest(String txnId, String otp, String preferredAddress, String citizenName) {}
     public record CareContextLinkRequest(String patientReference, Object careContexts) {}
 
     @GetMapping("/status")
@@ -65,6 +70,19 @@ public class AbdmController {
         return toResponse(result);
     }
 
+    @PostMapping("/enroll/aadhaar/init")
+    public ResponseEntity<Map<String, Object>> enrollAadhaarInit(@RequestBody EnrollAadhaarInitRequest request) {
+        EkaCareAbdmService.AbdmResult result = abdmService.enrollAadhaarInit(request.aadhaar());
+        return toResponse(result);
+    }
+
+    @PostMapping("/enroll/aadhaar/verify")
+    public ResponseEntity<Map<String, Object>> enrollAadhaarVerify(@RequestBody EnrollAadhaarVerifyRequest request) {
+        EkaCareAbdmService.AbdmResult result = abdmService.enrollAadhaarVerify(
+                request.txnId(), request.otp(), request.preferredAddress(), request.citizenName());
+        return toResponse(result);
+    }
+
     @GetMapping("/check-address")
     public ResponseEntity<Map<String, Object>> checkAddress(@RequestParam String abhaAddress) {
         EkaCareAbdmService.AbdmResult result = abdmService.checkAbhaAddress(abhaAddress);
@@ -82,6 +100,33 @@ public class AbdmController {
         EkaCareAbdmService.AbdmResult result = abdmService.getConsentStatus(consentRequestId);
         return toResponse(result);
     }
+
+    @PostMapping("/consent/{consentRequestId}/test-approve")
+    public ResponseEntity<Map<String, Object>> testApproveConsent(@PathVariable String consentRequestId) {
+        EkaCareAbdmService.AbdmResult result = abdmService.testApproveConsent(consentRequestId);
+        return toResponse(result);
+    }
+
+    @GetMapping("/patients/{identifier}/history")
+    public ResponseEntity<Map<String, Object>> getPatientMedicalHistory(@PathVariable String identifier) {
+        List<AbhaMedicalRecordDto> history = abdmService.fetchPatientMedicalHistory(identifier, null);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("count", history.size());
+        body.put("data", history);
+        return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/consent/{consentArtefactId}/records")
+    public ResponseEntity<Map<String, Object>> getConsentRecords(@PathVariable String consentArtefactId) {
+        List<AbhaMedicalRecordDto> records = abdmService.fetchConsentRecords(consentArtefactId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("count", records.size());
+        body.put("data", records);
+        return ResponseEntity.ok(body);
+    }
+
 
     private ResponseEntity<Map<String, Object>> toResponse(EkaCareAbdmService.AbdmResult result) {
         Map<String, Object> body = new LinkedHashMap<>();

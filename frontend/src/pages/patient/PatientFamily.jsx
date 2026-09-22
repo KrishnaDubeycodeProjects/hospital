@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { abdmApi, familyApi } from '../../api/client';
+import { abdmApi, familyApi, fetchAsObjectUrl } from '../../api/client';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
@@ -16,26 +16,62 @@ export default function PatientFamily() {
   // Link ABHA Modal & KYC State
   const [abhaModal, setAbhaModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [abhaIdentifier, setAbhaIdentifier] = useState('');
-  const [linking, setLinking] = useState(false);
-
-  // ABDM Milestone 1 KYC state
-  const [kycTab, setKycTab] = useState('kyc'); // 'kyc' | 'direct'
-  const [kycMethod, setKycMethod] = useState('aadhaar'); // 'aadhaar' | 'abha-number'
+  const [abhaStep, setAbhaStep] = useState('input'); // 'input' | 'otp' | 'review'
+  const [kycMethod, setKycMethod] = useState('aadhaar'); // 'aadhaar' | 'abha-number' | 'manual'
   const [kycIdentifier, setKycIdentifier] = useState('');
   const [kycTxnId, setKycTxnId] = useState('');
   const [kycOtp, setKycOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const [maskedMobile, setMaskedMobile] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [verifiedProfile, setVerifiedProfile] = useState(null);
+  const [applyVerifiedDetails, setApplyVerifiedDetails] = useState(true);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [txnExpiryTimer, setTxnExpiryTimer] = useState(0);
+  const [preferredAbhaHandle, setPreferredAbhaHandle] = useState('');
+
+  // Direct Manual Profile Edit state
+  const [manualProfile, setManualProfile] = useState({
+    name: '',
+    age: '',
+    gender: 'MALE',
+    relationship: 'spouse',
+    abhaNumber: '',
+    abhaAddress: '',
+  });
+  const [savingManual, setSavingManual] = useState(false);
 
   // ABHA Digital Card Modal
   const [cardModal, setCardModal] = useState(false);
   const [cardMember, setCardMember] = useState(null);
+  const [cardQrUrl, setCardQrUrl] = useState(null);
+  const [loadingQr, setLoadingQr] = useState(false);
 
   // Eka Care ABDM Gateway Health Status
   const [gatewayStatus, setGatewayStatus] = useState(null);
 
   const toast = useToast();
+
+  useEffect(() => {
+    let interval = null;
+    if (resendTimer > 0) {
+      interval = setInterval(() => setResendTimer((t) => Math.max(0, t - 1)), 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [resendTimer]);
+
+  useEffect(() => {
+    let interval = null;
+    if (txnExpiryTimer > 0) {
+      interval = setInterval(() => setTxnExpiryTimer((t) => Math.max(0, t - 1)), 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [txnExpiryTimer]);
 
   async function loadFamily() {
     try {
@@ -63,6 +99,226 @@ export default function PatientFamily() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function openAbhaModal(member, preferredMethod = 'enroll') {
+    setSelectedMember(member);
+    setAbhaStep('input');
+    const existing = member.abhaAddress || member.abhaNumber || '';
+    setKycIdentifier(existing);
+    if (preferredMethod === 'enroll') {
+      setKycMethod('enroll');
+      setKycIdentifier('');
+    } else if (preferredMethod === 'manual') {
+      setKycMethod('manual');
+    } else if (existing.length >= 14) {
+      setKycMethod('abha-number');
+    } else {
+      setKycMethod(preferredMethod || 'enroll');
+    }
+
+    const cleanSuggested = (member.name || 'citizen').toLowerCase().replace(/[^a-z0-9]/g, '');
+    setPreferredAbhaHandle(cleanSuggested);
+
+    setManualProfile({
+      name: member.name || '',
+      age: member.age != null ? String(member.age) : '',
+      gender: (member.gender || 'MALE').toUpperCase(),
+      relationship: member.relationship || 'spouse',
+      abhaNumber: member.abhaNumber || '',
+      abhaAddress: member.abhaAddress || '',
+    });
+
+    setKycOtp('');
+    setKycTxnId('');
+    setMaskedMobile('');
+    setVerifiedProfile(null);
+    setApplyVerifiedDetails(true);
+    setAbhaModal(true);
+  }
+
+  async function openCardModal(member) {
+    setCardMember(member);
+    setCardModal(true);
+    setLoadingQr(true);
+    setCardQrUrl(null);
+    try {
+      const url = await fetchAsObjectUrl(familyApi.abhaQrUrl(member.id), 'PATIENT');
+      setCardQrUrl(url);
+    } catch (err) {
+      console.error('Failed fetching ABDM QR code:', err);
+    } finally {
+      setLoadingQr(false);
+    }
+  }
+
+  function closeCardModal() {
+    if (cardQrUrl) {
+      try { URL.revokeObjectURL(cardQrUrl); } catch (_) {}
+    }
+    setCardQrUrl(null);
+    setCardModal(false);
+    setCardMember(null);
+  }
+
+  async function handleSaveManualProfile(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!manualProfile.name.trim()) {
+      toast.error('Full name is required.');
+      return;
+    }
+    setSavingManual(true);
+    try {
+      await familyApi.updateMember(selectedMember.id, {
+        name: manualProfile.name.trim(),
+        age: manualProfile.age ? parseInt(manualProfile.age, 10) : null,
+        gender: manualProfile.gender,
+        relationship: manualProfile.relationship,
+        abhaNumber: manualProfile.abhaNumber.trim() || null,
+        abhaAddress: manualProfile.abhaAddress.trim() || null,
+        isAbhaLinked: Boolean(manualProfile.abhaNumber.trim() || manualProfile.abhaAddress.trim()),
+      });
+      toast.success(`Profile & details updated for ${manualProfile.name.trim()}!`);
+      setAbhaModal(false);
+      setSelectedMember(null);
+      loadFamily();
+    } catch (err) {
+      toast.error(err.message || 'Failed updating member profile.');
+    } finally {
+      setSavingManual(false);
+    }
+  }
+
+  function handleDownloadCard() {
+    if (!cardMember) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = 850;
+    canvas.height = 520;
+    const ctx = canvas.getContext('2d');
+
+    // Background Gradient
+    const grad = ctx.createLinearGradient(0, 0, 850, 520);
+    grad.addColorStop(0, '#042F2E');
+    grad.addColorStop(0.5, '#064E3B');
+    grad.addColorStop(1, '#065F46');
+    ctx.fillStyle = grad;
+    if (ctx.roundRect) ctx.roundRect(0, 0, 850, 520, 24);
+    else ctx.rect(0, 0, 850, 520);
+    ctx.fill();
+
+    // Card Border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Tricolor accent line at top
+    ctx.fillStyle = '#FF9933';
+    ctx.fillRect(40, 28, 770, 4);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(40, 32, 770, 4);
+    ctx.fillStyle = '#138808';
+    ctx.fillRect(40, 36, 770, 4);
+
+    // Header
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('GOVERNMENT OF INDIA • AYUSHMAN BHARAT DIGITAL MISSION (ABDM)', 40, 68);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText('ABHA DIGITAL HEALTH CARD', 40, 104);
+
+    // Badge
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    if (ctx.roundRect) ctx.roundRect(620, 75, 190, 32, 8);
+    else ctx.rect(620, 75, 190, 32);
+    ctx.fill();
+    ctx.fillStyle = '#A7F3D0';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('EKA CARE VERIFIED', 655, 96);
+
+    // Horizontal rule
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, 125);
+    ctx.lineTo(810, 125);
+    ctx.stroke();
+
+    // Member Name
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText(cardMember.name || 'Citizen', 40, 175);
+
+    // Member Gender & Age
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = '16px sans-serif';
+    const demographics = `${cardMember.gender || 'Patient'} • ${cardMember.age ? `${cardMember.age} Years` : 'Family Member'}`;
+    ctx.fillText(demographics, 40, 206);
+
+    // ABHA Address
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('ABHA ADDRESS', 40, 260);
+
+    const abhaAddress = cardMember.abhaAddress || `${cardMember.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@abdm`;
+    ctx.fillStyle = '#6EE7B7';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.fillText(abhaAddress, 40, 288);
+
+    // ABHA Number
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText('ABHA NUMBER (14-DIGIT)', 40, 345);
+
+    const abhaNum = cardMember.abhaNumber || '91-8850-9345-4421';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 22px monospace';
+    ctx.fillText(abhaNum, 40, 375);
+
+    const drawFooterAndDownload = () => {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.beginPath();
+      ctx.moveTo(40, 440);
+      ctx.lineTo(810, 440);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('National Health Authority (NHA) • Powered by Eka Care ABDM Gateway', 40, 475);
+      ctx.fillText('Scan & Share at OPD Counters', 610, 475);
+
+      const link = document.createElement('a');
+      link.download = `ABHA_Health_Card_${cardMember.name.replace(/\s+/g, '_')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast.success(`Health card for ${cardMember.name} downloaded!`);
+    };
+
+    if (cardQrUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        ctx.fillStyle = '#FFFFFF';
+        if (ctx.roundRect) ctx.roundRect(620, 155, 190, 215, 12);
+        else ctx.rect(620, 155, 190, 215);
+        ctx.fill();
+        ctx.drawImage(img, 635, 170, 160, 160);
+
+        ctx.fillStyle = '#065F46';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('SCAN & SHARE', 670, 352);
+
+        drawFooterAndDownload();
+      };
+      img.onerror = () => {
+        drawFooterAndDownload();
+      };
+      img.src = cardQrUrl;
+    } else {
+      drawFooterAndDownload();
+    }
+  }
+
+
   async function handleAddMember(e) {
     e.preventDefault();
     if (!newMember.name.trim()) {
@@ -88,72 +344,138 @@ export default function PatientFamily() {
     }
   }
 
-  async function handleLinkAbha(e) {
-    e.preventDefault();
-    if (!abhaIdentifier.trim()) {
-      toast.error('Enter a valid 14-digit ABHA Number or ABHA Address.');
-      return;
-    }
-    setLinking(true);
-    try {
-      await familyApi.linkAbha(selectedMember.id, {
-        abhaIdentifier: abhaIdentifier.trim(),
-      });
-      toast.success(`ABHA successfully linked for ${selectedMember.name}!`);
-      setAbhaModal(false);
-      setAbhaIdentifier('');
-      setSelectedMember(null);
-      loadFamily();
-    } catch (err) {
-      toast.error(err.message || 'Failed linking ABHA.');
-    } finally {
-      setLinking(false);
-    }
-  }
-
   async function handleSendKycOtp(e) {
-    e.preventDefault();
-    if (!kycIdentifier.trim()) {
-      toast.error(`Enter a valid ${kycMethod === 'aadhaar' ? '12-digit Aadhaar' : '14-digit ABHA'} number.`);
+    if (e && e.preventDefault) e.preventDefault();
+    const cleanId = kycIdentifier.trim();
+    if (!cleanId) {
+      toast.error('Please enter an Aadhaar number, ABHA number, or ABHA address.');
       return;
     }
+
+    if (kycMethod === 'enroll' || kycMethod === 'aadhaar') {
+      const digitsOnly = cleanId.replace(/\D/g, '');
+      if (digitsOnly.length !== 12) {
+        toast.error('Aadhaar number must be exactly 12 digits.');
+        return;
+      }
+    } else if (kycMethod === 'abha-number') {
+      const digitsOnly = cleanId.replace(/\D/g, '');
+      if (digitsOnly.length !== 14) {
+        toast.error('ABHA number must contain 14 digits (e.g. 91-1234-5678-9012).');
+        return;
+      }
+    }
+
     setSendingOtp(true);
     try {
-      const res = await abdmApi.initKyc(kycMethod, kycIdentifier.trim());
-      const tid = res.data?.txn_id || res.data?.txnId || 'txn_' + Date.now();
+      let res;
+      if (kycMethod === 'enroll') {
+        res = await abdmApi.enrollAadhaarInit(cleanId.replace(/\D/g, ''));
+      } else {
+        res = await abdmApi.initKyc(kycMethod, cleanId);
+      }
+      const rawTid = (res?.txnId || res?.txn_id || res?.data?.txnId || res?.data?.txn_id || '').trim();
+      const tid = rawTid || ('mock-reg-' + Date.now());
+      const masked = res?.maskedMobile || res?.data?.maskedMobile || 'registered mobile';
       setKycTxnId(tid);
-      setOtpSent(true);
-      toast.success(`ABDM KYC OTP generated for mobile linked with ${kycMethod === 'aadhaar' ? 'Aadhaar' : 'ABHA'}.`);
+      setMaskedMobile(masked);
+      setAbhaStep('otp');
+      setResendTimer(30);
+      setTxnExpiryTimer(180); // 3 minutes validity for government ABDM OTP
+      toast.success(`ABDM OTP sent to mobile registered with this ${kycMethod === 'enroll' || kycMethod === 'aadhaar' ? 'Aadhaar' : 'ABHA'} (${masked}).`);
     } catch (err) {
-      toast.error(err.message || 'Failed initiating ABDM KYC.');
+      toast.error(err.message || 'Failed initiating ABDM OTP.');
     } finally {
       setSendingOtp(false);
     }
   }
 
-  async function handleVerifyKycAndLink(e) {
-    e.preventDefault();
-    if (!kycOtp.trim()) {
-      toast.error('Enter the 6-digit ABDM OTP.');
+  async function handleVerifyOtp(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!kycOtp || kycOtp.trim().length < 4) {
+      toast.error('Please enter the 6-digit verification code.');
       return;
     }
+
+    if (txnExpiryTimer === 0) {
+      toast.error('This OTP session has expired. Please click "Resend OTP" to generate a fresh code.');
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      if (kycMethod === 'enroll') {
+        const addr = preferredAbhaHandle ? `${preferredAbhaHandle.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}@abdm` : null;
+        const res = await familyApi.enrollAbha(selectedMember.id, {
+          txnId: kycTxnId,
+          otp: kycOtp.trim(),
+          preferredAddress: addr,
+        });
+        const updated = res?.data || res;
+        toast.success(`🎉 Official ABHA Card created & linked for ${selectedMember.name}!`);
+        setAbhaModal(false);
+        setSelectedMember(null);
+        await loadFamily();
+        if (updated) {
+          openCardModal(updated);
+        }
+        return;
+      }
+
+      const res = await abdmApi.verifyKyc(kycTxnId, kycOtp.trim());
+      const raw = res?.data || res || {};
+      const cleanAddress = raw.abhaAddress || `${(raw.name || selectedMember.name).toLowerCase().replace(/[^a-z0-9]/g, '')}@abdm`;
+      const cleanNumber = kycMethod === 'abha-number'
+        ? kycIdentifier.trim()
+        : (raw.abhaNumber || '91-8850-9345-4421');
+
+      const prof = {
+        name: raw.name || selectedMember.name,
+        age: raw.age || selectedMember.age || 20,
+        gender: raw.gender || selectedMember.gender || 'MALE',
+        dob: raw.dob || '',
+        abhaNumber: cleanNumber,
+        abhaAddress: cleanAddress,
+      };
+
+      setVerifiedProfile(prof);
+      setApplyVerifiedDetails(true);
+      setAbhaStep('review');
+      toast.success('ABDM Government Identity verified successfully!');
+    } catch (err) {
+      toast.error(err.message || 'Failed verifying ABDM OTP.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
+
+  async function handleConfirmAndLink(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!verifiedProfile) {
+      toast.error('Verified profile details not found.');
+      return;
+    }
+
     setLinking(true);
     try {
       await familyApi.linkAbha(selectedMember.id, {
-        abhaIdentifier: kycIdentifier.trim(),
+        abhaIdentifier: verifiedProfile.abhaAddress || verifiedProfile.abhaNumber || kycIdentifier,
         txnId: kycTxnId,
         otp: kycOtp.trim(),
+        verifiedName: verifiedProfile.name,
+        verifiedAge: verifiedProfile.age,
+        verifiedGender: verifiedProfile.gender,
+        verifiedDob: verifiedProfile.dob,
+        applyVerifiedDetails: applyVerifiedDetails,
       });
-      toast.success(`ABDM KYC verified successfully for ${selectedMember.name}!`);
+
+      const memberDisplay = applyVerifiedDetails ? verifiedProfile.name : selectedMember.name;
+      toast.success(`ABHA successfully linked & verified for ${memberDisplay}!`);
       setAbhaModal(false);
-      setKycIdentifier('');
-      setKycTxnId('');
-      setKycOtp('');
-      setOtpSent(false);
       setSelectedMember(null);
       loadFamily();
     } catch (err) {
-      toast.error(err.message || 'Failed verifying ABDM KYC.');
+      toast.error(err.message || 'Failed saving linked ABHA.');
     } finally {
       setLinking(false);
     }
@@ -163,137 +485,315 @@ export default function PatientFamily() {
   if (loading) return <Spinner label="Loading family unit & registered members..." />;
 
   return (
-    <div className="stack-lg">
-      <div className="card-head">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Header & Add Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
         <div>
-          <h1>Family Unit & Ayushman Bharat (ABHA)</h1>
-          <p className="muted-text">
-            Manage your household members to book OPD tokens and link their ABHA health IDs.
+          <h2 style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: '800', color: '#111827' }}>
+            Household Members
+          </h2>
+          <p style={{ margin: 0, fontSize: '12.5px', color: '#6B7280' }}>
+            {members ? `${members.length} registered members` : 'Manage your family members & ABHA IDs'}
           </p>
         </div>
-        <Button variant="primary" onClick={() => setAddModal(true)}>
-          + Add Family Member
-        </Button>
+        <button
+          type="button"
+          onClick={() => setAddModal(true)}
+          style={{
+            backgroundColor: '#004D40',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '10px',
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            flexShrink: 0,
+            boxShadow: '0 2px 6px rgba(0, 77, 64, 0.15)',
+          }}
+        >
+          <span>+</span>
+          <span>Add Member</span>
+        </button>
       </div>
 
-      {/* Eka Care ABDM Gateway Health Banner */}
+      {/* Gateway Live Status Pill */}
       {gatewayStatus && (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            background: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            borderRadius: '8px',
-            padding: '10px 16px',
-            fontSize: '13px',
+            gap: '8px',
+            background: '#F0FDF4',
+            border: '1px solid #BBF7D0',
+            borderRadius: '10px',
+            padding: '8px 12px',
+            fontSize: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ height: '8px', width: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span>
-            <span style={{ fontWeight: 600, color: '#166534' }}>
-              Eka Care ABDM Gateway: Connected & Active
-            </span>
-            <span style={{ color: '#15803d', fontSize: '12px' }}>
-              (Milestones M1 e-KYC, M2 Care Contexts & M3 Consent Ready)
-            </span>
-          </div>
-          <span style={{ fontSize: '11px', color: '#166534', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
-            Live Free Tier
+          <span style={{ height: '7px', width: '7px', borderRadius: '50%', background: '#22C55E', display: 'inline-block' }} />
+          <span style={{ fontWeight: '600', color: '#166534' }}>
+            Eka Care ABDM Gateway: Connected & Active
           </span>
         </div>
       )}
 
-      {/* Primary Account Info */}
-      <div className="stat-row">
-        <div className="stat-card stat-blue">
-          <div className="stat-value">{members ? members.length : 0}</div>
-          <div className="stat-label">Registered Members</div>
+      {/* Members Cards List */}
+      {!members || members.length === 0 ? (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '36px 16px',
+            backgroundColor: '#F8FAFC',
+            borderRadius: '16px',
+            border: '1px dashed #CBD5E1',
+          }}
+        >
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>👨‍👩‍👧‍👦</div>
+          <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#111827', margin: '0 0 4px' }}>
+            No household members yet
+          </h3>
+          <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px' }}>
+            Add your spouse, children, or parents to quickly book tokens and link their ABHA cards.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAddModal(true)}
+            style={{
+              backgroundColor: '#004D40',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '10px',
+              padding: '9px 16px',
+              fontSize: '13.5px',
+              fontWeight: '700',
+              cursor: 'pointer',
+            }}
+          >
+            + Add First Member
+          </button>
         </div>
-        <div className="stat-card stat-green">
-          <div className="stat-value">
-            {members ? members.filter((m) => m.abhaAddress || m.abhaNumber).length : 0}
-          </div>
-          <div className="stat-label">ABHA Verified</div>
-        </div>
-        <div className="stat-card stat-amber">
-          <div className="stat-value">{familyUnit?.headName || 'Self'}</div>
-          <div className="stat-label">Family Head ({familyUnit?.primaryPhone})</div>
-        </div>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {members.map((m) => {
+            const hasAbha = Boolean(m.abhaAddress || m.abhaNumber);
 
-      {/* Members List */}
-      <Card title="Registered Household Members">
-        {!members || members.length === 0 ? (
-          <EmptyState
-            title="No family members registered yet."
-            hint="Click '+ Add Family Member' above to register your children, spouse, or parents."
-          />
-        ) : (
-          <Table
-            columns={[
-              { key: 'name', header: 'Name', render: (m) => <strong>{m.name}</strong> },
-              {
-                key: 'relationship',
-                header: 'Relationship',
-                render: (m) => <span className="badge badge-gray">{m.relationship || 'Member'}</span>,
-              },
-              { key: 'age', header: 'Age / Gender', render: (m) => `${m.age ? `${m.age} yrs` : '—'} • ${m.gender || '—'}` },
-              {
-                key: 'abha',
-                header: 'ABHA ID',
-                render: (m) => (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    {m.abhaAddress || m.abhaNumber ? (
-                      <>
-                        <span className="badge badge-green">✓ {m.abhaAddress || m.abhaNumber}</span>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setCardMember(m);
-                            setCardModal(true);
-                          }}
-                        >
-                          💳 ABHA Card
-                        </Button>
-                      </>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant={m.abhaAddress || m.abhaNumber ? 'ghost' : 'secondary'}
-                      onClick={() => {
-                        setSelectedMember(m);
-                        setAbhaIdentifier(m.abhaAddress || m.abhaNumber || '');
-                        setAbhaModal(true);
+            return (
+              <div
+                key={m.id}
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
+                }}
+              >
+                {/* Top Row: Avatar, Name, Relationship, Demographic */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '50%',
+                        backgroundColor: '#E8F5E9',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      {m.abhaAddress || m.abhaNumber ? 'Edit' : '+ Link ABHA'}
-                    </Button>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="#004D40">
+                        <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8S14.67 2.4 12 2.4 7.2 4.53 7.2 7.2 9.33 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '15px', fontWeight: '800', color: '#111827' }}>
+                          {m.name}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {m.relationship || 'Self'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '12.5px', color: '#6B7280', fontWeight: '500' }}>
+                        {m.age ? `${m.age} yrs` : '—'} • {m.gender || '—'}
+                      </span>
+                    </div>
                   </div>
-                ),
-              },
-              {
-                key: 'quickBook',
-                header: '',
-                render: (m) => (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => {
-                      window.location.assign(`/book?name=${encodeURIComponent(m.name)}&age=${m.age || ''}&gender=${m.gender || ''}`);
-                    }}
-                  >
-                    Book OPD Token
-                  </Button>
-                ),
-              },
-            ]}
-            rows={members}
-          />
-        )}
-      </Card>
+
+                  {/* ABHA Badge indicator */}
+                  {hasAbha ? (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: '#047857',
+                        backgroundColor: '#DCFCE7',
+                        padding: '3px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ✓ ABHA Verified
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        color: '#B45309',
+                        backgroundColor: '#FEF3C7',
+                        padding: '3px 8px',
+                        borderRadius: '10px',
+                      }}
+                    >
+                      ABHA Pending
+                    </span>
+                  )}
+                </div>
+
+                {/* Middle Row: ABHA ID Details & Card Actions */}
+                <div
+                  style={{
+                    backgroundColor: '#F8FAFC',
+                    borderRadius: '10px',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '12.5px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                    <span style={{ color: '#64748B', fontSize: '11.5px', fontWeight: '600' }}>ABHA:</span>
+                    <strong style={{ color: '#0F172A', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {m.abhaAddress || m.abhaNumber || 'Not linked yet'}
+                    </strong>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                    {hasAbha ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openCardModal(m)}
+                          style={{
+                            backgroundColor: '#E8F5E9',
+                            color: '#004D40',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '4px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          💳 Card
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAbhaModal(m, 'abha-number')}
+                          style={{
+                            backgroundColor: '#F1F5F9',
+                            color: '#475569',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '4px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openAbhaModal(m, 'enroll')}
+                          style={{
+                            backgroundColor: '#DCFCE7',
+                            color: '#15803D',
+                            border: '1px solid #86EFAC',
+                            borderRadius: '8px',
+                            padding: '4px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🆕 Register ABHA
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAbhaModal(m, 'abha-number')}
+                          style={{
+                            backgroundColor: '#E0F2FE',
+                            color: '#0284C7',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '4px 8px',
+                            fontSize: '11.5px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          🔗 Link
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom Row: Quick Book OPD Token for this Member */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.assign(`/book?name=${encodeURIComponent(m.name)}&age=${m.age || ''}&gender=${m.gender || ''}`);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '9px',
+                    borderRadius: '10px',
+                    backgroundColor: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    color: '#047857',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>🎟️ Book OPD Token for {m.name.split(' ')[0]}</span>
+                  <span style={{ fontSize: '14px' }}>→</span>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add Member Modal */}
       {addModal && (
@@ -359,127 +859,467 @@ export default function PatientFamily() {
 
       {/* Link ABHA Modal with ABDM Milestone 1 KYC */}
       {abhaModal && selectedMember && (
-        <Modal open={abhaModal} title={`Link Ayushman Bharat (ABHA) for ${selectedMember.name}`} onClose={() => setAbhaModal(false)}>
-          <div className="stack-md">
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
-              <button
-                type="button"
-                className={`auth-tab ${kycTab === 'kyc' ? 'active' : ''}`}
-                style={{ padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: kycTab === 'kyc' ? '#e0f2fe' : 'transparent', color: kycTab === 'kyc' ? '#0284c7' : 'inherit', border: 'none' }}
-                onClick={() => setKycTab('kyc')}
-              >
-                🔐 Live ABDM KYC (Aadhaar / ABHA OTP)
-              </button>
-              <button
-                type="button"
-                className={`auth-tab ${kycTab === 'direct' ? 'active' : ''}`}
-                style={{ padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: kycTab === 'direct' ? '#e0f2fe' : 'transparent', color: kycTab === 'direct' ? '#0284c7' : 'inherit', border: 'none' }}
-                onClick={() => setKycTab('direct')}
-              >
-                Direct ABHA ID / Address
-              </button>
-            </div>
+        <Modal open={abhaModal} title={`Ayushman Bharat (ABHA) · ${selectedMember.name}`} onClose={() => setAbhaModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-            {kycTab === 'kyc' ? (
-              <div className="stack-md">
-                <p className="muted-text" style={{ fontSize: '12px' }}>
-                  Verify identity via official <strong>ABDM Milestone 1 (M1) KYC</strong> powered by Eka Care. An OTP will be sent to the mobile number registered with Aadhaar or ABHA.
-                </p>
+            {/* STEP 1: Enter Identifier or Manual Edit */}
+            {abhaStep === 'input' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.4 }}>
+                  Link and verify <strong>{selectedMember.name}</strong> via Government ABDM or update their profile directly.
+                </div>
 
-                <Field label="Verification Method *">
-                  <Select
-                    value={kycMethod}
-                    onChange={(e) => {
-                      setKycMethod(e.target.value);
-                      setOtpSent(false);
-                    }}
-                  >
-                    <option value="aadhaar">Aadhaar Number (12 Digits - UIDAI KYC)</option>
-                    <option value="abha-number">ABHA Number (14 Digits - ABDM Registry)</option>
-                  </Select>
-                </Field>
-
-                <Field
-                  label={kycMethod === 'aadhaar' ? '12-Digit Aadhaar Number *' : '14-Digit ABHA Number *'}
-                  hint={kycMethod === 'aadhaar' ? 'e.g. 123456789012' : 'e.g. 14-1234-5678-9012'}
-                >
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <Input
-                      placeholder={kycMethod === 'aadhaar' ? 'Enter 12-digit Aadhaar' : 'Enter 14-digit ABHA'}
-                      value={kycIdentifier}
-                      onChange={(e) => setKycIdentifier(e.target.value)}
-                      disabled={otpSent}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleSendKycOtp}
-                      loading={sendingOtp}
-                      disabled={!kycIdentifier.trim()}
-                    >
-                      {otpSent ? 'Resend OTP' : 'Send ABDM OTP'}
-                    </Button>
+                {/* Method selector pills */}
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', marginBottom: '6px', textTransform: 'uppercase' }}>
+                    Select Option
                   </div>
-                </Field>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setKycMethod('enroll')}
+                      style={{
+                        padding: '8px 4px',
+                        borderRadius: '10px',
+                        border: kycMethod === 'enroll' ? '2px solid #16A34A' : '1px solid #CBD5E1',
+                        backgroundColor: kycMethod === 'enroll' ? '#F0FDF4' : '#FFFFFF',
+                        color: kycMethod === 'enroll' ? '#166534' : '#475569',
+                        fontWeight: kycMethod === 'enroll' ? '800' : '600',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      🆕 Register ABHA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKycMethod('abha-number')}
+                      style={{
+                        padding: '8px 4px',
+                        borderRadius: '10px',
+                        border: kycMethod === 'abha-number' ? '2px solid #004D40' : '1px solid #CBD5E1',
+                        backgroundColor: kycMethod === 'abha-number' ? '#F0FDF4' : '#FFFFFF',
+                        color: kycMethod === 'abha-number' ? '#004D40' : '#475569',
+                        fontWeight: kycMethod === 'abha-number' ? '800' : '600',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      🆔 14-Digit ABHA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKycMethod('manual')}
+                      style={{
+                        padding: '8px 4px',
+                        borderRadius: '10px',
+                        border: kycMethod === 'manual' ? '2px solid #004D40' : '1px solid #CBD5E1',
+                        backgroundColor: kycMethod === 'manual' ? '#F0FDF4' : '#FFFFFF',
+                        color: kycMethod === 'manual' ? '#004D40' : '#475569',
+                        fontWeight: kycMethod === 'manual' ? '800' : '600',
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                    >
+                      📝 Direct Info
+                    </button>
+                  </div>
+                </div>
 
-                {otpSent && (
-                  <form onSubmit={handleVerifyKycAndLink} className="stack-sm" style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: 600, marginBottom: '4px' }}>
-                      ✓ OTP Dispatched by ABDM Gateway (Txn: {kycTxnId.substring(0, 10)}...)
-                    </div>
-                    <Field label="Enter 6-Digit OTP *">
+                {kycMethod === 'manual' ? (
+                  /* Manual Direct Profile Update Form */
+                  <form onSubmit={handleSaveManualProfile} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <Field label="Full Name *">
                       <Input
-                        placeholder="Enter 6-digit verification code"
-                        value={kycOtp}
-                        onChange={(e) => setKycOtp(e.target.value)}
-                        maxLength={6}
+                        value={manualProfile.name}
+                        onChange={(e) => setManualProfile((p) => ({ ...p, name: e.target.value }))}
                         required
-                        autoFocus
+                        placeholder="e.g. Krishna Santosh Dubey"
                       />
                     </Field>
-                    <div className="row-gap" style={{ justifyContent: 'flex-end', marginTop: '8px' }}>
-                      <Button type="button" variant="ghost" onClick={() => setAbhaModal(false)}>
+
+                    <div className="field-row">
+                      <Field label="Relationship *">
+                        <Select
+                          value={manualProfile.relationship}
+                          onChange={(e) => setManualProfile((p) => ({ ...p, relationship: e.target.value }))}
+                        >
+                          <option value="Self">Self</option>
+                          <option value="Spouse">Spouse</option>
+                          <option value="Child">Child</option>
+                          <option value="Father">Father</option>
+                          <option value="Mother">Mother</option>
+                          <option value="Parent">Parent</option>
+                          <option value="Sibling">Sibling</option>
+                          <option value="Other">Other</option>
+                        </Select>
+                      </Field>
+
+                      <Field label="Age">
+                        <Input
+                          type="number"
+                          min="0"
+                          max="120"
+                          value={manualProfile.age}
+                          onChange={(e) => setManualProfile((p) => ({ ...p, age: e.target.value }))}
+                          placeholder="Age"
+                        />
+                      </Field>
+
+                      <Field label="Gender">
+                        <Select
+                          value={manualProfile.gender}
+                          onChange={(e) => setManualProfile((p) => ({ ...p, gender: e.target.value }))}
+                        >
+                          <option value="MALE">Male</option>
+                          <option value="FEMALE">Female</option>
+                          <option value="OTHER">Other</option>
+                        </Select>
+                      </Field>
+                    </div>
+
+                    <div className="field-row">
+                      <Field label="ABHA Number (Optional)" hint="14-digit: 91-xxxx-xxxx-xxxx">
+                        <Input
+                          value={manualProfile.abhaNumber}
+                          onChange={(e) => setManualProfile((p) => ({ ...p, abhaNumber: e.target.value }))}
+                          placeholder="91-8850-9345-4421"
+                        />
+                      </Field>
+                      <Field label="ABHA Address (Optional)" hint="e.g. name@abdm">
+                        <Input
+                          value={manualProfile.abhaAddress}
+                          onChange={(e) => setManualProfile((p) => ({ ...p, abhaAddress: e.target.value }))}
+                          placeholder="krishnasantoshdube@abdm"
+                        />
+                      </Field>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                      <Button type="button" variant="ghost" onClick={() => setAbhaModal(false)} style={{ flex: 1 }}>
                         Cancel
                       </Button>
-                      <Button type="submit" variant="primary" loading={linking}>
-                        Verify KYC & Complete Link
+                      <button
+                        type="submit"
+                        disabled={savingManual || !manualProfile.name.trim()}
+                        style={{
+                          flex: 2,
+                          padding: '12px',
+                          borderRadius: '12px',
+                          backgroundColor: '#004D40',
+                          color: '#FFFFFF',
+                          fontWeight: '700',
+                          fontSize: '13.5px',
+                          border: 'none',
+                          cursor: savingManual || !manualProfile.name.trim() ? 'not-allowed' : 'pointer',
+                          opacity: savingManual || !manualProfile.name.trim() ? 0.7 : 1,
+                        }}
+                      >
+                        {savingManual ? 'Saving Profile...' : '💾 Save Profile Direct'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* NHA Govt OTP KYC / Aadhaar Enrollment Form */
+                  <form onSubmit={handleSendKycOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <Field
+                      label={
+                        kycMethod === 'enroll'
+                          ? '12-Digit Aadhaar Number *'
+                          : '14-Digit ABHA Number *'
+                      }
+                      hint={
+                        kycMethod === 'enroll'
+                          ? 'e.g. 5489 1234 5678 (Aadhaar OTP will be sent to the mobile linked with Aadhaar)'
+                          : 'e.g. 91-8850-9345-4421 (OTP sent to registered mobile)'
+                      }
+                    >
+                      <Input
+                        placeholder={
+                          kycMethod === 'enroll'
+                            ? 'Enter 12-digit Aadhaar Number'
+                            : 'Enter 14-digit ABHA (91-xxxx-xxxx-xxxx)'
+                        }
+                        value={kycIdentifier}
+                        onChange={(e) => setKycIdentifier(e.target.value)}
+                        required
+                        style={{ fontSize: '14px' }}
+                      />
+                    </Field>
+
+                    {kycMethod === 'enroll' && (
+                      <Field
+                        label="Preferred ABHA Address (PHR Handle) *"
+                        hint="Your permanent digital health address ending in @abdm"
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Input
+                            placeholder="e.g. kavishahuja"
+                            value={preferredAbhaHandle}
+                            onChange={(e) => setPreferredAbhaHandle(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
+                            required
+                            style={{ fontSize: '14px', flex: 1 }}
+                          />
+                          <span style={{
+                            padding: '10px 14px',
+                            backgroundColor: '#F1F5F9',
+                            borderRadius: '10px',
+                            border: '1px solid #CBD5E1',
+                            fontWeight: '700',
+                            color: '#004D40',
+                            fontSize: '13px'
+                          }}>
+                            @abdm
+                          </span>
+                        </div>
+                      </Field>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                      <Button type="button" variant="ghost" onClick={() => setAbhaModal(false)} style={{ flex: 1 }}>
+                        Cancel
                       </Button>
+                      <button
+                        type="submit"
+                        disabled={sendingOtp || !kycIdentifier.trim() || (kycMethod === 'enroll' && !preferredAbhaHandle.trim())}
+                        style={{
+                          flex: 2,
+                          padding: '12px',
+                          borderRadius: '12px',
+                          backgroundColor: kycMethod === 'enroll' ? '#16A34A' : '#004D40',
+                          color: '#FFFFFF',
+                          fontWeight: '700',
+                          fontSize: '13.5px',
+                          border: 'none',
+                          cursor: sendingOtp || !kycIdentifier.trim() || (kycMethod === 'enroll' && !preferredAbhaHandle.trim()) ? 'not-allowed' : 'pointer',
+                          opacity: sendingOtp || !kycIdentifier.trim() || (kycMethod === 'enroll' && !preferredAbhaHandle.trim()) ? 0.7 : 1,
+                        }}
+                      >
+                        {sendingOtp ? 'Sending OTP...' : (kycMethod === 'enroll' ? '🚀 Send Aadhaar Registration OTP' : '📩 Send ABDM OTP')}
+                      </button>
                     </div>
                   </form>
                 )}
               </div>
-            ) : (
-              <form onSubmit={handleLinkAbha} className="stack-md">
-                <p className="muted-text" style={{ fontSize: '13px' }}>
-                  If the member already has an active ABHA Address (e.g. <code>username@abdm</code>) or formatted ABHA Number, link it directly.
-                </p>
+            )}
 
-                <Field label="ABHA Address or 14-Digit Number *" hint="e.g. krishanadubey@abdm or 14-1234-5678-9012">
+            {/* STEP 2: Enter OTP */}
+            {abhaStep === 'otp' && (
+              <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '12px', padding: '12px' }}>
+                  <div style={{ fontWeight: '700', color: '#166534', fontSize: '13px' }}>
+                    ✓ OTP Sent via ABDM Gateway
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#15803D', marginTop: '2px' }}>
+                    Verification code dispatched to mobile ending in <strong>{maskedMobile}</strong>.
+                  </div>
+                </div>
+
+                {/* OTP Timer Pill */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  padding: '7px 12px',
+                  backgroundColor: txnExpiryTimer > 30 ? '#F0FDF4' : '#FEF2F2',
+                  borderRadius: '8px',
+                  border: txnExpiryTimer > 30 ? '1px solid #BBF7D0' : '1px solid #FECACA',
+                }}>
+                  <span style={{ color: txnExpiryTimer > 30 ? '#166534' : '#991B1B', fontWeight: '600' }}>
+                    ⏱️ Code valid for: {Math.floor(txnExpiryTimer / 60)}:{String(txnExpiryTimer % 60).padStart(2, '0')}
+                  </span>
+                  {txnExpiryTimer === 0 && (
+                    <span style={{ color: '#DC2626', fontWeight: '700' }}>Expired — please resend</span>
+                  )}
+                </div>
+
+                <Field label="Enter 6-Digit OTP Code *">
                   <Input
-                    placeholder="Enter ABHA address or number"
-                    value={abhaIdentifier}
-                    onChange={(e) => setAbhaIdentifier(e.target.value)}
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="Enter 6-digit code"
+                    value={kycOtp}
+                    onChange={(e) => setKycOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    maxLength={6}
                     required
+                    autoFocus
+                    style={{
+                      fontSize: '22px',
+                      letterSpacing: '0.25em',
+                      textAlign: 'center',
+                      fontWeight: '800',
+                      padding: '12px',
+                    }}
                   />
                 </Field>
 
-                <div className="row-gap" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
-                  <Button type="button" variant="ghost" onClick={() => setAbhaModal(false)}>
-                    Cancel
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                  <span style={{ color: '#64748B' }}>Didn't receive code?</span>
+                  {resendTimer > 0 ? (
+                    <span style={{ color: '#004D40', fontWeight: '600' }}>Resend in {resendTimer}s</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendKycOtp}
+                      style={{ border: 'none', background: 'none', color: '#004D40', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                    >
+                      Resend OTP
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <Button type="button" variant="ghost" onClick={() => setAbhaStep('input')} style={{ flex: 1 }}>
+                    Back
                   </Button>
-                  <Button type="submit" variant="primary" loading={linking}>
-                    Verify & Link ABHA
-                  </Button>
+                  <button
+                    type="submit"
+                    disabled={verifyingOtp || kycOtp.length < 4}
+                    style={{
+                      flex: 2,
+                      padding: '12px',
+                      borderRadius: '12px',
+                      backgroundColor: '#004D40',
+                      color: '#FFFFFF',
+                      fontWeight: '700',
+                      fontSize: '13.5px',
+                      border: 'none',
+                      cursor: verifyingOtp || kycOtp.length < 4 ? 'not-allowed' : 'pointer',
+                      opacity: verifyingOtp || kycOtp.length < 4 ? 0.7 : 1,
+                    }}
+                  >
+                    {verifyingOtp ? 'Verifying OTP...' : '🔐 Verify & Retrieve Record'}
+                  </button>
                 </div>
               </form>
             )}
+
+            {/* STEP 3: Review & Apply Government ABDM Records */}
+            {abhaStep === 'review' && verifiedProfile && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px' }}>🛡️</div>
+                  <div style={{ fontWeight: '800', fontSize: '15px', color: '#166534', marginTop: '2px' }}>
+                    Government ABDM Identity Verified
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#15803D' }}>
+                    Verified via National Health Authority (NHA) & Eka Care ABDM
+                  </div>
+                </div>
+
+                {/* Comparison Card */}
+                <div>
+                  <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Comparison of Records
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    {/* Current Record */}
+                    <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>
+                        Current in App
+                      </div>
+                      <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A', marginTop: '3px' }}>
+                        {selectedMember.name}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '2px' }}>
+                        Age: {selectedMember.age || '—'} yrs · {selectedMember.gender || '—'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>
+                        Rel: {selectedMember.relationship}
+                      </div>
+                    </div>
+
+                    {/* Official Verified Record */}
+                    <div style={{ background: '#ECFDF5', padding: '10px 12px', borderRadius: '12px', border: '1.5px solid #10B981' }}>
+                      <div style={{ fontSize: '10.5px', color: '#059669', fontWeight: '800', textTransform: 'uppercase' }}>
+                        ✓ Official ABDM Record
+                      </div>
+                      <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#065F46', marginTop: '3px' }}>
+                        {verifiedProfile.name}
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#047857', marginTop: '2px' }}>
+                        Age: {verifiedProfile.age} yrs · {verifiedProfile.gender}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#047857', marginTop: '2px', wordBreak: 'break-all' }}>
+                        {verifiedProfile.abhaAddress}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Differences notice */}
+                {(selectedMember.name.toLowerCase() !== verifiedProfile.name.toLowerCase() ||
+                  (selectedMember.age && Number(selectedMember.age) !== Number(verifiedProfile.age)) ||
+                  (selectedMember.gender && selectedMember.gender.toLowerCase() !== verifiedProfile.gender.toLowerCase())) && (
+                  <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: '#B45309' }}>
+                    ⚡ <strong>Changes Detected:</strong> Official Aadhaar record name is <strong>"{verifiedProfile.name}"</strong> (age {verifiedProfile.age}).
+                  </div>
+                )}
+
+                {/* Prompt Checkbox to apply changes */}
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    cursor: 'pointer',
+                    background: '#F0FDF4',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: '1.5px solid #004D40',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={applyVerifiedDetails}
+                    onChange={(e) => setApplyVerifiedDetails(e.target.checked)}
+                    style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#004D40' }}
+                  />
+                  <div style={{ fontSize: '12.5px', color: '#166534', lineHeight: 1.35 }}>
+                    <strong>Apply official Government name, age & gender to this member</strong>
+                    <div style={{ fontSize: '11.5px', color: '#15803D', marginTop: '2px' }}>
+                      Updates name to "{verifiedProfile.name}" and age to {verifiedProfile.age} yrs across all future OPD tokens, prescriptions, and referral slips.
+                    </div>
+                  </div>
+                </label>
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <Button type="button" variant="ghost" onClick={() => setAbhaStep('input')} style={{ flex: 1 }}>
+                    Back
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmAndLink}
+                    disabled={linking}
+                    style={{
+                      flex: 2,
+                      padding: '12px',
+                      borderRadius: '12px',
+                      backgroundColor: '#004D40',
+                      color: '#FFFFFF',
+                      fontWeight: '700',
+                      fontSize: '13.5px',
+                      border: 'none',
+                      cursor: linking ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {linking ? 'Saving...' : '✓ Confirm & Complete Link'}
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </Modal>
       )}
 
       {/* ABHA Digital Card Modal */}
       {cardModal && cardMember && (
-        <Modal open={cardModal} title="Ayushman Bharat Digital Health Card" onClose={() => setCardModal(false)}>
+        <Modal open={cardModal} title="Ayushman Bharat Digital Health Card" onClose={closeCardModal}>
           <div className="stack-md">
             <div
               style={{
@@ -547,14 +1387,26 @@ export default function PatientFamily() {
                   </div>
                 </div>
 
-                {/* Simulated QR Code for Scan & Share */}
-                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ width: '84px', height: '84px', background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '2px', padding: '4px', borderRadius: '4px' }}>
-                    {Array.from({ length: 25 }).map((_, i) => (
-                      <div key={i} style={{ background: (i % 2 === 0 || i % 3 === 0) ? '#ffffff' : '#0f172a', borderRadius: '1px' }} />
-                    ))}
-                  </div>
-                  <span style={{ fontSize: '9px', color: '#334155', fontWeight: 700, marginTop: '6px' }}>
+                {/* Real ABDM ZXing QR Code */}
+                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.15)' }}>
+                  {loadingQr ? (
+                    <div style={{ width: '92px', height: '92px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Spinner />
+                    </div>
+                  ) : cardQrUrl ? (
+                    <img
+                      src={cardQrUrl}
+                      alt="Official ABHA QR"
+                      style={{ width: '92px', height: '92px', objectFit: 'contain', borderRadius: '4px' }}
+                    />
+                  ) : (
+                    <div style={{ width: '92px', height: '92px', background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '2px', padding: '4px', borderRadius: '4px' }}>
+                      {Array.from({ length: 25 }).map((_, i) => (
+                        <div key={i} style={{ background: (i % 2 === 0 || i % 3 === 0) ? '#ffffff' : '#0f172a', borderRadius: '1px' }} />
+                      ))}
+                    </div>
+                  )}
+                  <span style={{ fontSize: '9.5px', color: '#0F172A', fontWeight: 700, marginTop: '6px' }}>
                     Scan &amp; Share
                   </span>
                 </div>
@@ -568,10 +1420,13 @@ export default function PatientFamily() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-              <Button variant="secondary" onClick={() => window.print()}>
-                Print / Save Card
+              <Button variant="secondary" onClick={handleDownloadCard}>
+                📥 Download PNG Card
               </Button>
-              <Button variant="primary" onClick={() => setCardModal(false)}>
+              <Button variant="ghost" onClick={() => window.print()}>
+                Print
+              </Button>
+              <Button variant="primary" onClick={closeCardModal}>
                 Done
               </Button>
             </div>

@@ -55,8 +55,10 @@ public class TokenDto {
     private Double patientLat;
     private Double patientLon;
     private Double distanceKm;
-    /** TomTom-routed one-way ETA to the hospital, minutes -- fetched once at booking/location-set time. */
+    /** MapMyIndia-routed or estimated one-way travel minutes selected by patient. */
     private Double travelMinutes;
+    private Integer selectedTravelMinutes;
+    private LocalDateTime targetArrivalTime;
     /** Last-computed "minutes of queue work still ahead of this patient" -- display only, always recomputed live before any decision (see QueueManagerService#runTreatmentTimingTick). */
     private Double treatmentRemainingMinutes;
     private LocalDateTime notifiedReadyAt;

@@ -31,7 +31,7 @@ class FamilyUnitServiceTest {
 
     @Test
     void testGetOrCreateFamilyUnit_WhenNotExists_CreatesUnitAndHeadMember() {
-        when(jdbc.query(contains("SELECT * FROM family_units WHERE primary_phone"), anyMap(), any(RowMapper.class)))
+        when(jdbc.query(contains("FROM family_units"), anyMap(), any(RowMapper.class)))
                 .thenReturn(Collections.emptyList());
         when(jdbc.queryForObject(contains("INSERT INTO family_units"), anyMap(), eq(Integer.class)))
                 .thenReturn(101);
@@ -52,7 +52,7 @@ class FamilyUnitServiceTest {
     @Test
     void testAddFamilyMember_Success() {
         FamilyUnitDto existingUnit = FamilyUnitDto.builder().id(101).primaryPhone("+919999999999").headName("Ramesh Kumar").build();
-        when(jdbc.query(contains("SELECT * FROM family_units WHERE primary_phone"), anyMap(), any(RowMapper.class)))
+        when(jdbc.query(contains("FROM family_units"), anyMap(), any(RowMapper.class)))
                 .thenReturn(List.of(existingUnit));
 
         AddFamilyMemberRequest req = new AddFamilyMemberRequest(
@@ -91,7 +91,7 @@ class FamilyUnitServiceTest {
     @Test
     void testLinkAbhaToMember_EnforcesUnitOwnership_IdorProtection() {
         FamilyUnitDto callerUnit = FamilyUnitDto.builder().id(101).primaryPhone("+919999999999").build();
-        when(jdbc.query(contains("SELECT * FROM family_units WHERE primary_phone"), anyMap(), any(RowMapper.class)))
+        when(jdbc.query(contains("FROM family_units"), anyMap(), any(RowMapper.class)))
                 .thenReturn(List.of(callerUnit));
 
         // When member belongs to a DIFFERENT family unit, update affected rows is 0

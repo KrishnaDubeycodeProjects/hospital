@@ -202,6 +202,7 @@ public class ReferralService {
     }
 
     public List<ReferralDto> listReferralsForPatient(String phone) {
+        List<String> phones = getPhoneVariants(phone);
         return jdbc.query(
                 """
                 SELECT r.*, c.title AS course_title, c.patient_phone, c.patient_name,
@@ -213,10 +214,10 @@ public class ReferralService {
                 LEFT JOIN hospitals fh ON r.from_hospital_id = fh.id
                 LEFT JOIN hospitals th ON r.to_hospital_id = th.id
                 LEFT JOIN doctors rd ON r.referred_doctor_id = rd.id
-                WHERE c.patient_phone = :phone
+                WHERE c.patient_phone IN (:phones)
                 ORDER BY r.created_at DESC
                 """,
-                Map.of("phone", phone.trim()), REFERRAL_MAPPER);
+                Map.of("phones", phones), REFERRAL_MAPPER);
     }
 
     public ReferralDto findPriorReferralContext(int courseId, int toHospitalId) {
@@ -248,5 +249,15 @@ public class ReferralService {
     private void sendReferralCardNotification(ReferralDto r) {
         // Proactive WhatsApp notifications from server removed (only respond when user initiates)
         log.info("Referral {} issued for {}. WhatsApp notification skipped (only user-initiated responses permitted).", r.getId(), r.getPatientPhone());
+    }
+
+    private static List<String> getPhoneVariants(String phone) {
+        if (phone == null || phone.isBlank()) return List.of();
+        String p = phone.trim();
+        String digits = p.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) {
+            digits = digits.substring(digits.length() - 10);
+        }
+        return List.of(p, digits, "+91" + digits, "91" + digits);
     }
 }

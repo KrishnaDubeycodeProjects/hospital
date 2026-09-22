@@ -7,7 +7,9 @@ import com.qdischarge.clinicqueue.dto.CreateTokenResult;
 import com.qdischarge.clinicqueue.dto.LoginRequest;
 import com.qdischarge.clinicqueue.dto.QueueData;
 import com.qdischarge.clinicqueue.dto.SetLocationRequest;
+import com.qdischarge.clinicqueue.dto.Stats;
 import com.qdischarge.clinicqueue.dto.TokenDto;
+import com.qdischarge.clinicqueue.dto.TravelRangeDto;
 import com.qdischarge.clinicqueue.dto.UpdateStatusRequest;
 import com.qdischarge.clinicqueue.dto.UpdateStatusResult;
 import com.qdischarge.clinicqueue.dto.VerifyRequest;
@@ -81,10 +83,22 @@ public class QueueController {
         }
     }
 
-    @GetMapping("/position/{phone}")
-    public ResponseEntity<Map<String, Object>> position(@PathVariable String phone) {
+    @GetMapping({"/position", "/position/{phone}"})
+    public ResponseEntity<Map<String, Object>> position(
+            @PathVariable(name = "phone", required = false) String pathPhone,
+            @RequestParam(name = "phone", required = false) String queryPhone) {
+        String effectivePhone = (pathPhone != null && !pathPhone.isBlank()) ? pathPhone : queryPhone;
+        if (effectivePhone == null || effectivePhone.isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Phone number is required"));
+        }
         try {
-            TokenDto data = queueManagerService.getPatientPosition(phone);
+            TokenDto data = queueManagerService.getPatientPosition(effectivePhone);
+            if (data == null) {
+                TokenDto active = queueManagerService.getActiveToken(effectivePhone);
+                if (active != null) {
+                    data = queueManagerService.getTokenDetails(String.valueOf(active.getId()));
+                }
+            }
             if (data == null) {
                 return ResponseEntity.status(404).body(msg("No active token found for this phone number."));
             }
@@ -127,7 +141,7 @@ public class QueueController {
         try {
             CreateTokenResult result = queueManagerService.createToken(
                     request.name(), request.age(), request.gender(), request.category(), request.phone(),
-                    request.toLocationOrNull(), request.hospitalId());
+                    request.toLocationOrNull(), request.hospitalId(), request.selectedTravelMinutes());
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("success", true);
             resp.put("alreadyExists", result.alreadyExists());
@@ -135,6 +149,37 @@ public class QueueController {
             return ResponseEntity.ok(resp);
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    /** Pre-booking calculation of travel time range (-10% to +50%) via MapMyIndia (Mappls). */
+    @GetMapping("/travel-range")
+    public ResponseEntity<Map<String, Object>> getTravelRange(
+            @RequestParam(required = false) String digipin,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) Integer hospitalId) {
+        try {
+            SetLocationRequest loc = new SetLocationRequest(digipin, latitude, longitude);
+            TravelRangeDto range = queueManagerService.getTravelRange(loc, hospitalId);
+            return ResponseEntity.ok(ok(range));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    /** View tokens currently in frozen / travel-pending state. */
+    @GetMapping("/frozen")
+    public ResponseEntity<Map<String, Object>> getFrozenQueue(
+            @RequestParam(required = false) Integer hospitalId,
+            @RequestParam(required = false) String category) {
+        try {
+            List<TokenDto> frozen = queueManagerService.getFrozenQueue(hospitalId, category);
+            return ResponseEntity.ok(ok(frozen));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
         }
@@ -184,8 +229,6 @@ public class QueueController {
             return ResponseEntity.ok(ok(token));
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(msg(e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
         }
     }
 
@@ -198,11 +241,7 @@ public class QueueController {
     @GetMapping("/anomaly-control")
     public ResponseEntity<Map<String, Object>> anomalyControlQueue(@RequestParam(required = false) Integer hospitalId,
                                                                      @RequestParam(required = false) String category) {
-        try {
-            return ResponseEntity.ok(ok(queueManagerService.getAnomalyControlQueue(hospitalId, category)));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
-        }
+        return ResponseEntity.ok(ok(queueManagerService.getAnomalyControlQueue(hospitalId, category)));
     }
 
     // ---- Missed queue: admin search / requeue-to-front / reject ----
@@ -210,48 +249,32 @@ public class QueueController {
     @GetMapping("/missed")
     public ResponseEntity<Map<String, Object>> missedQueue(@RequestParam(required = false) Integer hospitalId,
                                                              @RequestParam(required = false) String category) {
-        try {
-            return ResponseEntity.ok(ok(queueManagerService.getMissedQueue(hospitalId, category)));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
-        }
+        return ResponseEntity.ok(ok(queueManagerService.getMissedQueue(hospitalId, category)));
     }
 
     @GetMapping("/missed/search")
     public ResponseEntity<Map<String, Object>> searchMissedQueue(@RequestParam(required = false) String query,
                                                                    @RequestParam(required = false) Integer hospitalId,
                                                                    @RequestParam(required = false) String category) {
-        try {
-            return ResponseEntity.ok(ok(queueManagerService.searchMissedQueue(query, hospitalId, category)));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
-        }
+        return ResponseEntity.ok(ok(queueManagerService.searchMissedQueue(query, hospitalId, category)));
     }
 
     @PostMapping("/missed/{id}/requeue")
     public ResponseEntity<Map<String, Object>> requeueMissed(@PathVariable int id) {
-        try {
-            TokenDto token = queueManagerService.requeueMissedToFront(id);
-            if (token == null) {
-                return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
-            }
-            return ResponseEntity.ok(ok(token));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
+        TokenDto token = queueManagerService.requeueMissedToFront(id);
+        if (token == null) {
+            return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
         }
+        return ResponseEntity.ok(ok(token));
     }
 
     @PostMapping("/missed/{id}/reject")
     public ResponseEntity<Map<String, Object>> rejectMissed(@PathVariable int id) {
-        try {
-            TokenDto token = queueManagerService.rejectMissedToken(id);
-            if (token == null) {
-                return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
-            }
-            return ResponseEntity.ok(ok(token));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
+        TokenDto token = queueManagerService.rejectMissedToken(id);
+        if (token == null) {
+            return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
         }
+        return ResponseEntity.ok(ok(token));
     }
 
     @GetMapping("/qr/{id}")
@@ -306,22 +329,17 @@ public class QueueController {
             return ResponseEntity.badRequest().body(msg("Invalid or missing QR payload / Token ID."));
         }
 
-        try {
-            TokenDto result = queueManagerService.verifyTokenByAdmin(targetId);
-            if (result == null) {
-                return ResponseEntity.status(404).body(msg("Token #" + targetId + " not found in database."));
-            }
-
-            Map<String, Object> resp = new LinkedHashMap<>();
-            resp.put("success", true);
-            resp.put("message", "🎉 Token #" + targetId + " (" + result.getName()
-                    + ") verified successfully! Welcome WhatsApp notification sent to patient.");
-            resp.put("data", result);
-            return ResponseEntity.ok(resp);
-        } catch (Exception e) {
-            log.error("Error verifying token:", e);
-            return ResponseEntity.status(500).body(err(e));
+        TokenDto result = queueManagerService.verifyTokenByAdmin(targetId);
+        if (result == null) {
+            return ResponseEntity.status(404).body(msg("Token #" + targetId + " not found in database."));
         }
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("success", true);
+        resp.put("message", "🎉 Token #" + targetId + " (" + result.getName()
+                + ") verified successfully! Welcome WhatsApp notification sent to patient.");
+        resp.put("data", result);
+        return ResponseEntity.ok(resp);
     }
 
     @PutMapping("/{id}")
@@ -332,15 +350,11 @@ public class QueueController {
             return ResponseEntity.badRequest().body(msg("Invalid status."));
         }
 
-        try {
-            UpdateStatusResult result = queueManagerService.updateTokenStatus(id, request.status());
-            if (result == null) {
-                return ResponseEntity.status(404).body(msg("Token not found."));
-            }
-            return ResponseEntity.ok(ok(result));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(err(e));
+        UpdateStatusResult result = queueManagerService.updateTokenStatus(id, request.status());
+        if (result == null) {
+            return ResponseEntity.status(404).body(msg("Token not found."));
         }
+        return ResponseEntity.ok(ok(result));
     }
 
     // ---- response helpers ----

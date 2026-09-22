@@ -29,14 +29,17 @@ public class AdminAuthService {
         String configuredHash = appProperties.getAdminPasswordHash();
         if (configuredHash != null && !configuredHash.isBlank()) {
             effectiveHash = configuredHash;
+        } else if (appProperties.getAdminPassword() != null && !appProperties.getAdminPassword().isBlank()) {
+            effectiveHash = passwordEncoder.encode(appProperties.getAdminPassword());
         } else {
-            String plaintext = appProperties.getAdminPassword() != null ? appProperties.getAdminPassword() : "";
-            effectiveHash = passwordEncoder.encode(plaintext);
+            org.slf4j.LoggerFactory.getLogger(AdminAuthService.class).warn(
+                    "⚠️ ADMIN_PASSWORD / ADMIN_PASSWORD_HASH not configured! Admin login is disabled until credentials are set.");
+            effectiveHash = null;
         }
     }
 
     public boolean authenticate(String username, String password) {
-        if (username == null || password == null) {
+        if (username == null || password == null || password.isBlank() || effectiveHash == null) {
             return false;
         }
         boolean usernameMatches = Objects.equals(username, appProperties.getAdminUsername());

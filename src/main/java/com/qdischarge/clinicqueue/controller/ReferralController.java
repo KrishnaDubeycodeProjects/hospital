@@ -89,6 +89,15 @@ public class ReferralController {
         return ResponseEntity.ok(ok(referrals));
     }
 
+    @GetMapping("/public/patient")
+    public ResponseEntity<Map<String, Object>> listPublicPatientReferrals(@RequestParam(name = "phone", required = false) String phone) {
+        if (phone == null || phone.trim().isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Phone number parameter is required."));
+        }
+        List<ReferralDto> referrals = referralService.listReferralsForPatient(phone.trim());
+        return ResponseEntity.ok(ok(referrals));
+    }
+
     @PostMapping("/{id}/complete")
     public ResponseEntity<Map<String, Object>> completeReferral(@PathVariable int id) {
         ReferralDto updated = referralService.completeReferral(id);

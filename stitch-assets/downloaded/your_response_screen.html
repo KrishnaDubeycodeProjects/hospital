@@ -1,0 +1,130 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>Your Response - PM-JAY</title>
+<!-- Tailwind CSS v3 with forms and container-queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script data-purpose="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            whatsapp: {
+              teal: '#00A884',
+              tealDark: '#008069',
+              lightGreen: '#E7FCE8',
+            },
+            surface: {
+              subtle: '#F8FAFC',
+              border: '#E2E8F0',
+            }
+          },
+          fontFamily: {
+            sans: [
+              '-apple-system',
+              'BlinkMacSystemFont',
+              '"Segoe UI"',
+              'Roboto',
+              'Helvetica',
+              'Arial',
+              'sans-serif'
+            ]
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom Styles for Mobile Bottom Sheet Feel -->
+<style data-purpose="custom-styling">
+    /* Prevent bouncy scrolling on iOS while preserving sheet feel */
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+<!-- BEGIN: MainSheetModalContainer -->
+<!-- Container mimicking an in-app bottom sheet on iOS / modern mobile web -->
+<main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col min-h-[580px] h-[92vh] max-h-[740px] overflow-hidden relative border border-slate-100" data-purpose="response-sheet">
+<!-- Top Drag Handle / Grabber Indicator -->
+<div class="w-full flex justify-center pt-3 pb-1" data-purpose="drag-indicator-wrapper">
+<div aria-hidden="true" class="w-10 h-1.5 bg-slate-300 rounded-full"></div>
+</div>
+<!-- BEGIN: SheetHeader -->
+<header class="px-5 py-3 flex items-center justify-between border-b border-slate-100 relative">
+<!-- Close Button -->
+<button aria-label="Close" class="p-1 -ml-1 text-slate-700 hover:text-slate-900 active:scale-95 transition-transform focus:outline-none" onclick="window.history.back()" type="button">
+<svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Modal Title -->
+<h1 class="text-base font-semibold text-slate-900 absolute left-1/2 -translate-x-1/2 select-none">
+        Your response
+      </h1>
+<!-- Placeholder to balance flex layout -->
+<div aria-hidden="true" class="w-6"></div>
+</header>
+<!-- END: SheetHeader -->
+<!-- BEGIN: SheetBodyContent -->
+<!-- Scrollable content area containing user submitted summary -->
+<div class="flex-1 overflow-y-auto px-6 pt-7 pb-4 space-y-6">
+<!-- Scheme Badge / Category Header -->
+<div class="flex items-center justify-between" data-purpose="scheme-header">
+<span class="text-base font-bold text-slate-900 tracking-tight">
+          PM-JAY
+        </span>
+<!-- Subtle registration confirmation pill -->
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-whatsapp-teal border border-emerald-100/70">
+<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 16 16">
+<path clip-rule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" fill-rule="evenodd"></path>
+</svg>
+          Recorded
+        </span>
+</div>
+<!-- User Response Detail List -->
+<div class="space-y-6 pt-1" data-purpose="response-details">
+<!-- Step 1: Selected Service -->
+<div class="group">
+<!-- Step Subtitle -->
+<p class="text-[13px] font-normal text-slate-500 tracking-normal mb-1">
+            Choose your service
+          </p>
+<!-- Value Selected -->
+<p class="text-base font-medium text-slate-900 leading-snug">
+            About PM-JAY
+          </p>
+</div>
+<!-- Step 2: Inquired Topic -->
+<div class="group">
+<!-- Subtitle / Question Topic -->
+<p class="text-[13px] font-normal text-slate-500 tracking-normal mb-1">
+            About PM-JAY
+          </p>
+<!-- Value Selected -->
+<p class="text-base font-medium text-slate-900 leading-snug">
+            What is PM-JAY
+          </p>
+</div>
+</div>
+</div>
+<!-- END: SheetBodyContent -->
+<!-- BEGIN: SheetFooterAction -->
+<!-- Ergonomic sticky bottom action area with primary button -->
+<footer class="p-5 pt-3 pb-8 sm:pb-5 border-t border-slate-100 bg-white space-y-3">
+<!-- Primary Action Button -->
+<button class="w-full py-3.5 px-4 bg-whatsapp-teal hover:bg-whatsapp-tealDark active:scale-[0.99] text-white font-medium text-sm rounded-xl shadow-sm shadow-emerald-700/10 transition-all flex items-center justify-center gap-2 focus:outline-none" type="button">
+<span>Done</span>
+</button>
+<!-- Operational Branding / Metadata Footer -->
+<div class="flex items-center justify-center gap-1.5 text-xs text-slate-400">
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-whatsapp-teal"></span>
+<span>Official PM-JAY Assistant</span>
+</div>
+</footer>
+<!-- END: SheetFooterAction -->
+</main>
+<!-- END: MainSheetModalContainer -->
+</body></html>

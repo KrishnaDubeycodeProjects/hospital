@@ -19,10 +19,10 @@ public class AppProperties {
     private int avgServiceMinutes;
 
     public String getFrontendUrl() {
-        if (frontendUrl == null || frontendUrl.isBlank() || frontendUrl.contains("localhost")) {
-            return "https://princete.com";
+        if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost")) {
+            return frontendUrl.replaceAll("/+$", "");
         }
-        return frontendUrl;
+        return "https://hospital.princete.com";
     }
 
     // --- Admin auth ---
@@ -42,14 +42,12 @@ public class AppProperties {
     private String allowedOrigins;
 
     // --- WhatsApp providers ---
-    private String waProvider;
+    private String waProvider = "meta";
     private String metaAccessToken;
     private String metaPhoneNumberId;
-    private String metaApiVersion;
-
-    private String evolutionApiUrl;
-    private String evolutionApiKey;
-    private String instanceName;
+    private String metaApiVersion = "v25.0";
+    /** Phone number of the WhatsApp bot (e.g. 919876543210) used for wa.me redirects in WebViews. */
+    private String botPhoneNumber;
 
     // --- Rate limiting (per client IP, sliding window) ---
     private int rateLimitLoginPerMinute;
@@ -66,7 +64,17 @@ public class AppProperties {
     private double geoAvgSpeedKmh;
 
     // --- Treatment-timing: real routing ETA vs. queue wait, anomaly-control, voice call ---
-    /** TomTom Routing API key; blank = always use the haversine fallback (see geo.TomTomRoutingService). */
+    /** MapMyIndia (Mappls) REST API key. */
+    private String mapplsApiKey;
+    /** MapMyIndia (Mappls) Client ID (OAuth2 or account). */
+    private String mapplsClientId;
+    /** MapMyIndia (Mappls) Client Secret. */
+    private String mapplsClientSecret;
+    /** MapMyIndia (Mappls) Base API URL (e.g. https://apis.mappls.com/advancedmaps/v1). */
+    private String mapplsBaseUrl;
+    /** MapMyIndia (Mappls) Server/Client IP for IP-whitelisted keys. */
+    private String mapplsServerIp;
+    /** TomTom Routing API key (legacy/fallback if configured). */
     private String tomtomApiKey;
     /** Caller-id ("From") number for the outbound "head to the hospital now" call (see service.TwilioStudioCallService). */
     private String twilioCallerNumber;

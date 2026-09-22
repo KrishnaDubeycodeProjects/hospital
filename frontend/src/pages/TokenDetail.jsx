@@ -137,178 +137,206 @@ export default function TokenDetail() {
 
   return (
     <div className="arogyaflow-backdrop">
-      <main className="arogyaflow-phone-frame" style={{ position: 'relative', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff' }}>
-        {/* Top Sheet Drag Indicator Bar */}
-        <div className="arogyaflow-drag-handle">
-          <div className="arogyaflow-drag-bar" />
-        </div>
-
-        {/* 1. Top App Bar (Header) */}
+      <main
+        className="arogyaflow-phone-frame"
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#ffffff',
+          justifyContent: 'space-between',
+        }}
+      >
+        {/* Top App Bar (Header) */}
         <header
           style={{
-            padding: '12px 18px 14px',
+            padding: '16px 20px 8px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            flexDirection: 'column',
             backgroundColor: '#ffffff',
-            borderBottom: '1px solid #F1F5F9',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
             flexShrink: 0,
           }}
         >
-          {/* Left: Circular, light gray button with dark gray back arrow (<) */}
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="Back"
+          <div
             style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#F1F5F9',
-              border: 'none',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#334155',
-              flexShrink: 0,
-              transition: 'background-color 0.15s ease',
+              justifyContent: 'space-between',
+              width: '100%',
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
+            {/* Left: Circular light gray button with dark gray back arrow (<) */}
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Back"
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                backgroundColor: '#F3F4F6',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#1F2937',
+                flexShrink: 0,
+                transition: 'background-color 0.15s ease',
+              }}
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
 
-          {/* Center: Bold, dark text "Live Token Status" + Centered Status Indicator */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+            {/* Center: Bold, dark text "Live Token Status" */}
             <h1
               style={{
                 margin: 0,
-                fontSize: '18px',
+                fontSize: '20px',
                 fontWeight: '800',
                 color: '#004D40',
-                letterSpacing: '-0.01em',
+                letterSpacing: '-0.02em',
                 lineHeight: 1.2,
+                textAlign: 'center',
               }}
             >
               Live Token Status
             </h1>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span
+            {/* Right: Circular light green button with dark green refresh icon */}
+            <button
+              type="button"
+              onClick={() => load(true)}
+              disabled={refreshing}
+              aria-label="Refresh Queue"
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                backgroundColor: '#E8F5E9',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+                color: '#004D40',
+                flexShrink: 0,
+                transition: 'all 0.15s ease',
+                opacity: refreshing ? 0.6 : 1,
+              }}
+            >
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: status.dotColor,
-                  display: 'inline-block',
-                }}
-              />
-              <span
-                style={{
-                  fontSize: '12.5px',
-                  fontWeight: '600',
-                  color: status.textColor,
+                  transform: refreshing ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.4s ease',
                 }}
               >
-                {status.label}
-              </span>
-            </div>
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+            </button>
           </div>
 
-          {/* Right: Circular, light green button with dark green refresh icon */}
-          <button
-            type="button"
-            onClick={() => load(true)}
-            disabled={refreshing}
-            aria-label="Refresh Queue"
+          {/* Below the header: Centered status indicator (Small orange dot + "Waiting in Queue" in orange text) */}
+          <div
             style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#E8F5E9',
-              border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-              color: '#004D40',
-              flexShrink: 0,
-              transition: 'all 0.15s ease',
-              opacity: refreshing ? 0.6 : 1,
+              gap: '6px',
+              marginTop: '6px',
             }}
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <span
               style={{
-                transform: refreshing ? 'rotate(180deg)' : 'none',
-                transition: 'transform 0.4s ease',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: status.dotColor,
+                display: 'inline-block',
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: '600',
+                color: status.textColor,
+                letterSpacing: '-0.01em',
               }}
             >
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-            </svg>
-          </button>
+              {status.label}
+            </span>
+          </div>
         </header>
 
-        {/* Scrollable Main Body */}
+        {/* Scrollable / Flexible Content Area */}
         <div
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '16px 20px 12px',
+            padding: '12px 24px 8px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '18px',
+            justifyContent: 'space-around',
             backgroundColor: '#ffffff',
           }}
         >
-          {/* 2. Top Metrics Section (Critical Data) */}
+          {/* 2. Top Metrics Section (Key Data) */}
           <div
             style={{
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'space-between',
-              padding: '0 2px',
+              padding: '4px 0 8px',
             }}
           >
-            {/* Left Side: Label "Token", large bold "#1", Hospital, Department */}
+            {/* Left Column: Label "Token", massive bold "#1" in dark green, Hospital, Department */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span
                 style={{
-                  fontSize: '12.5px',
-                  color: '#64748b',
+                  fontSize: '13px',
+                  color: '#6B7280',
                   fontWeight: '500',
-                  letterSpacing: '0.01em',
                 }}
               >
                 Token
               </span>
               <div
                 style={{
-                  fontSize: '48px',
+                  fontSize: '56px',
                   fontWeight: '900',
                   color: '#004D40',
                   lineHeight: 1.05,
-                  margin: '2px 0 4px',
-                  letterSpacing: '-0.02em',
+                  margin: '4px 0 6px',
+                  letterSpacing: '-0.03em',
                 }}
               >
                 #{tokenNum}
               </div>
               <div
                 style={{
-                  fontSize: '15.5px',
+                  fontSize: '17px',
                   fontWeight: '800',
-                  color: '#0f172a',
+                  color: '#111827',
                   letterSpacing: '-0.01em',
                 }}
               >
@@ -317,100 +345,75 @@ export default function TokenDetail() {
               <div
                 style={{
                   fontSize: '13.5px',
-                  color: '#64748b',
+                  color: '#6B7280',
                   fontWeight: '500',
-                  marginTop: '1px',
+                  marginTop: '2px',
                 }}
               >
                 {departmentName}
               </div>
             </div>
 
-            {/* Right Side: Label "Ahead of you", large bold "0", and Details Button below it */}
+            {/* Right Column: Label "Ahead of you", massive bold "0" in dark green */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'flex-end',
-                minWidth: '95px',
+                alignItems: 'flex-start',
+                minWidth: '85px',
               }}
             >
               <span
                 style={{
-                  fontSize: '12.5px',
-                  color: '#64748b',
+                  fontSize: '13px',
+                  color: '#6B7280',
                   fontWeight: '500',
-                  letterSpacing: '0.01em',
                 }}
               >
                 Ahead of you
               </span>
               <div
                 style={{
-                  fontSize: '48px',
+                  fontSize: '56px',
                   fontWeight: '900',
                   color: '#004D40',
                   lineHeight: 1.05,
-                  margin: '2px 0 10px',
-                  letterSpacing: '-0.02em',
+                  margin: '4px 0 0',
+                  letterSpacing: '-0.03em',
                 }}
               >
                 {aheadCount}
               </div>
-
-              {/* Details Button in between Ahead of you and QR section on the right */}
-              <button
-                type="button"
-                onClick={() => setShowDetailsModal(true)}
-                style={{
-                  backgroundColor: '#E8F5E9',
-                  color: '#005A43',
-                  border: '1px solid #C8E6C9',
-                  borderRadius: '12px',
-                  padding: '6px 13px',
-                  fontSize: '12.5px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  boxShadow: '0 1px 3px rgba(0, 77, 64, 0.08)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>Details</span>
-                <span style={{ fontSize: '13px', lineHeight: 1 }}>&gt;</span>
-              </button>
             </div>
           </div>
 
-          {/* 3. QR Code Section (Spacious & Clean as it was) */}
+          {/* 3. QR Code Section */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              marginTop: '6px',
+              margin: '8px 0',
             }}
           >
             <h2
               style={{
-                fontSize: '16px',
+                fontSize: '17px',
                 fontWeight: '800',
                 color: '#004D40',
                 textAlign: 'center',
-                margin: '0 0 14px',
+                margin: '0 0 16px',
                 letterSpacing: '-0.01em',
               }}
             >
               Show this QR at reception
             </h2>
 
-            {/* Centered QR code placed with fine space */}
+            {/* Large sharp QR code on clean white background */}
             <div
               style={{
-                width: '195px',
-                height: '195px',
+                width: '215px',
+                height: '215px',
                 backgroundColor: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
@@ -426,6 +429,7 @@ export default function TokenDetail() {
                     width: '100%',
                     height: '100%',
                     objectFit: 'contain',
+                    imageRendering: 'pixelated',
                     display: 'block',
                   }}
                 />
@@ -440,7 +444,7 @@ export default function TokenDetail() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#94a3b8',
+                    color: '#94A3B8',
                     gap: '8px',
                   }}
                 >
@@ -452,9 +456,9 @@ export default function TokenDetail() {
 
             <p
               style={{
-                margin: '8px 0 0',
-                fontSize: '12px',
-                color: '#64748b',
+                margin: '12px 0 0',
+                fontSize: '12.5px',
+                color: '#6B7280',
                 fontWeight: '400',
                 textAlign: 'center',
               }}
@@ -462,52 +466,93 @@ export default function TokenDetail() {
               Scannable by OPD Desk Counter
             </p>
           </div>
-        </div>
 
-        {/* 5. Bottom Action & Footer */}
-        <div
-          style={{
-            flexShrink: 0,
-            backgroundColor: '#ffffff',
-            borderTop: '1px solid #F1F5F9',
-            padding: '14px 20px 6px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-          }}
-        >
-          {/* Full-width solid dark green button: "Go to Home" with a home icon */}
-          <button
-            type="button"
-            onClick={() => navigate('/')}
+          {/* 4. Patient Details Row */}
+          <div
             style={{
-              width: '100%',
-              padding: '14px',
-              borderRadius: '14px',
-              backgroundColor: '#005A43',
-              color: '#ffffff',
-              fontSize: '16px',
-              fontWeight: '700',
-              border: 'none',
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              boxShadow: '0 4px 14px rgba(0, 77, 64, 0.22)',
-              transition: 'all 0.15s ease',
+              justifyContent: 'space-between',
+              padding: '6px 0 10px',
             }}
           >
-            {/* White Home Icon */}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-            </svg>
-            <span>Go to Home</span>
-          </button>
+            {/* Left: Avatar + Center Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Circular avatar with light green background & dark green person icon */}
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  backgroundColor: '#E8F5E9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="#004D40"
+                >
+                  <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8S14.67 2.4 12 2.4 7.2 4.53 7.2 7.2 9.33 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+                </svg>
+              </div>
+
+              {/* Center: Patient name + demographics */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: '800',
+                    color: '#111827',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  {patientName}
+                </span>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    color: '#6B7280',
+                    fontWeight: '500',
+                    marginTop: '2px',
+                  }}
+                >
+                  {gender}, {age} years
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Button with light green background and dark green text "Details >" */}
+            <button
+              type="button"
+              onClick={() => setShowDetailsModal(true)}
+              style={{
+                backgroundColor: '#E8F5E9',
+                color: '#004D40',
+                border: 'none',
+                borderRadius: '12px',
+                padding: '9px 16px',
+                fontSize: '13.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span>Details</span>
+              <span style={{ fontSize: '14px', lineHeight: 1 }}>&gt;</span>
+            </button>
+          </div>
         </div>
 
         {/* Pinned Standard Footer */}
-        <AyushmanFooter brandFirst={true} />
+        <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '8px 16px 18px' }} />
 
         {/* Modal: Full Appointment Details Sheet */}
         {showDetailsModal && (

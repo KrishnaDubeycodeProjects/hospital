@@ -345,6 +345,71 @@ Response `400` on wrong/expired code: `{ "success": false, "message": "..." }`
 
 ---
 
+## ABHA Address Authentication (`/api/auth/abha`)
+
+Public, passwordless login via ABHA address (e.g. `user@abdm` or 14-digit ABHA number).
+Eka Care dispatches the official government OTP to the mobile number registered with the ABHA account.
+
+### `POST /api/auth/abha/init`
+Initiates the login flow and triggers an OTP to the registered mobile number.
+
+Request:
+```json
+{ "abhaAddress": "rahul@abdm" }
+```
+Response `200`:
+```json
+{
+  "success": true,
+  "message": "OTP sent via Eka Care ABDM to registered mobile.",
+  "data": {
+    "txnId": "txn-abc-123",
+    "maskedMobile": "******4321",
+    "message": "OTP sent via Eka Care ABDM to registered mobile (******4321)"
+  }
+}
+```
+
+### `POST /api/auth/abha/verify`
+Verifies the OTP with Eka Care ABDM, extracts the decrypted profile (Name, Phone, ABHA Number, DOB, Gender), provisions or links the family member with the requested `relationship` (`SELF`, `MOTHER`, `FATHER`, `SON`, `DAUGHTER`, `SISTER`, `BROTHER`), and returns an authenticated `ROLE_PATIENT` JWT token.
+
+Request:
+```json
+{
+  "txnId": "txn-abc-123",
+  "otp": "123456",
+  "relationship": "MOTHER"
+}
+```
+`relationship` is optional (defaults to `SELF`).
+
+Response `200`:
+```json
+{
+  "success": true,
+  "message": "ABHA login verified successfully via Eka Care ABDM.",
+  "token": "<patient JWT>",
+  "profile": {
+    "abhaAddress": "rahul@abdm",
+    "abhaNumber": "91-1234-5678-9012",
+    "name": "Sonia Sharma",
+    "phone": "+919876543210",
+    "gender": "FEMALE",
+    "dob": "1978-05-20",
+    "age": 48,
+    "verified": true
+  },
+  "familyMember": {
+    "id": 205,
+    "name": "Sonia Sharma",
+    "relationship": "MOTHER",
+    "isAbhaLinked": true
+  }
+}
+```
+
+---
+
 ## Doctors (`/api/doctors`)
 
 Doctor accounts: phone+OTP identity (same model as patients), linked to a

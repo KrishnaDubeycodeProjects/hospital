@@ -30,8 +30,11 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.qdischarge.clinicqueue.dto.FamilyMemberDto;
+
 
 /**
  * Java port of backend/routes/webhook.js. Handles the Meta Cloud API
@@ -72,6 +75,7 @@ public class WebhookController {
     private final BotMessages botMessages;
     private final AccessService accessService;
     private final com.qdischarge.clinicqueue.service.FamilyUnitService familyUnitService;
+    private final com.qdischarge.clinicqueue.security.JwtService jwtService;
 
     /** "revoke <id>" -- deliberately a literal, untranslated English command (see BotMessages#accessGranted) so the WhatsApp notice's instructions always work regardless of the reply's language. */
     private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
@@ -79,10 +83,30 @@ public class WebhookController {
     private static final String SHOW_MORE_ROW_ID = "show_more";
     private static final String HOSPITAL_ROW_PREFIX = "hosp_";
 
+    /**
+     * Builds a secure WebView URL carrying a signed patient JWT and phone number.
+     */
+    private String buildAuthWebviewUrl(String relativePath, String phone, java.util.Map<String, String> extraParams) {
+        String token = jwtService.generatePatientToken(phone);
+        String base = appProperties.getFrontendUrl() + relativePath;
+        StringBuilder sb = new StringBuilder(base);
+        sb.append("?token=").append(java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8));
+        sb.append("&phone=").append(java.net.URLEncoder.encode(phone, java.nio.charset.StandardCharsets.UTF_8));
+        if (extraParams != null) {
+            for (java.util.Map.Entry<String, String> entry : extraParams.entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    sb.append("&").append(java.net.URLEncoder.encode(entry.getKey(), java.nio.charset.StandardCharsets.UTF_8))
+                            .append("=").append(java.net.URLEncoder.encode(entry.getValue(), java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
+        }
+        return sb.toString();
+    }
+
     // -------------------------------------------------------------
     // WEBHOOK VERIFICATION (GET) for Meta WhatsApp Cloud API
     // -------------------------------------------------------------
-    @GetMapping(value = "/whatsapp", produces = MediaType.TEXT_PLAIN_VALUE)
+    @GetMapping(value = {"", "/", "/whatsapp"}, produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> verify(
             @RequestParam(name = "hub.mode", required = false) String mode,
             @RequestParam(name = "hub.verify_token", required = false) String token,
@@ -99,22 +123,25 @@ public class WebhookController {
     }
 
     // -------------------------------------------------------------
-    // WEBHOOK RECEIVER (POST) - handles both Meta API and Evolution API
+    // WEBHOOK RECEIVER (POST) - handles Meta API payloads
     // -------------------------------------------------------------
-    @PostMapping(value = "/whatsapp", produces = MediaType.TEXT_PLAIN_VALUE)
+    @PostMapping(value = {"", "/", "/whatsapp"}, produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> receive(@RequestBody(required = false) JsonNode requestBody) {
         JsonNode body = requestBody != null ? requestBody : MissingNode.getInstance();
         log.info("📩 INCOMING WEBHOOK PAYLOAD: {}", body);
 
-        String fromPhone;
-        String pushName;
-        String incomingMessage;
-        String buttonId;
+        String fromPhone = "";
+        String pushName = "Patient";
+        String incomingMessage = "";
+        String buttonId = "";
         Double incomingLat = null;
         Double incomingLon = null;
 
-        if ("whatsapp_business_account".equals(body.path("object").asText())) {
-            JsonNode entry = body.path("entry").path(0);
+        if (!"whatsapp_business_account".equals(body.path("object").asText())) {
+            return ResponseEntity.ok("EVENT_RECEIVED");
+        }
+
+        JsonNode entry = body.path("entry").path(0);
             JsonNode changes = entry.path("changes").path(0);
             JsonNode value = changes.path("value");
             JsonNode message = value.path("messages").path(0);
@@ -150,71 +177,6 @@ public class WebhookController {
             }
             incomingMessage = tmpMessage;
             buttonId = tmpButtonId;
-        } else {
-            JsonNode data = body.has("data") ? body.path("data") : body;
-
-            JsonNode messageData = data.path("message");
-            if (messageData.isMissingNode() || messageData.isNull()) {
-                messageData = data.path("messages").path(0).path("message");
-            }
-            if (messageData.isMissingNode() || messageData.isNull()) {
-                // Evolution/Baileys fires live-location pings (every update after the initial
-                // share) as a "messages.update" event, which nests the patched content one
-                // level deeper under "update" instead of directly under "message" -- without
-                // this fallback those pings are silently dropped and a live-shared location
-                // never resolves.
-                messageData = data.path("update").path("message");
-            }
-            if (messageData.isMissingNode() || messageData.isNull()) {
-                messageData = data.path("messages").path(0).path("update").path("message");
-            }
-            JsonNode keyData = data.path("key");
-            if (keyData.isMissingNode() || keyData.isNull()) {
-                keyData = data.path("messages").path(0).path("key");
-            }
-
-            boolean isFromMe = keyData.path("fromMe").asBoolean(false)
-                    || data.path("fromMe").asBoolean(false)
-                    || body.path("fromMe").asBoolean(false)
-                    || body.path("data").path("key").path("fromMe").asBoolean(false);
-
-            if (isFromMe) {
-                return ResponseEntity.ok("EVENT_RECEIVED");
-            }
-
-            String remoteJid = textOrNull(keyData.path("remoteJid"));
-            if (isBlank(remoteJid)) {
-                remoteJid = textOrNull(body.path("remoteJid"));
-            }
-            if (remoteJid != null && (remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast") || remoteJid.endsWith("@newsletter"))) {
-                return ResponseEntity.ok("EVENT_RECEIVED");
-            }
-            fromPhone = isBlank(remoteJid) ? "" : remoteJid.split("@")[0];
-            if (!fromPhone.isEmpty() && !fromPhone.startsWith("+")) {
-                fromPhone = "+" + fromPhone;
-            }
-
-            String pn = textOrNull(data.path("pushName"));
-            if (isBlank(pn)) {
-                pn = textOrNull(body.path("pushName"));
-            }
-            pushName = isBlank(pn) ? "Patient" : pn;
-
-            String listRowId = textOrNull(messageData.path("listResponseMessage").path("singleSelectReply").path("selectedRowId"));
-
-            incomingMessage = firstNonBlank(
-                    textOrNull(messageData.path("conversation")),
-                    textOrNull(messageData.path("extendedTextMessage").path("text")),
-                    textOrNull(messageData.path("buttonsResponseMessage").path("selectedDisplayText")),
-                    textOrNull(messageData.path("listResponseMessage").path("title"))
-            ).trim();
-
-            buttonId = !isBlank(listRowId) ? listRowId : messageData.path("buttonsResponseMessage").path("selectedButtonId").asText("");
-
-            Double[] coords = extractLocationFromPayload(data, messageData, body);
-            incomingLat = coords[0];
-            incomingLon = coords[1];
-        }
 
         String cleanMessage = incomingMessage.trim().toLowerCase();
 
@@ -222,7 +184,7 @@ public class WebhookController {
             return ResponseEntity.ok("EVENT_RECEIVED");
         }
 
-        log.info("\n📥 WEBHOOK MSG from [{}] ({}): \"{}\" (ButtonId: \"{}\")",
+        log.info("\n📥 META WEBHOOK MSG from [{}] ({}): \"{}\" (ButtonId: \"{}\")",
                 fromPhone, pushName, incomingMessage, buttonId);
 
         try {
@@ -246,6 +208,24 @@ public class WebhookController {
 
             Lang lang = session.language();
 
+            // Registration callback from register.html
+            if (incomingMessage.startsWith("#REGISTERED:")) {
+                String registeredName = incomingMessage.substring(12).trim();
+                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.registrationSuccessMessage(lang, registeredName));
+                sendServicesMenu(fromPhone, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            // Check if user is registered in database
+            List<FamilyMemberDto> registeredMembers = familyUnitService.listMembersByCleanPhone(fromPhone);
+            if (registeredMembers == null || registeredMembers.isEmpty()) {
+                String regUrl = buildAuthWebviewUrl("/wa/register.html", fromPhone, Map.of());
+                whatsAppService.sendUrlButtonMessage(fromPhone, "📝 Patient Registration",
+                        botMessages.unregisteredPrompt(lang, appProperties.getClinicName()),
+                        "📝 Register Now", regUrl, appProperties.getClinicName());
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
             // "revoke <id>" -- a patient's fast, always-available response to the access-granted
             // WhatsApp notice (see AccessService#notifyPatientOfNewAccess) if it wasn't them.
             // Checked before anything else so it can never be swallowed by a registration step.
@@ -259,6 +239,81 @@ public class WebhookController {
             }
 
             TokenDto activeToken = queueManagerService.getActiveToken(fromPhone);
+
+            // -------------------------------------------------------------
+            // WEBVIEW RETURN CALLBACK HANDLERS (#MEMBER, #DEPT, #HOSP, #TRAVEL)
+            // -------------------------------------------------------------
+            if (incomingMessage.startsWith("#MEMBER:")) {
+                String memberVal = incomingMessage.substring(8).trim();
+                if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                    activeToken = queueManagerService.createFamilyRegisteringToken(fromPhone);
+                }
+
+                if ("new".equalsIgnoreCase(memberVal) || "add".equalsIgnoreCase(memberVal)) {
+                    queueManagerService.setSessionStep(activeToken.getId(), "awaiting_new_member_name");
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.newMemberNamePrompt(lang));
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                } else {
+                    Integer memberId = parseInt(memberVal);
+                    String selectedPatientName = "Patient";
+                    if (memberId != null) {
+                        FamilyMemberDto member = familyUnitService.getMemberById(memberId);
+                        if (member != null) {
+                            selectedPatientName = member.getName();
+                            queueManagerService.selectFamilyMember(activeToken.getId(), member.getId(), member.getName(), member.getAge(), member.getGender());
+                        }
+                    }
+                    queueManagerService.setSessionStep(activeToken.getId(), "awaiting_category");
+                    String deptUrl = buildAuthWebviewUrl("/wa/departments.html", fromPhone, Map.of("lang", lang.name().toLowerCase()));
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Department",
+                            "Patient selected: *" + selectedPatientName + "*! Please choose the medical department for your visit:",
+                            "🩺 Select Dept", deptUrl, appProperties.getClinicName());
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+            }
+
+            if (incomingMessage.startsWith("#DEPT:")) {
+                String cat = incomingMessage.substring(6).trim();
+                if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                    activeToken = queueManagerService.createRegisteringToken(fromPhone);
+                }
+                queueManagerService.captureCategory(activeToken.getId(), cat);
+                queueManagerService.setSessionStep(activeToken.getId(), "awaiting_hospital_selection");
+                String hospUrl = buildAuthWebviewUrl("/wa/hospitals.html", fromPhone, Map.of("category", cat));
+                whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Hospital",
+                        "Department chosen: *" + cat + "*. Tap below to view and select from verified nearby hospitals with live OPD status:",
+                        "🏥 Select Hospital", hospUrl, appProperties.getClinicName());
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (incomingMessage.startsWith("#HOSP:")) {
+                String hospVal = incomingMessage.substring(6).trim();
+                Integer hospId = parseInt(hospVal);
+                if (activeToken != null && hospId != null) {
+                    TokenDto selected = queueManagerService.selectHospital(activeToken.getId(), hospId);
+                    queueManagerService.setSessionStep(activeToken.getId(), "awaiting_travel_time");
+                    String travelUrl = buildAuthWebviewUrl("/wa/travel-duration.html", fromPhone, Map.of(
+                            "hospitalId", String.valueOf(hospId),
+                            "lat", selected.getPatientLat() != null ? String.valueOf(selected.getPatientLat()) : "",
+                            "lon", selected.getPatientLon() != null ? String.valueOf(selected.getPatientLon()) : ""
+                    ));
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "⏱️ Set Travel Duration",
+                            "Hospital selected! Drag the slider to set your travel time to ensure optimal queue scheduling:",
+                            "⏱️ Set Travel Time", travelUrl, appProperties.getClinicName());
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+            }
+
+            if (incomingMessage.startsWith("#TRAVEL:")) {
+                String minsVal = incomingMessage.substring(8).replaceAll("[^0-9]", "");
+                Integer mins = parseInt(minsVal);
+                if (activeToken != null && mins != null) {
+                    queueManagerService.setSelectedTravelMinutes(activeToken.getId(), mins);
+                    TokenDto booked = queueManagerService.confirmBooking(activeToken.getId());
+                    sendTokenDashboardCard(fromPhone, booked, lang);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+            }
 
             // STEP 1: Mid-registration/booking, every reply is form input -- checked before any
             // command/language matching below, so e.g. a numeric age or department number like
@@ -278,7 +333,10 @@ public class WebhookController {
                 } else if (members != null && choice >= 1 && choice <= members.size()) {
                     com.qdischarge.clinicqueue.dto.FamilyMemberDto chosen = members.get(choice - 1);
                     queueManagerService.selectFamilyMember(activeToken.getId(), chosen.getId(), chosen.getName(), chosen.getAge(), chosen.getGender());
-                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.categoryPrompt(lang));
+                    String deptUrl = buildAuthWebviewUrl("/wa/departments.html", fromPhone, Map.of("lang", lang.name().toLowerCase()));
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Department",
+                            "Patient selected: *" + chosen.getName() + "*! Please choose the medical department for your visit:",
+                            "🩺 Select Dept", deptUrl, appProperties.getClinicName());
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 } else {
                     StringBuilder sb = new StringBuilder();
@@ -502,32 +560,32 @@ public class WebhookController {
 
             Intent intent = Intent.match(buttonId, cleanMessage);
 
-            // STEP 2: Menu commands -- generate/status/cancel, typed or tapped, in any supported language
+            // STEP 2: Menu commands -- generate/status/services/cancel, typed or tapped, in any supported language
             if (intent == Intent.GENERATE_TOKEN) {
                 if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
-                    List<com.qdischarge.clinicqueue.dto.FamilyMemberDto> members = familyUnitService.listMembers(fromPhone);
-                    if (members != null && !members.isEmpty()) {
-                        TokenDto draft = queueManagerService.createFamilyRegisteringToken(fromPhone);
-                        StringBuilder sb = new StringBuilder();
-                        for (int i = 0; i < members.size(); i++) {
-                            com.qdischarge.clinicqueue.dto.FamilyMemberDto m = members.get(i);
-                            String ageStr = m.getAge() != null ? " (" + m.getAge() + " yrs)" : "";
-                            String relStr = m.getRelationship() != null && !m.getRelationship().equalsIgnoreCase("HEAD") ? " - " + m.getRelationship() : " (Self)";
-                            sb.append(String.format("%d️⃣ %s%s%s\n", i + 1, m.getName(), relStr, ageStr));
-                        }
-                        sb.append(String.format("%d️⃣ ➕ Add Family Member", members.size() + 1));
-                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.familySelectionPrompt(lang, sb.toString()));
+                    List<com.qdischarge.clinicqueue.dto.FamilyMemberDto> members = familyUnitService.listMembersByCleanPhone(fromPhone);
+                    if (members != null && members.size() > 1) {
+                        queueManagerService.createFamilyRegisteringToken(fromPhone);
+                        String familyUrl = buildAuthWebviewUrl("/wa/family.html", fromPhone, Map.of("action", "select"));
+                        whatsAppService.sendUrlButtonMessage(fromPhone, "👨‍👩‍👧 Select Family Member",
+                                "Who needs the appointment today? Tap below to choose a family member:",
+                                "👥 Choose Member", familyUrl, appProperties.getClinicName());
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    } else if (members != null && members.size() == 1) {
+                        TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
+                        com.qdischarge.clinicqueue.dto.FamilyMemberDto head = members.get(0);
+                        queueManagerService.selectFamilyMember(draft.getId(), head.getId(), head.getName(), head.getAge(), head.getGender());
+                        String deptUrl = buildAuthWebviewUrl("/wa/departments.html", fromPhone, Map.of("lang", lang.name().toLowerCase()));
+                        whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Department",
+                                "Appointment for *" + head.getName() + "*. Please select the medical department:",
+                                "🩺 Select Dept", deptUrl, appProperties.getClinicName());
                         return ResponseEntity.ok("EVENT_RECEIVED");
                     }
-
                     TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
-                    if (draft != null && "awaiting_category".equals(draft.getSessionStep())) {
-                        // A returning phone whose identity (name/gender/age) is already known --
-                        // skip straight to picking a department instead of re-asking from scratch.
-                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.categoryPrompt(lang));
-                    } else {
-                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.nameRegistrationPrompt(lang));
-                    }
+                    String deptUrl = buildAuthWebviewUrl("/wa/departments.html", fromPhone, Map.of("lang", lang.name().toLowerCase()));
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Department",
+                            "Please select the clinical department for your visit:",
+                            "🩺 Select Dept", deptUrl, appProperties.getClinicName());
                 } else {
                     whatsAppService.sendWhatsAppMessage(fromPhone,
                             botMessages.alreadyActiveToken(lang, activeToken.displayNumber(), activeToken.getStatus()));
@@ -537,7 +595,36 @@ public class WebhookController {
             }
 
             if (intent == Intent.CHECK_STATUS) {
-                sendStatusCard(fromPhone, activeToken, lang);
+                if (activeToken == null || "completed".equals(activeToken.getStatus()) || "missed".equals(activeToken.getStatus())) {
+                    String liveUrl = buildAuthWebviewUrl("/wa/track.html", fromPhone, Map.of("key", fromPhone.replaceAll("[^0-9]", "")));
+                    whatsAppService.sendUrlButtonMessage(fromPhone, "📊 Live Queue Tracker",
+                            "You do not have an active OPD token right now. You can view the live queue tracker below or book a new token:",
+                            "📊 View Tracker", liveUrl, appProperties.getClinicName());
+                } else {
+                    sendStatusCard(fromPhone, activeToken, lang);
+                }
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (intent == Intent.DOCUMENTS) {
+                String docUrl = buildAuthWebviewUrl("/wa/documents.html", fromPhone, Map.of());
+                String refUrl = buildAuthWebviewUrl("/wa/referrals.html", fromPhone, Map.of());
+                whatsAppService.sendUrlButtonMessage(fromPhone, "💊 Medical Vault & Referrals",
+                        "View and upload doctor prescriptions, lab test reports, and referral passes:\n\n📋 *Referrals:* " + refUrl,
+                        "💊 Open Vault", docUrl, appProperties.getClinicName());
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (intent == Intent.FAMILY) {
+                String famUrl = buildAuthWebviewUrl("/wa/family.html", fromPhone, Map.of("action", "manage"));
+                whatsAppService.sendUrlButtonMessage(fromPhone, "👨‍👩‍👧 Family Unit",
+                        "Manage your linked family members, view age/gender, and link ABHA health ID cards:",
+                        "👨‍👩‍👧 Open Family", famUrl, appProperties.getClinicName());
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (intent == Intent.SERVICES) {
+                sendServicesMenu(fromPhone, lang);
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -585,9 +672,15 @@ public class WebhookController {
     // -------------------------------------------------------------
 
     private void sendWelcomeCard(String phone, Lang lang) {
+        sendServicesMenu(phone, lang);
+    }
+
+    private void sendServicesMenu(String phone, Lang lang) {
         String title = botMessages.welcomeTitle(lang, appProperties.getClinicName());
         String description = botMessages.welcomeDescription(lang);
-        whatsAppService.sendButtonsMessage(phone, title, description, botMessages.welcomeButtons(lang), appProperties.getClinicName());
+        whatsAppService.sendListMessage(phone, title, description,
+                botMessages.servicesListSections(lang),
+                appProperties.getClinicName(), "📋 Choose Service");
     }
 
     private void sendGenderPrompt(String phone, Lang lang) {
@@ -603,46 +696,29 @@ public class WebhookController {
      * shows the same nearest-first hospital list the bot would.
      */
     private void sendLocationPrompt(String phone, Lang lang, String category) {
+        String hospUrl = buildAuthWebviewUrl("/wa/hospitals.html", phone, java.util.Map.of(
+                "category", category != null ? category : "General OPD"
+        ));
         whatsAppService.sendLocationRequestMessage(phone, botMessages.locationPrompt(lang));
-
-        String cleanPhone = phone.replaceAll("[^0-9]", "");
-        String encodedCategory = java.net.URLEncoder.encode(category, java.nio.charset.StandardCharsets.UTF_8);
-        String findHospitalUrl = appProperties.getFrontendUrl() + "/find-hospital?phone=" + cleanPhone + "&category=" + encodedCategory;
-
-        whatsAppService.sendUrlButtonMessage(phone, "", botMessages.findHospitalLinkPrompt(lang),
-                botMessages.findHospitalLinkButtonText(lang), findHospitalUrl, appProperties.getClinicName());
+        whatsAppService.sendUrlButtonMessage(phone, "🏥 Or Browse Hospitals",
+                "You can also browse nearby hospitals with live OPD timings and real-time distance directly:",
+                "🏥 Open Hospitals", hospUrl, appProperties.getClinicName());
     }
 
-    /** "Which hospital?" -- up to 20 results as numbered text list + interactive list rows. */
+    /** Sends interactive CTA button opening the Hospital Selection WebView. */
     private void sendHospitalResultsList(String phone, TokenDto draft, HospitalService.HospitalSearchPage page, Lang lang) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("🏥 *Top Registered Hospitals for ").append(draft.getCategory()).append("*:\n");
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
+        String webviewUrl = buildAuthWebviewUrl("/wa/hospitals.html", phone, java.util.Map.of(
+                "category", draft.getCategory() != null ? draft.getCategory() : "General OPD",
+                "lat", draft.getPatientLat() != null ? String.valueOf(draft.getPatientLat()) : "",
+                "lon", draft.getPatientLon() != null ? String.valueOf(draft.getPatientLon()) : ""
+        ));
 
-        int index = 1;
-        for (HospitalService.HospitalMatch match : page.results()) {
-            HospitalDto h = match.hospital();
-            boolean openNow = isOpdOpen(h);
-            String statusIcon = openNow ? "🟢 Open" : "🔴 Closed";
-
-            sb.append(index).append("️⃣ *").append(h.getName()).append("*\n");
-            if (h.getAddress() != null && !h.getAddress().isBlank()) {
-                sb.append("📍 ").append(h.getAddress()).append("\n");
-            }
-            sb.append("⏰ OPD: ").append(formatTime(h.getOpenTime())).append(" - ").append(formatTime(h.getCloseTime()))
-              .append(" (").append(statusIcon).append(")\n");
-            sb.append("📏 Distance: ~%.1f km\n\n".formatted(match.distanceKm()));
-            index++;
-        }
-
-        sb.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-        sb.append("👉 *Reply with a number (1 to ").append(page.results().size()).append(") to select a hospital for booking.*\n");
-        sb.append("💡 *Type \"profile 1\" to view full hospital info & doctor roster.*");
-        if (page.hasMore()) {
-            sb.append("\n").append(botMessages.showMoreHint(lang));
-        }
-
-        whatsAppService.sendWhatsAppMessage(phone, sb.toString());
+        whatsAppService.sendUrlButtonMessage(phone,
+                "🏥 Choose Your Hospital",
+                "We found hospitals near you for *" + draft.getCategory() + "*. Tap below to view live OPD timings, distance, and choose your hospital:",
+                "🏥 Select Hospital",
+                webviewUrl,
+                appProperties.getClinicName());
     }
 
     /** Evolution has no tappable "Show more" button, so the next page is also requested by typing it, in any supported language. */
@@ -705,7 +781,7 @@ public class WebhookController {
         return time.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a"));
     }
 
-    /** "Book here?" -- shown right after a hospital row is tapped, before the token actually joins that hospital's queue. */
+    /** "Book here?" -- interactive confirmation with Confirm and Choose Again buttons. */
     private void sendConfirmationCard(String phone, TokenDto selected, Lang lang) {
         HospitalDto hospital = hospitalService.getById(selected.getHospitalId());
         String name = hospital != null ? hospital.getName() : "Hospital";
@@ -713,7 +789,20 @@ public class WebhookController {
         double distanceKm = (hospital != null && selected.getPatientLat() != null && selected.getPatientLon() != null)
                 ? geoDistanceService.distanceKm(hospital.getLatitude(), hospital.getLongitude(), selected.getPatientLat(), selected.getPatientLon())
                 : 0;
-        whatsAppService.sendWhatsAppMessage(phone, botMessages.hospitalConfirmationPrompt(lang, name, address, distanceKm));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(botMessages.hospitalConfirmationPrompt(lang, name, address, distanceKm));
+        if (selected.getSelectedTravelMinutes() != null && selected.getSelectedTravelMinutes() > 0) {
+            sb.append("\n⏱️ *Selected Travel Duration:* ~").append(selected.getSelectedTravelMinutes()).append(" mins");
+        }
+
+        List<WaButton> confirmButtons = switch (lang) {
+            case EN -> List.of(new WaButton("btn_confirm_booking", "✅ Confirm Booking"), new WaButton("btn_choose_again", "🔄 Choose Again"));
+            case HI -> List.of(new WaButton("btn_confirm_booking", "✅ बुकिंग पुष्टि करें"), new WaButton("btn_choose_again", "🔄 फिर से चुनें"));
+            case MR -> List.of(new WaButton("btn_confirm_booking", "✅ पुष्टी करा"), new WaButton("btn_choose_again", "🔄 पुन्हा निवडा"));
+        };
+
+        whatsAppService.sendButtonsMessage(phone, "🏥 Booking Confirmation", sb.toString(), confirmButtons, appProperties.getClinicName());
     }
 
     private void sendTokenDashboardCard(String phone, TokenDto token, Lang lang) {
@@ -723,17 +812,16 @@ public class WebhookController {
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
         String statusBadge = botMessages.statusBadge(lang, token.getStatus());
-        // /patient requires a logged-in patient JWT session and ignores any ?phone= query
-        // string, so a link built that way just bounces an unauthenticated WhatsApp user to
-        // the login screen. /track/{phone} is the public, no-auth lookup route -- it reads
-        // the phone straight from the URL and redirects to /token/{id} (see Track.jsx).
-        String liveUrl = appProperties.getFrontendUrl() + "/track/" + cleanPhone;
+
+        String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, java.util.Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
+        String slipUrl = buildAuthWebviewUrl("/wa/response.html", phone, java.util.Map.of("key", cleanPhone));
 
         String title = botMessages.dashboardTitle(lang, token.displayNumber());
-        String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, positionText, peopleAhead, estWait);
+        String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
+        String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, positionText, peopleAhead, estWait, currentServing, token.displayNumber())
+                + "\n\n📄 *Digital Booking Slip:* " + slipUrl;
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
-
         whatsAppService.sendButtonsMessage(phone, "", botMessages.quickActionsFooter(lang), botMessages.quickActionButtons(lang), "Quick Actions");
     }
 
@@ -747,11 +835,12 @@ public class WebhookController {
         int avgServiceTime = appProperties.getAvgServiceMinutes();
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
-        // See sendTokenDashboardCard above -- /track/{phone} is the public route, /patient is not.
-        String liveUrl = appProperties.getFrontendUrl() + "/track/" + cleanPhone;
+
+        String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, java.util.Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
 
         String title = botMessages.statusTitle(lang);
-        String description = botMessages.statusDescription(lang, token.displayNumber(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus());
+        String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
+        String description = botMessages.statusDescription(lang, token.displayNumber(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus(), currentServing);
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
     }

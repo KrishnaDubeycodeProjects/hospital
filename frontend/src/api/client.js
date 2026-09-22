@@ -213,6 +213,7 @@ export const patientApi = {
       headers: { ...authFor('PATIENT').headers, 'Content-Type': 'multipart/form-data' },
     }),
   documents: () => getD('/api/patients/documents', authFor('PATIENT')),
+  publicDocuments: (phone) => getD('/api/patients/public/documents', { params: { phone } }),
   documentFileUrl: (id) => `${API_URL}/api/patients/documents/${id}/file`,
   acceptAccess: (code) => postD(`/api/patients/access/${encodeURIComponent(code)}/accept`, {}, authFor('PATIENT')),
   activeAccess: () => getD('/api/patients/access', authFor('PATIENT')),
@@ -237,6 +238,7 @@ export const courseApi = {
   documentDownloadUrl: (id, docId) => `${API_URL}/api/courses/${id}/documents/${docId}/download`,
   close: (id) => postD(`/api/courses/${id}/close`, {}, authFor('DOCTOR')),
   patientCourses: () => getD('/api/courses/patient', authFor('PATIENT')),
+  publicPatientCourses: (phone) => getD('/api/courses/public/patient', { params: { phone } }),
 };
 
 // ----------------------------------------------------------- Referrals ----
@@ -248,6 +250,7 @@ export const referralApi = {
   priorContext: (courseId, toHospitalId) =>
     getD('/api/referrals/prior-context', { params: { courseId, toHospitalId }, ...authFor('DOCTOR') }),
   patientReferrals: () => getD('/api/referrals/patient', authFor('PATIENT')),
+  publicPatientReferrals: (phone) => getD('/api/referrals/public/patient', { params: { phone } }),
   complete: (id) => postD(`/api/referrals/${id}/complete`, {}, authFor('DOCTOR')),
   cancel: (id) => postD(`/api/referrals/${id}/cancel`, {}, authFor('DOCTOR')),
 };
@@ -259,7 +262,10 @@ export const familyApi = {
   listMembers: () => getD('/api/family/members', authFor('PATIENT')),
   listPublicMembers: (phone = '8850934544') => getD('/api/family/public/members', { params: { phone } }),
   addMember: (payload) => postD('/api/family/members', payload, authFor('PATIENT')),
+  updateMember: (memberId, payload) => putD(`/api/family/members/${memberId}`, payload, authFor('PATIENT')),
   linkAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/link-abha`, payload, authFor('PATIENT')),
+  enrollAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/enroll-abha`, payload, authFor('PATIENT')),
+  abhaQrUrl: (memberId) => `${API_URL}/api/family/members/${memberId}/abha-qr`,
 };
 
 // --------------------------------------------------------------- Drugs ----
@@ -272,15 +278,29 @@ export const drugApi = {
 
 // ---------------------------------------------------------------- ABDM ----
 
+const defaultAuth = () => {
+  const patientToken = getToken('PATIENT');
+  if (patientToken) return authFor('PATIENT');
+  const doctorToken = getToken('DOCTOR');
+  if (doctorToken) return authFor('DOCTOR');
+  const adminToken = getToken('ADMIN');
+  if (adminToken) return authFor('ADMIN');
+  return {};
+};
+
 export const abdmApi = {
-  getStatus: () => getD('/api/abdm/status'),
-  checkAddress: (abhaAddress) => getD('/api/abdm/check-address', { params: { abhaAddress } }),
-  initKyc: (type, value) => postD('/api/abdm/kyc/init', { type, value }),
-  verifyKyc: (txnId, otp) => postD('/api/abdm/kyc/verify', { txnId, otp }),
-  linkCareContext: (payload) => postD('/api/abdm/care-context/link', payload),
-  getEncounterFhir: (courseId, encounterId) => getD(`/api/abdm/courses/${courseId}/encounters/${encounterId}/fhir`),
-  initConsent: (payload) => postD('/api/abdm/consent/init', payload),
-  getConsentStatus: (id) => getD(`/api/abdm/consent/${id}/status`),
+  getStatus: () => getD('/api/abdm/status', defaultAuth()),
+  checkAddress: (abhaAddress) => getD('/api/abdm/check-address', { params: { abhaAddress }, ...defaultAuth() }),
+  initKyc: (type, value) => postD('/api/abdm/kyc/init', { type, value }, defaultAuth()),
+  verifyKyc: (txnId, otp) => postD('/api/abdm/kyc/verify', { txnId, otp }, defaultAuth()),
+  enrollAadhaarInit: (aadhaar) => postD('/api/abdm/enroll/aadhaar/init', { aadhaar }, defaultAuth()),
+  enrollAadhaarVerify: (payload) => postD('/api/abdm/enroll/aadhaar/verify', payload, defaultAuth()),
+  linkCareContext: (payload) => postD('/api/abdm/care-context/link', payload, defaultAuth()),
+  getEncounterFhir: (courseId, encounterId) => getD(`/api/abdm/courses/${courseId}/encounters/${encounterId}/fhir`, defaultAuth()),
+  initConsent: (payload) => postD('/api/abdm/consent/init', payload, defaultAuth()),
+  getConsentStatus: (id) => getD(`/api/abdm/consent/${id}/status`, defaultAuth()),
+  testApproveConsent: (id) => postD(`/api/abdm/consent/${id}/test-approve`, {}, defaultAuth()),
+  getConsentRecords: (artefactId) => getD(`/api/abdm/consent/${artefactId}/records`, defaultAuth()),
 };
 
 

@@ -26,7 +26,9 @@ public record CreateTokenRequest(
         Double longitude,
         // Optional: which hospital (see GET /api/hospitals/nearby) this token books into --
         // omit to fall back to this deployment's single operating hospital (app.hospital-uri-slug).
-        Integer hospitalId) {
+        Integer hospitalId,
+        // Optional: travel duration (in minutes) chosen by the patient within the -10% to +50% range.
+        Integer selectedTravelMinutes) {
 
     public SetLocationRequest toLocationOrNull() {
         if ((digipin == null || digipin.isBlank()) && (latitude == null || longitude == null)) {

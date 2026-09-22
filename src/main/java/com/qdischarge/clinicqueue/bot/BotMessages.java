@@ -89,9 +89,91 @@ public class BotMessages {
 
     public List<WaButton> welcomeButtons(Lang lang) {
         return switch (lang) {
-            case EN -> List.of(new WaButton("btn_generate_token", "🎫 Generate Token"), new WaButton("btn_check_status", "🔍 Check Status"));
-            case HI -> List.of(new WaButton("btn_generate_token", "🎫 टोकन बनाएं"), new WaButton("btn_check_status", "🔍 स्थिति देखें"));
-            case MR -> List.of(new WaButton("btn_generate_token", "🎫 टोकन तयार करा"), new WaButton("btn_check_status", "🔍 स्थिती तपासा"));
+            case EN -> List.of(
+                    new WaButton("btn_generate_token", "🎫 Book Token"),
+                    new WaButton("btn_check_status", "📊 Check Status"),
+                    new WaButton("btn_services", "📋 Services"));
+            case HI -> List.of(
+                    new WaButton("btn_generate_token", "🎫 टोकन बनाएं"),
+                    new WaButton("btn_check_status", "📊 स्थिति देखें"),
+                    new WaButton("btn_services", "📋 अन्य सेवाएं"));
+            case MR -> List.of(
+                    new WaButton("btn_generate_token", "🎫 टोकन तयार करा"),
+                    new WaButton("btn_check_status", "📊 स्थिती तपासा"),
+                    new WaButton("btn_services", "📋 इतर सेवा"));
+        };
+    }
+
+    public String servicesMenuTitle(Lang lang) {
+        return switch (lang) {
+            case EN -> "📋 PATIENT HEALTH SERVICES";
+            case HI -> "📋 मरीज़ स्वास्थ्य सेवाएं";
+            case MR -> "📋 रुग्ण आरोग्य सेवा";
+        };
+    }
+
+    public String servicesMenuDescription(Lang lang) {
+        return switch (lang) {
+            case EN -> "Access your referrals, medical documents, and family members below:";
+            case HI -> "अपने रेफरल, मेडिकल दस्तावेज़ और परिवार के सदस्यों को नीचे देखें:";
+            case MR -> "आपले रेफरल, वैद्यकीय कागदपत्रे आणि कुटुंबातील सदस्य खाली पहा:";
+        };
+    }
+
+    public List<WaButton> servicesButtons(Lang lang) {
+        return switch (lang) {
+            case EN -> List.of(
+                    new WaButton("srv_book", "🎫 Book Token"),
+                    new WaButton("srv_track", "📊 Track Token"),
+                    new WaButton("btn_services", "📋 All Services"));
+            case HI -> List.of(
+                    new WaButton("srv_book", "🎫 टोकन बनाएं"),
+                    new WaButton("srv_track", "📊 ट्रैक करें"),
+                    new WaButton("btn_services", "📋 सेवाएं"));
+            case MR -> List.of(
+                    new WaButton("srv_book", "🎫 टोकन काढा"),
+                    new WaButton("srv_track", "📊 तपासा"),
+                    new WaButton("btn_services", "📋 सेवा"));
+        };
+    }
+
+    public String unregisteredPrompt(Lang lang, String clinicName) {
+        return switch (lang) {
+            case EN -> "👋 *Welcome to " + clinicName + "*\n\nYour mobile number is not registered yet. Please take 1 minute to complete your digital patient profile to access OPD booking, live token tracking, and health records:";
+            case HI -> "👋 *" + clinicName + " में आपका स्वागत है*\n\nआपका मोबाइल नंबर अभी पंजीकृत नहीं है। ओपीडी अपॉइंटमेंट, लाइव टोकन ट्रैकिंग और स्वास्थ्य रिकॉर्ड के लिए कृपया 1 मिनट में अपना प्रोफ़ाइल पूरा करें:";
+            case MR -> "👋 *" + clinicName + " मध्ये आपले स्वागत आहे*\n\nआपला मोबाईल नंबर अद्याप नोंदणीकृत नाही. ओपीडी अपॉइंटमेंट, थेट टोकन ट्रॅकिंग आणि आरोग्य नोंदींसाठी कृपया 1 मिनिटात आपली नोंदणी पूर्ण करा:";
+        };
+    }
+
+    public String registrationSuccessMessage(Lang lang, String name) {
+        String patient = (name != null && !name.isBlank()) ? name : "Patient";
+        return switch (lang) {
+            case EN -> "🎉 *Registration Complete!*\n\nWelcome *" + patient + "*! Your Ayushman digital profile is now active. Please choose a service:";
+            case HI -> "🎉 *पंजीकरण सफल रहा!*\n\nस्वागत है *" + patient + "*! आपका आयुष्मान डिजिटल प्रोफ़ाइल अब सक्रिय है। कृपया नीचे दी गई सेवा चुनें:";
+            case MR -> "🎉 *नोंदणी यशस्वी झाली!*\n\nस्वागत आहे *" + patient + "*! आपले आयुष्मान डिजिटल प्रोफाइल आता सक्रिय आहे. कृपया खालील सेवा निवडा:";
+        };
+    }
+
+    public List<com.qdischarge.clinicqueue.dto.WaListSection> servicesListSections(Lang lang) {
+        return switch (lang) {
+            case EN -> List.of(new com.qdischarge.clinicqueue.dto.WaListSection("Available Services", List.of(
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_book", "🎫 Book OPD Token", "Book clinic OPD appointment"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_track", "📊 Track Live Token", "Live queue & serving token"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_records", "💊 Records & Referrals", "Prescriptions & referrals"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_family", "👨‍👩‍👧 Family Members", "View & manage family unit")
+            )));
+            case HI -> List.of(new com.qdischarge.clinicqueue.dto.WaListSection("उपलब्ध सेवाएं", List.of(
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_book", "🎫 ओपीडी टोकन बुक करें", "क्लीनिक अपॉइंटमेंट बुक करें"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_track", "📊 लाइव टोकन ट्रैक करें", "वर्तमान कतार व टोकन स्थिति"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_records", "💊 मेडिकल रिकॉर्ड/रेफरल", "दस्तावेज़ व रेफरल देखें"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_family", "👨‍👩‍👧 परिवार के सदस्य", "परिवार व आभा आईडी प्रबंधन")
+            )));
+            case MR -> List.of(new com.qdischarge.clinicqueue.dto.WaListSection("उपलब्ध सेवा", List.of(
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_book", "🎫 ओपीडी टोकन बुक करा", "रुग्णालय ओपीडी नोंदणी"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_track", "📊 थेट टोकन तपासा", "रांगेची थेट स्थिती"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_records", "💊 नोंदी व रेफरल", "कागदपत्रे व तपासणी अहवाल"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_family", "👨‍👩‍👧 कुटुंबातील सदस्य", "कुटुंब व आभा व्यवस्थापन")
+            )));
         };
     }
 
@@ -350,44 +432,50 @@ public class BotMessages {
     }
 
     public String dashboardDescription(Lang lang, String name, Integer age, String statusBadge, String position, int ahead, int waitMinutes) {
+        return dashboardDescription(lang, name, age, statusBadge, position, ahead, waitMinutes, null, 0);
+    }
+
+    public String dashboardDescription(Lang lang, String name, Integer age, String statusBadge, String position, int ahead, int waitMinutes, String currentServing, int yourToken) {
         String ageLine = ageLine(lang, age);
+        String servingText = (currentServing != null && !currentServing.isBlank()) ? currentServing : "--";
+        String tokenText = yourToken > 0 ? String.valueOf(yourToken) : position;
         return switch (lang) {
             case EN -> """
                     Hello %s,%s
 
                     Your queue token has been generated successfully!
 
-                    📌 *Status:* %s
-                    📍 *Queue Position:* %s
-                    👥 *Patients Ahead:* %d
-                    ⏱️ *Estimated Wait:* ~%d mins
+                    🔔 *CURRENT SERVING TOKEN: #%s*
+                    🎫 *YOUR TOKEN NUMBER: #%s*
 
-                    Tap below to open your interactive live queue dashboard!"""
-                    .formatted(name, ageLine, statusBadge, position, ahead, waitMinutes);
+                    📌 *Status:* %s
+
+                    Tap below to open your live queue tracker!"""
+                    .formatted(name, ageLine, servingText, tokenText, statusBadge);
             case HI -> """
                     नमस्ते %s,%s
 
-                    आपका क्यू टोकन सफलतापूर्वक बन गया है!
+                    आपका कतार टोकन सफलतापूर्वक बन गया है!
+
+                    🔔 *वर्तमान में सेवारत टोकन: #%s*
+                    🎫 *आपका टोकन नंबर: #%s*
 
                     📌 *स्थिति:* %s
-                    📍 *कतार में स्थान:* %s
-                    👥 *आगे मरीज़:* %d
-                    ⏱️ *अनुमानित प्रतीक्षा:* ~%d मिनट
 
-                    अपना लाइव कतार डैशबोर्ड खोलने के लिए नीचे टैप करें!"""
-                    .formatted(name, ageLine, statusBadge, position, ahead, waitMinutes);
+                    अपना लाइव कतार ट्रैकर खोलने के लिए नीचे टैप करें!"""
+                    .formatted(name, ageLine, servingText, tokenText, statusBadge);
             case MR -> """
                     नमस्कार %s,%s
 
                     तुमचा रांग टोकन यशस्वीरित्या तयार झाला आहे!
 
-                    📌 *स्थिती:* %s
-                    📍 *रांगेतील स्थान:* %s
-                    👥 *पुढे रुग्ण:* %d
-                    ⏱️ *अंदाजे प्रतीक्षा:* ~%d मिनिटे
+                    🔔 *सध्या सुरू असलेला टोकन: #%s*
+                    🎫 *तुमचा टोकन क्रमांक: #%s*
 
-                    तुमचे लाइव्ह रांग डॅशबोर्ड उघडण्यासाठी खाली टॅप करा!"""
-                    .formatted(name, ageLine, statusBadge, position, ahead, waitMinutes);
+                    📌 *स्थिती:* %s
+
+                    तुमचे लाइव्ह रांग ट्रॅकर उघडण्यासाठी खाली टॅप करा!"""
+                    .formatted(name, ageLine, servingText, tokenText, statusBadge);
         };
     }
 
@@ -440,32 +528,34 @@ public class BotMessages {
     }
 
     public String statusDescription(Lang lang, int id, String name, Integer age, String position, int ahead, int waitMinutes, String status) {
+        return statusDescription(lang, id, name, age, position, ahead, waitMinutes, status, null);
+    }
+
+    public String statusDescription(Lang lang, int id, String name, Integer age, String position, int ahead, int waitMinutes, String status, String currentServing) {
         String ageSuffix = age != null ? " (" + age + ")" : "";
+        String servingText = (currentServing != null && !currentServing.isBlank()) ? currentServing : "--";
         return switch (lang) {
             case EN -> """
-                    🎫 Token: #%d
+                    🔔 *CURRENT SERVING TOKEN: #%s*
+                    🎫 *YOUR TOKEN: #%d*
+
                     👤 Patient: %s%s
-                    📍 Position: %s
-                    👥 People Ahead: %d
-                    ⏱️ Estimated Wait: ~%d mins
                     ⚡ Status: %s"""
-                    .formatted(id, name, ageSuffix, position, ahead, waitMinutes, status.toUpperCase());
+                    .formatted(servingText, id, name, ageSuffix, status.toUpperCase());
             case HI -> """
-                    🎫 टोकन: #%d
+                    🔔 *वर्तमान में सेवारत टोकन: #%s*
+                    🎫 *आपका टोकन: #%d*
+
                     👤 मरीज़: %s%s
-                    📍 स्थान: %s
-                    👥 आगे लोग: %d
-                    ⏱️ अनुमानित प्रतीक्षा: ~%d मिनट
                     ⚡ स्थिति: %s"""
-                    .formatted(id, name, ageSuffix, position, ahead, waitMinutes, status.toUpperCase());
+                    .formatted(servingText, id, name, ageSuffix, status.toUpperCase());
             case MR -> """
-                    🎫 टोकन: #%d
+                    🔔 *सध्या सुरू असलेला टोकन: #%s*
+                    🎫 *तुमचा टोकन: #%d*
+
                     👤 रुग्ण: %s%s
-                    📍 स्थान: %s
-                    👥 पुढे लोक: %d
-                    ⏱️ अंदाजे प्रतीक्षा: ~%d मिनिटे
                     ⚡ स्थिती: %s"""
-                    .formatted(id, name, ageSuffix, position, ahead, waitMinutes, status.toUpperCase());
+                    .formatted(servingText, id, name, ageSuffix, status.toUpperCase());
         };
     }
 
