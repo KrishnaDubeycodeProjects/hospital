@@ -22,7 +22,7 @@ public class AppProperties {
         if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost")) {
             return frontendUrl.replaceAll("/+$", "");
         }
-        return "https://hospital.princete.com";
+        return "https://hospital-ten-blond.vercel.app";
     }
 
     // --- Admin auth ---

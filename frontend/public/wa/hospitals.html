@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+  <title>Find Hospital - Aarogya Flow</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#004D40',
+              dark: '#043c2c',
+              emerald: '#00A884',
+              sky: '#0284c7'
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+  <!-- Exact React FindHospital.jsx Mobile Frame Structure -->
+  <main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col min-h-[580px] h-[92vh] max-h-[740px] overflow-hidden relative border border-slate-100">
+    <!-- Top Drag Handle Bar -->
+    <div class="w-full flex justify-center pt-3 pb-1" data-purpose="drag-handle-bar">
+      <div aria-hidden="true" class="w-10 h-1.5 bg-slate-300 rounded-full"></div>
+    </div>
+
+    <!-- 1. Top App Bar (Header): Back button, Find Hospital title -->
+    <header class="px-4 py-2.5 flex items-center justify-between border-b border-slate-100 bg-white" data-purpose="app-header">
+      <button type="button" aria-label="Back" class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-transform" onclick="window.history.back()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12" />
+          <polyline points="12 19 5 12 12 5" />
+        </svg>
+      </button>
+      <h1 class="text-lg font-bold text-[#043c2c] tracking-tight">Find Hospital</h1>
+      <div class="w-10"></div>
+    </header>
+
+    <!-- 2. Location Marking & Refresh Status Section (from React FindHospital.jsx) -->
+    <div class="px-4 pt-3 pb-2 flex-shrink-0 bg-white border-b border-slate-50">
+      <div class="flex items-center justify-between mb-2.5">
+        <div class="flex items-center gap-1.5">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#00A884">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+          </svg>
+          <span class="text-[13px] font-semibold text-[#043c2c]">
+            Showing hospitals nearest to you
+          </span>
+        </div>
+
+        <button type="button" onclick="refreshLocationAndHospitals()" id="locRefreshBtn" class="flex items-center gap-1 text-[#0284c7] font-semibold text-xs py-0.5 px-1 rounded active:scale-95 transition-transform">
+          <svg width="15" height="15" id="locSpinIcon" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+          </svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <!-- Search Input Bar -->
+      <div class="relative">
+        <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="hospSearch" placeholder="Search hospital by name, area, or type..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#004D40]" oninput="filterHospitals(this.value)" />
+      </div>
+    </div>
+
+    <!-- 3. Scrollable Hospitals List from Database -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-3" id="hospitalsContainer">
+      <div class="py-12 text-center text-xs text-slate-400 font-medium">Loading verified hospitals from database...</div>
+    </div>
+
+    <!-- Sticky React AyushmanFooter -->
+    <footer class="p-3 border-t border-slate-100 bg-white">
+      <div class="flex flex-col items-center text-center space-y-1 text-[11px] text-slate-500 font-medium select-none">
+        <div class="flex items-center space-x-1.5">
+          <svg class="w-3.5 h-3.5 text-[#00a86b] fill-current" viewBox="0 0 24 24">
+            <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A9.49 9.49 0 0 0 12 21c7.73 0 10-9.86 10-13 0-1.5-1-2-2-2-1.74 0-4.3.56-6.68 1.45l2.45-2.45L14.36 3.59 10 7.95V10c1.7-.8 3.5-1.4 5-1.7-1 3-3 5.5-6 6.5l.7 1.8c4-1.5 6.5-5 7.3-8.6z"></path>
+          </svg>
+          <span class="font-bold text-[#054333]">Aarogya Flow</span>
+          <span class="text-slate-300">|</span>
+          <span class="text-slate-500">A rural health initiative</span>
+        </div>
+        <div class="flex items-center space-x-1 text-slate-500">
+          <svg class="w-3 h-3 text-[#00b074] fill-current" viewBox="0 0 24 24">
+            <rect height="5" rx="1" width="3.5" x="3" y="16"></rect>
+            <rect height="10" rx="1" width="3.5" x="8.5" y="11"></rect>
+            <rect height="15" opacity="0.3" rx="1" width="3.5" x="14" y="6"></rect>
+            <rect height="19" opacity="0.3" rx="1" width="3.5" x="19.5" y="2"></rect>
+          </svg>
+          <span class="text-[11px]">Works even on low internet</span>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    let botPhone = '918850934544';
+    let hospitalsData = [];
+    let userCoords = { lat: 19.1895, lon: 72.9640 };
+
+    fetch('/api/wa/config').then(r => r.json()).then(c => {
+      if (c.botPhoneNumber) botPhone = c.botPhoneNumber.replace(/\D/g, '');
+    }).catch(() => {});
+
+    function refreshLocationAndHospitals() {
+      const icon = document.getElementById('locSpinIcon');
+      if (icon) icon.classList.add('animate-spin');
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+            fetchHospitalsFromDb();
+          },
+          () => fetchHospitalsFromDb(),
+          { timeout: 6000 }
+        );
+      } else {
+        fetchHospitalsFromDb();
+      }
+    }
+
+    async function fetchHospitalsFromDb() {
+      try {
+        const res = await fetch(`/api/hospitals?lat=${userCoords.lat}&lon=${userCoords.lon}`);
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list) && list.length > 0) {
+            hospitalsData = list.map((h, i) => {
+              const isOpen = h.isOpen != null ? h.isOpen : true;
+              return {
+                id: h.id || (i + 1),
+                name: h.name || 'Hospital',
+                type: h.ownership ? `${h.ownership} Hospital` : 'Government Hospital',
+                distance: h.distanceKm ? `${Math.round(h.distanceKm * 10) / 10} km away` : `${(i * 2.2 + 3.1).toFixed(1)} km away`,
+                hours: h.openTime && h.closeTime ? `${h.openTime.slice(0, 5)} - ${h.closeTime.slice(0, 5)}` : '08:00 AM - 04:00 PM',
+                address: h.address || 'Civil Area',
+                isOpen: isOpen
+              };
+            });
+            renderHospitals(hospitalsData);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Hospitals DB fetch error:', err);
+      } finally {
+        const icon = document.getElementById('locSpinIcon');
+        if (icon) icon.classList.remove('animate-spin');
+      }
+    }
+
+    function renderHospitals(list) {
+      const c = document.getElementById('hospitalsContainer');
+      if (!list || list.length === 0) {
+        c.innerHTML = '<div class="py-12 text-center text-xs text-slate-400">No hospitals found matching query.</div>';
+        return;
+      }
+      c.innerHTML = list.map(h => `
+        <div onclick="selectHospital(${h.id})" class="p-3.5 bg-white border border-slate-200 rounded-2xl hover:border-[#004D40] active:scale-[0.99] cursor-pointer transition-all shadow-sm">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[15px] font-bold text-slate-900 leading-snug">${h.name}</span>
+                <span class="w-2.5 h-2.5 rounded-full inline-block ${h.isOpen ? 'bg-[#00A884]' : 'bg-[#EF4444]'}" title="${h.isOpen ? 'OPD Open' : 'OPD Closed'}"></span>
+              </div>
+              <span class="inline-block mt-0.5 px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-100 text-slate-600">${h.type}</span>
+            </div>
+            <span class="px-2 py-0.5 text-[11px] font-bold rounded-full ${h.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}">
+              ${h.isOpen ? '• Open' : 'Closed'}
+            </span>
+          </div>
+
+          <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <div class="flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-[#00A884]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+              <span class="font-bold text-slate-700">${h.distance}</span>
+            </div>
+            <span class="text-[11px] text-slate-400">${h.hours}</span>
+          </div>
+          <div class="text-[11px] text-slate-400 truncate mt-1">${h.address}</div>
+        </div>
+      `).join('');
+    }
+
+    function filterHospitals(val) {
+      const q = val.toLowerCase().trim();
+      const filtered = hospitalsData.filter(h => h.name.toLowerCase().includes(q) || h.address.toLowerCase().includes(q) || h.type.toLowerCase().includes(q));
+      renderHospitals(filtered);
+    }
+
+    function selectHospital(id) {
+      const returnMsg = encodeURIComponent(`#HOSP:${id}`);
+      window.location.href = `https://wa.me/${botPhone}?text=${returnMsg}`;
+    }
+
+    refreshLocationAndHospitals();
+  </script>
+</body>
+</html>

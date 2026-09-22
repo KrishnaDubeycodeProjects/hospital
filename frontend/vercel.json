@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/wa/(.*)", "destination": "/wa/$1" },
+    { "source": "/api/(.*)", "destination": "https://decency-immovable-synopsis.ngrok-free.dev/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
