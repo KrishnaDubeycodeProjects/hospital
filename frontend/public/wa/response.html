@@ -99,10 +99,10 @@
 
         <div class="group">
           <p class="text-[13px] font-normal text-slate-500 tracking-normal mb-1">
-            Selected Travel Duration
+            Appointment Status
           </p>
-          <p class="text-base font-medium text-slate-900 leading-snug" id="respTravel">
-            Confirmed
+          <p class="text-base font-semibold text-emerald-700 leading-snug" id="respStatus">
+            Confirmed ✅
           </p>
         </div>
       </div>
@@ -162,7 +162,7 @@
               patientName = data.name || data.patientName || patientName;
               deptName = data.category || data.department || deptName;
               hospName = data.hospitalName || hospName;
-              if (data.selectedTravelMinutes) travelTime = `${data.selectedTravelMinutes}`;
+              // data loaded
             }
           }
         }
@@ -172,7 +172,8 @@
         document.getElementById('respPatient').textContent = patientName || 'Registered Patient';
         document.getElementById('respDept').textContent = deptName || 'General Medicine';
         document.getElementById('respHospital').textContent = hospName || 'Aastha Hospital';
-        document.getElementById('respTravel').textContent = travelTime ? `${travelTime} Minutes (Arrival Window Set)` : 'Standard Arrival Window';
+        const stEl = document.getElementById('respStatus');
+        if (stEl) stEl.textContent = 'Confirmed ✅';
       }
     }
 

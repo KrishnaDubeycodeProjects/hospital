@@ -54,6 +54,7 @@ public class WebhookController {
     private final com.qdischarge.clinicqueue.service.FamilyUnitService familyUnitService;
     private final com.qdischarge.clinicqueue.security.JwtService jwtService;
     private final com.qdischarge.clinicqueue.service.PatientDocumentService patientDocumentService;
+    private final com.qdischarge.clinicqueue.service.WebhookDeduplicationService webhookDeduplicationService;
 
     private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern DIGIPIN_PATTERN = Pattern.compile("^[A-Z0-9]{10}$");
@@ -118,6 +119,12 @@ public class WebhookController {
         JsonNode message = value.path("messages").path(0);
 
         if (message.isMissingNode()) {
+            return ResponseEntity.ok("EVENT_RECEIVED");
+        }
+
+        String messageId = message.path("id").asText("");
+        if (webhookDeduplicationService.isDuplicate(messageId)) {
+            log.info("⏩ Duplicate Meta message ID [{}] ignored.", messageId);
             return ResponseEntity.ok("EVENT_RECEIVED");
         }
 
@@ -255,18 +262,15 @@ public class WebhookController {
             if (incomingMessage.startsWith("#HOSP:")) {
                 String hospVal = incomingMessage.substring(6).trim();
                 Integer hospId = parseInt(hospVal);
-                if (activeToken != null && hospId != null) {
+                if (hospId != null) {
+                    if (activeToken == null || isTerminal(activeToken)) {
+                        activeToken = queueManagerService.createRegisteringToken(fromPhone);
+                    }
                     TokenDto selected = queueManagerService.selectHospital(activeToken.getId(), hospId);
-                    queueManagerService.setSessionStep(activeToken.getId(), "awaiting_travel_time");
-                    String travelUrl = buildAuthWebviewUrl("/wa/travel-duration.html", fromPhone, Map.of(
-                            "hospitalId", String.valueOf(hospId),
-                            "lat", selected.getPatientLat() != null ? String.valueOf(selected.getPatientLat()) : "",
-                            "lon", selected.getPatientLon() != null ? String.valueOf(selected.getPatientLon()) : ""
-                    ));
-                    whatsAppService.sendUrlButtonMessage(fromPhone, "⏱️ Set Travel Duration",
-                            "Hospital selected! Drag the slider to set your travel time to ensure optimal queue scheduling:",
-                            "⏱️ Set Travel Time", travelUrl, appProperties.getClinicName());
-                    return ResponseEntity.ok("EVENT_RECEIVED");
+                    if (selected != null) {
+                        sendConfirmationCard(fromPhone, selected, lang);
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
                 }
             }
 
@@ -337,9 +341,9 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            // Universal Go Back / Main Menu
+            // Universal Go Back / Main Menu / Greetings
             Intent navIntent = Intent.match(buttonId, cleanMessage);
-            if (navIntent == Intent.MAIN_MENU) {
+            if (navIntent == Intent.MAIN_MENU || Intent.GREETING_WORDS.contains(cleanMessage)) {
                 waSessionService.setStage(fromPhone, "ready");
                 sendServicesMenu(fromPhone, lang);
                 return ResponseEntity.ok("EVENT_RECEIVED");
@@ -439,8 +443,58 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if ("dept_all_list".equals(buttonId)) {
-                sendAllDepartmentsList(fromPhone, lang, activeToken);
+            if ("dept_all_list".equals(buttonId) || "dept_page_1".equals(buttonId)) {
+                sendAllDepartmentsPage(fromPhone, lang, 1);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+            if (buttonId != null && buttonId.startsWith("dept_page_")) {
+                int pageIdx = 1;
+                try {
+                    pageIdx = Integer.parseInt(buttonId.substring(10));
+                } catch (Exception ignored) {}
+                sendAllDepartmentsPage(fromPhone, lang, pageIdx);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if (buttonId != null && buttonId.startsWith(HOSPITAL_ROW_PREFIX)) {
+                Integer hospitalId = parseInt(buttonId.substring(HOSPITAL_ROW_PREFIX.length()));
+                if (activeToken == null || isTerminal(activeToken)) {
+                    activeToken = queueManagerService.createRegisteringToken(fromPhone);
+                }
+                TokenDto selected = hospitalId == null ? null : queueManagerService.selectHospital(activeToken.getId(), hospitalId);
+                if (selected != null) {
+                    sendConfirmationCard(fromPhone, selected, lang);
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
+            }
+
+            if ("btn_confirm_booking".equals(buttonId)) {
+                if (activeToken != null) {
+                    try {
+                        TokenDto booked = queueManagerService.confirmBooking(activeToken.getId());
+                        sendBookingConfirmedCard(fromPhone, booked, lang);
+                    } catch (IllegalStateException e) {
+                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.bookingFailed(lang, e.getMessage()));
+                    }
+                } else {
+                    sendServicesMenu(fromPhone, lang);
+                }
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
+            if ("btn_choose_again".equals(buttonId)) {
+                if (activeToken != null) {
+                    QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.restartHospitalSelection(activeToken.getId());
+                    if (outcome != null && !outcome.page().results().isEmpty()) {
+                        sendHospitalResultsList(fromPhone, outcome.draft(), outcome.page(), lang);
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    } else {
+                        sendLocationPrompt(fromPhone, lang, activeToken.getCategory());
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                } else {
+                    sendServicesMenu(fromPhone, lang);
+                }
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -489,11 +543,23 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (buttonId != null && buttonId.startsWith(QueueManagerService.DEPT_ROW_PREFIX)) {
-                String category = buttonId.substring(5);
+            if (buttonId != null && (buttonId.startsWith(QueueManagerService.DEPT_ROW_PREFIX) || buttonId.startsWith("#DEPT:"))) {
+                String category = buttonId.startsWith("#DEPT:") ? buttonId.substring(6) : buttonId.substring(QueueManagerService.DEPT_ROW_PREFIX.length());
                 String canonical = MedicalCategory.canonicalize(category);
-                if (canonical != null && activeToken != null) {
-                    queueManagerService.captureDepartment(activeToken.getId(), canonical);
+                if (canonical != null) {
+                    if (activeToken == null || isTerminal(activeToken)) {
+                        activeToken = queueManagerService.createRegisteringToken(fromPhone);
+                    }
+                    activeToken = queueManagerService.captureDepartment(activeToken.getId(), canonical);
+                    if (activeToken != null && activeToken.getPatientLat() != null && activeToken.getPatientLon() != null) {
+                        HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
+                                canonical, activeToken.getGender(), activeToken.getPatientLat(), activeToken.getPatientLon(), 0, QueueManagerService.HOSPITAL_PAGE_SIZE);
+                        if (page != null && !page.results().isEmpty()) {
+                            queueManagerService.setSessionStepWithPrev(activeToken.getId(), "awaiting_hospital_selection", "awaiting_department_selection");
+                            sendHospitalResultsList(fromPhone, activeToken, page, lang);
+                            return ResponseEntity.ok("EVENT_RECEIVED");
+                        }
+                    }
                     sendLocationPrompt(fromPhone, lang, canonical);
                 }
                 return ResponseEntity.ok("EVENT_RECEIVED");
@@ -595,7 +661,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && "awaiting_location".equals(activeToken.getSessionStep())) {
+            if (activeToken != null && ("awaiting_location".equals(activeToken.getSessionStep()) || (incomingLat != null && incomingLon != null))) {
                 SetLocationRequest location = resolveIncomingLocation(incomingLat, incomingLon, cleanMessage);
                 if (location == null) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidLocationReminder(lang));
@@ -669,8 +735,7 @@ public class WebhookController {
                     }
                 }
 
-                int totalCount = (page != null && page.results() != null) ? page.results().size() : 20;
-                whatsAppService.sendWhatsAppMessage(fromPhone, "⚠️ Invalid selection. Please reply with a hospital number (*1* to *" + totalCount + "*) or type *profile 1* to view hospital details.");
+                sendHospitalResultsList(fromPhone, activeToken, page, lang);
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -687,14 +752,14 @@ public class WebhookController {
                 }
                 if (choice == ConfirmationChoice.CHOOSE_AGAIN) {
                     QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.restartHospitalSelection(activeToken.getId());
-                    if (outcome == null || outcome.page().results().isEmpty()) {
-                        whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
-                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    if (outcome != null && !outcome.page().results().isEmpty()) {
+                        sendHospitalResultsList(fromPhone, outcome.draft(), outcome.page(), lang);
+                    } else {
+                        sendLocationPrompt(fromPhone, lang, activeToken.getCategory());
                     }
-                    sendHospitalResultsList(fromPhone, outcome.draft(), outcome.page(), lang);
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
-                whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidConfirmationReminder(lang));
+                sendConfirmationCard(fromPhone, activeToken, lang);
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -794,7 +859,7 @@ public class WebhookController {
                         sendFamilySelectionList(fromPhone, lang, members);
                     }
                 } else {
-                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.alreadyActiveToken(lang, activeToken.displayNumber(), activeToken.getStatus()));
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.alreadyActiveToken(lang, activeToken.displayTokenCode(), activeToken.getStatus()));
                     sendTokenDashboardCard(fromPhone, activeToken, lang);
                 }
                 return ResponseEntity.ok("EVENT_RECEIVED");
@@ -840,7 +905,7 @@ public class WebhookController {
             if (intent == Intent.CANCEL_TOKEN || "btn_cancel_token".equals(buttonId) || "cancel".equalsIgnoreCase(cleanMessage) || "रद्द".equals(cleanMessage)) {
                 if (activeToken != null) {
                     queueManagerService.updateTokenStatus(String.valueOf(activeToken.getId()), "cancelled");
-                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.tokenCancelled(lang, activeToken.displayNumber()));
+                    whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.tokenCancelled(lang, activeToken.displayTokenCode()));
                 } else {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.noActiveTokenToCancel(lang));
                 }
@@ -849,10 +914,11 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            // Fallback
-            if (!Intent.isReservedWord(cleanMessage) && activeToken != null && activeToken.getSessionStep() == null) {
-                // Ignore random chatter if we're not waiting for input
-            }
+            // Fallback: If no intent or step matched, send services menu so the user always gets a reply
+            log.info("ℹ️ No specific intent matched for '{}'. Sending services menu to {}.", cleanMessage, fromPhone);
+            waSessionService.setStage(fromPhone, "ready");
+            sendServicesMenu(fromPhone, lang);
+            return ResponseEntity.ok("EVENT_RECEIVED");
 
         } catch (Exception e) {
             log.error("💥 Error processing Meta webhook message from {}", fromPhone, e);
@@ -869,13 +935,13 @@ public class WebhookController {
                 new WaButton("btn_lang_hi", "हिंदी"),
                 new WaButton("btn_lang_mr", "मराठी")
         );
-        whatsAppService.sendButtonsMessage(phone, "", msg, buttons, "Language");
+        whatsAppService.sendButtonsMessage(phone, "", msg, buttons, appProperties.getClinicName());
     }
 
     private void sendWelcomeCard(String phone, Lang lang) {
         String title = botMessages.welcomeTitle(lang, appProperties.getClinicName());
         String body = botMessages.welcomeDescription(lang);
-        whatsAppService.sendButtonsMessage(phone, title, body, botMessages.welcomeButtons(lang), "Welcome");
+        whatsAppService.sendButtonsMessage(phone, title, body, botMessages.welcomeButtons(lang), appProperties.getClinicName());
     }
 
     private void sendServicesMenu(String phone, Lang lang) {
@@ -1031,33 +1097,66 @@ public class WebhookController {
         whatsAppService.sendListMessage(phone, header, body, botMessages.quickDepartmentSections(lang), appProperties.getClinicName(), btn);
     }
 
-    private void sendAllDepartmentsList(String phone, Lang lang, TokenDto token) {
-        List<WaListRow> section1 = new ArrayList<>();
-        List<WaListRow> section2 = new ArrayList<>();
-        List<WaListRow> section3 = new ArrayList<>();
-        
-        int count = 0;
-        for (String cat : MedicalCategory.ALL) {
+    private void sendAllDepartmentsPage(String phone, Lang lang, int pageIndex) {
+        List<String> allCats = MedicalCategory.ALL;
+        int total = allCats.size();
+        int pageSize = 8;
+        int totalPages = (int) Math.ceil((double) total / pageSize);
+        if (pageIndex < 1) pageIndex = 1;
+        if (pageIndex > totalPages) pageIndex = totalPages;
+
+        int start = (pageIndex - 1) * pageSize;
+        int end = Math.min(start + pageSize, total);
+
+        List<WaListRow> rows = new ArrayList<>();
+        for (int i = start; i < end; i++) {
+            String cat = allCats.get(i);
             String emoji = getDeptEmoji(cat);
-            String title = emoji + " " + truncateTitle(cat, 22);
-            String desc = truncateTitle(cat, 70);
-            WaListRow row = new WaListRow(QueueManagerService.DEPT_ROW_PREFIX + cat, title, desc);
-            if (count < 10) section1.add(row);
-            else if (count < 20) section2.add(row);
-            else if (count < 30) section3.add(row);
-            count++;
+            String title = emoji + " " + truncateTitle(cat, 21);
+            String desc = truncateTitle(cat, 60);
+            rows.add(new WaListRow(QueueManagerService.DEPT_ROW_PREFIX + cat, title, desc));
         }
-        
-        List<WaListSection> sections = new ArrayList<>();
-        sections.add(new WaListSection(switch(lang){case EN->"Common OPD & Medicine";case HI->"सामान्य चिकित्सा";case MR->"सामान्य वैद्यकीय";}, section1));
-        if (!section2.isEmpty()) sections.add(new WaListSection(switch(lang){case EN->"Specialized Surgery & Care";case HI->"विशेष सर्जरी";case MR->"विशेष शस्त्रक्रिया";}, section2));
-        if (!section3.isEmpty()) sections.add(new WaListSection(switch(lang){case EN->"Super Specialties";case HI->"सुपर स्पेशियलिटी";case MR->"सुपर स्पेशालिटी";}, section3));
-        
+
+        if (pageIndex > 1) {
+            String prevTitle = switch(lang) {
+                case EN -> "◀️ Prev (" + (pageIndex - 1) + "/" + totalPages + ")";
+                case HI -> "◀️ पिछला (" + (pageIndex - 1) + "/" + totalPages + ")";
+                case MR -> "◀️ मागील (" + (pageIndex - 1) + "/" + totalPages + ")";
+            };
+            rows.add(new WaListRow("dept_page_" + (pageIndex - 1), prevTitle, switch(lang) {
+                case EN -> "Previous specialties";
+                case HI -> "पिछले विभाग देखें";
+                case MR -> "मागील विभाग पहा";
+            }));
+        }
+        if (pageIndex < totalPages) {
+            String nextTitle = switch(lang) {
+                case EN -> "▶️ Next (" + (pageIndex + 1) + "/" + totalPages + ")";
+                case HI -> "▶️ अगला (" + (pageIndex + 1) + "/" + totalPages + ")";
+                case MR -> "▶️ पुढील (" + (pageIndex + 1) + "/" + totalPages + ")";
+            };
+            rows.add(new WaListRow("dept_page_" + (pageIndex + 1), nextTitle, switch(lang) {
+                case EN -> "More specialties";
+                case HI -> "और विभाग देखें";
+                case MR -> "आणखी विभाग पहा";
+            }));
+        }
+
+        String sectionName = switch(lang) {
+            case EN -> "Specialties (" + pageIndex + "/" + totalPages + ")";
+            case HI -> "विभाग (पेज " + pageIndex + "/" + totalPages + ")";
+            case MR -> "विभाग (पृष्ठ " + pageIndex + "/" + totalPages + ")";
+        };
+
         String header = switch(lang) { case EN -> "🏥 ALL 33 DEPARTMENTS"; case HI -> "🏥 सभी ३३ विभाग"; case MR -> "🏥 सर्व ३३ विभाग"; };
-        String body = switch(lang) { case EN -> "Select your required medical specialty:"; case HI -> "अपनी आवश्यक मेडिकल विशेषता चुनें:"; case MR -> "तुमची आवश्यक वैद्यकीय शाखा निवडा:"; };
-        String btn = switch(lang) { case EN -> "🏥 View All"; case HI -> "🏥 सभी देखें"; case MR -> "🏥 सर्व पहा"; };
-        
-        whatsAppService.sendListMessage(phone, header, body, sections, appProperties.getClinicName(), btn);
+        String body = switch(lang) {
+            case EN -> "Page " + pageIndex + " of " + totalPages + " · Tap below to choose your specialty:";
+            case HI -> "पेज " + pageIndex + " / " + totalPages + " · अपनी आवश्यक विशेषता चुनें:";
+            case MR -> "पृष्ठ " + pageIndex + " / " + totalPages + " · तुमची वैद्यकीय शाखा निवडा:";
+        };
+        String btn = switch(lang) { case EN -> "🏥 Specialties"; case HI -> "🏥 विभाग सूची"; case MR -> "🏥 शाखा यादी"; };
+
+        whatsAppService.sendListMessage(phone, header, body, List.of(new WaListSection(sectionName, rows)), appProperties.getClinicName(), btn);
     }
     
     private void redispatchStep(String phone, TokenDto token, Lang lang, List<FamilyMemberDto> members) {
@@ -1144,23 +1243,23 @@ public class WebhookController {
             HospitalService.HospitalMatch hm = results.get(i);
             HospitalDto h = hm.hospital();
             String emoji = hospitalEmoji(h.getName());
-            String title = emoji + " " + truncateTitle(h.getName(), 20);
+            String title = emoji + " " + truncateTitle(h.getName(), 18);
             boolean opdOpen = isOpdOpen(h);
-            String status = opdOpen ? "OPD Open ✅" : "OPD Closed ❌";
-            String desc = "📏 " + String.format("%.1f", hm.distanceKm()) + " km · " + status;
+            String status = opdOpen ? "Open ✅" : "Closed ❌";
+            String desc = String.format("%.1f", hm.distanceKm()) + " km · " + status;
             rows.add(new WaListRow("hosp_" + h.getId(), title, desc));
         }
         if (page.hasMore()) {
-            String moreTitle = switch(lang) { case EN -> "➕ Show More Hospitals"; case HI -> "➕ और अस्पताल देखें"; case MR -> "➕ आणखी रुग्णालये पहा"; };
-            rows.add(new WaListRow("show_more", moreTitle, switch(lang) { case EN -> "Load next 10 results"; case HI -> "अगले 10 परिणाम"; case MR -> "पुढील 10 परिणाम"; }));
+            String moreTitle = switch(lang) { case EN -> "➕ Show More"; case HI -> "➕ और देखें"; case MR -> "➕ आणखी पहा"; };
+            rows.add(new WaListRow("show_more", moreTitle, switch(lang) { case EN -> "Next 10 hospitals"; case HI -> "अगले 10 अस्पताल"; case MR -> "पुढील 10 रुग्णालये"; }));
         }
         String header = switch(lang) { case EN -> "🏥 HOSPITALS NEAR YOU"; case HI -> "🏥 पास के अस्पताल"; case MR -> "🏥 जवळची रुग्णालये"; };
         String body = switch(lang) {
-            case EN -> "Hospitals offering *" + draft.getCategory() + "* near you — nearest first. Tap to select:";
-            case HI -> "*" + draft.getCategory() + "* के लिए पास के अस्पताल — निकटतम पहले। चुनने के लिए टैप करें:";
-            case MR -> "*" + draft.getCategory() + "* साठी जवळची रुग्णालये — सर्वात जवळचे आधी. निवडण्यासाठी टॅप करा:";
+            case EN -> "Hospitals offering *" + draft.getCategory() + "* near you:\nTap below to select:";
+            case HI -> "*" + draft.getCategory() + "* के लिए पास के अस्पताल:\nचुनने के लिए नीचे टैप करें:";
+            case MR -> "*" + draft.getCategory() + "* साठी जवळची रुग्णालये:\nनिवडण्यासाठी खाली टॅप करा:";
         };
-        String btn = switch(lang) { case EN -> "🏥 View Hospitals"; case HI -> "🏥 अस्पताल देखें"; case MR -> "🏥 रुग्णालये पहा"; };
+        String btn = switch(lang) { case EN -> "🏥 Hospitals"; case HI -> "🏥 अस्पताल"; case MR -> "🏥 रुग्णालये"; };
         String section = switch(lang) { case EN -> "Nearby Hospitals"; case HI -> "पास के अस्पताल"; case MR -> "जवळची रुग्णालये"; };
         whatsAppService.sendListMessage(phone, header, body, List.of(new WaListSection(section, rows)), appProperties.getClinicName(), btn);
         
@@ -1168,9 +1267,9 @@ public class WebhookController {
                 Map.of("category", draft.getCategory() != null ? draft.getCategory() : "General OPD",
                        "lat", draft.getPatientLat() != null ? String.valueOf(draft.getPatientLat()) : "",
                        "lon", draft.getPatientLon() != null ? String.valueOf(draft.getPatientLon()) : ""));
-        whatsAppService.sendUrlButtonMessage(phone, switch(lang){case EN->"📱 Full Hospital List";case HI->"📱 पूरी सूची";case MR->"📱 पूर्ण यादी";},
-                switch(lang){case EN->"Prefer browsing with map view & more details?";case HI->"मानचित्र दृश्य के साथ ब्राउज़ करना पसंद है?";case MR->"नकाशा दृश्यासह ब्राउझ करायचे आहे का?";},
-                switch(lang){case EN->"🌐 Open Hospital Finder";case HI->"🌐 अस्पताल खोजें";case MR->"🌐 रुग्णालये शोधा";},
+        whatsAppService.sendUrlButtonMessage(phone, switch(lang){case EN->"📱 Map View";case HI->"📱 नक्शा देखें";case MR->"📱 नकाशा पहा";},
+                switch(lang){case EN->"Prefer browsing on interactive map?";case HI->"क्या आप इंटरेक्टिव मैप पर देखना चाहते हैं?";case MR->"तुम्हाला परस्पर नकाशावर पाहायचे आहे का?";},
+                switch(lang){case EN->"🌐 Open Map";case HI->"🌐 मैप खोलें";case MR->"🌐 नकाशा उघडा";},
                 webviewUrl, appProperties.getClinicName());
     }
 
@@ -1179,13 +1278,56 @@ public class WebhookController {
     }
 
     private void sendConfirmationCard(String phone, TokenDto token, Lang lang) {
-        HospitalDto hospital = hospitalService.getById(token.getHospitalId());
-        String address = hospital.getAddress() != null ? hospital.getAddress() : "";
-        double distKm = token.getPatientLat() != null && token.getPatientLon() != null && hospital.getLatitude() != null && hospital.getLongitude() != null
+        HospitalDto hospital = token.getHospitalId() != null ? hospitalService.getById(token.getHospitalId()) : null;
+        String hospName = hospital != null ? hospital.getName() : "Hospital";
+        String address = hospital != null && hospital.getAddress() != null ? hospital.getAddress() : "";
+        double distKm = token.getPatientLat() != null && token.getPatientLon() != null && hospital != null && hospital.getLatitude() != null && hospital.getLongitude() != null
                 ? geoDistanceService.distanceKm(token.getPatientLat(), token.getPatientLon(), hospital.getLatitude(), hospital.getLongitude())
                 : 0.0;
-        String prompt = botMessages.hospitalConfirmationPrompt(lang, hospital.getName(), address, distKm) + "\n\n_Type *back* to return to the previous step._";
-        whatsAppService.sendWhatsAppMessage(phone, prompt);
+
+        List<WaButton> buttons = List.of(
+            new WaButton("btn_confirm_booking", switch(lang) {
+                case EN -> "🟢 Confirm";
+                case HI -> "🟢 पुष्टि करें";
+                case MR -> "🟢 पुष्टी करा";
+            }),
+            new WaButton("btn_choose_again", switch(lang) {
+                case EN -> "🔴 Choose Again";
+                case HI -> "🔴 फिर से चुनें";
+                case MR -> "🔴 पुन्हा निवडा";
+            }),
+            new WaButton("btn_go_back", switch(lang) {
+                case EN -> "⬅️ Back";
+                case HI -> "⬅️ वापस";
+                case MR -> "⬅️ मागे";
+            })
+        );
+
+        String header = switch(lang) {
+            case EN -> "🏥 CONFIRM APPOINTMENT";
+            case HI -> "🏥 अपॉइंटमेंट पुष्टि";
+            case MR -> "🏥 अपॉइंटमेंट पुष्टी";
+        };
+        String patientName = token.getName() != null && !token.getName().isBlank() ? token.getName() : (switch(lang){case EN->"Self";case HI->"स्वयं";case MR->"स्वतः";});
+        String body = switch(lang) {
+            case EN -> "👤 *Patient:* " + patientName +
+                       "\n🩺 *Specialty:* " + token.getCategory() +
+                       "\n🏥 *Hospital:* " + hospName +
+                       (distKm > 0 ? "\n📍 *Distance:* " + String.format("%.1f", distKm) + " km" : "") +
+                       (!address.isBlank() ? "\n🏢 " + address : "");
+            case HI -> "👤 *मरीज़:* " + patientName +
+                       "\n🩺 *विशेषता:* " + token.getCategory() +
+                       "\n🏥 *अस्पताल:* " + hospName +
+                       (distKm > 0 ? "\n📍 *दूरी:* " + String.format("%.1f", distKm) + " किमी" : "") +
+                       (!address.isBlank() ? "\n🏢 " + address : "");
+            case MR -> "👤 *रुग्ण:* " + patientName +
+                       "\n🩺 *विभाग:* " + token.getCategory() +
+                       "\n🏥 *रुग्णालय:* " + hospName +
+                       (distKm > 0 ? "\n📍 *अंतर:* " + String.format("%.1f", distKm) + " किमी" : "") +
+                       (!address.isBlank() ? "\n🏢 " + address : "");
+        };
+
+        whatsAppService.sendButtonsMessage(phone, header, body, buttons, appProperties.getClinicName());
     }
     
     private void sendBookingConfirmedCard(String phone, TokenDto token, Lang lang) {
@@ -1193,12 +1335,12 @@ public class WebhookController {
         String hospitalName = hospital != null ? hospital.getName() : "Hospital";
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int waitMins = peopleAhead * appProperties.getAvgServiceMinutes();
-        boolean isFrozen = "frozen".equals(token.getStatus());
+        String status = token.getStatus() != null ? token.getStatus() : "waiting";
         String today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM yyyy"));
         
         String card = buildBookingCard(lang, token.getName(), token.getAge(), token.getGender(),
-                hospitalName, token.getCategory(), token.displayNumber(), token.getDailyNumber(),
-                peopleAhead, waitMins, isFrozen, today);
+                hospitalName, token.getCategory(), token.displayTokenCode(),
+                peopleAhead, waitMins, status, today);
         
         String cleanPhone = phone.replaceAll("[^0-9]", "");
         String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
@@ -1209,10 +1351,10 @@ public class WebhookController {
                 switch(lang){case EN->"📊 Live Queue Tracker";case HI->"📊 लाइव कतार ट्रैकर";case MR->"📊 थेट रांग ट्रॅकर";},
                 switch(lang){case EN->"Tap to watch your live queue position in real-time:";case HI->"अपनी लाइव कतार स्थिति देखने के लिए टैप करें:";case MR->"तुमची थेट रांग स्थिती पाहण्यासाठी टॅप करा:";},
                 botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
-        whatsAppService.sendButtonsMessage(phone, "", botMessages.quickActionsFooter(lang), botMessages.quickActionButtons(lang), "Quick Actions");
+        whatsAppService.sendButtonsMessage(phone, "", botMessages.quickActionsFooter(lang), botMessages.quickActionButtons(lang), appProperties.getClinicName());
     }
 
-    private String buildBookingCard(Lang lang, String name, Integer age, String gender, String hospitalName, String category, int tokenNum, Integer dailyNum, int ahead, int waitMins, boolean frozen, String today) {
+    private String buildBookingCard(Lang lang, String name, Integer age, String gender, String hospitalName, String category, String tokenCode, int ahead, int waitMins, String status, String today) {
         String div = "━━━━━━━━━━━━━━━━━━━━━━";
         String genderStr = gender == null ? "" : switch(lang) {
             case EN -> switch(gender.toUpperCase()) { case "M" -> "M"; case "F" -> "F"; default -> gender; };
@@ -1220,59 +1362,60 @@ public class WebhookController {
             case MR -> switch(gender.toUpperCase()) { case "M" -> "पु"; case "F" -> "स्त्री"; default -> "इ"; };
         };
         String ageGender = (age != null ? age + " yrs" : "") + (genderStr.isEmpty() ? "" : " · " + genderStr);
-        String queueNo = dailyNum != null ? "D-" + String.format("%03d", dailyNum) : switch(lang){case EN->"Assigned on arrival";case HI->"आगमन पर";case MR->"येताना";};
-        String statusStr = frozen ? switch(lang){case EN->"Slot Reserved (Frozen)";case HI->"स्लॉट सुरक्षित";case MR->"स्लॉट राखीव";} 
-                                  : switch(lang){case EN->"Waiting in Queue";case HI->"कतार में प्रतीक्षारत";case MR->"रांगेत प्रतीक्षेत";};
+        boolean isReserved = "reserved".equals(status);
+        String statusStr = isReserved
+                ? switch(lang){case EN->"🟡 Reserved Buffer (Head to Hospital)";case HI->"🟡 बफर अवधि (अस्पताल के लिए निकलें)";case MR->"🟡 बफर कालावधी (रुग्णालयासाठी निघा)";}
+                : switch(lang){case EN->"🔵 Waiting in Queue";case HI->"🔵 कतार में प्रतीक्षारत";case MR->"🔵 रांगेत प्रतीक्षेत";};
         
         return switch(lang) {
             case EN -> div + "\n" +
                     "🎫  *APPOINTMENT CONFIRMED!*\n" +
                     div + "\n\n" +
-                    "👤  *Patient:*    " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
-                    "🏥  *Hospital:*   " + hospitalName + "\n" +
-                    "🩺  *Dept:*        " + (category != null ? category : "General OPD") + "\n" +
-                    "🗓️  *Date:*         " + today + "\n\n" +
+                    "👥  *Patients Ahead:* " + ahead + " ahead of you\n" +
+                    "⏳  *Status:*         " + statusStr + "\n" +
+                    "🕐  *Est. Wait:*       ~" + waitMins + (waitMins == 1 ? " min" : " mins") + "\n\n" +
                     div + "\n" +
-                    "🎟️  *Token No:*    #" + tokenNum + "\n" +
-                    "📋  *Queue No:*   " + queueNo + "\n" +
-                    "⏳  *Status:*      " + statusStr + "\n" +
-                    "👥  *Ahead:*       " + ahead + (ahead == 1 ? " patient" : " patients") + "\n" +
-                    "🕐  *Est. Wait:*  ~" + waitMins + (waitMins == 1 ? " min" : " mins") + "\n\n" +
+                    "🎟️  *Token Code:*     #" + tokenCode + "\n" +
+                    "👤  *Patient:*        " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
+                    "🏥  *Hospital:*       " + hospitalName + "\n" +
+                    "🩺  *Department:*     " + (category != null ? category : "General OPD") + "\n" +
+                    "🗓️  *Date:*           " + today + "\n\n" +
                     div + "\n" +
-                    "📍  _Report to the OPD Reception on arrival._\n" +
-                    "💡  _You'll be notified when your turn is near._";
+                    (isReserved
+                        ? "🚗  *ACTION REQUIRED:* Please head to the hospital immediately! Check in at reception on arrival for priority service.\n"
+                        : "📍  _Report to the OPD Reception on arrival._\n💡  _You'll receive a call & notification when your turn approaches._");
             case HI -> div + "\n" +
                     "🎫  *अपॉइंटमेंट पुष्ट हुआ!*\n" +
                     div + "\n\n" +
-                    "👤  *मरीज़:*        " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
-                    "🏥  *अस्पताल:*    " + hospitalName + "\n" +
-                    "🩺  *विभाग:*       " + (category != null ? category : "सामान्य ओपीडी") + "\n" +
-                    "🗓️  *तारीख:*        " + today + "\n\n" +
+                    "👥  *आगे मरीज़:*      " + ahead + " लोग आगे हैं\n" +
+                    "⏳  *स्थिति:*          " + statusStr + "\n" +
+                    "🕐  *अनुमानित समय:*   ~" + waitMins + " मिनट\n\n" +
                     div + "\n" +
-                    "🎟️  *टोकन नंबर:*  #" + tokenNum + "\n" +
-                    "📋  *कतार नंबर:*  " + queueNo + "\n" +
-                    "⏳  *स्थिति:*       " + statusStr + "\n" +
-                    "👥  *आगे:*          " + ahead + " मरीज़" + "\n" +
-                    "🕐  *अनुमानित:*  ~" + waitMins + " मिनट" + "\n\n" +
+                    "🎟️  *टोकन कोड:*       #" + tokenCode + "\n" +
+                    "👤  *मरीज़:*           " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
+                    "🏥  *अस्पताल:*        " + hospitalName + "\n" +
+                    "🩺  *विभाग:*          " + (category != null ? category : "सामान्य ओपीडी") + "\n" +
+                    "🗓️  *तारीख:*          " + today + "\n\n" +
                     div + "\n" +
-                    "📍  _आगमन पर ओपीडी रिसेप्शन पर रिपोर्ट करें।_\n" +
-                    "💡  _बारी आने पर आपको सूचित किया जाएगा।_";
+                    (isReserved
+                        ? "🚗  *तत्काल कार्रवाई:* कृपया तुरंत अस्पताल के लिए निकलें! प्राथमिकता सेवा के लिए रिसेप्शन पर चेक-इन करें।\n"
+                        : "📍  _आगमन पर ओपीडी रिसेप्शन पर रिपोर्ट करें।_\n💡  _बारी पास आने पर आपको कॉल और सूचना मिलेगी।_");
             case MR -> div + "\n" +
                     "🎫  *अपॉइंटमेंट निश्चित!*\n" +
                     div + "\n\n" +
-                    "👤  *रुग्ण:*        " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
-                    "🏥  *रुग्णालय:*   " + hospitalName + "\n" +
-                    "🩺  *विभाग:*       " + (category != null ? category : "सामान्य ओपीडी") + "\n" +
-                    "🗓️  *तारीख:*        " + today + "\n\n" +
+                    "👥  *पुढे रुग्ण:*        " + ahead + " जण पुढे आहेत\n" +
+                    "⏳  *स्थिती:*          " + statusStr + "\n" +
+                    "🕐  *अंदाजे वेळ:*      ~" + waitMins + " मिनिटे\n\n" +
                     div + "\n" +
-                    "🎟️  *टोकन क्र.:*   #" + tokenNum + "\n" +
-                    "📋  *रांग क्र.:*   " + queueNo + "\n" +
-                    "⏳  *स्थिती:*      " + statusStr + "\n" +
-                    "👥  *पुढे:*         " + ahead + " रुग्ण" + "\n" +
-                    "🕐  *अंदाजे:*     ~" + waitMins + " मिनिट" + "\n\n" +
+                    "🎟️  *टोकन कोड:*       #" + tokenCode + "\n" +
+                    "👤  *रुग्ण:*           " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
+                    "🏥  *रुग्णालय:*        " + hospitalName + "\n" +
+                    "🩺  *विभाग:*          " + (category != null ? category : "सामान्य ओपीडी") + "\n" +
+                    "🗓️  *तारीख:*          " + today + "\n\n" +
                     div + "\n" +
-                    "📍  _आगमनावर ओपीडी रिसेप्शनला रिपोर्ट करा._\n" +
-                    "💡  _तुमची पाळी येईल तेव्हा सूचित केले जाईल._";
+                    (isReserved
+                        ? "🚗  *तातडीने कृती:* कृपया ताबडतोब रुग्णालयासाठी निघा! प्राधान्य सेवेसाठी रिसेप्शनवर चेक-इन करा.\n"
+                        : "📍  _आगमनावर ओपीडी रिसेप्शनला रिपोर्ट करा._\n💡  _पाळी जवळ आल्यावर तुम्हाला कॉल आणि मेसेज येईल._");
         };
     }
 
@@ -1288,7 +1431,6 @@ public class WebhookController {
 
     private void sendTokenDashboardCard(String phone, TokenDto token, Lang lang) {
         String cleanPhone = phone.replaceAll("[^0-9]", "");
-        String positionText = getOrdinal(token.getPosition());
         int avgServiceTime = appProperties.getAvgServiceMinutes();
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
@@ -1297,13 +1439,13 @@ public class WebhookController {
         String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, java.util.Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
         String slipUrl = buildAuthWebviewUrl("/wa/response.html", phone, java.util.Map.of("key", cleanPhone));
 
-        String title = botMessages.dashboardTitle(lang, token.displayNumber());
+        String title = botMessages.dashboardTitle(lang, token.displayTokenCode());
         String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
-        String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, positionText, peopleAhead, estWait, currentServing, token.displayNumber())
+        String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, token.displayTokenCode(), peopleAhead, estWait, currentServing)
                 + "\n\n📄 *Digital Booking Slip:* " + slipUrl;
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
-        whatsAppService.sendButtonsMessage(phone, "", botMessages.quickActionsFooter(lang), botMessages.quickActionButtons(lang), "Quick Actions");
+        whatsAppService.sendButtonsMessage(phone, "", botMessages.quickActionsFooter(lang), botMessages.quickActionButtons(lang), appProperties.getClinicName());
     }
 
     private void sendStatusCard(String phone, TokenDto token, Lang lang) {
@@ -1312,7 +1454,7 @@ public class WebhookController {
             return;
         }
         String cleanPhone = phone.replaceAll("[^0-9]", "");
-        String positionText = getOrdinal(token.getPosition());
+        String positionText = String.valueOf(token.getQueuePosition() != null ? token.getQueuePosition() : (token.getPosition() != null ? token.getPosition() : 1));
         int avgServiceTime = appProperties.getAvgServiceMinutes();
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
@@ -1321,7 +1463,7 @@ public class WebhookController {
 
         String title = botMessages.statusTitle(lang);
         String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
-        String description = botMessages.statusDescription(lang, token.displayNumber(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus(), currentServing);
+        String description = botMessages.statusDescription(lang, token.displayTokenCode(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus(), currentServing);
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
     }

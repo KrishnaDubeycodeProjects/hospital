@@ -48,7 +48,7 @@ export default function TokenCard({ token, onRefresh }) {
       async (pos) => {
         try {
           await queueApi.setLocation(token.id, { latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-          toast.success('Location shared — your ETA will update shortly.');
+          toast.success('Location shared successfully.');
           onRefresh?.();
         } catch (err) {
           toast.error(err.message);
@@ -125,7 +125,6 @@ export default function TokenCard({ token, onRefresh }) {
 
       <dl className="detail-list">
         {typeof token.currentServing === 'number' && <Row label="Now serving" value={`#${token.currentServing}`} />}
-        {token.travelMinutes != null && <Row label="Your travel ETA" value={fmtMinutes(token.travelMinutes)} />}
         {token.treatmentRemainingMinutes != null && (
           <Row label="Estimated wait" value={fmtMinutes(token.treatmentRemainingMinutes)} />
         )}

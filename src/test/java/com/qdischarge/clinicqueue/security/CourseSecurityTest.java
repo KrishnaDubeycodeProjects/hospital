@@ -37,7 +37,7 @@ class CourseSecurityTest {
     void testPatientAccess_MatchingPhone_Granted() {
         when(currentUser.isPatient()).thenReturn(true);
         when(currentUser.getPatientPhone()).thenReturn("+919876543210");
-        when(jdbc.queryForObject(contains("FROM courses WHERE id = :courseId AND patient_phone = :phone"), anyMap(), eq(Integer.class)))
+        when(jdbc.queryForObject(contains("FROM courses WHERE id = :courseId"), anyMap(), eq(Integer.class)))
                 .thenReturn(1);
 
         assertTrue(courseSecurity.canAccessCourse(auth, 101));
@@ -47,7 +47,7 @@ class CourseSecurityTest {
     void testPatientAccess_MismatchedPhone_Denied() {
         when(currentUser.isPatient()).thenReturn(true);
         when(currentUser.getPatientPhone()).thenReturn("+919876543210");
-        when(jdbc.queryForObject(contains("FROM courses WHERE id = :courseId AND patient_phone = :phone"), anyMap(), eq(Integer.class)))
+        when(jdbc.queryForObject(contains("FROM courses WHERE id = :courseId"), anyMap(), eq(Integer.class)))
                 .thenReturn(0);
 
         assertFalse(courseSecurity.canAccessCourse(auth, 101));

@@ -93,22 +93,36 @@
       }
 
       try {
-        let url = `/api/wa/hospitals/search?token=${encodeURIComponent(token)}&category=${encodeURIComponent(category)}`;
+        let url = `/api/wa/hospitals/search?category=${encodeURIComponent(category)}`;
+        if (token) url += `&token=${encodeURIComponent(token)}`;
         if (lat && lon) url += `&lat=${lat}&lon=${lon}`;
         
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!res.ok) throw new Error('Fetch failed');
-        let data = await res.json();
-        if(!Array.isArray(data)) data = data.data || [];
-        allHospitals = data;
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        let res = await fetch(url, { headers });
+        if (!res.ok) {
+          // Fallback to /api/hospitals
+          res = await fetch('/api/hospitals');
+        }
+        let json = await res.json();
+        let data = json.data || (Array.isArray(json) ? json : (json.results || []));
+        allHospitals = Array.isArray(data) ? data : [];
         renderList(allHospitals);
       } catch (err) {
-        c.innerHTML = `
-          <div class="text-center py-10">
-            <div class="text-sm text-red-500 mb-3">${strings[lang]?.err || strings['en'].err}</div>
-            <button onclick="loadHospitals()" class="px-4 py-2 bg-slate-200 rounded-lg text-sm font-bold">${strings[lang]?.retry || strings['en'].retry}</button>
-          </div>
-        `;
+        console.error("Load hospitals error:", err);
+        try {
+          let res2 = await fetch('/api/hospitals');
+          let json2 = await res2.json();
+          let data2 = json2.data || (Array.isArray(json2) ? json2 : []);
+          allHospitals = data2;
+          renderList(allHospitals);
+        } catch(e) {
+          c.innerHTML = `
+            <div class="text-center py-10">
+              <div class="text-sm text-red-500 mb-3">${strings[lang]?.err || strings['en'].err}</div>
+              <button onclick="loadHospitals()" class="px-4 py-2 bg-slate-200 rounded-lg text-sm font-bold">${strings[lang]?.retry || strings['en'].retry}</button>
+            </div>
+          `;
+        }
       }
     }
 

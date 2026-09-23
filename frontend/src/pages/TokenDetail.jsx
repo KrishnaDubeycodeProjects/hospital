@@ -100,7 +100,8 @@ export default function TokenDetail() {
 
   // Database fields
   const tokenNum = token.dailyNumber ?? token.id ?? 1;
-  const aheadCount = token.peopleAhead ?? 0;
+  const tokenCode = token.tokenCode || (token.dailyNumber != null ? `AF-${String(token.dailyNumber).padStart(2, '0')}` : `#${token.id || 1}`);
+  const aheadCount = token.status === 'serving' ? 0 : (token.peopleAhead ?? (token.queuePosition != null ? Math.max(0, token.queuePosition - 1) : 0));
   const hospitalName = token.hospitalName || 'Aastha Hospital';
   const departmentName = token.category || 'Cardiology';
   const patientName = token.name || token.patientName || 'Kavish Ahuja';
@@ -112,9 +113,14 @@ export default function TokenDetail() {
   // Status mapping
   const statusConfig = {
     waiting: {
-      dotColor: '#F59E0B',
-      textColor: '#E65100',
+      dotColor: '#3B82F6',
+      textColor: '#1D4ED8',
       label: 'Waiting in Queue',
+    },
+    reserved: {
+      dotColor: '#F59E0B',
+      textColor: '#B45309',
+      label: 'En Route (Buffer Active)',
     },
     serving: {
       dotColor: '#10B981',
@@ -255,7 +261,7 @@ export default function TokenDetail() {
             </button>
           </div>
 
-          {/* Below the header: Centered status indicator (Small orange dot + "Waiting in Queue" in orange text) */}
+          {/* Below the header: Centered status indicator */}
           <div
             style={{
               display: 'flex',
@@ -300,7 +306,7 @@ export default function TokenDetail() {
             backgroundColor: '#ffffff',
           }}
         >
-          {/* 2. Top Metrics Section (Key Data) */}
+          {/* 2. Top Metrics Section: Hero metric is 'Ahead of You', Token code in right card */}
           <div
             style={{
               display: 'flex',
@@ -309,32 +315,44 @@ export default function TokenDetail() {
               padding: '4px 0 8px',
             }}
           >
-            {/* Left Column: Label "Token", massive bold "#1" in dark green, Hospital, Department */}
+            {/* Left Column: Hero Spotlight Metric: Ahead of You */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span
                 style={{
                   fontSize: '13px',
-                  color: '#6B7280',
-                  fontWeight: '500',
+                  color: '#065F46',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
                 }}
               >
-                Token
+                {token.status === 'serving' ? 'Current Turn' : 'Ahead of You'}
               </span>
-              <div
-                style={{
-                  fontSize: '56px',
-                  fontWeight: '900',
-                  color: '#004D40',
-                  lineHeight: 1.05,
-                  margin: '4px 0 6px',
-                  letterSpacing: '-0.03em',
-                }}
-              >
-                #{tokenNum}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', margin: '2px 0 6px' }}>
+                <span
+                  style={{
+                    fontSize: token.status === 'serving' ? '44px' : '56px',
+                    fontWeight: '900',
+                    color: '#004D40',
+                    lineHeight: 1.05,
+                    letterSpacing: '-0.03em',
+                  }}
+                >
+                  {token.status === 'serving' ? 'NOW' : aheadCount}
+                </span>
+                <span
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: '700',
+                    color: '#065F46',
+                  }}
+                >
+                  {token.status === 'serving' ? 'Serving' : (aheadCount === 1 ? 'patient' : 'patients')}
+                </span>
               </div>
               <div
                 style={{
-                  fontSize: '17px',
+                  fontSize: '16px',
                   fontWeight: '800',
                   color: '#111827',
                   letterSpacing: '-0.01em',
@@ -344,46 +362,67 @@ export default function TokenDetail() {
               </div>
               <div
                 style={{
-                  fontSize: '13.5px',
+                  fontSize: '13px',
                   color: '#6B7280',
                   fontWeight: '500',
-                  marginTop: '2px',
+                  marginTop: '1px',
                 }}
               >
                 {departmentName}
               </div>
             </div>
 
-            {/* Right Column: Label "Ahead of you", massive bold "0" in dark green */}
+            {/* Right Column: Dynamic Token Code Card with Reception Check-in Status */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'flex-start',
-                minWidth: '85px',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '10px 14px',
+                backgroundColor: '#F8FBF9',
+                border: '2px solid #DAEAE3',
+                borderRadius: '16px',
+                minWidth: '120px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
               }}
             >
               <span
                 style={{
-                  fontSize: '13px',
-                  color: '#6B7280',
-                  fontWeight: '500',
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#94A3B8',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                Ahead of you
+                Token Code
               </span>
               <div
                 style={{
-                  fontSize: '56px',
+                  fontSize: '22px',
                   fontWeight: '900',
                   color: '#004D40',
-                  lineHeight: 1.05,
-                  margin: '4px 0 0',
-                  letterSpacing: '-0.03em',
+                  margin: '3px 0 4px',
+                  letterSpacing: '-0.02em',
                 }}
               >
-                {aheadCount}
+                {tokenCode}
               </div>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  backgroundColor: token.isVerified ? '#DCFCE7' : (token.status === 'reserved' ? '#FEF3C7' : '#F1F5F9'),
+                  color: token.isVerified ? '#15803D' : (token.status === 'reserved' ? '#92400E' : '#475569'),
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {token.isVerified ? 'Checked In ✅' : (token.status === 'reserved' ? 'Buffer Active ⏳' : 'Pending Check-in')}
+              </span>
             </div>
           </div>
 
@@ -622,6 +661,18 @@ export default function TokenDetail() {
 
               {/* Modal Content: strictly name, age, gender, hospital, department, phone */}
               <div style={{ padding: '20px 20px 28px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+                  <span style={{ color: '#64748b' }}>Token Code</span>
+                  <strong style={{ color: '#004D40', fontSize: '16px', fontWeight: '800' }}>{tokenCode}</strong>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+                  <span style={{ color: '#64748b' }}>Check-in Status</span>
+                  <strong style={{ color: token.isVerified ? '#15803D' : (token.status === 'reserved' ? '#92400E' : '#475569'), fontSize: '14px' }}>
+                    {token.isVerified ? 'Checked In ✅' : (token.status === 'reserved' ? 'Buffer Active ⏳' : 'Pending Check-in')}
+                  </strong>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
                   <span style={{ color: '#64748b' }}>Name</span>
                   <strong style={{ color: '#0f172a', fontSize: '15px' }}>{patientName}</strong>

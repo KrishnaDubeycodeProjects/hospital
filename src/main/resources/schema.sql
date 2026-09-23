@@ -135,6 +135,9 @@ ALTER TABLE tokens ADD COLUMN IF NOT EXISTS search_offset INT NOT NULL DEFAULT 0
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS daily_number INT;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS target_arrival_time TIMESTAMP;
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS selected_travel_minutes INT;
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS token_code VARCHAR(32);
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS queue_position INT;
+ALTER TABLE token_history ADD COLUMN IF NOT EXISTS token_code VARCHAR(32);
 
 -- Speeds up the hot paths in QueueManagerService: phone lookups, status-
 -- filtered queue reads, the "how many waiting tokens have a smaller
@@ -151,6 +154,18 @@ CREATE INDEX IF NOT EXISTS idx_tokens_reserved_counter_id ON tokens (reserved_co
 CREATE INDEX IF NOT EXISTS idx_tokens_category ON tokens (category);
 CREATE INDEX IF NOT EXISTS idx_tokens_hospital_category_status ON tokens (hospital_id, category, status);
 CREATE INDEX IF NOT EXISTS idx_tokens_frozen ON tokens (hospital_id, category, status, target_arrival_time);
+CREATE INDEX IF NOT EXISTS idx_tokens_active_daily ON tokens (hospital_id, category, status, daily_number);
+
+-- ----------------------------------------------------------------------------
+-- daily_counters: atomic, collision-free sequential token numbering per (hospital, category, date)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS daily_counters (
+  hospital_id INT NOT NULL,
+  category VARCHAR(100) NOT NULL,
+  counter_date DATE NOT NULL,
+  last_number INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (hospital_id, category, counter_date)
+);
 
 -- ----------------------------------------------------------------------------
 -- otp_verifications: phone-number OTP hashes/expiry/attempts. See OtpService.

@@ -79,18 +79,22 @@
 
       <!-- Active Content Container -->
       <div id="activeQueueContent">
-        <!-- Token & Queue Metrics (Current Serving Token at top big, Your Token on curved border card) -->
+        <!-- Token & Queue Metrics: Hero metric is 'Patients Ahead', Token code in details card -->
         <section class="mt-6 mb-7 flex items-start justify-between" data-purpose="token-and-queue-count">
           <div class="flex flex-col">
-            <span class="text-[14px] font-medium text-slate-500 tracking-tight">Now Serving</span>
-            <span class="text-[48px] font-extrabold text-[#005a40] leading-none tracking-tight my-0.5" id="currentServingDisplay">-</span>
-            <span class="text-[16px] font-bold text-[#142d25] mt-1 tracking-tight" id="hospitalNameDisplay">Loading...</span>
-            <span class="text-[14px] font-normal text-slate-500" id="departmentNameDisplay">-</span>
+            <span class="text-[13px] font-bold uppercase tracking-wider text-emerald-800" id="heroBadgeLabel">Ahead of You</span>
+            <div class="flex items-baseline gap-1 my-0.5">
+              <span class="text-[52px] font-black text-[#005a40] leading-none tracking-tight" id="patientsAheadDisplay">0</span>
+              <span class="text-[18px] font-bold text-[#014534]" id="patientsAheadUnit">patients</span>
+            </div>
+            <span class="text-[15px] font-bold text-[#142d25] mt-1 tracking-tight" id="hospitalNameDisplay">Loading...</span>
+            <span class="text-[13px] font-medium text-slate-500" id="departmentNameDisplay">-</span>
           </div>
 
-          <div class="flex flex-col items-center justify-center border-2 border-[#daeae3] bg-[#f8fbf9] rounded-2xl px-6 py-2.5 shadow-sm min-w-[124px]" data-purpose="ahead-of-you-card">
-            <span class="text-[13px] font-medium text-slate-500 whitespace-nowrap">Your Token</span>
-            <span class="text-[46px] font-bold text-[#005a40] leading-tight" id="yourTokenDisplay">-</span>
+          <div class="flex flex-col items-center justify-center border-2 border-[#daeae3] bg-[#f8fbf9] rounded-2xl px-4 py-3 shadow-sm min-w-[130px]" data-purpose="token-code-card">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">Token Code</span>
+            <span class="text-[20px] font-black text-[#005a40] leading-tight mt-1" id="tokenCodeDisplay">-</span>
+            <span class="text-[11px] font-bold px-2 py-0.5 mt-1.5 rounded-full bg-slate-100 text-slate-600" id="checkinBadge">Pending Check-in</span>
           </div>
         </section>
 
@@ -263,36 +267,75 @@
     }
 
     function renderTokenData(data) {
-      // 1. Current serving token
-      const currentServing = data.currentServingToken != null ? `#${data.currentServingToken}` : (data.currentServingNumber != null ? `#${data.currentServingNumber}` : '#1');
-      document.getElementById('currentServingDisplay').textContent = currentServing;
+      // 1. Token Code and Ahead count
+      const code = data.tokenCode || (data.dailyNumber != null ? `AF-${String(data.dailyNumber).padStart(2, '0')}` : `#${data.id || 1}`);
+      const tokenCodeEl = document.getElementById('tokenCodeDisplay');
+      if (tokenCodeEl) tokenCodeEl.textContent = code;
 
-      // 2. Your token
-      const yourToken = data.dailyNumber != null ? `#${data.dailyNumber}` : (data.id ? `#${data.id}` : '#1');
-      document.getElementById('yourTokenDisplay').textContent = yourToken;
+      // Calculate patients ahead
+      let ahead = 0;
+      if (data.status === 'serving') {
+        ahead = 0;
+      } else if (data.peopleAhead != null) {
+        ahead = data.peopleAhead;
+      } else if (data.queuePosition != null && data.queuePosition > 0) {
+        ahead = data.queuePosition - 1;
+      } else if (data.position != null && data.position > 0) {
+        ahead = data.position - 1;
+      }
 
-      // 3. Hospital & Department
+      const aheadEl = document.getElementById('patientsAheadDisplay');
+      const unitEl = document.getElementById('patientsAheadUnit');
+      const heroLabelEl = document.getElementById('heroBadgeLabel');
+      if (aheadEl) {
+        if (data.status === 'serving') {
+          aheadEl.textContent = 'NOW';
+          if (unitEl) unitEl.textContent = 'Serving';
+          if (heroLabelEl) heroLabelEl.textContent = 'Current Turn';
+        } else {
+          aheadEl.textContent = ahead;
+          if (unitEl) unitEl.textContent = ahead === 1 ? 'patient' : 'patients';
+          if (heroLabelEl) heroLabelEl.textContent = 'Ahead of You';
+        }
+      }
+
+      // Check-in Badge
+      const checkinBadge = document.getElementById('checkinBadge');
+      if (checkinBadge) {
+        if (data.isVerified) {
+          checkinBadge.className = 'text-[11px] font-bold px-2 py-0.5 mt-1.5 rounded-full bg-emerald-100 text-emerald-700';
+          checkinBadge.textContent = 'Checked In ✅';
+        } else if (data.status === 'reserved') {
+          checkinBadge.className = 'text-[11px] font-bold px-2 py-0.5 mt-1.5 rounded-full bg-amber-100 text-amber-800';
+          checkinBadge.textContent = 'Buffer Active ⏳';
+        } else {
+          checkinBadge.className = 'text-[11px] font-bold px-2 py-0.5 mt-1.5 rounded-full bg-slate-100 text-slate-600';
+          checkinBadge.textContent = 'Pending Check-in';
+        }
+      }
+
+      // 2. Hospital & Department
       document.getElementById('hospitalNameDisplay').textContent = data.hospitalName || 'Aastha Hospital';
       document.getElementById('departmentNameDisplay').textContent = data.category || data.department || 'Cardiology';
 
-      // 4. Patient info
-      const pName = data.name || data.patientName || 'Kavish Ahuja';
+      // 3. Patient info
+      const pName = data.name || data.patientName || 'Patient';
       document.getElementById('patientNameDisplay').textContent = pName;
       const gender = (data.gender || 'Male').charAt(0).toUpperCase() + (data.gender || 'Male').slice(1).toLowerCase();
       const age = data.age || 20;
       document.getElementById('patientMetaDisplay').textContent = `${gender}, ${age} years`;
 
-      // 5. Status Dot and Text
+      // 4. Status Dot and Text
       const dot = document.getElementById('statusDot');
       const txt = document.getElementById('statusText');
       if (data.status === 'serving') {
         dot.className = 'w-2 h-2 rounded-full bg-[#10b981] inline-block';
         txt.className = 'text-[13px] font-semibold text-[#047857] tracking-normal';
         txt.textContent = 'Now Serving';
-      } else if (data.status === 'frozen') {
-        dot.className = 'w-2 h-2 rounded-full bg-[#3b82f6] inline-block';
-        txt.className = 'text-[13px] font-semibold text-[#1d4ed8] tracking-normal';
-        txt.textContent = 'En Route (Frozen)';
+      } else if (data.status === 'reserved') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#f59e0b] inline-block animate-pulse';
+        txt.className = 'text-[13px] font-semibold text-[#b45309] tracking-normal';
+        txt.textContent = 'En Route (Buffer Active)';
       } else if (data.status === 'completed') {
         dot.className = 'w-2 h-2 rounded-full bg-[#059669] inline-block';
         txt.className = 'text-[13px] font-semibold text-[#065f46] tracking-normal';
@@ -302,12 +345,12 @@
         txt.className = 'text-[13px] font-semibold text-[#dc2626] tracking-normal';
         txt.textContent = 'Missed';
       } else {
-        dot.className = 'w-2 h-2 rounded-full bg-[#f59e0b] inline-block';
-        txt.className = 'text-[13px] font-semibold text-[#e58a00] tracking-normal';
+        dot.className = 'w-2 h-2 rounded-full bg-[#3b82f6] inline-block';
+        txt.className = 'text-[13px] font-semibold text-[#1d4ed8] tracking-normal';
         txt.textContent = 'Waiting in Queue';
       }
 
-      // 6. QR Code from Database
+      // 5. QR Code from Database
       const qrImg = document.getElementById('qrImage');
       const qrPlaceholder = document.getElementById('qrPlaceholder');
       if (data.id) {
@@ -325,8 +368,8 @@
         };
       }
 
-      // 7. Modal data (Information ONLY - NO estimated wait time)
-      document.getElementById('modalTokenId').textContent = data.id ? `#${data.id}` : '-';
+      // 6. Modal data
+      document.getElementById('modalTokenId').textContent = code;
       document.getElementById('modalHospital').textContent = data.hospitalName || 'Aastha Hospital';
       document.getElementById('modalDepartment').textContent = data.category || 'Cardiology';
       document.getElementById('modalPatient').textContent = `${pName} (${gender}, ${age})`;

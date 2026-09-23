@@ -40,7 +40,7 @@ services:
 
       FRONTEND_URL: ${FRONTEND_URL:-https://princete.com}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173,https://princete.com}
-      CLINIC_NAME: ${CLINIC_NAME:-qDischarge}
+      CLINIC_NAME: ${CLINIC_NAME:-AarogyaFlow}
 
       # Required in any real deployment -- see README. No safe defaults are
       # baked in here on purpose.

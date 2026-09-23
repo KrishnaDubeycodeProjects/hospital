@@ -282,6 +282,38 @@ export default function DoctorConsultation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.hospitalId]);
 
+  const [showQueueBoard, setShowQueueBoard] = useState(true);
+
+  async function handleCallPatient(tokenId) {
+    try {
+      await queueApi.updateStatus(tokenId, 'serving');
+      toast.success(`Patient #${tokenId} called into chair!`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to call patient.');
+    }
+  }
+
+  async function handleNoShow(tokenId) {
+    try {
+      await queueApi.noShow(tokenId);
+      toast.success(`Patient #${tokenId} demoted exponentially.`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to push back patient.');
+    }
+  }
+
+  async function handleRequeue(tokenId) {
+    try {
+      await queueApi.requeueMissed(tokenId);
+      toast.success(`Patient #${tokenId} requeued to front.`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to requeue patient.');
+    }
+  }
+
   function addPrescriptionRow() {
     setPrescriptions((prev) => [
       ...prev,
@@ -436,6 +468,158 @@ export default function DoctorConsultation() {
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Skipped tokens</div>
         </div>
       </div>
+
+      {/* 3-Section Live Queue Dashboard for Doctor */}
+      <Card
+        title="Live Department Queue (3-Sections)"
+        actions={
+          <div className="row-gap">
+            <Button size="sm" variant="ghost" onClick={() => setShowQueueBoard(!showQueueBoard)}>
+              {showQueueBoard ? 'Hide Queue ▲' : 'Show Queue ▼'}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={loadData}>
+              Refresh
+            </Button>
+          </div>
+        }
+      >
+        {showQueueBoard && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', alignItems: 'start' }}>
+            
+            {/* 1. 🟡 RESERVED / BUFFER QUEUE */}
+            <div style={{ background: '#fffbeb', borderRadius: '10px', border: '1.5px solid #fde68a', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fef3c7', paddingBottom: '6px' }}>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#92400e' }}>🟡 Reserved (En Route)</span>
+                <span style={{ background: '#fef3c7', color: '#92400e', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
+                  {currentQueue?.reserved?.length ?? 0}
+                </span>
+              </div>
+              {(!currentQueue?.reserved || currentQueue.reserved.length === 0) ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#b45309', fontSize: '12px' }}>
+                  No patients in travel buffer.
+                </div>
+              ) : (
+                currentQueue.reserved.map((t) => (
+                  <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #fde68a', padding: '8px', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ color: '#004D40' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                      <span style={{ fontSize: '10px', color: '#92400e', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
+                        Buffer Active
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{t.name || 'Patient'}</div>
+                    <div style={{ color: '#78350f', fontSize: '11px', marginTop: '2px' }}>
+                      📍 En Route &bull; Priority check-in ready
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 2. 🔵 ACTIVE FIFO QUEUE */}
+            <div style={{ background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #dbeafe', paddingBottom: '6px' }}>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#1e40af' }}>🔵 Active Queue (FIFO)</span>
+                <span style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
+                  {currentQueue?.tokens?.filter((t) => t.status === 'waiting').length ?? 0}
+                </span>
+              </div>
+              {(!currentQueue?.tokens || currentQueue.tokens.filter((t) => t.status === 'waiting').length === 0) ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#2563eb', fontSize: '12px' }}>
+                  No patients waiting.
+                </div>
+              ) : (
+                currentQueue.tokens.filter((t) => t.status === 'waiting').map((t, idx) => {
+                  const pos = t.queuePosition || (idx + 1);
+                  const isPos1 = pos === 1;
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '6px',
+                        border: isPos1 ? (t.isVerified ? '2px solid #10b981' : '2px dashed #f59e0b') : '1px solid #dbeafe',
+                        padding: '8px',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{
+                            fontWeight: 800,
+                            fontSize: '11px',
+                            background: isPos1 ? (t.isVerified ? '#d1fae5' : '#fef3c7') : '#f1f5f9',
+                            color: isPos1 ? (t.isVerified ? '#065f46' : '#92400e') : '#475569',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                          }}>
+                            Pos #{pos}
+                          </span>
+                          <strong style={{ color: '#004D40' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                        </div>
+                        {t.isVerified ? (
+                          <span style={{ fontSize: '10px', color: '#15803d', background: '#dcfce7', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                            Verified ✅
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10px', color: '#b45309', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
+                            Unverified ⏳
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
+                        {t.name || 'Patient'} {t.age ? `(${t.gender || 'M'}, ${t.age}y)` : ''}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '5px', marginTop: '6px', justifyContent: 'flex-end' }}>
+                        <Button size="sm" variant={isPos1 ? 'primary' : 'secondary'} onClick={() => handleCallPatient(t.id)}>
+                          Call to Chair
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleNoShow(t.id)} title="Exponential demote">
+                          Not Come Yet
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 3. 🔴 MISSED QUEUE */}
+            <div style={{ background: '#fef2f2', borderRadius: '10px', border: '1.5px solid #fecaca', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fee2e2', paddingBottom: '6px' }}>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#991b1b' }}>🔴 Missed Queue</span>
+                <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
+                  {currentQueue?.missed?.length ?? 0}
+                </span>
+              </div>
+              {(!currentQueue?.missed || currentQueue.missed.length === 0) ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#dc2626', fontSize: '12px' }}>
+                  No missed patients.
+                </div>
+              ) : (
+                currentQueue.missed.map((t) => (
+                  <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #fecaca', padding: '8px', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ color: '#991b1b' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                      <span style={{ fontSize: '10px', color: '#dc2626', background: '#fee2e2', padding: '1px 5px', borderRadius: '4px' }}>
+                        Missed
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{t.name || 'Patient'}</div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                      <Button size="sm" variant="secondary" onClick={() => handleRequeue(t.id)}>
+                        Requeue to Front
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+          </div>
+        )}
+      </Card>
 
       {/* Clinical Documentation Workspace */}
       <Card title="Clinical Notes & Prescription">

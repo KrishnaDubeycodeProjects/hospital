@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Aarogya Flow",
+    "slug": "aarogya-flow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/aarogya_flow_logo_hd.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/aarogya_flow_logo_hd.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/aarogya_flow_logo_hd.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/aarogya_flow_logo_hd.png",
+      "bundler": "metro"
+    }
+  }
+}

@@ -130,6 +130,9 @@ export const queueApi = {
   anomalyControl: (hospitalId, category) =>
     getD('/api/queue/anomaly-control', { params: { hospitalId, category }, ...authFor('ADMIN') }),
   missed: (hospitalId, category) => getD('/api/queue/missed', { params: { hospitalId, category }, ...authFor('ADMIN') }),
+  reserved: (hospitalId, category) => getD('/api/queue/reserved', { params: { hospitalId, category }, ...authFor('ADMIN') }),
+  frozen: (hospitalId, category) => getD('/api/queue/frozen', { params: { hospitalId, category }, ...authFor('ADMIN') }),
+  unfreeze: (id) => postD(`/api/queue/unfreeze/${id}`, {}, authFor('ADMIN')),
   missedSearch: (query, hospitalId, category) =>
     getD('/api/queue/missed/search', { params: { query, hospitalId, category }, ...authFor('ADMIN') }),
   requeueMissed: (id) => postD(`/api/queue/missed/${id}/requeue`, {}, authFor('ADMIN')),

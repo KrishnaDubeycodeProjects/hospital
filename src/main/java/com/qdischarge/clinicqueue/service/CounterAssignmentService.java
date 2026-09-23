@@ -1,5 +1,8 @@
 package com.qdischarge.clinicqueue.service;
 
+import com.qdischarge.clinicqueue.bot.BotMessages;
+import com.qdischarge.clinicqueue.bot.Lang;
+import com.qdischarge.clinicqueue.bot.WaSessionService;
 import com.qdischarge.clinicqueue.dto.TokenDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +54,9 @@ public class CounterAssignmentService {
     private final NamedParameterJdbcTemplate jdbc;
     private final QueueManagerService queueManagerService;
     private final HospitalDepartmentService hospitalDepartmentService;
+    private final WhatsAppService whatsAppService;
+    private final BotMessages botMessages;
+    private final WaSessionService waSessionService;
 
     private static final RowMapper<TokenDto> TOKEN_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenDto.class);
 
@@ -85,7 +91,8 @@ public class CounterAssignmentService {
         List<TokenDto> lookAhead = jdbc.query(
                 """
                 SELECT * FROM tokens WHERE status = 'waiting' AND hospital_id = :hospitalId AND category = :category
-                ORDER BY COALESCE(priority_rank, id) ASC LIMIT :n
+                  AND created_at::date = CURRENT_DATE
+                ORDER BY COALESCE(priority_rank, daily_number, 999999) ASC, created_at ASC LIMIT :n
                 """,
                 Map.of("hospitalId", hospitalId, "category", category, "n", lookAheadSize), TOKEN_ROW_MAPPER);
 
@@ -93,7 +100,7 @@ public class CounterAssignmentService {
                 """
                 SELECT * FROM tokens WHERE status = 'waiting' AND reserved_counter_id IS NOT NULL
                   AND hospital_id = :hospitalId AND category = :category
-                ORDER BY reserved_counter_id ASC
+                ORDER BY reserved_counter_id ASC, COALESCE(priority_rank, daily_number, 999999) ASC
                 """,
                 Map.of("hospitalId", hospitalId, "category", category),
                 (rs, rowNum) -> new CounterReservation(rs.getInt("reserved_counter_id"), TOKEN_ROW_MAPPER.mapRow(rs, rowNum)));
@@ -101,7 +108,7 @@ public class CounterAssignmentService {
         return new CounterBoard(activeCounters, counters, lookAhead, upcoming);
     }
 
-    /** Counter finished normally: token -> completed, next eligible waiting token takes the freed counter. */
+    /** Counter finished normally: token -> completed, directly forwards earmarked/prefixed patient to the freed counter. */
     @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public CounterBoard completeAtCounter(int hospitalId, String category, int counterId) {
         finishCounter(hospitalId, category, counterId, "completed");
@@ -151,99 +158,115 @@ public class CounterAssignmentService {
         if ("completed".equals(status)) {
             queueManagerService.archiveToHistory(token);
         }
-        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
-        log.info("Token #{} counter status changed to {}. WhatsApp notification skipped.", token.displayNumber(), status);
+        log.info("Token {} counter status changed to {}.", token.displayTokenCode(), status);
     }
 
     private void claimIntoCounter(int hospitalId, String category, int counterId) {
-        // The multi-counter variant (unlike single-counter's) reaches past a
-        // still-graced front-of-line token instead of blocking every counter
-        // on it -- see QueueManagerService#claimNextEligibleWaitingTokenForCounter.
-        TokenDto claimed = queueManagerService.claimNextEligibleWaitingTokenForCounter(hospitalId, category);
-        if (claimed == null) {
-            return;
+        Map<String, Object> prefParams = new HashMap<>();
+        prefParams.put("hospitalId", hospitalId);
+        prefParams.put("category", category);
+        prefParams.put("counterId", counterId);
+
+        // Check if there is an upcoming waiting patient already prefixed/earmarked for this counter
+        List<TokenDto> prefixed = jdbc.query(
+                """
+                SELECT * FROM tokens
+                WHERE status = 'waiting' AND reserved_counter_id = :counterId
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND created_at::date = CURRENT_DATE
+                ORDER BY queue_position ASC, priority_rank ASC, daily_number ASC LIMIT 1
+                """,
+                prefParams, TOKEN_ROW_MAPPER);
+
+        TokenDto claimed = null;
+        if (!prefixed.isEmpty()) {
+            int prefId = prefixed.get(0).getId();
+            List<TokenDto> claimedRows = jdbc.query(
+                    "UPDATE tokens SET status = 'serving', served_at = NOW(), counter_id = :c, reserved_counter_id = NULL, queue_position = NULL WHERE id = :id AND status = 'waiting' RETURNING *",
+                    Map.of("c", counterId, "id", prefId), TOKEN_ROW_MAPPER);
+            if (!claimedRows.isEmpty()) {
+                claimed = claimedRows.get(0);
+                queueManagerService.renumberQueuePositions(hospitalId, category);
+            }
         }
-        // reserved_counter_id = NULL is defensive: a status='waiting' row can
-        // carry a reservation, but the instant it's claimed it's no longer
-        // 'waiting' anyway, so this just avoids a stale tag lingering on the row.
-        jdbc.update("UPDATE tokens SET counter_id = :c, reserved_counter_id = NULL WHERE id = :id",
-                Map.of("c", counterId, "id", claimed.getId()));
-        log.info("Token #{} claimed into Counter {}. WhatsApp notification skipped.", claimed.displayNumber(), counterId);
+
+        // If no prefixed patient was found, claim the next eligible waiting token
+        if (claimed == null) {
+            claimed = queueManagerService.claimNextEligibleWaitingTokenForCounter(hospitalId, category);
+            if (claimed != null) {
+                jdbc.update("UPDATE tokens SET counter_id = :c, reserved_counter_id = NULL, queue_position = NULL WHERE id = :id",
+                        Map.of("c", counterId, "id", claimed.getId()));
+                queueManagerService.renumberQueuePositions(hospitalId, category);
+            }
+        }
+
+        if (claimed != null) {
+            log.info("Token {} directly forwarded into Counter {}.", claimed.displayTokenCode(), counterId);
+            sendCounterServingNotification(claimed, counterId);
+        }
 
         int activeCounters = hospitalDepartmentService.activeCounters(hospitalId, category);
         refreshReservations(hospitalId, category, activeCounters);
     }
 
     /**
-     * Advisory only -- never changes who's actually served next (that's still
-     * QueueManagerService#claimNextEligibleWaitingToken's call, at the moment
-     * a counter genuinely frees up). While multiple counters are
-     * simultaneously mid-treatment, this earmarks a *distinct* upcoming
-     * eligible waiting token to each busy counter that doesn't already have
-     * one, and pings that patient "you're up next for Counter X" so they can
-     * be ready before their counter is even free -- the "next 3 patients set
-     * at A, B, C" behavior. A counter that already has a valid reservation is
-     * left untouched (no notification churn); an existing reservation is
-     * dropped -- and its counter re-filled -- only once its held token is no
-     * longer waiting, or fails the same unverified/no-longer-graced
-     * eligibility check a real claim would apply. Called after every claim
-     * (so a newly-busy counter gets a reservation right away) and on every
-     * board read (so a reservation invalidated by e.g. a manual reposition --
-     * see QueueManagerService#movePatientToPosition -- gets refilled even
-     * without another claim event).
+     * Fixes up to 2 waiting patients prefixed per active counter (e.g. Counter 1: [P1, P2], Counter 2: [P3, P4]).
+     * When any counter completes treatment, it directly forwards its prefixed patient.
      */
     private void refreshReservations(int hospitalId, String category, int activeCounters) {
-        List<Integer> busyCounters = jdbc.query(
-                """
-                SELECT DISTINCT counter_id FROM tokens WHERE status = 'serving' AND counter_id IS NOT NULL
-                  AND counter_id <= :activeCounters AND hospital_id = :hospitalId AND category = :category
-                """,
-                Map.of("activeCounters", activeCounters, "hospitalId", hospitalId, "category", category),
-                (rs, rowNum) -> rs.getInt("counter_id"));
-        if (busyCounters.isEmpty()) {
-            return; // nobody's actually mid-treatment -- nothing to earmark ahead for
+        if (activeCounters <= 0) {
+            return;
         }
 
-        // Existing reservations: an unverified token whose grace has lapsed
-        // (or was never notified/graced at all) would be skipped-and-resolved
-        // by a real claim just like at claim time -- drop the reservation so
-        // its counter gets re-filled below.
+        int targetPerCounter = 2; // fixed for 2 patients per counter prefixed
+        Map<Integer, Integer> reservationCounts = new HashMap<>();
+        for (int c = 1; c <= activeCounters; c++) {
+            reservationCounts.put(c, 0);
+        }
+
         List<Map<String, Object>> existing = jdbc.queryForList(
                 """
                 SELECT id, reserved_counter_id, is_verified, notified_ready_at FROM tokens
                 WHERE status = 'waiting' AND reserved_counter_id IS NOT NULL
-                  AND hospital_id = :hospitalId AND category = :category
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND created_at::date = CURRENT_DATE
                 """,
                 Map.of("hospitalId", hospitalId, "category", category));
 
-        List<Integer> countersStillValid = new ArrayList<>();
         for (Map<String, Object> row : existing) {
             boolean verified = Boolean.TRUE.equals(row.get("is_verified"));
             boolean wasNotified = row.get("notified_ready_at") != null;
             if (wasNotified && !verified) {
                 jdbc.update("UPDATE tokens SET reserved_counter_id = NULL WHERE id = :id", Map.of("id", row.get("id")));
             } else {
-                countersStillValid.add((Integer) row.get("reserved_counter_id"));
+                Integer cid = (Integer) row.get("reserved_counter_id");
+                if (cid != null && cid >= 1 && cid <= activeCounters) {
+                    reservationCounts.put(cid, reservationCounts.getOrDefault(cid, 0) + 1);
+                }
             }
         }
 
         List<Integer> needsReservation = new ArrayList<>();
-        for (Integer c : busyCounters) {
-            if (!countersStillValid.contains(c) && !needsReservation.contains(c)) {
-                needsReservation.add(c);
+        for (int slot = 0; slot < targetPerCounter; slot++) {
+            for (int c = 1; c <= activeCounters; c++) {
+                if (reservationCounts.getOrDefault(c, 0) < targetPerCounter) {
+                    needsReservation.add(c);
+                    reservationCounts.put(c, reservationCounts.get(c) + 1);
+                }
             }
         }
+
         if (needsReservation.isEmpty()) {
             return;
         }
-        Collections.sort(needsReservation);
 
         List<Map<String, Object>> candidates = jdbc.queryForList(
                 """
                 SELECT id, phone, is_verified, notified_ready_at FROM tokens
                 WHERE status = 'waiting' AND reserved_counter_id IS NULL
-                  AND hospital_id = :hospitalId AND category = :category
-                ORDER BY COALESCE(priority_rank, id) ASC
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND created_at::date = CURRENT_DATE
+                ORDER BY COALESCE(queue_position, priority_rank, daily_number, 999999) ASC, created_at ASC
                 """,
                 Map.of("hospitalId", hospitalId, "category", category));
 
@@ -255,24 +278,42 @@ public class CounterAssignmentService {
             boolean verified = Boolean.TRUE.equals(candidate.get("is_verified"));
             boolean wasNotified = candidate.get("notified_ready_at") != null;
             if (wasNotified && !verified) {
-                continue; // same eligibility skip as a real claim -- not ready to be earmarked yet
+                continue;
             }
             int counterId = needsReservation.get(nextCounterIdx++);
             int tokenId = (Integer) candidate.get("id");
-            // Guarded like every other claim/finish update in this class --
-            // status='waiting' AND reserved_counter_id IS NULL still true --
-            // so a concurrent refreshReservations run (e.g. two admin actions
-            // landing close together) can't double-book the same token onto
-            // two counters, and we only notify once we know we actually won.
+
             int updated = jdbc.update(
                     "UPDATE tokens SET reserved_counter_id = :c WHERE id = :id AND status = 'waiting' AND reserved_counter_id IS NULL",
                     Map.of("c", counterId, "id", tokenId));
             if (updated == 0) {
-                nextCounterIdx--; // lost the race -- this counter's slot is still open, retry it on the next candidate
+                nextCounterIdx--;
                 continue;
             }
-            // Proactive WhatsApp notifications from server removed (only respond when user initiates)
-            log.info("Token reserved for counter {}. WhatsApp notification skipped.", counterId);
+            log.info("Token id {} prefixed/reserved for Counter {}.", tokenId, counterId);
         }
+    }
+
+    private void sendCounterServingNotification(TokenDto token, int counterId) {
+        if (token == null || token.getPhone() == null) return;
+        try {
+            Lang lang = resolveLang(token.getPhone());
+            whatsAppService.sendWhatsAppMessage(token.getPhone(),
+                    botMessages.nowServingNotification(lang, token.displayTokenCode(), token.getName(), counterId, token.getCategory()));
+            log.info("Now serving notification sent for Token {} at Counter {}", token.displayTokenCode(), counterId);
+        } catch (Exception e) {
+            log.warn("Failed sending now serving notification for Token {}: {}", token.displayTokenCode(), e.getMessage());
+        }
+    }
+
+    private Lang resolveLang(String phone) {
+        try {
+            WaSessionService.WaSession session = waSessionService.get(phone);
+            if (session != null && session.language() != null) {
+                return session.language();
+            }
+        } catch (Exception ignored) {
+        }
+        return Lang.EN;
     }
 }

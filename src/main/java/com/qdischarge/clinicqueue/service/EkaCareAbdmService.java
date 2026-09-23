@@ -560,7 +560,9 @@ public class EkaCareAbdmService {
                 mobile = "+91" + mobile.replaceAll("[^0-9]", "");
             }
 
-            String abhaNumber = dataNode.path("health_id_number").asText(dataNode.path("abha_number").asText(""));
+            String abhaNumber = dataNode.path("health_id_number")
+                    .asText(dataNode.path("abha_number")
+                    .asText(dataNode.path("abhaNumber").asText("")));
             String address = dataNode.path("health_id").asText(dataNode.path("abha_address").asText(abhaAddress != null ? abhaAddress : ""));
             String gender = dataNode.path("gender").asText("OTHER").toUpperCase();
             String dob = dataNode.path("dob").asText(dataNode.path("year_of_birth").asText(""));

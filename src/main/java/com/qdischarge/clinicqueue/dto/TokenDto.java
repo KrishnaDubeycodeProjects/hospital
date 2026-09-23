@@ -75,9 +75,14 @@ public class TokenDto {
 
     // --- Multi-counter package only ---
     private Integer counterId;
+    private Integer reservedCounterId;
 
     // --- Booking-in-progress (hospital search/selection, pre-confirmation) ---
     private Integer searchOffset;
+
+    // --- Dynamic Alphanumeric Token & Integer Queue Ordering ---
+    private String tokenCode;
+    private Integer queuePosition;
 
     /**
      * The number to actually show a patient in any "Token #N" message --
@@ -89,5 +94,15 @@ public class TokenDto {
      */
     public int displayNumber() {
         return dailyNumber != null ? dailyNumber : 0;
+    }
+
+    /**
+     * Dynamic alphanumeric token code (e.g. "AF-A01", "AF-B05").
+     */
+    public String displayTokenCode() {
+        if (tokenCode != null && !tokenCode.isBlank()) {
+            return tokenCode;
+        }
+        return "AF-" + String.format("%02d", displayNumber());
     }
 }

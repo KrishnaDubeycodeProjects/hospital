@@ -56,8 +56,10 @@ spring:
       # was the actual cause of the connection-timeout spikes above. Give
       # connections a realistic lifespan instead (max-lifetime kept under a
       # typical pooler's own ~30min connection recycle window).
-      idle-timeout: 600000
-      max-lifetime: 1500000
+      idle-timeout: 60000
+      max-lifetime: 180000
+      keepalive-time: 30000
+      connection-test-query: SELECT 1
       leak-detection-threshold: 20000
   jackson:
     serialization:
@@ -88,7 +90,7 @@ spring:
 # original Node backend's .env; see README for the security-hardening additions.
 app:
   frontend-url: ${FRONTEND_URL:https://hospital-ten-blond.vercel.app}
-  clinic-name: ${CLINIC_NAME:qDischarge}
+  clinic-name: ${CLINIC_NAME:AarogyaFlow}
   token-expiry-hours: ${TOKEN_EXPIRY_HOURS:24}
   avg-service-minutes: ${AVG_SERVICE_MINUTES:10}
 
@@ -103,9 +105,9 @@ app:
 
   # WhatsApp provider: 'meta' (Meta Cloud API exclusively)
   wa-provider: ${WA_PROVIDER:meta}
-  meta-access-token: ${META_ACCESS_TOKEN:${WHATSAPP_TOKEN:${META_TOKEN:${WHATSAPP_ACCESS_TOKEN:EAAXvYwe64aEBSklskLlZARQx4bbq0QxCjmiLKxwZCahUONCAdjXXdpD2hft8dH9sQsjZCSFJC6qmIo09zCCw70o6BZBYwLwYD6u01fFGZAmZAgV0deDVZAYyoxLLSZB4x5e8SjporZA13ebv7dSkgYjDqafOZAZAmnyH5IEw8tY3uqTrEkkGDUKv3y0zWpFBqbGmMXh6TWd9e3GOZCboDSLxR1LSr3QdH2NBe5Ad56AGAjrSAQf9W0aYmt6S}}}}
+  meta-access-token: ${META_ACCESS_TOKEN:${WHATSAPP_TOKEN:${META_TOKEN:${WHATSAPP_ACCESS_TOKEN:EAAXvYwe64aEBSoJnZCYM11ZC0kE8CDZCRyLt4ueu6vouus5ZAXrtthrDc7Qxo65ZAZABwfdJnmYhXPZA56Wi1iz8OvIe90KuocZCWo4jybkduxJJJ9PtFtVetrU1bGUpHEeyo4QZC3K54ZCf8W4W00EGIsj4iavnspll1aRwOJmT7ZCM9vN8cQoZC0HrSJedTZAtUVu8n2DEyrxnVOBPWVOaxPVZC77kIcQmZC3jszQSsZCto0ZCbfrIsRFSTaMZCP}}}}
   meta-phone-number-id: ${META_PHONE_NUMBER_ID:${WHATSAPP_PHONE_NUMBER_ID:1309956365539677}}
-  meta-api-version: ${META_API_VERSION:v22.0}
+  meta-api-version: ${META_API_VERSION:v21.0}
   bot-phone-number: ${BOT_PHONE_NUMBER:${WHATSAPP_BOT_NUMBER:919120123877}}
 
   rate-limit-login-per-minute: ${RATE_LIMIT_LOGIN_PER_MINUTE:10}

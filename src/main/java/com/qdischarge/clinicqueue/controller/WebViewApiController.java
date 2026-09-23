@@ -7,6 +7,11 @@ import com.qdischarge.clinicqueue.dto.PatientDocumentDto;
 import com.qdischarge.clinicqueue.security.JwtService;
 import com.qdischarge.clinicqueue.service.FamilyUnitService;
 import com.qdischarge.clinicqueue.service.PatientDocumentService;
+import com.qdischarge.clinicqueue.service.HospitalService;
+import com.qdischarge.clinicqueue.dto.HospitalDto;
+import com.qdischarge.clinicqueue.catalog.MedicalCategory;
+import java.util.ArrayList;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -34,6 +39,7 @@ public class WebViewApiController {
     private final JwtService jwtService;
     private final PatientDocumentService patientDocumentService;
     private final FamilyUnitService familyUnitService;
+    private final HospitalService hospitalService;
 
     /**
      * Public config used by WebViews to establish wa.me redirect URLs and system defaults.
@@ -285,5 +291,78 @@ public class WebViewApiController {
         }
         // ReferralDto / referralService not injected, return empty list for now
         return ResponseEntity.ok(Map.of("success", true, "data", List.of()));
+    }
+
+    /**
+     * GET /api/wa/hospitals/search
+     * Used by hospitals.html WebView to search hospitals with or without location.
+     */
+    @GetMapping("/hospitals/search")
+    public ResponseEntity<?> searchHospitals(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String gender,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lon,
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "40") int limit) {
+        try {
+            List<Map<String, Object>> list = new ArrayList<>();
+            if (lat != null && lon != null) {
+                String canonicalCategory = null;
+                if (category != null && !category.isBlank()) {
+                    canonicalCategory = MedicalCategory.canonicalize(category);
+                }
+                HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
+                        canonicalCategory, gender, lat, lon, offset, limit);
+                for (HospitalService.HospitalMatch hm : page.results()) {
+                    HospitalDto h = hm.hospital();
+                    if (q != null && !q.isBlank()) {
+                        String query = q.toLowerCase();
+                        boolean matchesName = h.getName() != null && h.getName().toLowerCase().contains(query);
+                        boolean matchesAddr = h.getAddress() != null && h.getAddress().toLowerCase().contains(query);
+                        if (!matchesName && !matchesAddr) continue;
+                    }
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("id", h.getId());
+                    map.put("name", h.getName());
+                    map.put("address", h.getAddress() != null ? h.getAddress() : "");
+                    map.put("distance", String.format(Locale.US, "%.1f", hm.distanceKm()));
+                    map.put("openTime", h.getOpenTime() != null ? h.getOpenTime().toString() : "09:00");
+                    map.put("closeTime", h.getCloseTime() != null ? h.getCloseTime().toString() : "21:00");
+                    map.put("categories", h.getCategories());
+                    list.add(map);
+                }
+            } else {
+                List<HospitalDto> all = hospitalService.list();
+                for (HospitalDto h : all) {
+                    if (q != null && !q.isBlank()) {
+                        String query = q.toLowerCase();
+                        boolean matchesName = h.getName() != null && h.getName().toLowerCase().contains(query);
+                        boolean matchesAddr = h.getAddress() != null && h.getAddress().toLowerCase().contains(query);
+                        if (!matchesName && !matchesAddr) continue;
+                    }
+                    if (category != null && !category.isBlank()) {
+                        String canonical = MedicalCategory.canonicalize(category);
+                        if (canonical != null && h.getCategories() != null && !h.getCategories().contains(canonical)) {
+                            if (!"General Medicine / Internal Medicine".equals(canonical)) continue;
+                        }
+                    }
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("id", h.getId());
+                    map.put("name", h.getName());
+                    map.put("address", h.getAddress() != null ? h.getAddress() : "");
+                    map.put("distance", null);
+                    map.put("openTime", h.getOpenTime() != null ? h.getOpenTime().toString() : "09:00");
+                    map.put("closeTime", h.getCloseTime() != null ? h.getCloseTime().toString() : "21:00");
+                    map.put("categories", h.getCategories());
+                    list.add(map);
+                }
+            }
+            return ResponseEntity.ok(Map.of("success", true, "data", list));
+        } catch (Exception e) {
+            log.error("❌ Error searching hospitals for WebView: {}", e.getMessage(), e);
+            return ResponseEntity.ok(Map.of("success", false, "data", List.of(), "error", e.getMessage()));
+        }
     }
 }

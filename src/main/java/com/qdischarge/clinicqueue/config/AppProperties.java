@@ -14,9 +14,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AppProperties {
 
     private String frontendUrl = "https://hospital-ten-blond.vercel.app";
-    private String clinicName;
+    private String clinicName = "AarogyaFlow";
     private int tokenExpiryHours;
     private int avgServiceMinutes;
+
+    public String getClinicName() {
+        if (clinicName == null || clinicName.isBlank() || "qdischarge".equalsIgnoreCase(clinicName)) {
+            return "AarogyaFlow";
+        }
+        return clinicName;
+    }
 
     public String getFrontendUrl() {
         if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost") && !frontendUrl.contains("ngrok")) {

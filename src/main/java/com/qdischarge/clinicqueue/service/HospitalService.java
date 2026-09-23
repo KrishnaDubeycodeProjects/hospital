@@ -8,6 +8,8 @@ import com.qdischarge.clinicqueue.dto.SetLocationRequest;
 import com.qdischarge.clinicqueue.geo.DigipinService;
 import com.qdischarge.clinicqueue.geo.GeoDistanceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -97,6 +99,7 @@ public class HospitalService {
         return hospital;
     }
 
+    @Cacheable(value = "hospitals")
     public List<HospitalDto> list() {
         return jdbc.query("SELECT * FROM hospitals ORDER BY name ASC", ROW_MAPPER).stream()
                 .map(this::finish).toList();
@@ -139,6 +142,7 @@ public class HospitalService {
     /** Same fallback schema.sql's placeholder row and DEFAULT clause use: a 9-to-5, 8-hour OPD day. */
     private static final long DEFAULT_OPEN_MINUTES = 480;
 
+    @CacheEvict(value = "hospitals", allEntries = true)
     public HospitalDto create(CreateHospitalRequest req) {
         LatLon resolved = resolveLocation(req.location());
         LocalTime open = req.openTime() != null ? LocalTime.parse(req.openTime()) : LocalTime.of(9, 0);
@@ -279,6 +283,7 @@ public class HospitalService {
         return 10;
     }
 
+    @CacheEvict(value = "hospitals", allEntries = true)
     public HospitalDto updateLocation(String uriSlug, SetLocationRequest location) {
         LatLon resolved = resolveLocation(location);
         List<HospitalDto> rows = jdbc.query(

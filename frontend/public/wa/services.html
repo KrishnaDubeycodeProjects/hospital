@@ -70,11 +70,11 @@
     document.getElementById('continueText').textContent = strings[lang]?.continue || strings['en'].continue;
 
     const services = [
-      { id: 'srv_appointment', icon: '🏥', title: 'OPD Appointment', hi: 'ओपीडी अपॉइंटमेंट', mr: 'ओपीडी अपॉइंटमेंट', badgeBg: 'bg-blue-100', textCol: 'text-blue-700' },
-      { id: 'srv_family_abha', icon: '👨‍👩‍👧', title: 'Family & ABHA', hi: 'परिवार और आभा', mr: 'कुटुंब आणि आभा', badgeBg: 'bg-pink-100', textCol: 'text-pink-700' },
-      { id: 'srv_health_records', icon: '💊', title: 'Health Records', hi: 'स्वास्थ्य रिकॉर्ड', mr: 'आरोग्य रेकॉर्ड', badgeBg: 'bg-purple-100', textCol: 'text-purple-700' },
-      { id: 'srv_referrals', icon: '📋', title: 'Referral Follow-ups', hi: 'रेफरल फॉलो-अप', mr: 'रेफरल फॉलो-अप', badgeBg: 'bg-orange-100', textCol: 'text-orange-700' },
-      { id: 'srv_lang_change', icon: '🌐', title: 'Change Language', hi: 'भाषा बदलें', mr: 'भाषा बदला', badgeBg: 'bg-slate-100', textCol: 'text-slate-700', light: true }
+      { id: 'srv_appointment', icon: '🏥', title: 'OPD Appointment', sub: 'Book visit & track live turn', hi: 'ओपीडी अपॉइंटमेंट', hiSub: 'विजिट बुक करें व बारी ट्रैक करें', mr: 'ओपीडी अपॉइंटमेंट', mrSub: 'भेट बुक करा व पाळी ट्रॅक करा', badgeBg: 'bg-blue-100', textCol: 'text-blue-700' },
+      { id: 'srv_family_abha', icon: '👨‍👩‍👧', title: 'Family & ABHA', sub: 'Manage family & link Ayushman card', hi: 'परिवार और आभा', hiSub: 'परिवार जोड़ें व आयुष्मान कार्ड लिंक करें', mr: 'कुटुंब आणि आभा', mrSub: 'कुटुंब जोडा व आयुष्मान कार्ड लिंक करा', badgeBg: 'bg-pink-100', textCol: 'text-pink-700' },
+      { id: 'srv_health_records', icon: '💊', title: 'Health Records', sub: 'View & upload prescriptions, labs', hi: 'स्वास्थ्य रिकॉर्ड', hiSub: 'पर्चे व लैब रिपोर्ट देखें व अपलोड करें', mr: 'आरोग्य रेकॉर्ड', mrSub: 'प्रिस्क्रिप्शन व रिपोर्ट पहा आणि अपलोड करा', badgeBg: 'bg-purple-100', textCol: 'text-purple-700' },
+      { id: 'srv_referrals', icon: '📋', title: 'Referral Follow-ups', sub: 'Doctor referral status & history', hi: 'रेफरल फॉलो-अप', hiSub: 'डॉक्टर रेफरल स्थिति व इतिहास', mr: 'रेफरल फॉलो-अप', mrSub: 'डॉक्टर रेफरल स्थिती व इतिहास', badgeBg: 'bg-orange-100', textCol: 'text-orange-700' },
+      { id: 'srv_lang_change', icon: '🌐', title: 'Change Language', sub: 'English, हिन्दी, मराठी', hi: 'भाषा बदलें', hiSub: 'English, हिन्दी, मराठी', mr: 'भाषा बदला', mrSub: 'English, हिन्दी, मराठी', badgeBg: 'bg-slate-100', textCol: 'text-slate-700', light: true }
     ];
 
     function renderServices() {
@@ -82,14 +82,18 @@
       container.innerHTML = services.map(s => {
         const isSelected = selectedService === s.id;
         const displayTitle = lang === 'hi' ? s.hi : (lang === 'mr' ? s.mr : s.title);
-        const activeClass = isSelected ? 'border-[#004D40] bg-emerald-50' : 'border-slate-200 bg-white';
-        const ring = isSelected ? '<div class="w-5 h-5 rounded-full bg-[#004D40] text-white flex items-center justify-center"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>' : '<div class="w-5 h-5 rounded-full border-2 border-slate-300"></div>';
+        const displaySub = lang === 'hi' ? s.hiSub : (lang === 'mr' ? s.mrSub : s.sub);
+        const activeClass = isSelected ? 'border-[#004D40] bg-emerald-50/70 shadow-md ring-2 ring-[#004D40]/20' : 'border-slate-200 bg-white shadow-sm';
+        const ring = isSelected ? '<div class="w-6 h-6 rounded-full bg-[#004D40] text-white flex items-center justify-center flex-shrink-0 shadow-sm"><svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>' : '<div class="w-6 h-6 rounded-full border-2 border-slate-300 flex-shrink-0"></div>';
         
         return `
-          <div onclick="selectService('${s.id}')" class="p-3.5 border ${activeClass} rounded-2xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] shadow-sm">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg ${s.badgeBg} ${s.textCol}">${s.icon}</div>
-              <div class="text-[15px] font-bold text-slate-900 ${s.light ? 'font-medium' : ''}">${displayTitle}</div>
+          <div onclick="selectService('${s.id}')" class="p-3.5 border ${activeClass} rounded-2xl flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] gap-3">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${s.badgeBg} ${s.textCol} shadow-sm border border-black/5 flex-shrink-0">${s.icon}</div>
+              <div class="min-w-0">
+                <div class="text-[16px] font-extrabold text-slate-900 tracking-tight leading-snug truncate">${displayTitle}</div>
+                <div class="text-[12px] font-medium text-slate-500 truncate mt-0.5">${displaySub}</div>
+              </div>
             </div>
             ${ring}
           </div>

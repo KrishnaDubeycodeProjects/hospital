@@ -65,6 +65,7 @@ public class QueueManagerService {
     private final BotMessages botMessages;
     /** Per-phone language preference (see resolveLang) -- same source the WhatsApp bot itself uses. */
     private final WaSessionService waSessionService;
+    private final WhatsAppService whatsAppService;
 
     private static final RowMapper<TokenDto> TOKEN_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenDto.class);
     private static final RowMapper<TokenHistoryDto> TOKEN_HISTORY_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenHistoryDto.class);
@@ -121,8 +122,12 @@ public class QueueManagerService {
                 .findFirst()
                 .orElse(null);
 
+        List<TokenDto> reserved = tokens.stream().filter(t -> "reserved".equals(t.getStatus())).toList();
+        List<TokenDto> missedList = tokens.stream().filter(t -> "missed".equals(t.getStatus())).toList();
+        List<TokenDto> frozenList = tokens.stream().filter(t -> "frozen".equals(t.getStatus())).toList();
+
         Stats stats = new Stats(total, (int) waiting, (int) serving, (int) completed, (int) missed);
-        return new QueueData(tokens, currentServing, stats);
+        return new QueueData(tokens, currentServing, stats, reserved, missedList, frozenList);
     }
 
     private void appendScope(StringBuilder sql, Map<String, Object> params, Integer hospitalId, String category) {
@@ -244,6 +249,8 @@ public class QueueManagerService {
         target.setAnomalyControlUntil(raw.getAnomalyControlUntil());
         target.setPriorityRank(raw.getPriorityRank());
         target.setCounterId(raw.getCounterId());
+        target.setTokenCode(raw.getTokenCode());
+        target.setQueuePosition(raw.getQueuePosition());
         return target;
     }
 
@@ -621,7 +628,11 @@ public class QueueManagerService {
                 """,
                 updateParams);
 
-        if (!isFrozen) {
+        if (isFrozen) {
+            TokenDto updatedDraft = getRaw(tokenId);
+            sendFrozenBookedNotification(updatedDraft, hospital, selectedTravelMinutes, targetArrivalTime);
+        } else {
+            renumberQueuePositions(hospital.getId(), draft.getCategory());
             unfreezeEligibleTokens(hospital.getId(), draft.getCategory());
         }
 
@@ -762,7 +773,13 @@ public class QueueManagerService {
                 """,
                 insertParams, Integer.class);
 
-        if (!isFrozen && resolvedHospitalId != null) {
+        if (isFrozen) {
+            TokenDto createdDraft = getRaw(newId);
+            if (hospital != null) {
+                sendFrozenBookedNotification(createdDraft, hospital, finalSelectedTravelMinutes, targetArrivalTime);
+            }
+        } else if (resolvedHospitalId != null) {
+            renumberQueuePositions(resolvedHospitalId, canonicalCategory);
             unfreezeEligibleTokens(resolvedHospitalId, canonicalCategory);
         }
 
@@ -911,6 +928,11 @@ public class QueueManagerService {
         } catch (Exception e) {
             log.error("Error evaluating anomaly-control expiry: {}", e.getMessage());
         }
+        try {
+            processExpiredReservations(null, null);
+        } catch (Exception e) {
+            log.error("Error processing expired reservations: {}", e.getMessage());
+        }
     }
 
     /**
@@ -1012,17 +1034,79 @@ public class QueueManagerService {
                         """,
                         Map.of("dailyNumber", dailyNumber, "id", frozen.getId()));
 
+                renumberQueuePositions(frozen.getHospitalId(), frozen.getCategory());
+
                 log.info("🔓 Unfreezed Token id {} for patient {}. Reason: {}. Assigned sequential Token #{}",
                         frozen.getId(), frozen.getName(), targetReached ? "arrival time reached" : "queue gap filled", dailyNumber);
 
                 TokenDto updated = getTokenDetails(String.valueOf(frozen.getId()));
                 if (updated != null) {
                     unfreezed.add(updated);
+                    sendTokenUnfrozenNotification(updated);
                 }
             }
         }
 
         return unfreezed;
+    }
+
+    /** Manually releases/unfreezes a frozen token into the main waiting queue. */
+    @Transactional(rollbackFor = Exception.class)
+    public TokenDto manualUnfreezeToken(int id) {
+        TokenDto existing = getRaw(id);
+        if (existing == null || !"frozen".equals(existing.getStatus())) {
+            return null;
+        }
+        Integer dailyNumber = nextDailyNumber(existing.getHospitalId(), existing.getCategory());
+        jdbc.update(
+                """
+                UPDATE tokens
+                SET status = 'waiting', daily_number = :dailyNumber, priority_rank = NULL
+                WHERE id = :id AND status = 'frozen'
+                """,
+                Map.of("dailyNumber", dailyNumber, "id", id));
+        renumberQueuePositions(existing.getHospitalId(), existing.getCategory());
+        log.info("🔓 Manually unfreezed Token id {} by admin. Assigned sequential Token #{}", id, dailyNumber);
+        TokenDto updated = getTokenDetails(String.valueOf(id));
+        if (updated != null) {
+            sendTokenUnfrozenNotification(updated);
+        }
+        return updated;
+    }
+
+    /**
+     * Finds tokens in 'reserved' buffer status whose target arrival time has expired.
+     * Moves them back to the waiting queue at Position #1 and immediately executes exponential demotion.
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public List<TokenDto> processExpiredReservations(Integer hospitalId, String category) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT * FROM tokens WHERE status = 'reserved' AND target_arrival_time IS NOT NULL AND target_arrival_time <= NOW()");
+        Map<String, Object> params = new HashMap<>();
+        appendScope(sql, params, hospitalId, category);
+        List<TokenDto> expired = jdbc.query(sql.toString(), params, TOKEN_ROW_MAPPER);
+        List<TokenDto> demoted = new java.util.ArrayList<>();
+        for (TokenDto token : expired) {
+            jdbc.update(
+                    "UPDATE tokens SET status = 'waiting', queue_position = 1, priority_rank = 1.0 WHERE id = :id",
+                    Map.of("id", token.getId()));
+            renumberQueuePositions(token.getHospitalId(), token.getCategory());
+            TokenDto pushed = pushBackNoShow(token.getId());
+            if (pushed != null) {
+                demoted.add(pushed);
+            }
+        }
+        return demoted;
+    }
+
+    /** Returns active buffer/reserved tokens soonest-to-expire first. */
+    public List<TokenDto> getReservedQueue(Integer hospitalId, String category) {
+        cleanExpiredTokens();
+        StringBuilder sql = new StringBuilder("SELECT * FROM tokens WHERE status = 'reserved'");
+        Map<String, Object> params = new HashMap<>();
+        appendScope(sql, params, hospitalId, category);
+        sql.append(" ORDER BY target_arrival_time ASC NULLS LAST, id ASC");
+        return jdbc.query(sql.toString(), params, TOKEN_ROW_MAPPER);
     }
 
     /** Returns frozen / travel-pending tokens for reception or admin visibility. */
@@ -1074,29 +1158,22 @@ public class QueueManagerService {
     }
 
     /**
-     * R = ((Ta >= 3 ? Ta - 3 : 0) * minimum-time-to-treat + 2) / active-counters,
-     * for this token's own (hospital, category) department.
-     * Uses strictly minimum service time only (never average) per requirements.
+     * Effective Ahead = max(0, N - 3 * ActiveCounters).
+     * Wait time is strictly based on minimum service time.
      */
     private double computeTreatmentRemainingMinutes(TokenDto token, HospitalDto hospital) {
         int ta = countGenuinelyAheadForEta(token);
-        int activeCounters = hospitalDepartmentService.activeCounters(token.getHospitalId(), token.getCategory());
+        int activeCounters = Math.max(1, hospitalDepartmentService.activeCounters(token.getHospitalId(), token.getCategory()));
         int minimumTime = (hospital.getMinServiceMinutes() != null && hospital.getMinServiceMinutes() > 0)
                 ? hospital.getMinServiceMinutes() : 3;
 
-        int aheadBeyondHeadstart = ta >= ETA_WAITING_HEADSTART_TOKENS ? (ta - ETA_WAITING_HEADSTART_TOKENS) : 0;
-        return (aheadBeyondHeadstart * (double) minimumTime + ETA_FIXED_BUFFER_MINUTES) / Math.max(1, activeCounters);
+        int effectiveAhead = Math.max(0, ta - (3 * activeCounters));
+        return (effectiveAhead * (double) minimumTime) / activeCounters;
     }
 
     /**
-     * Ta for the R estimate above only -- waiting tokens strictly ahead of
-     * this one, excluding any currently parked in their anomaly-control
-     * grace window (see class docs / handleNoShowOrMiss). Deliberately a
-     * separate query from countWaitingAhead(): that one still needs to count
-     * every waiting token, graced or not, for patient-facing "your position"
-     * displays and for the missed-vs-push-back boundary in
-     * handleNoShowOrMiss -- only the ETA estimate treats a graced token as
-     * temporarily out of the way.
+     * Counts all tokens ahead in 'waiting' OR 'reserved' (buffer) status.
+     * Tokens in the reserved buffer section still count as patients ahead for everyone below them.
      */
     private int countGenuinelyAheadForEta(TokenDto token) {
         Map<String, Object> params = new HashMap<>();
@@ -1105,9 +1182,8 @@ public class QueueManagerService {
         params.put("category", token.getCategory());
         Integer count = jdbc.queryForObject(
                 """
-                SELECT COUNT(*)::int FROM tokens WHERE status = 'waiting' AND COALESCE(priority_rank, id) < :sortKey
+                SELECT COUNT(*)::int FROM tokens WHERE status IN ('waiting', 'reserved') AND COALESCE(priority_rank, id) < :sortKey
                   AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
-                  AND NOT (is_verified IS NOT TRUE AND anomaly_control_until IS NOT NULL AND anomaly_control_until > NOW())
                 """,
                 params, Integer.class);
         return count == null ? 0 : count;
@@ -1132,8 +1208,8 @@ public class QueueManagerService {
         Lang lang = resolveLang(token.getPhone());
         String message = botMessages.headingToHospitalNotification(
                 lang, token.getName(), token.displayNumber(), token.getCategory(), hospital.getName());
-        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
-        log.info("Heading-to-hospital trigger for Token #{}. WhatsApp notification skipped.", token.displayNumber());
+        whatsAppService.sendWhatsAppMessage(token.getPhone(), message);
+        log.info("Heading-to-hospital trigger for Token #{}. WhatsApp notification sent.", token.displayNumber());
         twilioStudioCallService.triggerHeadToHospitalCall(token.getPhone(), message, lang);
     }
 
@@ -1393,26 +1469,21 @@ public class QueueManagerService {
             Map<String, Object> candidate = candidates.get(0);
             int id = (Integer) candidate.get("id");
             boolean verified = Boolean.TRUE.equals(candidate.get("is_verified"));
-            boolean wasNotified = candidate.get("notified_ready_at") != null;
-            java.time.LocalDateTime anomalyUntil = (java.time.LocalDateTime) candidate.get("anomaly_control_until");
-
-            if (wasNotified && !verified) {
-                boolean stillWithinGrace = anomalyUntil != null && anomalyUntil.isAfter(java.time.LocalDateTime.now());
-                if (stillWithinGrace) {
-                    // The one desk this method serves has nothing else it can do --
-                    // the front of the line is still legitimately allowed time to
-                    // arrive, so this claim attempt simply fails; the caller (or the
-                    // next admin/scheduler trigger) tries again later. Returning here
-                    // instead of looping is a pure efficiency fix -- looping would
-                    // just re-select this exact same unchanged row up to `guard`
-                    // times for the same outcome.
-                    return null;
-                }
+            if (!verified) {
                 TokenDto fullToken = getRaw(id);
-                if (fullToken != null) {
-                    handleNoShowOrMiss(fullToken);
+                boolean hasTimeLeft = fullToken != null
+                        && fullToken.getTargetArrivalTime() != null
+                        && fullToken.getTargetArrivalTime().isAfter(java.time.LocalDateTime.now());
+                if (hasTimeLeft) {
+                    jdbc.update("UPDATE tokens SET status = 'reserved', queue_position = NULL WHERE id = :id AND status = 'waiting'",
+                            Map.of("id", id));
+                    renumberQueuePositions(hospitalId, category);
+                    sendBufferStartedNotification(fullToken);
+                    return null;
+                } else {
+                    pushBackNoShow(id);
+                    continue; // that push-back changed the front of the line -- re-check it
                 }
-                continue; // that push-back/miss changed the front of the line -- re-check it
             }
 
             List<TokenDto> claimedRows = jdbc.query(
@@ -1428,21 +1499,9 @@ public class QueueManagerService {
     }
 
     /**
-     * Multi-counter variant of claimNextEligibleWaitingToken(). The
-     * single-counter version above is correct to block on a still-graced
-     * front-of-line token -- with exactly one desk, there's nothing else it
-     * could usefully do. With N counters genuinely running in parallel,
-     * though, that same "wait for the front" rule would freeze every counter
-     * over one patient's commute, even while other counters are free and
-     * other, fully eligible patients are waiting right behind them. This
-     * version scans the whole department's waiting list in one query instead
-     * of re-querying LIMIT 1, and -- unlike the single-counter version --
-     * actually skips PAST a still-graced token to try the next candidate,
-     * without ever touching it: it's left exactly where it is, still first
-     * in line, simply not eligible to be the answer to *this* particular
-     * "which counter's about to free up" question. A token whose grace has
-     * actually expired is still resolved (pushed back / marked missed)
-     * exactly as the single-counter version does.
+     * Multi-counter variant of claimNextEligibleWaitingToken().
+     * If an unverified patient reaches the top, they enter the buffer period if arrival time is still available,
+     * allowing the counter to claim the next eligible verified candidate in this same pass.
      */
     @Transactional(rollbackFor = Exception.class)
     public TokenDto claimNextEligibleWaitingTokenForCounter(Integer hospitalId, String category) {
@@ -1466,20 +1525,24 @@ public class QueueManagerService {
             for (Map<String, Object> candidate : candidates) {
                 int id = (Integer) candidate.get("id");
                 boolean verified = Boolean.TRUE.equals(candidate.get("is_verified"));
-                boolean wasNotified = candidate.get("notified_ready_at") != null;
-                java.time.LocalDateTime anomalyUntil = (java.time.LocalDateTime) candidate.get("anomaly_control_until");
 
-                if (wasNotified && !verified) {
-                    boolean stillWithinGrace = anomalyUntil != null && anomalyUntil.isAfter(java.time.LocalDateTime.now());
-                    if (stillWithinGrace) {
-                        continue; // leave them exactly where they are -- try the next candidate in this same pass instead
-                    }
+                if (!verified) {
                     TokenDto fullToken = getRaw(id);
-                    if (fullToken != null) {
-                        handleNoShowOrMiss(fullToken);
+                    boolean hasTimeLeft = fullToken != null
+                            && fullToken.getTargetArrivalTime() != null
+                            && fullToken.getTargetArrivalTime().isAfter(java.time.LocalDateTime.now());
+                    if (hasTimeLeft) {
+                        jdbc.update("UPDATE tokens SET status = 'reserved', queue_position = NULL WHERE id = :id AND status = 'waiting'",
+                                Map.of("id", id));
+                        renumberQueuePositions(hospitalId, category);
+                        sendBufferStartedNotification(fullToken);
+                        rankingChanged = true;
+                        break; // buffer status changed ranks -- rescan from clean ordering so next verified candidate is claimed
+                    } else {
+                        pushBackNoShow(id);
+                        rankingChanged = true;
+                        break;
                     }
-                    rankingChanged = true;
-                    break; // ranks shifted underneath this pass -- rescan from a clean ordering
                 }
 
                 List<TokenDto> claimedRows = jdbc.query(
@@ -1499,10 +1562,50 @@ public class QueueManagerService {
     }
 
 
+    @Transactional(rollbackFor = Exception.class)
     public TokenDto verifyTokenByAdmin(int id) {
         TokenDto existing = getRaw(id);
         if (existing == null) {
             return null;
+        }
+
+        HospitalDto hospital = existing.getHospitalId() != null ? hospitalService.getById(existing.getHospitalId()) : hospitalService.getOperatingHospital();
+        String hospitalName = hospital != null ? hospital.getName() : "Hospital";
+        Lang lang = resolveLang(existing.getPhone());
+
+        if ("reserved".equals(existing.getStatus())) {
+            Map<String, Object> scope = new HashMap<>();
+            scope.put("hospitalId", existing.getHospitalId());
+            scope.put("category", existing.getCategory());
+            scope.put("id", id);
+            jdbc.update(
+                    """
+                    UPDATE tokens SET queue_position = queue_position + 1, priority_rank = priority_rank + 1
+                    WHERE status = 'waiting' AND id != :id
+                      AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                    """, scope);
+
+            jdbc.update(
+                    """
+                    UPDATE tokens
+                    SET status = 'waiting', queue_position = 1, priority_rank = 1.0, is_verified = TRUE, verified_at = NOW()
+                    WHERE id = :id
+                    """, Map.of("id", id));
+
+            renumberQueuePositions(existing.getHospitalId(), existing.getCategory());
+
+            TokenDto verified = getTokenDetails(String.valueOf(id));
+            if (verified != null && verified.getPhone() != null) {
+                try {
+                    String msg = botMessages.receptionCheckInConfirmedReserved(
+                            lang, verified.displayTokenCode(), verified.getName(), verified.getCategory(), hospitalName);
+                    whatsAppService.sendWhatsAppMessage(verified.getPhone(), msg);
+                    log.info("Sent buffer check-in confirmed WhatsApp alert to Token {}", verified.displayTokenCode());
+                } catch (Exception e) {
+                    log.warn("Failed sending buffer check-in alert: {}", e.getMessage());
+                }
+            }
+            return verified;
         }
 
         if ("frozen".equals(existing.getStatus())) {
@@ -1514,15 +1617,40 @@ public class QueueManagerService {
                     WHERE id = :id
                     """,
                     Map.of("dailyNumber", dailyNumber, "id", id));
-            log.info("Frozen Token id {} verified early at reception. Assigned sequential Token #{}", id, dailyNumber);
-        } else {
-            jdbc.update(
-                    "UPDATE tokens SET is_verified = TRUE, verified_at = NOW() WHERE id = :id",
-                    Map.of("id", id));
-            log.info("Token #{} verified at reception. WhatsApp notification skipped.", existing.displayNumber());
+            renumberQueuePositions(existing.getHospitalId(), existing.getCategory());
+            log.info("Frozen Token id {} verified at reception. Assigned sequential Token #{}", id, dailyNumber);
+            TokenDto verified = getTokenDetails(String.valueOf(id));
+            if (verified != null && verified.getPhone() != null) {
+                try {
+                    int pos = verified.getQueuePosition() != null ? verified.getQueuePosition() : (verified.getPosition() != null ? verified.getPosition() : 1);
+                    String msg = botMessages.receptionCheckInConfirmed(
+                            lang, verified.displayTokenCode(), verified.getName(), pos, verified.getCategory(), hospitalName);
+                    whatsAppService.sendWhatsAppMessage(verified.getPhone(), msg);
+                    log.info("Sent frozen check-in confirmed WhatsApp alert to Token {}", verified.displayTokenCode());
+                } catch (Exception e) {
+                    log.warn("Failed sending frozen check-in alert: {}", e.getMessage());
+                }
+            }
+            return verified;
         }
 
-        return getTokenDetails(String.valueOf(id));
+        jdbc.update(
+                "UPDATE tokens SET is_verified = TRUE, verified_at = NOW() WHERE id = :id",
+                Map.of("id", id));
+        log.info("Token #{} verified at reception.", existing.displayNumber());
+        TokenDto verified = getTokenDetails(String.valueOf(id));
+        if (verified != null && verified.getPhone() != null) {
+            try {
+                int pos = verified.getQueuePosition() != null ? verified.getQueuePosition() : (verified.getPosition() != null ? verified.getPosition() : 1);
+                String msg = botMessages.receptionCheckInConfirmed(
+                        lang, verified.displayTokenCode(), verified.getName(), pos, verified.getCategory(), hospitalName);
+                whatsAppService.sendWhatsAppMessage(verified.getPhone(), msg);
+                log.info("Sent check-in confirmed WhatsApp alert to Token {}", verified.displayTokenCode());
+            } catch (Exception e) {
+                log.warn("Failed sending check-in alert: {}", e.getMessage());
+            }
+        }
+        return verified;
     }
 
     // -----------------------------------------------------------------
@@ -1716,11 +1844,32 @@ public class QueueManagerService {
             throw new IllegalStateException("Only a waiting token can be processed.");
         }
 
-        // Exponential backoff removed to preserve strict sequential offline token numbering.
-        // Direct transition to missed status so physical queue remains strictly sequential 1, 2, 3...
-        updateTokenStatus(String.valueOf(tokenId), "missed");
-        log.info("Token #{} marked as missed on no-show. Sequential numbering preserved.", token.displayNumber());
-        return getTokenDetails(String.valueOf(tokenId));
+        int noShowCount = token.getNoShowCount() != null ? token.getNoShowCount() : 0;
+        int skip = 1 << Math.min(noShowCount, 20); // 1, 2, 4, 8, 16...
+        int currentPosition = countWaitingAhead(token) + 1;
+        int targetPosition = currentPosition + skip;
+
+        jdbc.update("UPDATE tokens SET no_show_count = :count, notified_ready_at = NULL, anomaly_control_until = NULL WHERE id = :id",
+                Map.of("count", noShowCount + 1, "id", tokenId));
+
+        movePatientToPosition(tokenId, targetPosition);
+        renumberQueuePositions(token.getHospitalId(), token.getCategory());
+        TokenDto moved = getTokenDetails(String.valueOf(tokenId));
+
+        if (moved != null && moved.getPhone() != null) {
+            try {
+                Lang lang = resolveLang(moved.getPhone());
+                int newPos = moved.getQueuePosition() != null ? moved.getQueuePosition() : (moved.getPosition() != null ? moved.getPosition() : targetPosition);
+                int ahead = Math.max(0, newPos - 1);
+                String msg = botMessages.exponentialDemotionNotification(
+                        lang, moved.displayTokenCode(), moved.getName(), skip, newPos, ahead, moved.getCategory());
+                whatsAppService.sendWhatsAppMessage(moved.getPhone(), msg);
+                log.info("Sent exponential demotion alert via WhatsApp to patient Token {}", moved.displayTokenCode());
+            } catch (Exception e) {
+                log.warn("Failed sending exponential demotion WhatsApp alert: {}", e.getMessage());
+            }
+        }
+        return moved;
     }
 
     /** Every *other* waiting token in this token's own (hospital, category) department, in queue order. */
@@ -1738,8 +1887,8 @@ public class QueueManagerService {
                 """, scopeParams, Double.class);
     }
 
-    /** Resets a department's waiting queue back to plain integer ranks (1, 2, 3, ...) in its current order. */
-    private void renumberQueue(Integer hospitalId, String category) {
+    /** Resets a department's waiting queue back to plain integer ranks and queue positions (1, 2, 3, ...) in its current order. */
+    public void renumberQueuePositions(Integer hospitalId, String category) {
         Map<String, Object> scopeParams = new HashMap<>();
         scopeParams.put("hospitalId", hospitalId);
         scopeParams.put("category", category);
@@ -1750,8 +1899,59 @@ public class QueueManagerService {
                 ORDER BY COALESCE(priority_rank, id) ASC
                 """, scopeParams, Integer.class);
         for (int i = 0; i < orderedIds.size(); i++) {
-            jdbc.update("UPDATE tokens SET priority_rank = :rank WHERE id = :id",
-                    Map.of("rank", (double) (i + 1), "id", orderedIds.get(i)));
+            jdbc.update("UPDATE tokens SET priority_rank = :rank, queue_position = :pos WHERE id = :id",
+                    Map.of("rank", (double) (i + 1), "pos", (i + 1), "id", orderedIds.get(i)));
+        }
+    }
+
+    private void renumberQueue(Integer hospitalId, String category) {
+        renumberQueuePositions(hospitalId, category);
+    }
+
+    private void sendFrozenBookedNotification(TokenDto token, HospitalDto hospital, Integer travelMinutes, java.time.LocalDateTime targetArrival) {
+        if (token == null || token.getPhone() == null) return;
+        try {
+            Lang lang = resolveLang(token.getPhone());
+            int mins = travelMinutes != null ? travelMinutes : (token.getSelectedTravelMinutes() != null ? token.getSelectedTravelMinutes() : 30);
+            String timeStr = targetArrival != null ? targetArrival.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a")) : "Soon";
+            String msg = botMessages.frozenTokenBookedNotification(lang, token.getName(), token.getCategory(), hospital.getName(), mins, timeStr);
+            whatsAppService.sendWhatsAppMessage(token.getPhone(), msg);
+            log.info("Sent frozen token booking confirmation via WhatsApp to patient {}", token.getPhone());
+        } catch (Exception e) {
+            log.warn("Failed sending frozen token booking notification: {}", e.getMessage());
+        }
+    }
+
+    private void sendTokenUnfrozenNotification(TokenDto token) {
+        if (token == null || token.getPhone() == null) return;
+        try {
+            Lang lang = resolveLang(token.getPhone());
+            HospitalDto hospital = token.getHospitalId() != null ? hospitalService.getById(token.getHospitalId()) : hospitalService.getOperatingHospital();
+            String hospName = hospital != null ? hospital.getName() : "Hospital";
+            int pos = token.getQueuePosition() != null ? token.getQueuePosition() : (token.getPosition() != null ? token.getPosition() : 1);
+            String msg = botMessages.tokenUnfrozenActiveNotification(lang, token.displayTokenCode(), token.getName(), pos, token.getCategory(), hospName);
+            whatsAppService.sendWhatsAppMessage(token.getPhone(), msg);
+            log.info("Sent token unfrozen activation via WhatsApp to patient {}", token.getPhone());
+        } catch (Exception e) {
+            log.warn("Failed sending token unfrozen notification: {}", e.getMessage());
+        }
+    }
+
+    private void sendBufferStartedNotification(TokenDto token) {
+        if (token == null || token.getPhone() == null) return;
+        try {
+            Lang lang = resolveLang(token.getPhone());
+            HospitalDto hospital = token.getHospitalId() != null ? hospitalService.getById(token.getHospitalId()) : hospitalService.getOperatingHospital();
+            String hospName = hospital != null ? hospital.getName() : "Hospital";
+            int bufferMins = 5;
+            if (token.getTargetArrivalTime() != null && token.getTargetArrivalTime().isAfter(java.time.LocalDateTime.now())) {
+                bufferMins = (int) Math.max(1, java.time.Duration.between(java.time.LocalDateTime.now(), token.getTargetArrivalTime()).toMinutes());
+            }
+            String msg = botMessages.bufferPeriodStartedNotification(lang, token.displayTokenCode(), token.getName(), bufferMins, token.getCategory(), hospName);
+            whatsAppService.sendWhatsAppMessage(token.getPhone(), msg);
+            log.info("Sent buffer period started notification to Token {}", token.displayTokenCode());
+        } catch (Exception e) {
+            log.warn("Failed sending buffer period started notification: {}", e.getMessage());
         }
     }
 }

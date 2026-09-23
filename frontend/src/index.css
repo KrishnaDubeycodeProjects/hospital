@@ -2140,36 +2140,38 @@ a:hover {
 
 /* Card Internal Layout */
 .arogyaflow-card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
   transition: transform 0.2s ease;
 }
 
 .arogyaflow-card:hover .arogyaflow-card-icon {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
 .arogyaflow-card-content {
-  margin-left: 14px;
+  margin-left: 15px;
   flex: 1;
   padding-right: 8px;
 }
 
 .arogyaflow-card-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1e293b;
-  letter-spacing: -0.01em;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.015em;
 }
 
 .arogyaflow-card-subtitle {
-  font-size: 13px;
-  color: #64748b;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #475569;
   margin-top: 3px;
   line-height: 1.35;
 }
@@ -2312,28 +2314,28 @@ a:hover {
   justify-content: space-between;
   padding: 14px 18px;
   background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 14px;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
   text-align: left;
   transition: all 0.15s ease;
 }
 
 .arogyaflow-service-selector-btn:hover {
-  border-color: #cbd5e1;
+  border-color: #94a3b8;
 }
 
 .arogyaflow-service-selector-text {
-  font-size: 15.5px;
-  color: #64748b;
-  font-weight: 400;
-  letter-spacing: normal;
+  font-size: 16px;
+  color: #475569;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .arogyaflow-service-selector-text.selected {
-  color: #0f172a;
-  font-weight: 600;
+  color: #004D40;
+  font-weight: 800;
 }
 
 .arogyaflow-chevron-icon {

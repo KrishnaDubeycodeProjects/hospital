@@ -97,17 +97,15 @@ public class MapMyIndiaRoutingService {
 
         double distanceKm = distanceMeters / 1000.0;
         double baseMinutes = durationSeconds / 60.0;
-        int minMinutes = Math.max(1, (int) Math.round(baseMinutes * 0.90));
-        int maxMinutes = Math.max(minMinutes + 1, (int) Math.round(baseMinutes * 1.50));
+        int exactMinutes = Math.max(1, (int) Math.round(baseMinutes));
 
-        return new TravelRangeDto(distanceKm, baseMinutes, minMinutes, maxMinutes, true);
+        return new TravelRangeDto(distanceKm, baseMinutes, exactMinutes, exactMinutes, true);
     }
 
     private TravelRangeDto fallback(double hospitalLat, double hospitalLon, double patientLat, double patientLon) {
         double distanceKm = geoDistanceService.distanceKm(hospitalLat, hospitalLon, patientLat, patientLon);
         double baseMinutes = geoDistanceService.estimatedTravelMinutes(distanceKm);
-        int minMinutes = Math.max(1, (int) Math.round(baseMinutes * 0.90));
-        int maxMinutes = Math.max(minMinutes + 1, (int) Math.round(baseMinutes * 1.50));
-        return new TravelRangeDto(distanceKm, baseMinutes, minMinutes, maxMinutes, false);
+        int exactMinutes = Math.max(1, (int) Math.round(baseMinutes));
+        return new TravelRangeDto(distanceKm, baseMinutes, exactMinutes, exactMinutes, false);
     }
 }

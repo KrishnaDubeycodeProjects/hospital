@@ -7,3 +7,8 @@ target/
 .DS_Store
 .env
 HELP.md
+node_modules/
+.expo/
+dist/
+build/
+storage/documents/

@@ -244,6 +244,27 @@ public class QueueController {
         return ResponseEntity.ok(ok(queueManagerService.getAnomalyControlQueue(hospitalId, category)));
     }
 
+    /** Reserved buffer queue: patients en route with active travel buffer time. */
+    @GetMapping("/reserved")
+    public ResponseEntity<Map<String, Object>> reservedQueue(@RequestParam(required = false) Integer hospitalId,
+                                                             @RequestParam(required = false) String category) {
+        return ResponseEntity.ok(ok(queueManagerService.getReservedQueue(hospitalId, category)));
+    }
+
+    /** Manually releases/unfreezes a frozen token into the main waiting queue. */
+    @PostMapping("/unfreeze/{id}")
+    public ResponseEntity<Map<String, Object>> unfreezeToken(@PathVariable int id) {
+        try {
+            TokenDto token = queueManagerService.manualUnfreezeToken(id);
+            if (token == null) {
+                return ResponseEntity.status(404).body(msg("Token not found or not in frozen state."));
+            }
+            return ResponseEntity.ok(ok(token));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
     // ---- Missed queue: admin search / requeue-to-front / reject ----
 
     @GetMapping("/missed")

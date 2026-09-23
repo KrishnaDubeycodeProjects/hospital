@@ -42,9 +42,9 @@ class MapMyIndiaRoutingServiceTest {
         assertNotNull(result);
         assertEquals(5.0, result.distanceKm());
         assertEquals(10.0, result.baseMinutes());
-        // -10% of 10 = 9, +50% of 10 = 15
-        assertEquals(9, result.minMinutes());
-        assertEquals(15, result.maxMinutes());
+        // Clean routing minutes (exact, no -10% / +50% dragging range distortion)
+        assertEquals(10, result.minMinutes());
+        assertEquals(10, result.maxMinutes());
         assertFalse(result.fromMappls());
         verifyNoInteractions(restTemplate);
     }
@@ -70,9 +70,9 @@ class MapMyIndiaRoutingServiceTest {
         assertNotNull(result);
         assertEquals(8.0, result.distanceKm());
         assertEquals(20.0, result.baseMinutes());
-        // -10% of 20 = 18, +50% of 20 = 30
-        assertEquals(18, result.minMinutes());
-        assertEquals(30, result.maxMinutes());
+        // Clean routing minutes (exact, no -10% / +50% dragging range distortion)
+        assertEquals(20, result.minMinutes());
+        assertEquals(20, result.maxMinutes());
         assertTrue(result.fromMappls());
     }
 
@@ -91,9 +91,9 @@ class MapMyIndiaRoutingServiceTest {
         assertNotNull(result);
         assertEquals(2.0, result.distanceKm());
         assertEquals(4.0, result.baseMinutes());
-        // -10% of 4 = 3.6 -> 4, +50% of 4 = 6
+        // Clean routing minutes (exact, no -10% / +50% dragging range distortion)
         assertEquals(4, result.minMinutes());
-        assertEquals(6, result.maxMinutes());
+        assertEquals(4, result.maxMinutes());
         assertFalse(result.fromMappls());
     }
 }
