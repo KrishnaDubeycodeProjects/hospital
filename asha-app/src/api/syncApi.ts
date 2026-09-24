@@ -1,7 +1,22 @@
 import { OfflineStorageService } from '../storage/OfflineStorageService';
 import { OutboxItem } from '../types/storage';
 
-const BACKEND_BASE_URL = 'http://localhost:8089';
+const isRunningOnFrontendDevServer =
+  typeof window !== 'undefined' &&
+  (window.location?.port === '8081' || window.location?.port === '19006');
+
+const BACKEND_BASE_URL =
+  typeof window !== 'undefined' &&
+  window.location?.origin &&
+  window.location.origin.startsWith('http') &&
+  !isRunningOnFrontendDevServer
+    ? window.location.origin
+    : 'https://decency-immovable-synopsis.ngrok-free.dev';
+
+// Required for ngrok free tier to skip the browser warning interstitial page
+const NGROK_HEADERS: Record<string, string> = {
+  'ngrok-skip-browser-warning': '1',
+};
 
 export interface SyncResult {
   success: boolean;
@@ -22,7 +37,7 @@ export class SyncApi {
       const timeoutId = setTimeout(() => controller.abort(), 2000);
       const res = await fetch(`${BACKEND_BASE_URL}/api/asha/me`, {
         method: 'GET',
-        headers: { 'X-ASHA-Phone': '9876543210' },
+        headers: { 'X-ASHA-Phone': '9876543210', ...NGROK_HEADERS },
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -78,6 +93,7 @@ export class SyncApi {
           headers: {
             'Content-Type': 'application/json',
             'X-ASHA-Phone': ashaPhone,
+            ...NGROK_HEADERS,
           },
           body: JSON.stringify({
             families,
@@ -99,7 +115,7 @@ export class SyncApi {
         const downloadRes = await fetch(
           `${BACKEND_BASE_URL}/api/sync/download?since=1970-01-01T00:00:00Z`,
           {
-            headers: { 'X-ASHA-Phone': ashaPhone },
+            headers: { 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS },
           }
         );
 
@@ -171,7 +187,7 @@ export class SyncApi {
           )}`,
           {
             method: 'POST',
-            headers: { 'X-ASHA-Phone': '9876543210' },
+            headers: { 'X-ASHA-Phone': '9876543210', ...NGROK_HEADERS },
           }
         );
         if (res.ok) {
@@ -214,6 +230,7 @@ export class SyncApi {
             headers: {
               'Content-Type': 'application/json',
               'X-ASHA-Phone': '9876543210',
+              ...NGROK_HEADERS,
             },
             body: JSON.stringify({
               section: sectionFilter,

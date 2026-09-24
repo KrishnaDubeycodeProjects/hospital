@@ -1,13 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { fetchAsObjectUrl, queueApi } from '../api/client';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { fetchAsObjectUrl, queueApi, setToken as setAuthToken } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import AyushmanFooter from '../components/AyushmanFooter';
 
 export default function TokenDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const toast = useToast();
+
+  const tokenParam = searchParams.get('token');
+  useEffect(() => {
+    if (tokenParam) {
+      setAuthToken('PATIENT', tokenParam);
+    }
+  }, [tokenParam]);
 
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -99,8 +107,10 @@ export default function TokenDetail() {
   }
 
   // Database fields
-  const tokenNum = token.dailyNumber ?? token.id ?? 1;
-  const tokenCode = token.tokenCode || (token.dailyNumber != null ? `AF-${String(token.dailyNumber).padStart(2, '0')}` : `#${token.id || 1}`);
+  const deptCode = token.category ? (token.category.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()) : 'OP';
+  const num = token.dailyNumber || (token.id ? ((token.id - 1) % 99) + 1 : 1);
+  const tokenCode = token.tokenCode || token.displayTokenCode || `AF-${deptCode}${String(num).padStart(2, '0')}`;
+  const tokenNum = token.dailyNumber ?? num;
   const aheadCount = token.status === 'serving' ? 0 : (token.peopleAhead ?? (token.queuePosition != null ? Math.max(0, token.queuePosition - 1) : 0));
   const hospitalName = token.hospitalName || 'Aastha Hospital';
   const departmentName = token.category || 'Cardiology';

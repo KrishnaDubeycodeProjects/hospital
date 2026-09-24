@@ -57,9 +57,26 @@ export default function DoctorProfile() {
               <code>{me.id}</code> — share this with hospital reception so they can assign you to a counter.
             </dd>
           </div>
-          <div className="detail-row">
-            <dt>Phone</dt>
-            <dd>{me.phone}</dd>
+          <div className="detail-row" style={{ alignItems: 'center' }}>
+            <dt>Doctor Phone</dt>
+            <dd>
+              <span
+                style={{
+                  fontSize: '14.5px',
+                  fontWeight: '700',
+                  color: '#0f172a',
+                  backgroundColor: '#f1f5f9',
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  display: 'inline-block',
+                  letterSpacing: '0.03em',
+                  fontFamily: 'monospace',
+                }}
+              >
+                📞 {me.phone}
+              </span>
+            </dd>
           </div>
           <div className="detail-row">
             <dt>Hospital</dt>

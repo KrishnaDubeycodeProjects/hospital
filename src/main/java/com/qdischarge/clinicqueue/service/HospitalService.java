@@ -122,7 +122,20 @@ public class HospitalService {
      * show 20 at a time with a "Show more"/"Load more" for the next page
      * (see QueueManagerService#searchAndOfferHospitals, HospitalController#nearby).
      */
-    public HospitalSearchPage searchHospitals(String category, String gender, double lat, double lon, int offset, int limit) {
+    public HospitalSearchPage searchHospitals(String category, String gender, Double lat, Double lon, int offset, int limit) {
+        if (lat == null || lon == null) {
+            HospitalDto operating = getOperatingHospital();
+            if (operating != null && operating.getLatitude() != null && operating.getLongitude() != null) {
+                lat = operating.getLatitude();
+                lon = operating.getLongitude();
+            } else {
+                lat = 19.2183;
+                lon = 72.9781;
+            }
+        }
+        final double finalLat = lat;
+        final double finalLon = lon;
+
         List<HospitalDto> candidates = list().stream()
                 .filter(h -> category == null || (h.getCategories() != null
                         && h.getCategories().stream().anyMatch(c -> c.equalsIgnoreCase(category))))
@@ -130,7 +143,7 @@ public class HospitalService {
                 .toList();
 
         List<HospitalMatch> ranked = candidates.stream()
-                .map(h -> new HospitalMatch(h, geoDistanceService.distanceKm(lat, lon, h.getLatitude(), h.getLongitude())))
+                .map(h -> new HospitalMatch(h, geoDistanceService.distanceKm(finalLat, finalLon, h.getLatitude(), h.getLongitude())))
                 .sorted(Comparator.comparingDouble(HospitalMatch::distanceKm))
                 .toList();
 

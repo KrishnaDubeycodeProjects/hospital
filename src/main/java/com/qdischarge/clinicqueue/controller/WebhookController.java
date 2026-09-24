@@ -195,7 +195,7 @@ public class WebhookController {
                     sendServicesMenu(fromPhone, lang);
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
-                String regUrl = buildAuthWebviewUrl("/wa/register.html", fromPhone, Map.of());
+                String regUrl = buildAuthWebviewUrl("/book", fromPhone, Map.of());
                 whatsAppService.sendUrlButtonMessage(fromPhone, "📝 Patient Registration",
                         botMessages.unregisteredPrompt(lang, appProperties.getClinicName()),
                         "📝 Register Now", regUrl, appProperties.getClinicName());
@@ -252,7 +252,7 @@ public class WebhookController {
                 }
                 queueManagerService.captureCategory(activeToken.getId(), cat);
                 queueManagerService.setSessionStep(activeToken.getId(), "awaiting_hospital_selection");
-                String hospUrl = buildAuthWebviewUrl("/wa/hospitals.html", fromPhone, Map.of("category", cat));
+                String hospUrl = buildAuthWebviewUrl("/find-hospital", fromPhone, Map.of("category", cat));
                 whatsAppService.sendUrlButtonMessage(fromPhone, "🏥 Choose Hospital",
                         "Department chosen: *" + cat + "*. Tap below to view and select from verified nearby hospitals with live OPD status:",
                         "🏥 Select Hospital", hospUrl, appProperties.getClinicName());
@@ -331,7 +331,7 @@ public class WebhookController {
                             waSessionService.setStage(fromPhone, "in_records_member_select_upload");
                             sendRecordsMemberSelectionList(fromPhone, lang, members, "upload");
                         } else {
-                            String regUrl = buildAuthWebviewUrl("/wa/register.html", fromPhone, Map.of());
+                            String regUrl = buildAuthWebviewUrl("/book", fromPhone, Map.of());
                             whatsAppService.sendUrlButtonMessage(fromPhone, "📝 Patient Registration",
                                     botMessages.unregisteredPrompt(lang, appProperties.getClinicName()),
                                     "📝 Register Now", regUrl, appProperties.getClinicName());
@@ -384,7 +384,7 @@ public class WebhookController {
                         case MR -> "✅  *प्रिस्क्रिप्शन Health Vault मध्ये जतन केले!*\n\n📄  *" + defaultLabel + "*\n📅  " + todayStr + "\n\nतुमच्या पुढील ओपीडी तपासणी दरम्यान डॉक्टर हे पाहू शकतील.";
                     };
                     whatsAppService.sendWhatsAppMessage(fromPhone, savedMsg);
-                    String docUrl = buildAuthWebviewUrl("/wa/documents.html", fromPhone, Map.of());
+                    String docUrl = buildAuthWebviewUrl("/records-select", fromPhone, Map.of());
                     whatsAppService.sendUrlButtonMessage(fromPhone, switch(lang){case EN->"💊 Health Vault";case HI->"💊 हेल्थ वॉल्ट";case MR->"💊 Health Vault";},
                             switch(lang){case EN->"View all your saved prescriptions & reports:";case HI->"अपने सभी सहेजे गए पर्चे व रिपोर्ट देखें:";case MR->"सर्व जतन केलेले प्रिस्क्रिप्शन व रिपोर्ट पहा:";},
                             switch(lang){case EN->"💊 Open Health Vault";case HI->"💊 वॉल्ट खोलें";case MR->"💊 Vault उघडा";}, docUrl, appProperties.getClinicName());
@@ -401,7 +401,7 @@ public class WebhookController {
             if (buttonId != null && buttonId.startsWith("fam_manage_")) {
                 String sub = buttonId.substring("fam_manage_".length());
                 if ("new".equalsIgnoreCase(sub)) {
-                    String regUrl = buildAuthWebviewUrl("/wa/family.html", fromPhone, Map.of("mode", "add"));
+                    String regUrl = buildAuthWebviewUrl("/patient/family", fromPhone, Map.of("mode", "add"));
                     whatsAppService.sendUrlButtonMessage(fromPhone, "➕ Add Family Member",
                             "Tap below to add a new family member with Ayushman (ABHA) details:",
                             "➕ Add Member", regUrl, appProperties.getClinicName());
@@ -436,7 +436,7 @@ public class WebhookController {
 
             if (buttonId != null && buttonId.startsWith("fam_records_")) {
                 Integer memberId = parseInt(buttonId.substring("fam_records_".length()));
-                String docUrl = buildAuthWebviewUrl("/wa/documents.html", fromPhone, Map.of("memberId", String.valueOf(memberId)));
+                String docUrl = buildAuthWebviewUrl("/records-select", fromPhone, Map.of("memberId", String.valueOf(memberId)));
                 whatsAppService.sendUrlButtonMessage(fromPhone, "💊 Health Records",
                         "Tap below to view medical documents & prescriptions for this member:",
                         "💊 View Records", docUrl, appProperties.getClinicName());
@@ -691,6 +691,10 @@ public class WebhookController {
             }
 
             if (activeToken != null && "awaiting_hospital_selection".equals(activeToken.getSessionStep())) {
+                if (activeToken.getPatientLat() == null || activeToken.getPatientLon() == null) {
+                    sendLocationPrompt(fromPhone, lang, activeToken.getCategory());
+                    return ResponseEntity.ok("EVENT_RECEIVED");
+                }
                 int offset = Math.max(0, (activeToken.getSearchOffset() != null ? activeToken.getSearchOffset() : QueueManagerService.HOSPITAL_PAGE_SIZE) - QueueManagerService.HOSPITAL_PAGE_SIZE);
                 HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
                         activeToken.getCategory(), activeToken.getGender(), activeToken.getPatientLat(), activeToken.getPatientLon(), offset, QueueManagerService.HOSPITAL_PAGE_SIZE);
@@ -793,7 +797,7 @@ public class WebhookController {
                     case MR -> "✅  *कागदपत्र जतन केले!*\n\n📄  *" + label + "*\n📅  " + java.time.LocalDate.now() + "\n\nतुमचे कागदपत्र Health Vault मध्ये आहे.";
                 };
                 whatsAppService.sendWhatsAppMessage(fromPhone, savedMsg);
-                String docUrl = buildAuthWebviewUrl("/wa/documents.html", fromPhone, Map.of());
+                String docUrl = buildAuthWebviewUrl("/records-select", fromPhone, Map.of());
                 whatsAppService.sendUrlButtonMessage(fromPhone, switch(lang){case EN->"💊 Health Vault";case HI->"💊 हेल्थ वॉल्ट";case MR->"💊 Health Vault";},
                         switch(lang){case EN->"View all your saved medical documents:";case HI->"सभी सहेजे गए दस्तावेज़ देखें:";case MR->"सर्व जतन केलेले कागदपत्र पहा:";},
                         switch(lang){case EN->"💊 Open Vault";case HI->"💊 वॉल्ट खोलें";case MR->"💊 Vault उघडा";}, docUrl, appProperties.getClinicName());
@@ -822,7 +826,7 @@ public class WebhookController {
 
             if (buttonId != null && buttonId.startsWith("rec_view_member_")) {
                 Integer memberId = parseInt(buttonId.substring("rec_view_member_".length()));
-                String docUrl = buildAuthWebviewUrl("/wa/documents.html", fromPhone, Map.of("memberId", memberId != null ? String.valueOf(memberId) : ""));
+                String docUrl = buildAuthWebviewUrl("/records-select", fromPhone, Map.of("memberId", memberId != null ? String.valueOf(memberId) : ""));
                 whatsAppService.sendUrlButtonMessage(fromPhone, switch(lang){case EN->"💊 Health Records";case HI->"💊 स्वास्थ्य रिकॉर्ड";case MR->"💊 आरोग्य नोंदी";},
                         switch(lang){case EN->"Tap to view medical documents:";case HI->"मेडिकल दस्तावेज़ देखने के लिए टैप करें:";case MR->"वैद्यकीय कागदपत्रे पाहण्यासाठी टॅप करा:";},
                         switch(lang){case EN->"💊 View Records";case HI->"💊 देखें";case MR->"💊 पहा";}, docUrl, appProperties.getClinicName());
@@ -890,6 +894,27 @@ public class WebhookController {
             }
             if (intent == Intent.REFERRALS) {
                 handleReferralsService(fromPhone, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+            if (intent == Intent.WEB_PORTAL || "srv_web_portal".equals(buttonId)) {
+                String portalUrl = appProperties.getFrontendUrl();
+                String title = switch(lang) {
+                    case EN -> "🌐 AarogyaFlow Portal";
+                    case HI -> "🌐 आरोग्यफ्लो पोर्टल";
+                    case MR -> "🌐 आरोग्यफ्लो पोर्टल";
+                };
+                String portalBody = switch(lang) {
+                    case EN -> "Access the AarogyaFlow online portal for health records, live queue tracking, and doctor consultations:";
+                    case HI -> "स्वास्थ्य रिकॉर्ड, लाइव कतार ट्रैकिंग और ऑनलाइन सेवाओं के लिए आरोग्यफ्लो वेब पोर्टल पर जाएं:";
+                    case MR -> "आरोग्य नोंदी, थेट रांग ट्रॅकिंग आणि ऑनलाइन सेवांसाठी आरोग्यफ्लो वेब पोर्टलवर जा:";
+                };
+                String btn = switch(lang) {
+                    case EN -> "🌐 Open Portal";
+                    case HI -> "🌐 पोर्टल खोलें";
+                    case MR -> "🌐 पोर्टल उघडा";
+                };
+                whatsAppService.sendUrlButtonMessage(fromPhone, title, portalBody, btn, portalUrl, appProperties.getClinicName());
+                waSessionService.setStage(fromPhone, "ready");
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
             if (intent == Intent.CHANGE_LANGUAGE) {
@@ -986,7 +1011,7 @@ public class WebhookController {
         rows.add(new WaListRow("fam_manage_new", addTitle, switch(lang) { case EN -> "Register a new family member"; case HI -> "नए परिवार सदस्य को पंजीकृत करें"; case MR -> "नवीन कुटुंब सदस्य नोंदवा"; }));
         String header = switch(lang) { case EN -> "👨‍👩‍👧 FAMILY & ABHA"; case HI -> "👨‍👩‍👧 परिवार और आभा"; case MR -> "👨‍👩‍👧 कुटुंब आणि आभा"; };
         String body = switch(lang) { case EN -> "Your linked family members. Select to manage ABHA or book appointment:"; case HI -> "आपके परिवार के सदस्य। ABHA प्रबंधन या अपॉइंटमेंट के लिए चुनें:"; case MR -> "तुमचे कुटुंब सदस्य. ABHA व्यवस्थापन किंवा अपॉइंटमेंटसाठी निवडा:"; };
-        String btn = switch(lang) { case EN -> "👨‍👩‍👧 Manage Family"; case HI -> "👨‍👩‍👧 परिवार प्रबंधन"; case MR -> "👨‍👩‍👧 कुटुंब व्यवस्थापन"; };
+        String btn = switch(lang) { case EN -> "👥 Manage Family"; case HI -> "👥 परिवार प्रबंधन"; case MR -> "👥 कुटुंब व्यवस्थापन"; };
         String section = switch(lang) { case EN -> "Your Family"; case HI -> "आपका परिवार"; case MR -> "तुमचे कुटुंब"; };
         whatsAppService.sendListMessage(phone, header, body, List.of(new WaListSection(section, rows)), appProperties.getClinicName(), btn);
     }
@@ -1004,7 +1029,7 @@ public class WebhookController {
     }
     
     private void handleReferralsService(String phone, Lang lang) {
-        String refUrl = buildAuthWebviewUrl("/wa/referrals.html", phone, Map.of());
+        String refUrl = buildAuthWebviewUrl("/patient/records", phone, Map.of("tab", "referrals"));
         String title = switch(lang) { case EN -> "📋 REFERRAL FOLLOW-UPS"; case HI -> "📋 रेफरल फॉलो-अप"; case MR -> "📋 रेफरल फॉलो-अप"; };
         String body = switch(lang) { case EN -> "View your active and past referrals from doctors. Tap below to open your referral dashboard:"; case HI -> "डॉक्टरों के रेफरल देखें:"; case MR -> "डॉक्टरांचे रेफरल पहा:"; };
         String btn = switch(lang) { case EN -> "📋 Open Referrals"; case HI -> "📋 रेफरल देखें"; case MR -> "📋 रेफरल पहा"; };
@@ -1167,10 +1192,15 @@ public class WebhookController {
             case "awaiting_department_selection" -> sendDepartmentSelectionList(phone, lang, token, token.getName());
             case "awaiting_location" -> sendLocationPrompt(phone, lang, token.getCategory());
             case "awaiting_hospital_selection" -> {
-                HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
-                        token.getCategory(), token.getGender(), token.getPatientLat(), token.getPatientLon(), 0, QueueManagerService.HOSPITAL_PAGE_SIZE);
-                if (page != null && !page.results().isEmpty()) sendHospitalResultsList(phone, token, page, lang);
-                else sendLocationPrompt(phone, lang, token.getCategory());
+                if (token.getPatientLat() != null && token.getPatientLon() != null) {
+                    HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
+                            token.getCategory(), token.getGender(), token.getPatientLat(), token.getPatientLon(), 0, QueueManagerService.HOSPITAL_PAGE_SIZE);
+                    if (page != null && !page.results().isEmpty()) {
+                        sendHospitalResultsList(phone, token, page, lang);
+                        return;
+                    }
+                }
+                sendLocationPrompt(phone, lang, token.getCategory());
             }
             case "awaiting_confirmation" -> sendConfirmationCard(phone, token, lang);
             case "awaiting_new_member_name" -> whatsAppService.sendWhatsAppMessage(phone, botMessages.newMemberNamePrompt(lang));
@@ -1205,7 +1235,7 @@ public class WebhookController {
         String msg = botMessages.locationPrompt(lang);
         whatsAppService.sendWhatsAppMessage(phone, msg);
 
-        String webviewUrl = buildAuthWebviewUrl("/wa/hospitals.html", phone, Map.of("category", category != null ? category : "General OPD"));
+        String webviewUrl = buildAuthWebviewUrl("/find-hospital", phone, Map.of("category", category != null ? category : "General OPD"));
         whatsAppService.sendUrlButtonMessage(phone, botMessages.findHospitalLinkButtonText(lang),
                 botMessages.findHospitalLinkPrompt(lang), "🌐 Search Here", webviewUrl, appProperties.getClinicName());
     }
@@ -1263,7 +1293,7 @@ public class WebhookController {
         String section = switch(lang) { case EN -> "Nearby Hospitals"; case HI -> "पास के अस्पताल"; case MR -> "जवळची रुग्णालये"; };
         whatsAppService.sendListMessage(phone, header, body, List.of(new WaListSection(section, rows)), appProperties.getClinicName(), btn);
         
-        String webviewUrl = buildAuthWebviewUrl("/wa/hospitals.html", phone,
+        String webviewUrl = buildAuthWebviewUrl("/find-hospital", phone,
                 Map.of("category", draft.getCategory() != null ? draft.getCategory() : "General OPD",
                        "lat", draft.getPatientLat() != null ? String.valueOf(draft.getPatientLat()) : "",
                        "lon", draft.getPatientLon() != null ? String.valueOf(draft.getPatientLon()) : ""));
@@ -1343,8 +1373,8 @@ public class WebhookController {
                 peopleAhead, waitMins, status, today);
         
         String cleanPhone = phone.replaceAll("[^0-9]", "");
-        String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
-        String slipUrl = buildAuthWebviewUrl("/wa/response.html", phone, Map.of("key", cleanPhone));
+        String liveUrl = buildAuthWebviewUrl("/track", phone, Map.of("phone", cleanPhone, "tokenId", String.valueOf(token.getId())));
+        String slipUrl = buildAuthWebviewUrl("/token/" + token.getId(), phone, Map.of("phone", cleanPhone));
         
         whatsAppService.sendWhatsAppMessage(phone, card + "\n\n" + switch(lang){case EN->"📄 *Booking Slip:* "+slipUrl;case HI->"📄 *बुकिंग पर्ची:* "+slipUrl;case MR->"📄 *बुकिंग स्लिप:* "+slipUrl;});
         whatsAppService.sendUrlButtonMessage(phone,
@@ -1356,15 +1386,9 @@ public class WebhookController {
 
     private String buildBookingCard(Lang lang, String name, Integer age, String gender, String hospitalName, String category, String tokenCode, int ahead, int waitMins, String status, String today) {
         String div = "━━━━━━━━━━━━━━━━━━━━━━";
-        String genderStr = gender == null ? "" : switch(lang) {
-            case EN -> switch(gender.toUpperCase()) { case "M" -> "M"; case "F" -> "F"; default -> gender; };
-            case HI -> switch(gender.toUpperCase()) { case "M" -> "पु"; case "F" -> "म"; default -> "अ"; };
-            case MR -> switch(gender.toUpperCase()) { case "M" -> "पु"; case "F" -> "स्त्री"; default -> "इ"; };
-        };
-        String ageGender = (age != null ? age + " yrs" : "") + (genderStr.isEmpty() ? "" : " · " + genderStr);
         boolean isReserved = "reserved".equals(status);
         String statusStr = isReserved
-                ? switch(lang){case EN->"🟡 Reserved Buffer (Head to Hospital)";case HI->"🟡 बफर अवधि (अस्पताल के लिए निकलें)";case MR->"🟡 बफर कालावधी (रुग्णालयासाठी निघा)";}
+                ? switch(lang){case EN->"🟡 Reserved Buffer";case HI->"🟡 बफर अवधि";case MR->"🟡 बफर कालावधी";}
                 : switch(lang){case EN->"🔵 Waiting in Queue";case HI->"🔵 कतार में प्रतीक्षारत";case MR->"🔵 रांगेत प्रतीक्षेत";};
         
         return switch(lang) {
@@ -1373,49 +1397,34 @@ public class WebhookController {
                     div + "\n\n" +
                     "👥  *Patients Ahead:* " + ahead + " ahead of you\n" +
                     "⏳  *Status:*         " + statusStr + "\n" +
-                    "🕐  *Est. Wait:*       ~" + waitMins + (waitMins == 1 ? " min" : " mins") + "\n\n" +
-                    div + "\n" +
                     "🎟️  *Token Code:*     #" + tokenCode + "\n" +
-                    "👤  *Patient:*        " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
+                    "👤  *Patient:*        " + name + "\n" +
                     "🏥  *Hospital:*       " + hospitalName + "\n" +
                     "🩺  *Department:*     " + (category != null ? category : "General OPD") + "\n" +
                     "🗓️  *Date:*           " + today + "\n\n" +
-                    div + "\n" +
-                    (isReserved
-                        ? "🚗  *ACTION REQUIRED:* Please head to the hospital immediately! Check in at reception on arrival for priority service.\n"
-                        : "📍  _Report to the OPD Reception on arrival._\n💡  _You'll receive a call & notification when your turn approaches._");
+                    div;
             case HI -> div + "\n" +
                     "🎫  *अपॉइंटमेंट पुष्ट हुआ!*\n" +
                     div + "\n\n" +
                     "👥  *आगे मरीज़:*      " + ahead + " लोग आगे हैं\n" +
                     "⏳  *स्थिति:*          " + statusStr + "\n" +
-                    "🕐  *अनुमानित समय:*   ~" + waitMins + " मिनट\n\n" +
-                    div + "\n" +
                     "🎟️  *टोकन कोड:*       #" + tokenCode + "\n" +
-                    "👤  *मरीज़:*           " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
+                    "👤  *मरीज़:*           " + name + "\n" +
                     "🏥  *अस्पताल:*        " + hospitalName + "\n" +
                     "🩺  *विभाग:*          " + (category != null ? category : "सामान्य ओपीडी") + "\n" +
                     "🗓️  *तारीख:*          " + today + "\n\n" +
-                    div + "\n" +
-                    (isReserved
-                        ? "🚗  *तत्काल कार्रवाई:* कृपया तुरंत अस्पताल के लिए निकलें! प्राथमिकता सेवा के लिए रिसेप्शन पर चेक-इन करें।\n"
-                        : "📍  _आगमन पर ओपीडी रिसेप्शन पर रिपोर्ट करें।_\n💡  _बारी पास आने पर आपको कॉल और सूचना मिलेगी।_");
+                    div;
             case MR -> div + "\n" +
                     "🎫  *अपॉइंटमेंट निश्चित!*\n" +
                     div + "\n\n" +
                     "👥  *पुढे रुग्ण:*        " + ahead + " जण पुढे आहेत\n" +
                     "⏳  *स्थिती:*          " + statusStr + "\n" +
-                    "🕐  *अंदाजे वेळ:*      ~" + waitMins + " मिनिटे\n\n" +
-                    div + "\n" +
                     "🎟️  *टोकन कोड:*       #" + tokenCode + "\n" +
-                    "👤  *रुग्ण:*           " + name + (ageGender.isEmpty() ? "" : " (" + ageGender + ")") + "\n" +
+                    "👤  *रुग्ण:*           " + name + "\n" +
                     "🏥  *रुग्णालय:*        " + hospitalName + "\n" +
                     "🩺  *विभाग:*          " + (category != null ? category : "सामान्य ओपीडी") + "\n" +
                     "🗓️  *तारीख:*          " + today + "\n\n" +
-                    div + "\n" +
-                    (isReserved
-                        ? "🚗  *तातडीने कृती:* कृपया ताबडतोब रुग्णालयासाठी निघा! प्राधान्य सेवेसाठी रिसेप्शनवर चेक-इन करा.\n"
-                        : "📍  _आगमनावर ओपीडी रिसेप्शनला रिपोर्ट करा._\n💡  _पाळी जवळ आल्यावर तुम्हाला कॉल आणि मेसेज येईल._");
+                    div;
         };
     }
 
@@ -1436,8 +1445,8 @@ public class WebhookController {
         int estWait = peopleAhead * avgServiceTime;
         String statusBadge = botMessages.statusBadge(lang, token.getStatus());
 
-        String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, java.util.Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
-        String slipUrl = buildAuthWebviewUrl("/wa/response.html", phone, java.util.Map.of("key", cleanPhone));
+        String liveUrl = buildAuthWebviewUrl("/track", phone, java.util.Map.of("phone", cleanPhone, "tokenId", String.valueOf(token.getId())));
+        String slipUrl = buildAuthWebviewUrl("/token/" + token.getId(), phone, java.util.Map.of("phone", cleanPhone));
 
         String title = botMessages.dashboardTitle(lang, token.displayTokenCode());
         String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
@@ -1459,7 +1468,7 @@ public class WebhookController {
         int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
         int estWait = peopleAhead * avgServiceTime;
 
-        String liveUrl = buildAuthWebviewUrl("/wa/track.html", phone, java.util.Map.of("key", cleanPhone, "tokenId", String.valueOf(token.getId())));
+        String liveUrl = buildAuthWebviewUrl("/track", phone, java.util.Map.of("phone", cleanPhone, "tokenId", String.valueOf(token.getId())));
 
         String title = botMessages.statusTitle(lang);
         String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";

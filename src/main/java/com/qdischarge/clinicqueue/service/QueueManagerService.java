@@ -24,7 +24,9 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1206,10 +1208,11 @@ public class QueueManagerService {
         }
 
         Lang lang = resolveLang(token.getPhone());
+        int peopleAhead = countGenuinelyAheadForEta(token);
         String message = botMessages.headingToHospitalNotification(
-                lang, token.getName(), token.displayNumber(), token.getCategory(), hospital.getName());
+                lang, token.getName(), token.displayTokenCode(), token.getCategory(), hospital.getName(), peopleAhead);
         whatsAppService.sendWhatsAppMessage(token.getPhone(), message);
-        log.info("Heading-to-hospital trigger for Token #{}. WhatsApp notification sent.", token.displayNumber());
+        log.info("Heading-to-hospital trigger for Token #{}. WhatsApp notification sent.", token.displayTokenCode());
         twilioStudioCallService.triggerHeadToHospitalCall(token.getPhone(), message, lang);
     }
 
@@ -1220,33 +1223,24 @@ public class QueueManagerService {
     }
 
     /**
-     * Every waiting, not-yet-arrived token whose anomaly-control grace
-     * window has elapsed: mark as missed directly to preserve sequential ordering.
+     * Evaluates anomaly-control window expiry:
+     * When the anomaly-control travel grace window elapses, tokens are NOT moved to missed directly
+     * because patients may be arriving or waiting in the clinic without having scanned at reception yet.
+     * Moving them to 'missed' directly caused waiting patients to disappear before the doctor could see them.
+     * Instead, we clear the anomaly window so they remain safely in 'waiting' status in standard FIFO order.
      */
     private void evaluateAnomalyExpiry() {
-        List<Map<String, Object>> due = jdbc.queryForList(
+        jdbc.update(
                 """
-                SELECT id FROM tokens
+                UPDATE tokens
+                SET anomaly_control_until = NULL
                 WHERE status = 'waiting' AND anomaly_control_until IS NOT NULL AND anomaly_control_until <= NOW()
                   AND is_verified IS NOT TRUE
                 """, Collections.emptyMap());
-
-        for (Map<String, Object> row : due) {
-            TokenDto token = getRaw((Integer) row.get("id"));
-            if (token != null && "waiting".equals(token.getStatus())) {
-                handleNoShowOrMiss(token);
-            }
-        }
     }
 
-    /**
-     * Shared by evaluateAnomalyExpiry() above and claimNextEligibleWaitingToken's
-     * "still not verified when their turn comes up" branch:
-     * Exponential backoff removed to preserve strict sequential offline token numbering.
-     * Transitions straight to 'missed' status.
-     */
     private void handleNoShowOrMiss(TokenDto token) {
-        log.info("Token #{} did not show up on time. Marking as missed (sequential numbering preserved).", token.displayNumber());
+        log.info("Token #{} marked as missed.", token.displayNumber());
         updateTokenStatus(String.valueOf(token.getId()), "missed");
     }
 
@@ -1466,9 +1460,24 @@ public class QueueManagerService {
             if (candidates.isEmpty()) {
                 return null;
             }
+
+            Integer verifiedCount = jdbc.queryForObject(
+                    """
+                    SELECT COUNT(*)::int FROM tokens WHERE status = 'waiting' AND is_verified IS TRUE
+                      AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                    """, scopeParams, Integer.class);
+            boolean anyVerified = verifiedCount != null && verifiedCount > 0;
+
             Map<String, Object> candidate = candidates.get(0);
             int id = (Integer) candidate.get("id");
             boolean verified = Boolean.TRUE.equals(candidate.get("is_verified"));
+
+            // If everyone in the queue has not checked in:
+            // The doctor cannot increment the counter. Cancel all operations on top unverified elements.
+            if (!anyVerified) {
+                return null;
+            }
+
             if (!verified) {
                 TokenDto fullToken = getRaw(id);
                 boolean hasTimeLeft = fullToken != null
@@ -1518,6 +1527,14 @@ public class QueueManagerService {
                     """.formatted(QUEUE_ORDER),
                     scopeParams);
             if (candidates.isEmpty()) {
+                return null;
+            }
+
+            boolean anyVerified = candidates.stream().anyMatch(c -> Boolean.TRUE.equals(c.get("is_verified")));
+
+            // If everyone has not checked in in the main section / complete queue:
+            // The doctor will not be able to increment the counter. Cancel all operations for top element.
+            if (!anyVerified) {
                 return null;
             }
 
@@ -1638,6 +1655,7 @@ public class QueueManagerService {
                 "UPDATE tokens SET is_verified = TRUE, verified_at = NOW() WHERE id = :id",
                 Map.of("id", id));
         log.info("Token #{} verified at reception.", existing.displayNumber());
+        reorderQueueByCheckIn(existing.getHospitalId(), existing.getCategory());
         TokenDto verified = getTokenDetails(String.valueOf(id));
         if (verified != null && verified.getPhone() != null) {
             try {
@@ -1887,21 +1905,62 @@ public class QueueManagerService {
                 """, scopeParams, Double.class);
     }
 
-    /** Resets a department's waiting queue back to plain integer ranks and queue positions (1, 2, 3, ...) in its current order. */
-    public void renumberQueuePositions(Integer hospitalId, String category) {
+    /**
+     * Two-queue check-in algorithm:
+     * When inspecting the waiting queue:
+     * - Checked-in patients (is_verified == true) form the available list, ordered by check-in time
+     *   (verified_at ASC, so the newest checked-in patient is at the last of the available present group).
+     * - Not-yet-checked-in patients (is_verified != true) form the pending queue, maintaining their
+     *   original relative order without exponential demotions.
+     * - The combined queue places [availablePresent] + [pendingQueue].
+     * - Replaces the old queue order with the new queue order (updating priority_rank and queue_position: 1, 2, 3...).
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void reorderQueueByCheckIn(Integer hospitalId, String category) {
         Map<String, Object> scopeParams = new HashMap<>();
         scopeParams.put("hospitalId", hospitalId);
         scopeParams.put("category", category);
-        List<Integer> orderedIds = jdbc.queryForList(
+
+        List<TokenDto> currentWaiting = jdbc.query(
                 """
-                SELECT id FROM tokens WHERE status = 'waiting'
+                SELECT * FROM tokens WHERE status = 'waiting'
                   AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
                 ORDER BY COALESCE(priority_rank, id) ASC
-                """, scopeParams, Integer.class);
-        for (int i = 0; i < orderedIds.size(); i++) {
-            jdbc.update("UPDATE tokens SET priority_rank = :rank, queue_position = :pos WHERE id = :id",
-                    Map.of("rank", (double) (i + 1), "pos", (i + 1), "id", orderedIds.get(i)));
+                """, scopeParams, TOKEN_ROW_MAPPER);
+
+        if (currentWaiting == null || currentWaiting.isEmpty()) {
+            return;
         }
+
+        List<TokenDto> availablePresent = new ArrayList<>();
+        List<TokenDto> pendingQueue = new ArrayList<>();
+
+        for (TokenDto token : currentWaiting) {
+            if (Boolean.TRUE.equals(token.getIsVerified())) {
+                availablePresent.add(token);
+            } else {
+                pendingQueue.add(token);
+            }
+        }
+
+        // Available present sorted by verifiedAt: earliest check-in first, newly checked-in at the last of available present
+        availablePresent.sort(Comparator.comparing(
+                t -> t.getVerifiedAt() != null ? t.getVerifiedAt() : java.time.LocalDateTime.MIN));
+
+        // Combined: available present first, followed by pending not-yet-checked-in patients in relative order
+        List<TokenDto> newQueue = new ArrayList<>(availablePresent);
+        newQueue.addAll(pendingQueue);
+
+        for (int i = 0; i < newQueue.size(); i++) {
+            jdbc.update(
+                    "UPDATE tokens SET priority_rank = :rank, queue_position = :pos WHERE id = :id",
+                    Map.of("rank", (double) (i + 1), "pos", (i + 1), "id", newQueue.get(i).getId()));
+        }
+    }
+
+    /** Resets a department's waiting queue back to plain integer ranks and queue positions (1, 2, 3, ...) in its current order. */
+    public void renumberQueuePositions(Integer hospitalId, String category) {
+        reorderQueueByCheckIn(hospitalId, category);
     }
 
     private void renumberQueue(Integer hospitalId, String category) {

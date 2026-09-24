@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { hospitalApi } from '../api/client';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { hospitalApi, setToken } from '../api/client';
 import { isOpenNow, formatApproxDistance } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
 import AyushmanFooter from '../components/AyushmanFooter';
@@ -144,17 +144,36 @@ function mapHospitalData(raw, defaultDist, index) {
 export default function FindHospital() {
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
 
-  const [coords, setCoords] = useState(null);
+  const categoryParam = searchParams.get('category') || '';
+  const phoneParam = searchParams.get('phone') || '';
+  const tokenParam = searchParams.get('token') || '';
+  const latParam = searchParams.get('lat') ? parseFloat(searchParams.get('lat')) : null;
+  const lonParam = searchParams.get('lon') ? parseFloat(searchParams.get('lon')) : null;
+
+  useEffect(() => {
+    if (tokenParam) {
+      setToken('PATIENT', tokenParam);
+    }
+  }, [tokenParam]);
+
+  const [coords, setCoords] = useState(() => {
+    if (latParam && lonParam && !isNaN(latParam) && !isNaN(lonParam)) {
+      return { lat: latParam, lon: lonParam };
+    }
+    return null;
+  });
   const [locating, setLocating] = useState(false);
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Request GPS geolocation
-  const requestLocation = useCallback(() => {
+  const requestLocation = useCallback((force = false) => {
+    if (coords && !force) return;
     if (!navigator.geolocation) {
-      setCoords(DEFAULT_COORDS);
+      setCoords((prev) => prev || DEFAULT_COORDS);
       return;
     }
     setLocating(true);
@@ -165,12 +184,12 @@ export default function FindHospital() {
       },
       (err) => {
         setLocating(false);
-        setCoords(DEFAULT_COORDS);
+        setCoords((prev) => prev || DEFAULT_COORDS);
         console.warn('Geolocation error:', err.message);
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
-  }, []);
+  }, [coords]);
 
   useEffect(() => {
     requestLocation();
@@ -181,12 +200,17 @@ export default function FindHospital() {
     setLoading(true);
     try {
       const activeCoords = coords || DEFAULT_COORDS;
-      const res = await hospitalApi.nearby({
+      const nearbyParams = {
         lat: activeCoords.lat,
         lon: activeCoords.lon,
         offset: 0,
         limit: PAGE_SIZE,
-      });
+      };
+      if (categoryParam) {
+        nearbyParams.category = categoryParam;
+      }
+
+      const res = await hospitalApi.nearby(nearbyParams);
 
       if (res && res.results && res.results.length > 0) {
         const mapped = res.results.map((item, idx) => mapHospitalData(item, null, idx));
@@ -194,7 +218,14 @@ export default function FindHospital() {
       } else {
         // Fallback to full list
         const all = await hospitalApi.list();
-        const mapped = (all || []).map((h, idx) => {
+        let filtered = all || [];
+        if (categoryParam && categoryParam !== 'General OPD') {
+          filtered = filtered.filter(
+            (h) => h.categories && h.categories.includes(categoryParam)
+          );
+          if (filtered.length === 0) filtered = all || [];
+        }
+        const mapped = filtered.map((h, idx) => {
           // calculate fallback distance relative to default coords
           const approxDist = 8.8 + idx * 2.4;
           return mapHospitalData(h, approxDist, idx);
@@ -207,7 +238,7 @@ export default function FindHospital() {
     } finally {
       setLoading(false);
     }
-  }, [coords, toast]);
+  }, [coords, categoryParam, toast]);
 
   useEffect(() => {
     fetchHospitals();
@@ -545,9 +576,17 @@ export default function FindHospital() {
                   type="button"
                   onClick={() => {
                     const approxDist = h.distance_km != null ? Number(h.distance_km).toFixed(1) : '8.8';
-                    navigate(
-                      `/book?hospitalId=${h.id}&hospitalName=${encodeURIComponent(h.hospital_name)}&slug=${h.slug}&type=${encodeURIComponent(h.hospital_type || '')}&dist=${approxDist}&img=${encodeURIComponent(h.illustration_id || '')}`
-                    );
+                    const q = new URLSearchParams();
+                    q.set('hospitalId', h.id);
+                    q.set('hospitalName', h.hospital_name || '');
+                    if (h.slug) q.set('slug', h.slug);
+                    if (h.hospital_type) q.set('type', h.hospital_type);
+                    q.set('dist', approxDist);
+                    if (h.illustration_id) q.set('img', h.illustration_id);
+                    if (categoryParam) q.set('category', categoryParam);
+                    if (phoneParam) q.set('phone', phoneParam);
+                    if (tokenParam) q.set('token', tokenParam);
+                    navigate(`/book?${q.toString()}`);
                   }}
                   style={{
                     width: '100%',

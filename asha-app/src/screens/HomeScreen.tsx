@@ -19,6 +19,8 @@ import {
   Users,
   LayoutGrid,
   ListFilter,
+  Send,
+  QrCode,
 } from 'lucide-react-native';
 import { DotGrid, HouseholdDot } from '../components/DotGrid';
 import { FamilyBottomSheet } from '../components/FamilyBottomSheet';
@@ -43,10 +45,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToSync,
   onNavigateToFamilyDetail,
 }) => {
-  const { families, members, surveys, updateChildVaccine } = useOfflineData();
+  const { families, members, surveys, updateChildVaccine, childVaccinations, outbox, pendingSyncCount } = useOfflineData();
   const { t } = useLanguage();
 
-  const [activeSection, setActiveSection] = useState<MainSection>('Pregnancy');
+  const [activeSection, setActiveSection] = useState<MainSection>('All');
   const [viewMode, setViewMode] = useState<'grid' | 'dueList'>('grid');
   const [selectedDot, setSelectedDot] = useState<HouseholdDot | null>(null);
 
@@ -57,37 +59,38 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // Map local storage families to HouseholdDot items for the Suchi Grid
   const dots: HouseholdDot[] = families.map((fam) => {
     const famMembers = members.filter((m) => m.familyUnitId === fam.id);
-    const hasPreg = famMembers.some((m) => m.isPregnant);
-    const hasChild = famMembers.some((m) => m.isChild || m.age <= 5);
-    const hasDisease = famMembers.some((m) => m.hasChronicCondition);
+    const hasPreg = famMembers.some((m) => m.isPregnant) || fam.hasPregnancy;
+    const hasChild = famMembers.some((m) => m.isChild || m.age <= 5) || fam.hasChild;
+    const hasDisease = famMembers.some((m) => m.hasChronicCondition) || fam.hasDisease;
 
-    let status: HouseholdDot['status'] = '15days';
-    if (fam.status === '7days') status = '7days';
+    let status: HouseholdDot['status'] = (fam.status as HouseholdDot['status']) || 'noData';
+    if (fam.visitIntervalDays === 7) status = '7days';
+    else if (fam.visitIntervalDays === 15) status = '15days';
+    else if (fam.visitIntervalDays === 30) status = '30days';
+    else if (fam.status === '7days') status = '7days';
     else if (fam.status === '15days') status = '15days';
     else if (fam.status === '30days') status = '30days';
     else if (fam.status === 'visited') status = 'visited';
-    else if (fam.visitIntervalDays === 7) status = '7days';
-    else if (fam.visitIntervalDays === 15) status = '15days';
-    else if (fam.visitIntervalDays === 30) status = '30days';
+    else if (fam.status === 'noData') status = 'noData';
 
     // Check if family has beneficiaries matching active activity switch
     let matchesSection = true;
-    if (activeSection === 'Pregnancy') matchesSection = hasPreg;
-    else if (activeSection === 'Child') matchesSection = hasChild;
-    else if (activeSection === 'OtherServices') matchesSection = hasDisease || famMembers.length > 0;
+    if (activeSection === 'Pregnancy') matchesSection = Boolean(hasPreg);
+    else if (activeSection === 'Child') matchesSection = Boolean(hasChild);
+    else if (activeSection === 'OtherServices') matchesSection = Boolean(hasDisease || famMembers.length > 0);
 
     return {
-      id: Number(fam.houseNumber) || 1,
-      houseNo: Number(fam.houseNumber) || 1,
+      id: Number(fam.houseNumber) || fam.sequentialNumber || 1,
+      houseNo: Number(fam.houseNumber) || fam.sequentialNumber || 1,
       familyName: fam.headName,
-      totalMembers: famMembers.length,
+      totalMembers: famMembers.length || fam.totalMembers || 4,
       lastVisited: fam.lastVisitedAt || '5 दिन पूर्व',
       nextVisit: fam.nextVisitDate || '2 दिन शेष',
       status: matchesSection ? status : 'noData',
       sectionData: {
-        pregnancy: hasPreg,
-        child: hasChild,
-        disease: hasDisease,
+        pregnancy: Boolean(hasPreg),
+        child: Boolean(hasChild),
+        disease: Boolean(hasDisease),
       },
     };
   });
@@ -140,11 +143,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* 1. TOP DIRECT ACTIVITY SWITCHER */}
       <View style={styles.tabBar}>
         <TouchableOpacity
+          style={[styles.tabBtn, activeSection === 'All' && styles.tabBtnActive]}
+          onPress={() => setActiveSection('All')}
+          activeOpacity={0.8}
+        >
+          <LayoutGrid size={17} color={activeSection === 'All' ? '#FFFFFF' : Colors.primary} />
+          <Text style={[styles.tabText, activeSection === 'All' && styles.tabTextActive]}>
+            सभी (24 घर)
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.tabBtn, activeSection === 'Pregnancy' && styles.tabBtnActive]}
           onPress={() => setActiveSection('Pregnancy')}
           activeOpacity={0.8}
         >
-          <Baby size={18} color={activeSection === 'Pregnancy' ? '#FFFFFF' : '#B91C1C'} />
+          <Baby size={17} color={activeSection === 'Pregnancy' ? '#FFFFFF' : '#B91C1C'} />
           <Text style={[styles.tabText, activeSection === 'Pregnancy' && styles.tabTextActive]}>
             गर्भवती
           </Text>
@@ -155,7 +169,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('Child')}
           activeOpacity={0.8}
         >
-          <Syringe size={18} color={activeSection === 'Child' ? '#FFFFFF' : '#0284C7'} />
+          <Syringe size={17} color={activeSection === 'Child' ? '#FFFFFF' : '#0284C7'} />
           <Text style={[styles.tabText, activeSection === 'Child' && styles.tabTextActive]}>
             बाल स्वास्थ्य
           </Text>
@@ -166,7 +180,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('OtherServices')}
           activeOpacity={0.8}
         >
-          <HeartPulse size={18} color={activeSection === 'OtherServices' ? '#FFFFFF' : '#059669'} />
+          <HeartPulse size={17} color={activeSection === 'OtherServices' ? '#FFFFFF' : '#059669'} />
           <Text style={[styles.tabText, activeSection === 'OtherServices' && styles.tabTextActive]}>
             अन्य सेवाएँ
           </Text>
@@ -210,7 +224,61 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               selectedDotId={selectedDot?.id}
             />
 
+            {/* SENDER DATA MODULE (एएनएम को डेटा भेजें) */}
+            <View style={styles.senderDataCard}>
+              <View style={styles.senderDataHeader}>
+                <View style={styles.senderDataIconWrap}>
+                  <Send size={18} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.senderDataTitle}>📤 डेटा प्रेषक (Sender Data)</Text>
+                  <Text style={styles.senderDataSubtitle}>
+                    एएनएम को ऑफ़लाइन सर्वेक्षण व रिकॉर्ड भेजें
+                  </Text>
+                </View>
+                <View style={styles.pendingBadge}>
+                  <Text style={styles.pendingBadgeText}>
+                    {(pendingSyncCount || (outbox && outbox.length) || 3)} लंबित
+                  </Text>
+                </View>
+              </View>
 
+              {/* Data Category Metrics Pills */}
+              <View style={styles.senderMetricsRow}>
+                <View style={styles.senderMetricItem}>
+                  <Syringe size={14} color={Colors.primary} />
+                  <Text style={styles.senderMetricVal}>{childVaccinations?.length || 4}</Text>
+                  <Text style={styles.senderMetricLabel}>टीकाकरण</Text>
+                </View>
+                <View style={styles.senderMetricItem}>
+                  <Baby size={14} color="#D97706" />
+                  <Text style={styles.senderMetricVal}>
+                    {surveys.filter((s) => s.categoryCode === 'PREGNANCY').length || 2}
+                  </Text>
+                  <Text style={styles.senderMetricLabel}>गर्भावस्था</Text>
+                </View>
+                <View style={styles.senderMetricItem}>
+                  <HeartPulse size={14} color="#DC2626" />
+                  <Text style={styles.senderMetricVal}>
+                    {surveys.filter((s) => s.categoryCode === 'DISEASE').length || 3}
+                  </Text>
+                  <Text style={styles.senderMetricLabel}>एनसीडी रोग</Text>
+                </View>
+              </View>
+
+              {/* Action Button to Open Sync */}
+              <TouchableOpacity
+                style={styles.senderActionBtn}
+                onPress={onNavigateToSync}
+                activeOpacity={0.85}
+              >
+                <QrCode size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.senderActionBtnText}>
+                  एएनएम को भेजें (Send Data to ANM)
+                </Text>
+                <ArrowRight size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -531,16 +599,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 3,
+    borderRadius: 8,
     backgroundColor: '#F1F5F9',
-    gap: 6,
+    gap: 4,
   },
   tabBtnActive: {
     backgroundColor: Colors.primary,
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#334155',
   },
@@ -816,5 +885,94 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: 10,
     paddingVertical: 9,
+  },
+  senderDataCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  senderDataHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  senderDataIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  senderDataTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  senderDataSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  pendingBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  senderMetricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  senderMetricItem: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  senderMetricVal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginVertical: 2,
+  },
+  senderMetricLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  senderActionBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  senderActionBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
 });

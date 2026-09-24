@@ -1,6 +1,7 @@
 package com.qdischarge.clinicqueue.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -97,12 +98,38 @@ public class TokenDto {
     }
 
     /**
-     * Dynamic alphanumeric token code (e.g. "AF-A01", "AF-B05").
+     * Dynamic alphanumeric token code (e.g. "AF-GM01", "AF-CA05").
+     * Never returns bare numeric ID like "210".
      */
-    public String displayTokenCode() {
+    @JsonProperty("tokenCode")
+    public String getTokenCode() {
         if (tokenCode != null && !tokenCode.isBlank()) {
             return tokenCode;
         }
-        return "AF-" + String.format("%02d", displayNumber());
+        return computeDynamicTokenCode();
+    }
+
+    @JsonProperty("displayTokenCode")
+    public String displayTokenCode() {
+        return getTokenCode();
+    }
+
+    private String computeDynamicTokenCode() {
+        String deptPrefix = "AF";
+        if (category != null && !category.isBlank()) {
+            String clean = category.replaceAll("[^a-zA-Z]", " ").trim();
+            String[] parts = clean.split("\\s+");
+            if (parts.length >= 2) {
+                deptPrefix = "AF-" + ("" + parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+            } else if (parts.length == 1 && parts[0].length() >= 2) {
+                deptPrefix = "AF-" + parts[0].substring(0, 2).toUpperCase();
+            } else if (parts.length == 1 && parts[0].length() == 1) {
+                deptPrefix = "AF-" + parts[0].toUpperCase();
+            }
+        }
+        int num = (dailyNumber != null && dailyNumber > 0)
+                ? dailyNumber
+                : (id != null && id > 0 ? ((id - 1) % 99) + 1 : 1);
+        return String.format("%s%02d", deptPrefix.contains("-") ? deptPrefix : deptPrefix + "-", num);
     }
 }

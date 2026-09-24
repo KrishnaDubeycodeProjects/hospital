@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { courseApi, familyApi, fetchAsObjectUrl, hospitalApi, patientApi, referralApi } from '../../api/client';
+import { courseApi, familyApi, fetchAsObjectUrl, hospitalApi, patientApi, referralApi, setToken } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import AyushmanFooter from '../../components/AyushmanFooter';
@@ -12,6 +12,13 @@ export default function HealthRecordsScreen() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { patient, logout } = useAuth();
   const toast = useToast();
+
+  const tokenParam = searchParams.get('token');
+  useEffect(() => {
+    if (tokenParam) {
+      setToken('PATIENT', tokenParam);
+    }
+  }, [tokenParam]);
 
   // Active Tab: 'documents' | 'courses' | 'referrals'
   const tabParam = searchParams.get('tab') || 'documents';

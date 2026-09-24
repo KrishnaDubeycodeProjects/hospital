@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+  <title>Family Members - Aarogya Flow</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { DEFAULT: '#004D40' } } } }
+    };
+  </script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; user-select: none; background-color: #f1f5f9; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+  <main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col h-[92vh] max-h-[740px] overflow-hidden border border-slate-200">
+    <div class="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mt-3 mb-1"></div>
+    <header class="px-4 pt-2 pb-3 flex items-center justify-between border-b border-slate-100">
+      <button class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center active:scale-95 transition-transform" onclick="window.history.back()">
+        <svg class="w-4 h-4 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+      </button>
+      <h1 class="text-[17px] font-bold text-[#004D40]" id="headerTitle">Family Members</h1>
+      <div class="w-9"></div>
+    </header>
+    
+    <div class="flex-1 overflow-y-auto p-4 space-y-3" id="contentArea">
+      <div class="flex justify-center py-10">
+        <div class="w-6 h-6 border-2 border-[#004D40] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    </div>
+    
+    <footer class="p-4 bg-white border-t border-slate-100 space-y-2">
+      <button class="w-full py-3.5 bg-slate-50 border border-dashed border-slate-300 text-slate-700 font-bold text-sm rounded-xl active:scale-[0.99] transition-all" onclick="addMember()">
+        <span id="addBtnText">➕ Add New Member</span>
+      </button>
+      <div class="text-center pt-2">
+        <div class="text-xs text-slate-600">Powered by <strong class="text-[#004D40]">Aarogya Flow</strong></div>
+        <div class="text-[11px] text-slate-400">Approved by Ayushman Bharat Digital Mission (ABDM)</div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || '';
+    const phone = urlParams.get('phone') || '';
+    const action = urlParams.get('action') || 'select'; // select or manage
+    const lang = (urlParams.get('lang') || 'en').toLowerCase();
+    let botPhone = '919120123877';
+
+    fetch('/api/wa/config').then(r => r.json()).then(c => {
+      if (c.botPhoneNumber) botPhone = c.botPhoneNumber.replace(/\D/g, '');
+    }).catch(() => {});
+
+    const strings = {
+      en: { title: 'Family Members', loading: 'Loading...', err: 'Something went wrong. Please try again.', retry: 'Retry', add: '➕ Add New Member', select: '✅ Select', view: '👁️ View', link: '🔗 Link ABHA' },
+      hi: { title: 'परिवार के सदस्य', loading: 'लोड हो रहा है...', err: 'कुछ गलत हो गया।', retry: 'पुनः प्रयास', add: '➕ नया सदस्य जोड़ें', select: '✅ चुनें', view: '👁️ देखें', link: '🔗 आभा लिंक करें' },
+      mr: { title: 'कुटुंबाचे सदस्य', loading: 'लोड होत आहे...', err: 'काहीतरी चुकले.', retry: 'पुन्हा प्रयत्न', add: '➕ नवीन सदस्य जोडा', select: '✅ निवडा', view: '👁️ पहा', link: '🔗 आभा लिंक करा' }
+    };
+    
+    document.getElementById('headerTitle').textContent = strings[lang]?.title || strings['en'].title;
+    document.getElementById('addBtnText').textContent = strings[lang]?.add || strings['en'].add;
+
+    const colors = ['bg-red-100 text-red-700', 'bg-blue-100 text-blue-700', 'bg-green-100 text-green-700', 'bg-purple-100 text-purple-700', 'bg-orange-100 text-orange-700'];
+
+    async function loadFamily() {
+      const c = document.getElementById('contentArea');
+      try {
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`/api/wa/family-members?token=${encodeURIComponent(token)}&phone=${encodeURIComponent(phone)}`, { headers });
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        
+        if (!Array.isArray(data) || data.length === 0) {
+          c.innerHTML = `<div class="text-center py-10 text-sm text-slate-500">No family members found.</div>`;
+          return;
+        }
+
+        c.innerHTML = data.map((m, i) => {
+          const initial = (m.name || 'U').charAt(0).toUpperCase();
+          const col = colors[i % colors.length];
+          const hasAbha = m.abhaLinked === true;
+          const abhaBadge = hasAbha ? `<span class="px-2 py-0.5 text-[11px] font-bold bg-emerald-100 text-emerald-700 rounded-full">ABHA ✅</span>` : `<span class="px-2 py-0.5 text-[11px] font-bold bg-red-100 text-red-700 rounded-full">ABHA ❌</span>`;
+          
+          let btnHtml = '';
+          if (action === 'select') {
+            btnHtml = `<button onclick="handleAction(${m.id}, 'select')" class="px-3 py-1.5 bg-[#004D40] text-white text-xs font-bold rounded-lg active:scale-95">${strings[lang]?.select || strings['en'].select}</button>`;
+          } else {
+            if (hasAbha) {
+              btnHtml = `<button onclick="handleAction(${m.id}, 'manage')" class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg active:scale-95 border border-slate-200">${strings[lang]?.view || strings['en'].view}</button>`;
+            } else {
+              btnHtml = `<button onclick="handleAction(${m.id}, 'manage')" class="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-lg active:scale-95">${strings[lang]?.link || strings['en'].link}</button>`;
+            }
+          }
+
+          return `
+            <div class="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center justify-between transition-all active:scale-[0.99]">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full ${col} flex items-center justify-center font-bold text-lg">${initial}</div>
+                <div>
+                  <div class="text-[14px] font-bold text-slate-900">${m.name}</div>
+                  <div class="text-xs text-slate-500 mt-0.5 flex gap-2 items-center">
+                    <span class="font-medium">${m.relationship || 'Member'} • ${m.age || '-'}</span>
+                    ${abhaBadge}
+                  </div>
+                </div>
+              </div>
+              <div>${btnHtml}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        c.innerHTML = `
+          <div class="text-center py-10">
+            <div class="text-sm text-red-500 mb-3">${strings[lang]?.err || strings['en'].err}</div>
+            <button onclick="loadFamily()" class="px-4 py-2 bg-slate-200 rounded-lg text-sm font-bold">${strings[lang]?.retry || strings['en'].retry}</button>
+          </div>
+        `;
+      }
+    }
+
+    function handleAction(id, act) {
+      if (act === 'manage') {
+        const msg = encodeURIComponent(`#MEMBER:${id}`);
+        window.location.href = `https://wa.me/${botPhone}?text=${msg}`;
+      } else {
+        const msg = encodeURIComponent(`#MEMBER:${id}`);
+        window.location.href = `https://wa.me/${botPhone}?text=${msg}`;
+      }
+    }
+
+    function addMember() {
+      const msg = encodeURIComponent(`#MEMBER:new`);
+      window.location.href = `https://wa.me/${botPhone}?text=${msg}`;
+    }
+
+    loadFamily();
+  </script>
+</body>
+</html>

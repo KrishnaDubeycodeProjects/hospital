@@ -8,14 +8,20 @@ export const API_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' ? window.location.origin : 'https://princete.com');
 
-const isNgrok = typeof window !== 'undefined' && window.location.hostname.includes('ngrok');
-const isApiNgrok = (import.meta.env.VITE_API_URL || '').includes('ngrok');
-
 export const client = axios.create({
   baseURL: API_URL,
   // ngrok shows an interstitial warning page for browser requests unless this header is set.
   // It's harmless for non-ngrok backends (they just ignore unknown headers).
-  headers: isNgrok || isApiNgrok ? { 'ngrok-skip-browser-warning': 'true' } : {},
+  headers: {
+    'ngrok-skip-browser-warning': 'true',
+  },
+});
+
+// Interceptor to guarantee the ngrok bypass header is present on every single request
+client.interceptors.request.use((config) => {
+  config.headers = config.headers || {};
+  config.headers['ngrok-skip-browser-warning'] = 'true';
+  return config;
 });
 
 

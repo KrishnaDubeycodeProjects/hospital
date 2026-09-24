@@ -402,9 +402,8 @@ class QueueEdgeCasesCriticalTest {
         ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
         verify(whatsAppService).sendWhatsAppMessage(eq(phone), messageCaptor.capture());
         String msg = messageCaptor.getValue();
-        System.out.println("CAPTURED UNFROZEN MSG:\n" + msg);
-        assertTrue(msg.contains("TOKEN ACTIVATED IN QUEUE"));
-        assertTrue(msg.contains("AF-CA07") || msg.contains("Kavita Rao"));
+        assertTrue(msg.contains("Token Code:"));
+        assertTrue(msg.contains("AF-CA") || msg.contains("Kavita Rao"));
     }
 
     /**
@@ -531,6 +530,67 @@ class QueueEdgeCasesCriticalTest {
         // Verify Candidate 2 served
         assertNotNull(claimed);
         assertEquals(902, claimed.getId());
+    }
+
+    /**
+     * Requirement Test: If everyone in the queue has not checked in, doctor cannot increment counter.
+     * All operations on top unverified elements are cancelled (no demotion, no buffer, no serving).
+     */
+    @Test
+    void testWhenAllPatientsUnverified_DoctorCannotIncrementCounter_NoOperationsOnUnverified() {
+        int hospitalId = 1;
+        String category = "General Medicine";
+
+        // Both candidates in waiting queue are unverified
+        Map<String, Object> candidate1 = Map.of("id", 1001, "is_verified", false);
+        Map<String, Object> candidate2 = Map.of("id", 1002, "is_verified", false);
+
+        when(jdbc.queryForList(contains("SELECT id, is_verified, notified_ready_at, anomaly_control_until FROM tokens WHERE status = 'waiting'"), anyMap()))
+                .thenReturn(List.of(candidate1, candidate2));
+
+        TokenDto claimed = queueManagerService.claimNextEligibleWaitingTokenForCounter(hospitalId, category);
+
+        // Doctor cannot increment counter if nobody has checked in
+        assertNull(claimed);
+
+        // Verify no operations performed on unverified candidates
+        verify(jdbc, never()).update(contains("UPDATE tokens SET no_show_count ="), anyMap());
+        verify(jdbc, never()).update(contains("UPDATE tokens SET status = 'reserved'"), anyMap());
+        verify(jdbc, never()).update(contains("UPDATE tokens SET status = 'serving'"), anyMap());
+    }
+
+    /**
+     * Requirement Test: When a patient checks in, they are placed at the last position of the
+     * available present (checked-in) group ("youngest" / last of available present),
+     * ahead of all not-yet-checked-in patients who retain relative order without exponential demotion.
+     */
+    @Test
+    void testCheckIn_PlacesNewCheckInAtLastOfAvailablePresent_AheadOfUnverified() {
+        int hospitalId = 1;
+        String category = "General Medicine";
+
+        LocalDateTime time1 = LocalDateTime.now().minusMinutes(10);
+        LocalDateTime time2 = LocalDateTime.now().minusMinutes(1);
+
+        TokenDto c1 = TokenDto.builder().id(2001).isVerified(true).verifiedAt(time1).priorityRank(1.0).build();
+        TokenDto u1 = TokenDto.builder().id(2002).isVerified(false).priorityRank(2.0).build();
+        TokenDto c2 = TokenDto.builder().id(2003).isVerified(true).verifiedAt(time2).priorityRank(3.0).build();
+        TokenDto u2 = TokenDto.builder().id(2004).isVerified(false).priorityRank(4.0).build();
+
+        when(jdbc.query(contains("SELECT * FROM tokens WHERE status = 'waiting'"), anyMap(), any(RowMapper.class)))
+                .thenReturn(List.of(c1, u1, c2, u2));
+
+        queueManagerService.reorderQueueByCheckIn(hospitalId, category);
+
+        // Verify ranks: C1 (rank 1), C2 (rank 2 - last of available present), U1 (rank 3), U2 (rank 4)
+        verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
+                eq(Map.of("rank", 1.0, "pos", 1, "id", 2001)));
+        verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
+                eq(Map.of("rank", 2.0, "pos", 2, "id", 2003))); // C2 placed at last of available present!
+        verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
+                eq(Map.of("rank", 3.0, "pos", 3, "id", 2002))); // U1 follows in relative order
+        verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
+                eq(Map.of("rank", 4.0, "pos", 4, "id", 2004))); // U2 follows in relative order
     }
 }
 

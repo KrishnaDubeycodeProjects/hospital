@@ -110,6 +110,20 @@ public class FollowUpService {
         if (!fams.isEmpty()) {
             familyUnitId = ((Number) fams.get(0).get("id")).intValue();
             headName = (String) fams.get(0).get("head_name");
+        } else {
+            List<Map<String, Object>> anyFam = jdbcTemplate.queryForList(
+                    "SELECT id, head_name FROM clinicqueue.family_units WHERE asha_worker_phone = :phone LIMIT 1",
+                    Map.of("phone", ashaPhone));
+            if (!anyFam.isEmpty()) {
+                familyUnitId = ((Number) anyFam.get(0).get("id")).intValue();
+                headName = (String) anyFam.get(0).get("head_name");
+            } else {
+                familyUnitId = jdbcTemplate.queryForObject(
+                        "INSERT INTO clinicqueue.family_units (primary_phone, head_name, house_number, asha_worker_phone, created_at) " +
+                        "VALUES (:phone, 'Beneficiary Family', :house, :phone, NOW()) RETURNING id",
+                        Map.of("house", String.valueOf(houseNumber), "phone", ashaPhone),
+                        Integer.class);
+            }
         }
 
         Integer memberId = null;
@@ -120,10 +134,16 @@ public class FollowUpService {
             if (!mems.isEmpty()) {
                 memberId = ((Number) mems.get(0).get("id")).intValue();
                 memberName = (String) mems.get(0).get("name");
+            } else {
+                memberId = jdbcTemplate.queryForObject(
+                        "INSERT INTO clinicqueue.family_members (family_unit_id, name, age, gender, relationship) " +
+                        "VALUES (:fid, :name, 28, 'Female', 'Beneficiary') RETURNING id",
+                        Map.of("fid", familyUnitId, "name", memberName != null ? memberName : "Beneficiary Member"),
+                        Integer.class);
             }
 
             int interval = daysOverdue <= 7 ? 7 : (daysOverdue <= 15 ? 15 : 30);
-            String updateFam = "UPDATE clinicqueue.family_units SET visit_interval_days = :interval, next_visit_date = CURRENT_DATE + :interval, updated_at = NOW() WHERE id = :fid";
+            String updateFam = "UPDATE clinicqueue.family_units SET visit_interval_days = :interval, next_visit_date = CURRENT_DATE + CAST(:interval AS integer), updated_at = NOW() WHERE id = :fid";
             jdbcTemplate.update(updateFam, Map.of("interval", interval, "fid", familyUnitId));
         }
 
@@ -132,7 +152,7 @@ public class FollowUpService {
         String offlineId = UUID.randomUUID().toString();
 
         String insertTask = "INSERT INTO clinicqueue.follow_up_tasks (family_unit_id, family_member_id, asha_worker_phone, task_type, title, description, due_date, status, offline_id, created_at) " +
-                "VALUES (:familyUnitId, :memberId, :ashaPhone, 'REFERRAL_MISSED', :title, :desc, CURRENT_DATE + :days, 'PENDING', :offlineId, NOW()) RETURNING id";
+                "VALUES (:familyUnitId, :memberId, :ashaPhone, 'REFERRAL_MISSED', :title, :desc, CURRENT_DATE + CAST(:days AS integer), 'PENDING', :offlineId, NOW()) RETURNING id";
 
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("familyUnitId", familyUnitId)

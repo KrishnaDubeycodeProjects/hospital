@@ -270,6 +270,7 @@ public class CounterAssignmentService {
                 """,
                 Map.of("hospitalId", hospitalId, "category", category));
 
+        boolean anyVerified = candidates.stream().anyMatch(c -> Boolean.TRUE.equals(c.get("is_verified")));
         int nextCounterIdx = 0;
         for (Map<String, Object> candidate : candidates) {
             if (nextCounterIdx >= needsReservation.size()) {
@@ -277,7 +278,7 @@ public class CounterAssignmentService {
             }
             boolean verified = Boolean.TRUE.equals(candidate.get("is_verified"));
             boolean wasNotified = candidate.get("notified_ready_at") != null;
-            if (wasNotified && !verified) {
+            if (anyVerified && wasNotified && !verified) {
                 continue;
             }
             int counterId = needsReservation.get(nextCounterIdx++);

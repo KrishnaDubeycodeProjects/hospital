@@ -9,6 +9,7 @@ import com.qdischarge.clinicqueue.dto.RegisterDoctorRequest;
 import com.qdischarge.clinicqueue.security.CurrentUser;
 import com.qdischarge.clinicqueue.service.AccessService;
 import com.qdischarge.clinicqueue.service.DoctorService;
+import com.qdischarge.clinicqueue.service.HospitalService;
 import com.qdischarge.clinicqueue.service.PatientDocumentService;
 import com.qdischarge.clinicqueue.service.QrCodeService;
 import com.qdischarge.clinicqueue.service.TimeSlotService;
@@ -41,6 +42,7 @@ public class DoctorController {
     private final PatientDocumentService patientDocumentService;
     private final QrCodeService qrCodeService;
     private final TimeSlotService timeSlotService;
+    private final HospitalService hospitalService;
     private final CurrentUser currentUser;
 
     @PostMapping("/register")
@@ -84,8 +86,14 @@ public class DoctorController {
     public ResponseEntity<Map<String, Object>> createAccessRequest() {
         int doctorId = currentUser.requireDoctorId();
         DoctorDto doctor = doctorService.getById(doctorId);
-        if (doctor == null || doctor.getHospitalId() == null) {
-            return ResponseEntity.badRequest().body(msg("Join a hospital (POST /api/doctors/join-hospital) before requesting patient access."));
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(msg("Doctor profile not found."));
+        }
+        if (doctor.getHospitalId() == null) {
+            var op = hospitalService.getOperatingHospital();
+            if (op != null) {
+                doctorService.linkHospital(doctorId, op.getId());
+            }
         }
         return ResponseEntity.ok(ok(accessService.createRequest(doctorId)));
     }

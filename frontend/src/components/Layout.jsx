@@ -77,7 +77,7 @@ export function RoleShell({ role }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#ffffff', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.02em' }}>
-                  ArogyaFlow
+                  AarogyaFlow
                 </span>
                 <span
                   style={{
@@ -114,7 +114,7 @@ export function RoleShell({ role }) {
           ))}
         </nav>
 
-        {/* User Session Footer */}
+        {/* User Session Footer (OPD Exit) */}
         <div className="sidebar-foot" style={{ borderTop: '1px solid #1E293B', padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <div
@@ -129,12 +129,13 @@ export function RoleShell({ role }) {
                 color: '#ffffff',
                 fontWeight: '600',
                 fontSize: '12px',
+                flexShrink: 0,
               }}
             >
               {role === 'doctor' ? 'DR' : role === 'admin' ? 'AD' : 'PT'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#F1F5F9', truncate: true }}>
+              <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#F1F5F9', wordBreak: 'break-word' }}>
                 {identityLabel}
               </div>
               <div style={{ fontSize: '11px', color: '#94A3B8' }}>{role.toUpperCase()} SESSION</div>
@@ -144,9 +145,9 @@ export function RoleShell({ role }) {
           <button
             className="btn btn-ghost btn-sm"
             onClick={handleLogout}
-            style={{ width: '100%', justifyContent: 'center', color: '#94A3B8' }}
+            style={{ width: '100%', justifyContent: 'center', color: '#fca5a5', border: '1px solid #334155', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
           >
-            Log out
+            🚪 OPD Exit / Log out
           </button>
         </div>
       </aside>

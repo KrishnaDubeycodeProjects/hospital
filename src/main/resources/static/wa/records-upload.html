@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+  <title>Upload Record - Aarogya Flow</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; user-select: none; background-color: #f1f5f9; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+  <main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col h-[92vh] max-h-[740px] overflow-hidden border border-slate-200">
+    <div class="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mt-3 mb-1"></div>
+    <header class="px-4 pt-2 pb-3 flex items-center justify-between border-b border-slate-100">
+      <button class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center active:scale-95 transition-transform" onclick="window.history.back()">
+        <svg class="w-4 h-4 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+      </button>
+      <h1 class="text-[17px] font-bold text-[#004D40]" id="headerTitle">Upload Record</h1>
+      <div class="w-9"></div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 space-y-4" id="contentArea">
+      
+      <!-- Step 1: Member -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-2">1. Select Patient</label>
+        <select id="memberSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#004D40]">
+          <option value="">Loading members...</option>
+        </select>
+      </div>
+
+      <!-- Step 2: File -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-2">2. Upload File</label>
+        <div class="border-2 border-dashed border-slate-300 rounded-2xl p-6 text-center bg-slate-50 relative">
+          <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="fileChanged()">
+          <div id="fileStatus" class="pointer-events-none">
+            <div class="text-3xl mb-2">📄</div>
+            <div class="text-sm font-bold text-slate-700">Tap to browse or drag file here</div>
+            <div class="text-xs text-slate-500 mt-1">Supports PDF, JPG, PNG</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Name -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-2">3. Document Name</label>
+        <input type="text" id="docName" placeholder="e.g. Blood Test Report" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#004D40]">
+      </div>
+
+      <div id="uploadProgress" class="hidden text-center text-sm font-bold text-[#004D40] py-2">Uploading... please wait</div>
+
+    </div>
+    
+    <footer class="p-4 bg-white border-t border-slate-100 space-y-2">
+      <button id="uploadBtn" class="w-full py-3.5 bg-[#004D40] text-white font-bold text-sm rounded-full active:scale-[0.99] transition-all disabled:opacity-50" onclick="doUpload()">
+        <span id="uploadBtnText">📤 Upload</span>
+      </button>
+      <div class="text-center pt-2">
+        <div class="text-xs text-slate-600">Powered by <strong class="text-[#004D40]">Aarogya Flow</strong></div>
+        <div class="text-[11px] text-slate-400">Approved by Ayushman Bharat Digital Mission (ABDM)</div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || '';
+    const phone = urlParams.get('phone') || '';
+    const lang = (urlParams.get('lang') || 'en').toLowerCase();
+    
+    let botPhone = '919120123877';
+    fetch('/api/wa/config').then(r => r.json()).then(c => {
+      if (c.botPhoneNumber) botPhone = c.botPhoneNumber.replace(/\D/g, '');
+    }).catch(() => {});
+
+    const strings = {
+      en: { title: 'Upload Record', upload: '📤 Upload' },
+      hi: { title: 'रिकॉर्ड अपलोड करें', upload: '📤 अपलोड करें' },
+      mr: { title: 'रेकॉर्ड अपलोड करा', upload: '📤 अपलोड करा' }
+    };
+    
+    document.getElementById('headerTitle').textContent = strings[lang]?.title || strings['en'].title;
+    document.getElementById('uploadBtnText').textContent = strings[lang]?.upload || strings['en'].upload;
+
+    async function loadFamily() {
+      const sel = document.getElementById('memberSelect');
+      try {
+        const res = await fetch(`/api/wa/family-members?token=${encodeURIComponent(token)}&phone=${encodeURIComponent(phone)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if(Array.isArray(data) && data.length > 0) {
+          sel.innerHTML = data.map(m => `<option value="${m.id}">${m.name} (${m.relationship || 'Member'})</option>`).join('');
+        } else {
+          sel.innerHTML = '<option value="">No members found</option>';
+        }
+      } catch(e) {
+        sel.innerHTML = '<option value="">Error loading members</option>';
+      }
+    }
+
+    function fileChanged() {
+      const input = document.getElementById('fileInput');
+      const stat = document.getElementById('fileStatus');
+      const nameInput = document.getElementById('docName');
+      if (input.files && input.files.length > 0) {
+        stat.innerHTML = `<div class="text-3xl mb-2">✅</div><div class="text-sm font-bold text-[#004D40]">${input.files[0].name}</div>`;
+        if(!nameInput.value) {
+          // guess name
+          let base = input.files[0].name.split('.')[0].replace(/[-_]/g, ' ');
+          nameInput.value = base.charAt(0).toUpperCase() + base.slice(1);
+        }
+      } else {
+        stat.innerHTML = `<div class="text-3xl mb-2">📄</div><div class="text-sm font-bold text-slate-700">Tap to browse or drag file here</div><div class="text-xs text-slate-500 mt-1">Supports PDF, JPG, PNG</div>`;
+      }
+    }
+
+    async function doUpload() {
+      const fileInput = document.getElementById('fileInput');
+      const memberId = document.getElementById('memberSelect').value;
+      const docName = document.getElementById('docName').value.trim();
+
+      if(!memberId) return alert('Please select a patient');
+      if(!fileInput.files || fileInput.files.length === 0) return alert('Please select a file');
+      if(!docName) return alert('Please enter a document name');
+
+      const btn = document.getElementById('uploadBtn');
+      const prog = document.getElementById('uploadProgress');
+      
+      btn.disabled = true;
+      prog.classList.remove('hidden');
+
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      fd.append('label', docName);
+
+      try {
+        const res = await fetch(`/api/wa/upload-document?token=${encodeURIComponent(token)}&memberId=${encodeURIComponent(memberId)}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: fd
+        });
+        
+        if (!res.ok) throw new Error('Upload failed');
+        
+        // redirect to WA
+        const msg = encodeURIComponent(`#DOCNAME:${docName}`);
+        window.location.href = `https://wa.me/${botPhone}?text=${msg}`;
+      } catch (err) {
+        alert('Upload failed. Please try again.');
+        btn.disabled = false;
+        prog.classList.add('hidden');
+      }
+    }
+
+    loadFamily();
+  </script>
+</body>
+</html>

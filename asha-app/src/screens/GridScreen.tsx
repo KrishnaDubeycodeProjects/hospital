@@ -276,30 +276,7 @@ export const GridScreen: React.FC<GridScreenProps> = ({
           />
         </View>
 
-        {/* 4. Professional Clinical Status Legend */}
-        <View style={styles.legendContainer}>
-          <Text style={styles.legendTitle}>प्राथमिकता रंग संकेतक:</Text>
-          <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendBox, { backgroundColor: Colors.urgentRed }]} />
-              <Text style={styles.legendText}>7 दिन (अति आवश्यक / HRP)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendBox, { backgroundColor: Colors.mediumPink }]} />
-              <Text style={styles.legendText}>15 दिन (शीघ्र समीक्षा)</Text>
-            </View>
-          </View>
-          <View style={[styles.legendRow, { marginTop: 8 }]}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendBox, { backgroundColor: Colors.dueYellow }]} />
-              <Text style={styles.legendText}>30 दिन (नियमित जांच)</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendBox, { backgroundColor: Colors.visitedGreen }]} />
-              <Text style={styles.legendText}>भेंट पूर्ण (Visited)</Text>
-            </View>
-          </View>
-        </View>
+
 
         {/* 5. Direct QR Scanning / ANM Sync CTA */}
         <TouchableOpacity

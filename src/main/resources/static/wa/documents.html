@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+  <title>Medical Documents - Aarogya Flow</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { brand: { DEFAULT: '#004D40' } } } } };
+  </script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; user-select: none; background-color: #f1f5f9; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+  <main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col h-[92vh] max-h-[740px] overflow-hidden border border-slate-200">
+    <div class="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mt-3 mb-1"></div>
+    <header class="px-4 pt-2 pb-3 flex items-center justify-between border-b border-slate-100">
+      <button class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center active:scale-95 transition-transform" onclick="window.history.back()">
+        <svg class="w-4 h-4 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+      </button>
+      <h1 class="text-[17px] font-bold text-[#004D40]" id="headerTitle">Documents</h1>
+      <div class="w-9"></div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 space-y-4" id="contentArea">
+      <div class="flex justify-center py-10">
+        <div class="w-6 h-6 border-2 border-[#004D40] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    </div>
+    
+    <footer class="p-4 bg-white border-t border-slate-100 space-y-2">
+      <button class="w-full py-3.5 bg-[#004D40] text-white font-bold text-sm rounded-full active:scale-[0.99] transition-all" onclick="uploadDoc()">
+        <span id="uploadBtnText">📤 Upload New Document</span>
+      </button>
+      <div class="text-center pt-2">
+        <div class="text-xs text-slate-600">Powered by <strong class="text-[#004D40]">Aarogya Flow</strong></div>
+        <div class="text-[11px] text-slate-400">Approved by Ayushman Bharat Digital Mission (ABDM)</div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || '';
+    const phone = urlParams.get('phone') || '';
+    const memberId = urlParams.get('memberId') || '';
+    const lang = (urlParams.get('lang') || 'en').toLowerCase();
+    
+    let botPhone = '919120123877';
+    fetch('/api/wa/config').then(r => r.json()).then(c => {
+      if (c.botPhoneNumber) botPhone = c.botPhoneNumber.replace(/\D/g, '');
+    }).catch(() => {});
+
+    const strings = {
+      en: { title: 'Documents', empty: 'No documents found.', upload: '📤 Upload Document', err: 'Error loading.', view: 'View →' },
+      hi: { title: 'दस्तावेज़', empty: 'कोई दस्तावेज़ नहीं मिला।', upload: '📤 दस्तावेज़ अपलोड करें', err: 'त्रुटि।', view: 'देखें →' },
+      mr: { title: 'कागदपत्रे', empty: 'कोणते कागदपत्र नाही.', upload: '📤 कागदपत्र अपलोड करा', err: 'त्रुटी.', view: 'पहा →' }
+    };
+    
+    document.getElementById('headerTitle').textContent = strings[lang]?.title || strings['en'].title;
+    document.getElementById('uploadBtnText').textContent = strings[lang]?.upload || strings['en'].upload;
+
+    async function loadDocs() {
+      const c = document.getElementById('contentArea');
+      try {
+        const res = await fetch(`/api/wa/documents?token=${encodeURIComponent(token)}&memberId=${encodeURIComponent(memberId)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Fetch failed');
+        let data = await res.json();
+        if(!Array.isArray(data)) data = data.data || [];
+        
+        if (data.length === 0) {
+          c.innerHTML = `<div class="text-center py-10 text-sm text-slate-500">${strings[lang]?.empty || strings['en'].empty}</div>`;
+          return;
+        }
+
+        const groups = {
+          'Prescription 💊': [],
+          'Lab Report 🧪': [],
+          'Radiology 🩻': [],
+          'Referral 📋': [],
+          'Other 📄': []
+        };
+
+        data.forEach(d => {
+          const t = (d.type || '').toLowerCase();
+          if(t.includes('prescription')) groups['Prescription 💊'].push(d);
+          else if(t.includes('lab') || t.includes('blood')) groups['Lab Report 🧪'].push(d);
+          else if(t.includes('radio') || t.includes('xray') || t.includes('scan')) groups['Radiology 🩻'].push(d);
+          else if(t.includes('referral')) groups['Referral 📋'].push(d);
+          else groups['Other 📄'].push(d);
+        });
+
+        let html = '';
+        const viewTxt = strings[lang]?.view || strings['en'].view;
+        for (const [gName, docs] of Object.entries(groups)) {
+          if (docs.length > 0) {
+            html += `<div class="mb-4">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-sm font-bold text-slate-800">${gName}</span>
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-full">${docs.length}</span>
+              </div>
+              <div class="space-y-2">
+                ${docs.map(d => `
+                  <div class="p-3 bg-white border border-slate-200 rounded-xl shadow-sm flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-lg">${gName.split(' ')[1] || '📄'}</div>
+                      <div>
+                        <div class="text-[14px] font-bold text-slate-900">${d.title || d.name || 'Document'}</div>
+                        <div class="text-xs text-slate-500">${d.date || 'Recent'}</div>
+                      </div>
+                    </div>
+                    <a href="${d.url || '#'}" target="_blank" class="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg active:scale-95 transition-transform">${viewTxt}</a>
+                  </div>
+                `).join('')}
+              </div>
+            </div>`;
+          }
+        }
+        c.innerHTML = html;
+      } catch (err) {
+        c.innerHTML = `<div class="text-center py-10 text-sm text-red-500">${strings[lang]?.err || strings['en'].err}</div>`;
+      }
+    }
+
+    function uploadDoc() {
+      const msg = encodeURIComponent(`#SERVICE:rec_upload`);
+      window.location.href = `https://wa.me/${botPhone}?text=${msg}`;
+    }
+
+    loadDocs();
+  </script>
+</body>
+</html>

@@ -56,28 +56,32 @@ public class BotMessages {
     // shorter than the queue's remaining treatment time.
     // -------------------------------------------------------------
 
-    public String headingToHospitalNotification(Lang lang, String patientName, String tokenCode, double travelMinutes, String departmentName, String hospitalName) {
+    public String headingToHospitalNotification(Lang lang, String patientName, String tokenCode, String departmentName, String hospitalName, int peopleAhead) {
         return switch (lang) {
-            case EN -> "🚗 *TIME TO HEAD TO HOSPITAL!*\n\n"
-                    + "Hello %s, your turn for *%s* at *%s* is approaching.\n\n"
-                    + "🎟️ Token Code: #%s\n\n"
-                    + "👉 *Please head to the hospital now!* On arrival, check in at reception with your QR code to receive top priority service."
-                    .formatted(patientName, departmentName, hospitalName, tokenCode);
-            case HI -> "🚗 *अस्पताल के लिए निकलने का समय!*\n\n"
-                    + "नमस्ते %s, *%s* में *%s* विभाग के लिए आपकी बारी पास आ रही है।\n\n"
-                    + "🎟️ टोकन कोड: #%s\n\n"
-                    + "👉 *कृपया अभी अस्पताल के लिए निकलें!* पहुंचने पर प्राथमिकता सेवा के लिए अपने क्यूआर कोड से रिसेप्शन पर चेक-इन करें।"
-                    .formatted(patientName, hospitalName, departmentName, tokenCode);
-            case MR -> "🚗 *रुग्णालयासाठी निघण्याची वेळ!*\n\n"
-                    + "नमस्कार %s, *%s* येथे *%s* विभागासाठी आपली पाळी जवळ येत आहे.\n\n"
-                    + "🎟️ टोकन कोड: #%s\n\n"
-                    + "👉 *कृपया आता रुग्णालयासाठी निघा!* पोहोचल्यावर प्राधान्य सेवेसाठी आपल्या क्यूआर कोडने रिसेप्शनवर चेक-इन करा."
-                    .formatted(patientName, hospitalName, departmentName, tokenCode);
+            case EN -> "🚗 *TIME TO HEAD TO HOSPITAL*\n\n"
+                    + "🎟️ *Token Code:* #" + tokenCode + "\n"
+                    + "🩺 *Queue/Dept:* " + (departmentName != null ? departmentName : "General OPD") + "\n"
+                    + "👥 *Patients Ahead:* " + peopleAhead + "\n\n"
+                    + "👉 Please proceed to the queue at " + (hospitalName != null ? hospitalName : "Hospital") + ".";
+            case HI -> "🚗 *अस्पताल के लिए प्रस्थान करें*\n\n"
+                    + "🎟️ *टोकन कोड:* #" + tokenCode + "\n"
+                    + "🩺 *कतार/विभाग:* " + (departmentName != null ? departmentName : "सामान्य ओपीडी") + "\n"
+                    + "👥 *आगे मरीज़:* " + peopleAhead + "\n\n"
+                    + "👉 कृपया " + (hospitalName != null ? hospitalName : "अस्पताल") + " में कतार के लिए आगे बढ़ें।";
+            case MR -> "🚗 *रुग्णालयासाठी निघा*\n\n"
+                    + "🎟️ *टोकन कोड:* #" + tokenCode + "\n"
+                    + "🩺 *रांग/विभाग:* " + (departmentName != null ? departmentName : "सामान्य ओपीडी") + "\n"
+                    + "👥 *पुढे रुग्ण:* " + peopleAhead + "\n\n"
+                    + "👉 कृपया " + (hospitalName != null ? hospitalName : "रुग्णालय") + " येथे रांगेसाठी पुढे जा.";
         };
     }
 
+    public String headingToHospitalNotification(Lang lang, String patientName, String tokenCode, double travelMinutes, String departmentName, String hospitalName) {
+        return headingToHospitalNotification(lang, patientName, tokenCode, departmentName, hospitalName, 2);
+    }
+
     public String headingToHospitalNotification(Lang lang, String patientName, int tokenNumber, String departmentName, String hospitalName) {
-        return headingToHospitalNotification(lang, patientName, "AF-" + String.format("%02d", tokenNumber), 5.0, departmentName, hospitalName);
+        return headingToHospitalNotification(lang, patientName, "AF-" + String.format("%02d", tokenNumber), departmentName, hospitalName, 2);
     }
 
     // -------------------------------------------------------------
@@ -174,7 +178,8 @@ public class BotMessages {
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_appointment", "🏥 OPD Appointment", "Book or track OPD token"),
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_family_abha", "👥 Family & ABHA", "Manage family members & ABHA"),
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_health_records", "💊 Health Records", "Upload & view medical records"),
-                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_referrals", "📋 Referrals", "Check doctor referrals")
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_referrals", "📋 Referrals", "Check doctor referrals"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_web_portal", "🌐 Online Web Portal", "Open full AarogyaFlow web portal")
                 )),
                 new com.qdischarge.clinicqueue.dto.WaListSection("Settings", List.of(
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_lang_change", "🌐 Change Language", "English / हिंदी / मराठी")
@@ -185,7 +190,8 @@ public class BotMessages {
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_appointment", "🏥 ओपीडी अपॉइंटमेंट", "टोकन बुक करें या स्थिति देखें"),
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_family_abha", "👥 परिवार और आभा", "परिवार के सदस्य और आभा कार्ड"),
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_health_records", "💊 स्वास्थ्य रिकॉर्ड", "दस्तावेज़ अपलोड और देखें"),
-                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_referrals", "📋 डॉक्टर रेफरल", "डॉक्टर के रेफरल देखें")
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_referrals", "📋 डॉक्टर रेफरल", "डॉक्टर के रेफरल देखें"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_web_portal", "🌐 ऑनलाइन वेब पोर्टल", "आरोग्यफ्लो वेब पोर्टल पर जाएं")
                 )),
                 new com.qdischarge.clinicqueue.dto.WaListSection("सेटिंग्स", List.of(
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_lang_change", "🌐 भाषा बदलें", "English / हिंदी / मराठी")
@@ -196,7 +202,8 @@ public class BotMessages {
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_appointment", "🏥 ओपीडी अपॉइंटमेंट", "टोकन नोंदवा किंवा स्थिती पहा"),
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_family_abha", "👥 कुटुंब आणि आभा", "कुटुंबातील सदस्य आणि आभा कार्ड"),
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_health_records", "💊 आरोग्य नोंदी", "कागदपत्रे अपलोड आणि पहा"),
-                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_referrals", "📋 डॉक्टर रेफरल", "डॉक्टरांचे रेफरल तपासा")
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_referrals", "📋 डॉक्टर रेफरल", "डॉक्टरांचे रेफरल तपासा"),
+                    new com.qdischarge.clinicqueue.dto.WaListRow("srv_web_portal", "🌐 ऑनलाइन वेब पोर्टल", "आरोग्यफ्लो वेब पोर्टलवर जा")
                 )),
                 new com.qdischarge.clinicqueue.dto.WaListSection("सेटिंग्ज", List.of(
                     new com.qdischarge.clinicqueue.dto.WaListRow("srv_lang_change", "🌐 भाषा बदला", "English / हिंदी / मराठी")
@@ -810,24 +817,9 @@ public class BotMessages {
 
     public String tokenUnfrozenActiveNotification(Lang lang, String tokenCode, String patientName, int position, String department, String hospitalName) {
         return switch (lang) {
-            case EN -> ("🎉 *TOKEN ACTIVATED IN QUEUE!*\n\n"
-                    + "Hello *%s*, your queue token for *%s* at *%s* is now ACTIVE! 🎟️\n\n"
-                    + "🎟️ *Token Code:* #%s\n"
-                    + "📊 *Live Queue Position:* Pos #%d\n\n"
-                    + "👉 Please proceed to the reception counter to scan your check-in QR code upon arrival!")
-                    .formatted(patientName, department, hospitalName, tokenCode, position);
-            case HI -> ("🎉 *टोकन कतार में सक्रिय हो गया!*\n\n"
-                    + "नमस्ते *%s*, *%s* में *%s* के लिए आपका टोकन अब सक्रिय है! 🎟️\n\n"
-                    + "🎟️ *टोकन कोड:* #%s\n"
-                    + "📊 *कतार स्थान:* स्थान #%d\n\n"
-                    + "👉 अस्पताल पहुंचकर कृपया रिसेप्शन पर अपना चेक-इन क्यूआर कोड स्कैन कराएं!")
-                    .formatted(patientName, hospitalName, department, tokenCode, position);
-            case MR -> ("🎉 *टोकन रांगेत सक्रिय झाला!*\n\n"
-                    + "नमस्कार *%s*, *%s* मधील *%s* साठी आपला टोकन आता सक्रिय आहे! 🎟️\n\n"
-                    + "🎟️ *टोकन कोड:* #%s\n"
-                    + "📊 *रांगेतील स्थान:* स्थान #%d\n\n"
-                    + "👉 कृपया रुग्णालयात पोहोचल्यावर रिसेप्शन काउंटरवर आपला चेक-इन क्यूआर कोड स्कॅन करा!")
-                    .formatted(patientName, hospitalName, department, tokenCode, position);
+            case EN -> "🎟️ *Token Code:* #" + tokenCode;
+            case HI -> "🎟️ *टोकन कोड:* #" + tokenCode;
+            case MR -> "🎟️ *टोकन कोड:* #" + tokenCode;
         };
     }
 

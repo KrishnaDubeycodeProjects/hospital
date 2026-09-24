@@ -8,6 +8,7 @@ public enum Intent {
     FAMILY_ABHA("srv_family_abha", Set.of("srv_family_abha", "srv_family", "family", "abha", "family abha", "परिवार", "कुटुंब", "आभा")),
     HEALTH_RECORDS("srv_health_records", Set.of("srv_health_records", "srv_records", "health records", "records", "documents", "medical records", "रिकॉर्ड", "दस्तावेज़", "नोंदी")),
     REFERRALS("srv_referrals", Set.of("srv_referrals", "referrals", "referral", "follow up", "रेफरल", "फॉलो अप")),
+    WEB_PORTAL("srv_web_portal", Set.of("srv_web_portal", "portal", "website", "web portal", "online portal", "वेबसाइट", "पोर्टल")),
     CHANGE_LANGUAGE("srv_lang_change", Set.of("srv_lang_change", "change language", "language", "भाषा बदलें", "भाषा", "भाषा बदला")),
     
     // Sub-service intents

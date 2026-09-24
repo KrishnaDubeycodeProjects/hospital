@@ -305,6 +305,24 @@ public class DemoDataSeeder implements ApplicationRunner {
                 log.info("✅ Seeded clinical documents for all family members under +918850934544");
             }
 
+            // 10. Seed live serving Consultation Room token for patient 8850934544 (Kavish Ahuja)
+            Integer activeTokenCount = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM tokens WHERE phone IN ('8850934544', '+918850934544') AND status IN ('serving', 'waiting')",
+                    Map.of(), Integer.class);
+            if (activeTokenCount == null || activeTokenCount == 0) {
+                List<Integer> courseIds = jdbc.query(
+                        "SELECT id FROM courses WHERE patient_phone = '8850934544' LIMIT 1",
+                        Map.of(), (rs, rowNum) -> rs.getInt("id"));
+                Integer activeCourseId = courseIds.isEmpty() ? null : courseIds.get(0);
+                jdbc.update(
+                        """
+                        INSERT INTO tokens (hospital_id, category, daily_number, name, age, gender, phone, status, session_step, counter_id, distance_km, travel_minutes, is_verified, course_id, created_at, served_at)
+                        VALUES (:hId, 'General Medicine', 1, 'Kavish Ahuja', 24, 'male', '8850934544', 'serving', 'consulting', 1, 1.2, 5.0, TRUE, :cId, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                        Map.of("hId", mainHospitalId, "cId", activeCourseId != null ? activeCourseId : 1));
+                log.info("✅ Seeded live serving consultation token for patient 8850934544 (Kavish Ahuja)");
+            }
+
             log.info("✅ Video Demo Scenarios, Clinical Courses, Referrals & Credentials successfully seeded!");
             log.info("1️⃣ 30-min Close Time Block: Handled when booking within 30 min of OPD close time.");
             log.info("2️⃣ Distance Anomaly: Token #9 (Farhan Akhtar, 18.5 km away) flagged in Anomaly Section.");

@@ -33,6 +33,20 @@ public class SyncService {
     private final ObjectMapper objectMapper;
     private final SurveyService surveyService;
 
+    private Integer parseSafeId(Object obj) {
+        if (obj == null) return null;
+        String str = obj.toString().trim();
+        if (str.isEmpty()) return null;
+        try {
+            return Integer.parseInt(str);
+        } catch (NumberFormatException e) {
+            String digits = str.replaceAll("[^0-9]", "");
+            if (digits.isEmpty()) return 1;
+            int len = digits.length();
+            return Integer.parseInt(digits.substring(Math.max(0, len - 4)));
+        }
+    }
+
     @Transactional
     public Map<String, Object> upload(String ashaPhone, SyncUploadRequest request) {
         int accepted = 0;
@@ -48,7 +62,7 @@ public class SyncService {
                             .addValue("headName", fam.get("headName"))
                             .addValue("villageName", fam.get("villageName"))
                             .addValue("houseNumber", fam.get("houseNumber"))
-                            .addValue("sequentialNumber", fam.get("sequentialNumber") != null ? Integer.parseInt(fam.get("sequentialNumber").toString()) : null)
+                            .addValue("sequentialNumber", parseSafeId(fam.get("sequentialNumber")))
                             .addValue("ashaPhone", ashaPhone));
                     accepted++;
                 } catch (Exception e) {
@@ -64,10 +78,10 @@ public class SyncService {
                     String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, created_at, updated_at) " +
                             "VALUES (:familyId, :name, :dob::date, :age, :gender, :relationship, :phone, NOW(), NOW())";
                     jdbcTemplate.update(sql, new MapSqlParameterSource()
-                            .addValue("familyId", mem.get("familyUnitId") != null ? Integer.parseInt(mem.get("familyUnitId").toString()) : null)
+                            .addValue("familyId", parseSafeId(mem.get("familyUnitId")))
                             .addValue("name", mem.get("name"))
                             .addValue("dob", mem.get("dob"))
-                            .addValue("age", mem.get("age") != null ? Integer.parseInt(mem.get("age").toString()) : null)
+                            .addValue("age", parseSafeId(mem.get("age")))
                             .addValue("gender", mem.get("gender"))
                             .addValue("relationship", mem.get("relationship"))
                             .addValue("phone", mem.get("phone")));
@@ -84,9 +98,9 @@ public class SyncService {
                 try {
                     String offlineId = sur.get("offlineId") != null ? sur.get("offlineId").toString() : UUID.randomUUID().toString();
                     SurveyResponseDto dto = new SurveyResponseDto();
-                    if (sur.get("familyUnitId") != null) dto.setFamilyUnitId(Integer.parseInt(sur.get("familyUnitId").toString()));
-                    if (sur.get("familyMemberId") != null) dto.setFamilyMemberId(Integer.parseInt(sur.get("familyMemberId").toString()));
-                    if (sur.get("templateId") != null) dto.setTemplateId(Integer.parseInt(sur.get("templateId").toString()));
+                    dto.setFamilyUnitId(parseSafeId(sur.get("familyUnitId")));
+                    dto.setFamilyMemberId(parseSafeId(sur.get("familyMemberId")));
+                    dto.setTemplateId(parseSafeId(sur.get("templateId")));
                     dto.setCategoryCode((String) sur.get("categoryCode"));
                     dto.setAshaWorkerPhone(ashaPhone);
                     dto.setAnswers((Map<String, Object>) sur.get("answers"));
@@ -109,8 +123,8 @@ public class SyncService {
                             "VALUES (:familyUnitId, :memberId, :ashaPhone, :taskType, :title, :description, :dueDate::date, :status, :offlineId, NOW()) " +
                             "ON CONFLICT (offline_id) DO NOTHING";
                     jdbcTemplate.update(sql, new MapSqlParameterSource()
-                            .addValue("familyUnitId", fol.get("familyUnitId") != null ? Integer.parseInt(fol.get("familyUnitId").toString()) : null)
-                            .addValue("memberId", fol.get("familyMemberId") != null ? Integer.parseInt(fol.get("familyMemberId").toString()) : null)
+                            .addValue("familyUnitId", parseSafeId(fol.get("familyUnitId")))
+                            .addValue("memberId", parseSafeId(fol.get("familyMemberId")))
                             .addValue("ashaPhone", ashaPhone)
                             .addValue("taskType", fol.get("taskType"))
                             .addValue("title", fol.get("title"))
@@ -120,7 +134,7 @@ public class SyncService {
                             .addValue("offlineId", offlineId));
                     accepted++;
                 } catch (Exception e) {
-                    log.error("Failed to sync followup", e);
+                    log.error("Failed to sync follow up", e);
                     rejected++;
                 }
             }

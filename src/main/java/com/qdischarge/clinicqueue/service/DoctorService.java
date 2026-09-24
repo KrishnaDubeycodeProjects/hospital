@@ -63,8 +63,12 @@ public class DoctorService {
         if (hospital == null) {
             throw new IllegalArgumentException("Invalid hospital code.");
         }
+        return linkHospital(doctorId, hospital.getId());
+    }
+
+    public DoctorDto linkHospital(int doctorId, int hospitalId) {
         jdbc.update("UPDATE doctors SET hospital_id = :hospitalId, updated_at = CURRENT_TIMESTAMP WHERE id = :id",
-                Map.of("hospitalId", hospital.getId(), "id", doctorId));
+                Map.of("hospitalId", hospitalId, "id", doctorId));
         return getById(doctorId);
     }
 

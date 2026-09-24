@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+  <title>Referrals - Aarogya Flow</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; user-select: none; background-color: #f1f5f9; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center items-end sm:items-center sm:p-4">
+  <main class="w-full max-w-md bg-white rounded-t-[28px] sm:rounded-[24px] shadow-2xl flex flex-col h-[92vh] max-h-[740px] overflow-hidden border border-slate-200">
+    <div class="w-10 h-1.5 bg-slate-300 rounded-full mx-auto mt-3 mb-1"></div>
+    <header class="px-4 pt-2 pb-3 flex items-center justify-between border-b border-slate-100">
+      <button class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center active:scale-95 transition-transform" onclick="window.history.back()">
+        <svg class="w-4 h-4 stroke-[2.4]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+      </button>
+      <h1 class="text-[17px] font-bold text-[#004D40]" id="headerTitle">Referrals</h1>
+      <div class="w-9"></div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 space-y-3" id="contentArea">
+      <div class="flex justify-center py-10">
+        <div class="w-6 h-6 border-2 border-[#004D40] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    </div>
+    
+    <footer class="p-4 bg-white border-t border-slate-100 space-y-2">
+      <button class="w-full py-3.5 bg-slate-100 text-slate-700 font-bold text-sm rounded-full border border-slate-200 active:scale-[0.99] transition-all" onclick="goMenu()">
+        <span id="menuBtnText">Main Menu</span>
+      </button>
+      <div class="text-center pt-2">
+        <div class="text-xs text-slate-600">Powered by <strong class="text-[#004D40]">Aarogya Flow</strong></div>
+        <div class="text-[11px] text-slate-400">Approved by Ayushman Bharat Digital Mission (ABDM)</div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token') || '';
+    const phone = urlParams.get('phone') || '';
+    const lang = (urlParams.get('lang') || 'en').toLowerCase();
+    
+    let botPhone = '919120123877';
+    fetch('/api/wa/config').then(r => r.json()).then(c => {
+      if (c.botPhoneNumber) botPhone = c.botPhoneNumber.replace(/\D/g, '');
+    }).catch(() => {});
+
+    const strings = {
+      en: { title: 'Referrals', empty: 'No referrals found.', menu: 'Main Menu', err: 'Error loading.', view: 'View Details →' },
+      hi: { title: 'रेफरल', empty: 'कोई रेफरल नहीं मिला।', menu: 'मुख्य मेनू', err: 'त्रुटि।', view: 'विवरण देखें →' },
+      mr: { title: 'रेफरल', empty: 'कोणतेही रेफरल आढळले नाही.', menu: 'मुख्य मेनू', err: 'त्रुटी.', view: 'तपशील पहा →' }
+    };
+    
+    document.getElementById('headerTitle').textContent = strings[lang]?.title || strings['en'].title;
+    document.getElementById('menuBtnText').textContent = strings[lang]?.menu || strings['en'].menu;
+
+    async function loadRefs() {
+      const c = document.getElementById('contentArea');
+      try {
+        const res = await fetch(`/api/wa/referrals?token=${encodeURIComponent(token)}&phone=${encodeURIComponent(phone)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Fetch failed');
+        let data = await res.json();
+        if(!Array.isArray(data)) data = data.data || [];
+        
+        if (data.length === 0) {
+          c.innerHTML = `<div class="text-center py-10 text-sm text-slate-500">${strings[lang]?.empty || strings['en'].empty}</div>`;
+          return;
+        }
+
+        const viewTxt = strings[lang]?.view || strings['en'].view;
+        c.innerHTML = data.map(r => {
+          const stat = (r.status || 'active').toLowerCase();
+          let badge = '';
+          if(stat === 'active') badge = '<span class="px-2 py-0.5 text-[11px] font-bold bg-green-100 text-green-700 rounded-full">Active 🟢</span>';
+          else if(stat === 'completed') badge = '<span class="px-2 py-0.5 text-[11px] font-bold bg-slate-100 text-slate-700 rounded-full">Completed ✅</span>';
+          else badge = '<span class="px-2 py-0.5 text-[11px] font-bold bg-red-100 text-red-700 rounded-full">Expired ⏰</span>';
+
+          return `
+            <div class="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <div class="text-[15px] font-bold text-slate-900">${r.doctorName || 'Doctor'} • ${r.hospitalName || 'Hospital'}</div>
+                  <div class="text-xs text-slate-500 mt-0.5">${r.date || 'Recent'}</div>
+                </div>
+                ${badge}
+              </div>
+              <span class="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded mb-3 border border-blue-100">${r.department || 'General'}</span>
+              <button onclick="window.open('${r.url || '#'}', '_blank')" class="w-full py-2.5 bg-[#004D40] text-white text-xs font-bold rounded-xl active:scale-[0.99] transition-transform">
+                ${viewTxt}
+              </button>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        c.innerHTML = `<div class="text-center py-10 text-sm text-red-500">${strings[lang]?.err || strings['en'].err}</div>`;
+      }
+    }
+
+    function goMenu() {
+      window.location.href = `https://wa.me/${botPhone}`;
+    }
+
+    loadRefs();
+  </script>
+</body>
+</html>

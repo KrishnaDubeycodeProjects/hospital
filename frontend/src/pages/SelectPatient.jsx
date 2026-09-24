@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { familyApi } from '../api/client';
+import { familyApi, setToken } from '../api/client';
 import AyushmanFooter from '../components/AyushmanFooter';
 
 function getAvatarVisual(member, index = 0) {
@@ -37,9 +37,16 @@ export default function SelectPatient() {
   const type = params.get('type') || '';
   const dist = params.get('dist') || '';
   const img = params.get('img') || '';
+  const token = params.get('token') || '';
+
+  useEffect(() => {
+    if (token) setToken('PATIENT', token);
+  }, [token]);
 
   // Primary phone number
-  const phoneNumber = '+91 88509 34544';
+  const rawPhone = params.get('phone') || '8850934544';
+  const cleanPhoneStr = rawPhone.replace(/\D/g, '') || '8850934544';
+  const phoneNumber = '+91 ' + cleanPhoneStr.slice(-10);
 
   // Family members loaded from real Database
   const [members, setMembers] = useState([]);
@@ -50,7 +57,7 @@ export default function SelectPatient() {
     let isMounted = true;
     setLoading(true);
 
-    familyApi.listPublicMembers('8850934544')
+    familyApi.listPublicMembers(cleanPhoneStr)
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res) ? res : res?.data || [];

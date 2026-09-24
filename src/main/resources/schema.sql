@@ -191,16 +191,18 @@ CREATE INDEX IF NOT EXISTS idx_otp_phone_verified ON otp_verifications (phone, v
 CREATE TABLE IF NOT EXISTS wa_sessions (
   phone VARCHAR(32) PRIMARY KEY,
   language VARCHAR(2),
-  stage VARCHAR(20) NOT NULL DEFAULT 'awaiting_language',
+  stage VARCHAR(64) NOT NULL DEFAULT 'awaiting_language',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE wa_sessions ALTER COLUMN stage TYPE VARCHAR(64);
 ALTER TABLE wa_sessions ADD COLUMN IF NOT EXISTS prev_stage VARCHAR(64);
 ALTER TABLE wa_sessions ADD COLUMN IF NOT EXISTS pending_media_id VARCHAR(255);
 ALTER TABLE wa_sessions ADD COLUMN IF NOT EXISTS pending_media_type VARCHAR(32);
 ALTER TABLE wa_sessions ADD COLUMN IF NOT EXISTS pending_member_id INTEGER;
 
 ALTER TABLE tokens ADD COLUMN IF NOT EXISTS prev_session_step VARCHAR(64);
+ALTER TABLE tokens ALTER COLUMN session_step TYPE VARCHAR(64);
 
 -- ----------------------------------------------------------------------------
 -- token_history: durable per-phone visit ledger, archived the moment a token

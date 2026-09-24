@@ -34,9 +34,9 @@ export default function TokenCard({ token, onRefresh }) {
   }, [token.id]);
 
   const terminal = ['completed', 'missed', 'rejected'].includes(token.status);
-  // Patient-facing number: resets per hospital+department+day (dailyNumber) instead
-  // of the raw `id`, which is one sequence shared across every hospital/department.
-  const displayNumber = token.dailyNumber ?? token.id;
+  // Patient-facing alphanumeric code (e.g. AF-GM01, AF-CA02), never raw integer ID like 210
+  const displayCode = token.tokenCode || token.displayTokenCode || `AF-${String(token.dailyNumber || ((token.id - 1) % 99) + 1).padStart(2, '0')}`;
+  const displayNumber = displayCode;
 
   function shareLocation() {
     if (!navigator.geolocation) {
@@ -125,9 +125,6 @@ export default function TokenCard({ token, onRefresh }) {
 
       <dl className="detail-list">
         {typeof token.currentServing === 'number' && <Row label="Now serving" value={`#${token.currentServing}`} />}
-        {token.treatmentRemainingMinutes != null && (
-          <Row label="Estimated wait" value={fmtMinutes(token.treatmentRemainingMinutes)} />
-        )}
         {token.anomalyControlUntil && <Row label="Please arrive by" value={fmtDateTime(token.anomalyControlUntil)} />}
         <Row label="Checked in" value={fmtDateTime(token.createdAt)} />
       </dl>

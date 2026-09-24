@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { hospitalApi, locationApi, otpApi, queueApi, familyApi } from '../api/client';
+import { hospitalApi, locationApi, otpApi, queueApi, familyApi, setToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { cleanPhone, formatApproxDistance } from '../utils/helpers';
@@ -43,13 +43,20 @@ export default function Book() {
   const typeParam = params.get('type') || '';
   const distParam = params.get('dist') || '';
   const imgParam = params.get('img') || '';
+  const tokenParam = params.get('token') || '';
 
   const navigate = useNavigate();
   const toast = useToast();
   const { login, patient } = useAuth();
 
+  useEffect(() => {
+    if (tokenParam) {
+      setToken('PATIENT', tokenParam);
+    }
+  }, [tokenParam]);
+
   // Flow State: 1. 'department' -> 2. 'family' -> 3. 'confirm'
-  const [step, setStep] = useState('department');
+  const [step, setStep] = useState(() => (params.get('category') && hospitalIdParam ? 'family' : 'department'));
 
   // Hospital state
   const [hospitalId, setHospitalId] = useState(hospitalIdParam);

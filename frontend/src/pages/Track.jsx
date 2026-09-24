@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { queueApi } from '../api/client';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { queueApi, setToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { cleanPhone } from '../utils/helpers';
 import AyushmanFooter from '../components/AyushmanFooter';
@@ -14,11 +14,28 @@ function extract10Digits(input) {
 
 export default function Track() {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const { patient } = useAuth();
   const navigate = useNavigate();
 
+  const tokenIdParam = searchParams.get('tokenId');
+  const queryPhone = searchParams.get('phone');
+  const tokenParam = searchParams.get('token');
+
+  useEffect(() => {
+    if (tokenParam) {
+      setToken('PATIENT', tokenParam);
+    }
+  }, [tokenParam]);
+
+  useEffect(() => {
+    if (tokenIdParam) {
+      navigate(`/token/${tokenIdParam}`, { replace: true });
+    }
+  }, [tokenIdParam, navigate]);
+
   const savedPhone = localStorage.getItem('last_tracked_phone') || '8850934544';
-  const initialRaw = params.phone || patient?.subject || savedPhone;
+  const initialRaw = params.phone || queryPhone || patient?.subject || savedPhone;
 
   const [phoneDigits, setPhoneDigits] = useState(() => extract10Digits(initialRaw));
   const [isFocused, setIsFocused] = useState(false);
@@ -28,11 +45,12 @@ export default function Track() {
   const isEligible = phoneDigits.trim().length === 10;
 
   useEffect(() => {
-    if (params.phone) {
-      handleLookup(params.phone);
+    const targetPhone = params.phone || queryPhone;
+    if (targetPhone && !tokenIdParam) {
+      handleLookup(targetPhone);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.phone]);
+  }, [params.phone, queryPhone, tokenIdParam]);
 
   async function handleLookup(p = phoneDigits) {
     const cleaned = cleanPhone(p);

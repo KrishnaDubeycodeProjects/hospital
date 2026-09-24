@@ -1,9 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { abdmApi, familyApi, fetchAsObjectUrl } from '../../api/client';
+import { useSearchParams } from 'react-router-dom';
+import { abdmApi, familyApi, fetchAsObjectUrl, setToken } from '../../api/client';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
 export default function PatientFamily() {
+  const [searchParams] = useSearchParams();
+  const tokenParam = searchParams.get('token');
+
+  useEffect(() => {
+    if (tokenParam) {
+      setToken('PATIENT', tokenParam);
+    }
+  }, [tokenParam]);
+
   const [familyUnit, setFamilyUnit] = useState(null);
   const [members, setMembers] = useState(null);
   const [loading, setLoading] = useState(true);
