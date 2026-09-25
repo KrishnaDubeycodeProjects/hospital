@@ -1,30 +1,30 @@
 export const Colors = {
-  // Primary Theme
-  primary: '#1A6B4A', // Forest Green
-  primaryLight: '#E8F5E9',
-  primaryDark: '#114B33',
+  // Primary Theme (Clean, Fresh Medical Emerald)
+  primary: '#059669', // Clean Emerald Green
+  primaryLight: '#ECFDF5',
+  primaryDark: '#047857',
 
-  // Status & Urgency Indicators
-  urgentRed: '#E53935', // 7 days / High Risk / Missed
-  urgentRedBg: '#FFEBEE',
+  // Status & Urgency Indicators (Clean, Friendly, Readable)
+  urgentRed: '#EF4444', // 7 days / Urgent
+  urgentRedBg: '#FEF2F2',
   
   mediumPink: '#EC4899', // Pregnant / 15 days
-  mediumPinkBg: '#FCE7F3',
+  mediumPinkBg: '#FDF2F8',
 
-  dueYellow: '#FBBF24', // 30 days / Due Soon
-  dueYellowBg: '#FEF3C7',
+  dueYellow: '#F59E0B', // 30 days / Due Soon
+  dueYellowBg: '#FFFBEB',
 
-  visitedGreen: '#43A047', // Completed / Visited
-  visitedGreenBg: '#E8F5E9',
+  visitedGreen: '#10B981', // Completed / Visited
+  visitedGreenBg: '#ECFDF5',
 
-  grayNoData: '#9E9E9E', // No data / Unsurveyed
-  grayBg: '#F3F4F6',
+  grayNoData: '#94A3B8', // Clean slate grey (light, airy, non-intrusive)
+  grayBg: '#F8FAFC',
 
   // Backgrounds & Surfaces
-  background: '#F5F7F8', // Outdoor low-strain off-white
+  background: '#F8FAFC', // Ultra-clean soft background
   card: '#FFFFFF',
-  border: '#E5E7EB',
-  divider: '#EEEEEE',
+  border: '#E2E8F0',
+  divider: '#F1F5F9',
 
   // Typography
   textPrimary: '#1F2937',

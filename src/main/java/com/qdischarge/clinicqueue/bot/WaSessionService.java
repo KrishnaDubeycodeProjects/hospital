@@ -68,8 +68,11 @@ public class WaSessionService {
     }
 
     public void setPrevStage(String phone, String prevStage) {
-        jdbc.update("UPDATE wa_sessions SET prev_stage = :prevStage WHERE phone = :phone", 
-                Map.of("phone", phone, "prevStage", prevStage == null ? "" : prevStage));
+        org.springframework.jdbc.core.namedparam.MapSqlParameterSource params = 
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                        .addValue("phone", phone)
+                        .addValue("prevStage", prevStage);
+        jdbc.update("UPDATE wa_sessions SET prev_stage = :prevStage WHERE phone = :phone", params);
     }
 
     public String getPrevStage(String phone) {
@@ -79,12 +82,18 @@ public class WaSessionService {
     }
 
     public void setPendingMedia(String phone, String mediaId, String mediaType, Integer memberId) {
+        org.springframework.jdbc.core.namedparam.MapSqlParameterSource params = 
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                        .addValue("phone", phone)
+                        .addValue("mediaId", mediaId)
+                        .addValue("mediaType", mediaType)
+                        .addValue("memberId", memberId);
         jdbc.update(
                 """
                 UPDATE wa_sessions SET pending_media_id = :mediaId, pending_media_type = :mediaType, 
                 pending_member_id = :memberId WHERE phone = :phone
                 """,
-                Map.of("phone", phone, "mediaId", mediaId, "mediaType", mediaType, "memberId", memberId));
+                params);
     }
 
     public void clearPendingMedia(String phone) {
@@ -99,7 +108,7 @@ public class WaSessionService {
     public PendingMedia getPendingMedia(String phone) {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT pending_media_id, pending_media_type, pending_member_id FROM wa_sessions WHERE phone = :phone", Map.of("phone", phone));
-        if (rows.isEmpty() || rows.get(0).get("pending_media_id") == null) {
+        if (rows.isEmpty()) {
             return null;
         }
         Map<String, Object> row = rows.get(0);

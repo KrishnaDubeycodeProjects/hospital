@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type LanguageCode = 'hi' | 'en' | 'mr';
 
@@ -53,6 +54,47 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     viewMembers: 'सदस्य देखें',
     lastVisited: 'अंतिम भेंट',
     nextVisit: 'अगली भेंट',
+
+    // Rural Natural Heatmap & Home Navigation (Dead-Simple)
+    allHouses: 'सभी (24 घर)',
+    suchi: 'सूची',
+    childHealth: 'बाल स्वास्थ्य',
+    otherServices: 'अन्य सेवाएँ',
+    houseList: 'घर सूची',
+    registerList: 'रजिस्टर सूची',
+    villageHousesTitle: 'गाँव के 24 घर',
+    villageHousesSubtitle: 'रंग देखकर जानें किस घर पहले जाना है • घर पर टैप करें',
+    legend7Days: 'आज / 7 दिन (जरूरी भेंट)',
+    legend15Days: '15 दिन (गर्भवती / समीक्षा)',
+    legend30Days: '30 दिन (नियमित जाँच)',
+    legendVisited: 'भेंट पूर्ण (सब ठीक है)',
+    legendNoData: 'नई जानकारी बाकी',
+    anmDataSender: 'एएनएम दीदी को जानकारी भेजें',
+    anmDataSub: 'ऑफ़लाइन दर्ज किया गया कार्य सुरक्षित भेजें',
+    pendingLabel: 'लंबित',
+    vaccination: 'टीकाकरण',
+    ncdDisease: 'रोग जाँच',
+    sendToAnmBtn: 'एएनएम को भेजें',
+    online: 'ऑनलाइन',
+    syncing: 'सिंक हो रहा है...',
+    saved: 'सुरक्षित',
+    allPregnant: 'सभी गर्भवती',
+    ancDue: 'जाँच देय (ANC)',
+    highRiskHrp: 'उच्च जोखिम (HRP)',
+    vaxDue: 'टीकाकरण देय',
+    fillForm: 'फॉर्म भरें',
+    vaxGiven: 'टीका लगाया',
+    allChildren: 'सभी बच्चे',
+    growthWeight: 'वजन एवं वृद्धि',
+    familyPlanning: 'परिवार नियोजन',
+    lactatingMother: 'धात्री माता (PNC)',
+    adolescentHealth: 'किशोरी स्वास्थ्य',
+    register18b: 'रजिस्टर 18 ब',
+    register18a: 'रजिस्टर 18 अ',
+    register18c: 'रजिस्टर 18 स',
+    expectedList: 'गर्भवती अपेक्षित सूची',
+    childDueList: 'बाल टीकाकरण ड्यू लिस्ट',
+    otherBeneficiaries: 'अन्य सेवा लाभार्थी',
 
     // Families Screen
     searchPlaceholder: 'नाम या मकान संख्या से खोजें',
@@ -183,6 +225,47 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     lastVisited: 'Last Visited',
     nextVisit: 'Next Visit',
 
+    // Rural Natural Heatmap & Home Navigation (Dead-Simple)
+    allHouses: 'All (24 Houses)',
+    suchi: 'List',
+    childHealth: 'Child Health',
+    otherServices: 'Other Services',
+    houseList: 'House List',
+    registerList: 'Register List',
+    villageHousesTitle: '24 Village Houses',
+    villageHousesSubtitle: 'Color shows visit priority • Tap any house',
+    legend7Days: 'Today / 7 Days (Urgent Visit)',
+    legend15Days: '15 Days (Due Soon)',
+    legend30Days: '30 Days (Routine Check)',
+    legendVisited: 'Visited (All Good)',
+    legendNoData: 'Pending / New Info',
+    anmDataSender: 'Send Records to ANM',
+    anmDataSub: 'Securely sync your offline recorded visits',
+    pendingLabel: 'Pending',
+    vaccination: 'Vaccination',
+    ncdDisease: 'Disease Check',
+    sendToAnmBtn: 'Send to ANM',
+    online: 'Online',
+    syncing: 'Syncing...',
+    saved: 'Saved',
+    allPregnant: 'All Pregnant',
+    ancDue: 'ANC Due',
+    highRiskHrp: 'High Risk (HRP)',
+    vaxDue: 'Vaccine Due',
+    fillForm: 'Fill Form',
+    vaxGiven: 'Vaccine Given',
+    allChildren: 'All Children',
+    growthWeight: 'Growth & Weight',
+    familyPlanning: 'Family Planning',
+    lactatingMother: 'Lactating Mother',
+    adolescentHealth: 'Adolescent Health',
+    register18b: 'Register 18 B',
+    register18a: 'Register 18 A',
+    register18c: 'Register 18 C',
+    expectedList: 'Expected Pregnant List',
+    childDueList: 'Child Due List',
+    otherBeneficiaries: 'Other Beneficiaries',
+
     // Families Screen
     searchPlaceholder: 'Search by name or house no.',
     searchListening: 'Listening... please speak',
@@ -312,6 +395,47 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     lastVisited: 'शेवटची भेट',
     nextVisit: 'पुढील भेट',
 
+    // Rural Natural Heatmap & Home Navigation (Dead-Simple)
+    allHouses: 'सर्व (24 घरे)',
+    suchi: 'सूची',
+    childHealth: 'बाल आरोग्य',
+    otherServices: 'इतर सेवा',
+    houseList: 'घर सूची',
+    registerList: 'नोंदवही सूची',
+    villageHousesTitle: 'गावातील 24 घरे',
+    villageHousesSubtitle: 'रंगावरून प्राधान्य ओळखा • घरावर टॅप करा',
+    legend7Days: 'आज / 7 दिवस (तातडीची भेट)',
+    legend15Days: '15 दिवस (लवकरच देय)',
+    legend30Days: '30 दिवस (नियमित तपासणी)',
+    legendVisited: 'भेट पूर्ण (सर्व ठीक)',
+    legendNoData: 'नवीन / माहिती बाकी',
+    anmDataSender: 'एएनएम ताईंना माहिती पाठवा',
+    anmDataSub: 'ऑफलाइन नोंदवलेली माहिती सुरक्षित पाठवा',
+    pendingLabel: 'प्रलंबित',
+    vaccination: 'लसीकरण',
+    ncdDisease: 'रोग तपासणी',
+    sendToAnmBtn: 'एएनएमला पाठवा',
+    online: 'ऑनलाइन',
+    syncing: 'सिंक होत आहे...',
+    saved: 'सुरक्षित',
+    allPregnant: 'सर्व गरोदर',
+    ancDue: 'तपासणी देय (ANC)',
+    highRiskHrp: 'उच्च जोखीम (HRP)',
+    vaxDue: 'लसीकरण देय',
+    fillForm: 'फॉर्म भरा',
+    vaxGiven: 'लस दिली',
+    allChildren: 'सर्व मुले',
+    growthWeight: 'वजन व वाढ',
+    familyPlanning: 'कुटुंब नियोजन',
+    lactatingMother: 'स्तनदा माता (PNC)',
+    adolescentHealth: 'किशोरी आरोग्य',
+    register18b: 'नोंदवही 18 ब',
+    register18a: 'नोंदवही 18 अ',
+    register18c: 'नोंदवही 18 क',
+    expectedList: 'गरोदर अपेक्षित यादी',
+    childDueList: 'बाल लसीकरण देय यादी',
+    otherBeneficiaries: 'इतर सेवा लाभार्थी',
+
     // Families Screen
     searchPlaceholder: 'नाव किंवा घर क्रमांकाने शोधा',
     searchListening: 'ऐकत आहे... बोला',
@@ -410,9 +534,26 @@ const LanguageContext = createContext<LanguageContextType>({
   t: (key: string) => key,
 });
 
+const LANGUAGE_STORAGE_KEY = '@asha_selected_language';
+
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguage] = useState<LanguageCode>('hi');
+  const [language, setLanguageState] = useState<LanguageCode>('hi');
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
+      .then((savedLang) => {
+        if (savedLang === 'hi' || savedLang === 'en' || savedLang === 'mr') {
+          setLanguageState(savedLang);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const setLanguage = (lang: LanguageCode) => {
+    setLanguageState(lang);
+    AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang).catch(() => {});
+  };
 
   const localeMap: Record<LanguageCode, string> = {
     hi: 'hi-IN',

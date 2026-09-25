@@ -115,7 +115,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           color={activeTab === 'Home' ? Colors.primary : Colors.textMuted}
         />
         <Text style={[styles.tabText, activeTab === 'Home' && styles.activeTabText]}>
-          सूची
+          {t('suchi')}
         </Text>
       </TouchableOpacity>
 

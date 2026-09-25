@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
-import { User, RefreshCw, CloudOff, CheckCircle, Wifi } from 'lucide-react-native';
+import { useLanguage } from '../context/LanguageContext';
+import { User, RefreshCw, CloudOff, CheckCircle, Wifi, Globe } from 'lucide-react-native';
 
 interface HeaderProps {
   onRolePress?: () => void;
@@ -12,12 +13,21 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
   const { user, setRole } = useAuth();
   const { pendingSyncCount, isSyncing, isOnline, triggerSync } = useOfflineData();
+  const { language, setLanguage, t } = useLanguage();
 
   const cycleRole = () => {
     if (user.role === 'ASHA') setRole('ANM');
     else if (user.role === 'ANM') setRole('CHO');
     else setRole('ASHA');
   };
+
+  const cycleLanguage = () => {
+    if (language === 'hi') setLanguage('mr');
+    else if (language === 'mr') setLanguage('en');
+    else setLanguage('hi');
+  };
+
+  const currentLangLabel = language === 'hi' ? 'हिं' : language === 'mr' ? 'मरा' : 'EN';
 
   return (
     <View style={styles.container}>
@@ -28,12 +38,22 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           resizeMode="contain"
         />
         <View style={styles.titleCol}>
-          <Text style={styles.appTitle}>Aarogya Flow</Text>
-          <Text style={styles.appSubtitle}>Care Closer. Healthier Tomorrow.</Text>
+          <Text style={styles.appTitle}>{t('appTitle')}</Text>
+          <Text style={styles.appSubtitle}>{t('appSubtitle')}</Text>
         </View>
       </View>
 
       <View style={styles.rightActions}>
+        {/* Quick Language Toggle Pill */}
+        <TouchableOpacity
+          style={styles.langBadge}
+          onPress={cycleLanguage}
+          activeOpacity={0.8}
+        >
+          <Globe size={13} color={Colors.primary} />
+          <Text style={styles.langText}>{currentLangLabel}</Text>
+        </TouchableOpacity>
+
         {/* Internet Connection / Local Storage Status Indicator */}
         <TouchableOpacity
           style={styles.storageBadge}
@@ -43,12 +63,12 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           {isSyncing ? (
             <>
               <RefreshCw size={12} color={Colors.primary} />
-              <Text style={[styles.storageText, { color: Colors.primary }]}>Syncing...</Text>
+              <Text style={[styles.storageText, { color: Colors.primary }]}>{t('syncing')}</Text>
             </>
           ) : isOnline ? (
             <>
               <Wifi size={12} color={Colors.visitedGreen} />
-              <Text style={[styles.storageText, { color: Colors.visitedGreen }]}>Online</Text>
+              <Text style={[styles.storageText, { color: Colors.visitedGreen }]}>{t('online')}</Text>
             </>
           ) : pendingSyncCount > 0 ? (
             <>
@@ -58,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           ) : (
             <>
               <CheckCircle size={12} color={Colors.visitedGreen} />
-              <Text style={[styles.storageText, { color: Colors.visitedGreen }]}>Saved</Text>
+              <Text style={[styles.storageText, { color: Colors.visitedGreen }]}>{t('saved')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -145,5 +165,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.primary,
     marginLeft: 3,
+  },
+  langBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    gap: 4,
+  },
+  langText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.primary,
   },
 });

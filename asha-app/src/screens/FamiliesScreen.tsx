@@ -123,7 +123,7 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({
           <Search size={18} color={Colors.textSecondary} style={{ marginRight: 8 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder={isListening ? 'बोलिए... सुन रहे हैं' : 'मुखिया या सदस्य के नाम से खोजें...'}
+            placeholder={isListening ? t('searchListening') : t('searchPlaceholder')}
             placeholderTextColor={Colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}

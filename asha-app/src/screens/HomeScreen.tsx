@@ -147,9 +147,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('All')}
           activeOpacity={0.8}
         >
-          <LayoutGrid size={17} color={activeSection === 'All' ? '#FFFFFF' : Colors.primary} />
+          <LayoutGrid size={16} color={activeSection === 'All' ? Colors.primary : '#64748B'} />
           <Text style={[styles.tabText, activeSection === 'All' && styles.tabTextActive]}>
-            सभी (24 घर)
+            {t('allHouses')}
           </Text>
         </TouchableOpacity>
 
@@ -158,9 +158,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('Pregnancy')}
           activeOpacity={0.8}
         >
-          <Baby size={17} color={activeSection === 'Pregnancy' ? '#FFFFFF' : '#B91C1C'} />
+          <Baby size={16} color={activeSection === 'Pregnancy' ? '#DC2626' : '#64748B'} />
           <Text style={[styles.tabText, activeSection === 'Pregnancy' && styles.tabTextActive]}>
-            गर्भवती
+            {t('pregnant')}
           </Text>
         </TouchableOpacity>
 
@@ -169,9 +169,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('Child')}
           activeOpacity={0.8}
         >
-          <Syringe size={17} color={activeSection === 'Child' ? '#FFFFFF' : '#0284C7'} />
+          <Syringe size={16} color={activeSection === 'Child' ? '#0284C7' : '#64748B'} />
           <Text style={[styles.tabText, activeSection === 'Child' && styles.tabTextActive]}>
-            बाल स्वास्थ्य
+            {t('childHealth')}
           </Text>
         </TouchableOpacity>
 
@@ -180,9 +180,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('OtherServices')}
           activeOpacity={0.8}
         >
-          <HeartPulse size={17} color={activeSection === 'OtherServices' ? '#FFFFFF' : '#059669'} />
+          <HeartPulse size={16} color={activeSection === 'OtherServices' ? '#059669' : '#64748B'} />
           <Text style={[styles.tabText, activeSection === 'OtherServices' && styles.tabTextActive]}>
-            अन्य सेवाएँ
+            {t('otherServices')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -194,9 +194,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setViewMode('grid')}
           activeOpacity={0.8}
         >
-          <LayoutGrid size={15} color={viewMode === 'grid' ? '#FFFFFF' : Colors.primary} />
+          <LayoutGrid size={15} color={viewMode === 'grid' ? Colors.primary : '#64748B'} />
           <Text style={[styles.viewModeBtnText, viewMode === 'grid' && styles.viewModeBtnTextActive]}>
-            घर सूची
+            {t('houseList')}
           </Text>
         </TouchableOpacity>
 
@@ -205,9 +205,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setViewMode('dueList')}
           activeOpacity={0.8}
         >
-          <ListFilter size={15} color={viewMode === 'dueList' ? '#FFFFFF' : Colors.primary} />
+          <ListFilter size={15} color={viewMode === 'dueList' ? Colors.primary : '#64748B'} />
           <Text style={[styles.viewModeBtnText, viewMode === 'dueList' && styles.viewModeBtnTextActive]}>
-            रजिस्टर सूची
+            {t('registerList')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -231,14 +231,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <Send size={18} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.senderDataTitle}>📤 डेटा प्रेषक (Sender Data)</Text>
+                  <Text style={styles.senderDataTitle}>📤 {t('anmDataSender')}</Text>
                   <Text style={styles.senderDataSubtitle}>
-                    एएनएम को ऑफ़लाइन सर्वेक्षण व रिकॉर्ड भेजें
+                    {t('anmDataSub')}
                   </Text>
                 </View>
                 <View style={styles.pendingBadge}>
                   <Text style={styles.pendingBadgeText}>
-                    {(pendingSyncCount || (outbox && outbox.length) || 3)} लंबित
+                    {(pendingSyncCount || (outbox && outbox.length) || 3)} {t('pendingLabel')}
                   </Text>
                 </View>
               </View>
@@ -248,21 +248,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <View style={styles.senderMetricItem}>
                   <Syringe size={14} color={Colors.primary} />
                   <Text style={styles.senderMetricVal}>{childVaccinations?.length || 4}</Text>
-                  <Text style={styles.senderMetricLabel}>टीकाकरण</Text>
+                  <Text style={styles.senderMetricLabel}>{t('vaccination')}</Text>
                 </View>
                 <View style={styles.senderMetricItem}>
                   <Baby size={14} color="#D97706" />
                   <Text style={styles.senderMetricVal}>
                     {surveys.filter((s) => s.categoryCode === 'PREGNANCY').length || 2}
                   </Text>
-                  <Text style={styles.senderMetricLabel}>गर्भावस्था</Text>
+                  <Text style={styles.senderMetricLabel}>{t('pregnant')}</Text>
                 </View>
                 <View style={styles.senderMetricItem}>
                   <HeartPulse size={14} color="#DC2626" />
                   <Text style={styles.senderMetricVal}>
                     {surveys.filter((s) => s.categoryCode === 'DISEASE').length || 3}
                   </Text>
-                  <Text style={styles.senderMetricLabel}>एनसीडी रोग</Text>
+                  <Text style={styles.senderMetricLabel}>{t('ncdDisease')}</Text>
                 </View>
               </View>
 
@@ -274,7 +274,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               >
                 <QrCode size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={styles.senderActionBtnText}>
-                  एएनएम को भेजें (Send Data to ANM)
+                  {t('sendToAnmBtn')}
                 </Text>
                 <ArrowRight size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
               </TouchableOpacity>
@@ -290,10 +290,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {/* Filter Pills */}
             <View style={styles.filterPillsRow}>
               {[
-                { key: 'all', label: 'सभी गर्भवती' },
-                { key: 'due', label: 'जाँच देय (ANC)' },
-                { key: 'hrp', label: 'उच्च जोखिम (HRP)' },
-                { key: 'vax', label: 'टीकाकरण देय' },
+                { key: 'all', label: t('allPregnant') },
+                { key: 'due', label: t('ancDue') },
+                { key: 'hrp', label: t('highRiskHrp') },
+                { key: 'vax', label: t('vaxDue') },
               ].map((p) => (
                 <TouchableOpacity
                   key={p.key}
@@ -318,9 +318,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {/* List Counter */}
             <View style={styles.listHeaderRow}>
               <Text style={styles.listHeaderTitle}>
-                गर्भवती अपेक्षित सूची ({pregnantWomen.length})
+                {t('expectedList')} ({pregnantWomen.length})
               </Text>
-              <Text style={styles.listHeaderBadge}>रजिस्टर 18 ब</Text>
+              <Text style={styles.listHeaderBadge}>{t('register18b')}</Text>
             </View>
 
             {/* Beneficiary Cards */}
@@ -339,10 +339,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Text style={styles.cleanCardTitle}>{woman.name}</Text>
-                        <Text style={styles.cleanCardAge}>, {woman.age} वर्ष</Text>
+                        <Text style={styles.cleanCardAge}>, {woman.age}</Text>
                       </View>
                       <Text style={styles.cleanCardSub}>
-                        पति: {husbandName} • {fam.house}
+                        {fam.head}: {husbandName} • {fam.house}
                       </Text>
                     </View>
 
@@ -354,7 +354,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     ) : (
                       <View style={styles.dueBadge}>
                         <Text style={styles.dueBadgeText}>
-                          {answers.ancVisitNumber || 'ANC 2 देय'}
+                          {answers.ancVisitNumber || 'ANC 2'}
                         </Text>
                       </View>
                     )}
@@ -363,7 +363,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <View style={styles.chipsRow}>
                     <View style={styles.infoChip}>
                       <Text style={styles.infoChipText}>
-                        टीका: {answers.ttGiven ? '✓ लगा' : 'देय'}
+                        TT: {answers.ttGiven ? '✓' : t('pendingLabel')}
                       </Text>
                     </View>
                     <View style={styles.infoChip}>
@@ -383,7 +383,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     onPress={() => onOpenPregnancyForm(woman, woman.familyUnitId)}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.openFormBtnText}>फॉर्म भरें</Text>
+                    <Text style={styles.openFormBtnText}>{t('fillForm')}</Text>
                     <ArrowRight size={16} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -396,9 +396,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View>
             <View style={styles.filterPillsRow}>
               {[
-                { key: 'all', label: 'सभी बच्चे' },
-                { key: 'due', label: 'टीकाकरण देय' },
-                { key: 'growth', label: 'वजन एवं वृद्धि' },
+                { key: 'all', label: t('allChildren') },
+                { key: 'due', label: t('vaxDue') },
+                { key: 'growth', label: t('growthWeight') },
               ].map((p) => (
                 <TouchableOpacity
                   key={p.key}
@@ -422,9 +422,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
             <View style={styles.listHeaderRow}>
               <Text style={styles.listHeaderTitle}>
-                बाल टीकाकरण ड्यू लिस्ट ({children.length})
+                {t('childDueList')} ({children.length})
               </Text>
-              <Text style={styles.listHeaderBadge}>रजिस्टर 18 अ</Text>
+              <Text style={styles.listHeaderBadge}>{t('register18a')}</Text>
             </View>
 
             {children.map((child, idx) => {
@@ -465,12 +465,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       style={styles.quickVaxBtn}
                       onPress={async () => {
                         await updateChildVaccine(child.id, 'Penta-1', 'Given');
-                        alert(`✓ ${child.name} का टीका दर्ज किया गया!`);
+                        alert(`✓ ${child.name}`);
                       }}
                       activeOpacity={0.8}
                     >
                       <CheckCircle size={15} color="#059669" style={{ marginRight: 5 }} />
-                      <Text style={styles.quickVaxText}>टीका लगाया</Text>
+                      <Text style={styles.quickVaxText}>{t('vaxGiven')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -478,7 +478,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       onPress={() => onOpenChildForm(child, child.familyUnitId)}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.openFormBtnText}>फॉर्म भरें</Text>
+                      <Text style={styles.openFormBtnText}>{t('fillForm')}</Text>
                       <ArrowRight size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
                     </TouchableOpacity>
                   </View>
@@ -492,9 +492,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View>
             <View style={styles.filterPillsRow}>
               {[
-                { key: 'fp', label: 'परिवार नियोजन' },
-                { key: 'pnc', label: 'धात्री माता (PNC)' },
-                { key: 'adolescent', label: 'किशोरी स्वास्थ्य' },
+                { key: 'fp', label: t('familyPlanning') },
+                { key: 'pnc', label: t('lactatingMother') },
+                { key: 'adolescent', label: t('adolescentHealth') },
               ].map((p) => (
                 <TouchableOpacity
                   key={p.key}
@@ -518,9 +518,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
             <View style={styles.listHeaderRow}>
               <Text style={styles.listHeaderTitle}>
-                अन्य सेवा लाभार्थी ({otherBeneficiaries.length})
+                {t('otherBeneficiaries')} ({otherBeneficiaries.length})
               </Text>
-              <Text style={styles.listHeaderBadge}>रजिस्टर 18 स</Text>
+              <Text style={styles.listHeaderBadge}>{t('register18c')}</Text>
             </View>
 
             {otherBeneficiaries.map((member, idx) => {
@@ -535,16 +535,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cleanCardTitle}>{member.name}</Text>
                       <Text style={styles.cleanCardSub}>
-                        {member.gender === 'Female' ? 'महिला' : 'पुरुष'}, {member.age} वर्ष • {fam.house}
+                        {member.gender === 'Female' ? t('female') : t('male')}, {member.age} • {fam.house}
                       </Text>
                     </View>
                     <View style={styles.otherServiceBadge}>
                       <Text style={styles.otherServiceBadgeText}>
                         {otherCategory === 'fp'
-                          ? 'परिवार नियोजन'
+                          ? t('familyPlanning')
                           : otherCategory === 'pnc'
-                          ? 'धात्री'
-                          : 'किशोरी'}
+                          ? t('lactatingMother')
+                          : t('adolescentHealth')}
                       </Text>
                     </View>
                   </View>
@@ -556,7 +556,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     }
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.openFormBtnText}>पंजीकरण फॉर्म भरें</Text>
+                    <Text style={styles.openFormBtnText}>{t('fillForm')}</Text>
                     <ArrowRight size={16} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -599,22 +599,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 3,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     gap: 4,
   },
   tabBtnActive: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
   },
   tabText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#334155',
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
   },
   tabTextActive: {
-    color: '#FFFFFF',
+    color: '#065F46',
+    fontWeight: '800',
   },
   viewModeToggleRow: {
     flexDirection: 'row',
@@ -631,23 +635,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#E2E8F0',
     gap: 6,
   },
   viewModeBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
   },
   viewModeBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
+    fontWeight: '600',
+    color: '#64748B',
   },
   viewModeBtnTextActive: {
-    color: '#FFFFFF',
+    color: '#065F46',
+    fontWeight: '800',
   },
   suchiSummaryBox: {
     backgroundColor: '#FFFFFF',
@@ -686,8 +691,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   pillBtnActive: {
-    backgroundColor: '#1E293B',
-    borderColor: '#1E293B',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   pillText: {
     fontSize: 12,
@@ -696,6 +701,7 @@ const styles = StyleSheet.create({
   },
   pillTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
   listHeaderRow: {
     flexDirection: 'row',

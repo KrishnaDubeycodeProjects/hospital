@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Colors } from '../theme/colors';
+import { useLanguage } from '../context/LanguageContext';
 
 export interface HouseholdDot {
   id: number;
@@ -28,34 +29,34 @@ export const DotGrid: React.FC<DotGridProps> = ({
   onDotPress,
   selectedDotId,
 }) => {
+  const { t } = useLanguage();
+
   const getStatusColor = (status: HouseholdDot['status']) => {
     switch (status) {
       case '7days':
-        return Colors.urgentRed; // #E53935 (Vivid Red)
+        return Colors.urgentRed; // Clean Medical Red
       case '15days':
-        return Colors.mediumPink; // #EC4899 (Vivid Pink)
+        return Colors.mediumPink; // Soft Rose Pink
       case '30days':
-        return Colors.dueYellow; // #FBBF24 (Vivid Yellow)
+        return Colors.dueYellow; // Warm Amber Yellow
       case 'visited':
-        return Colors.visitedGreen; // #43A047 (Vivid Green)
+        return Colors.visitedGreen; // Fresh Emerald
       case 'noData':
       default:
-        return Colors.grayNoData; // #9E9E9E (Grey of Absence)
+        return Colors.grayNoData; // Clean Slate Grey
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* Clean 3x8 Visual Heatmap Matrix */}
+      {/* Clean Rural Village House Cards */}
       <View style={styles.heatmapCard}>
         <View style={styles.headerRow}>
-          <Text style={styles.gridHeading}>3×8 परिवार ग्रिड हीटमैप</Text>
-          <Text style={styles.gridSubheading}>
-            {dots.length} घर • किसी भी घर पर टैप करें
-          </Text>
+          <Text style={styles.gridHeading}>{t('villageHousesTitle')}</Text>
+          <Text style={styles.gridSubheading}>{t('villageHousesSubtitle')}</Text>
         </View>
 
-        {/* 24 Heatmap Matrix Tiles (3 rows x 8 columns) */}
+        {/* 24 Village Household Indicator Tiles */}
         <View style={styles.matrixContainer}>
           {dots.map((dot) => {
             const isSelected = dot.id === selectedDotId;
@@ -81,32 +82,32 @@ export const DotGrid: React.FC<DotGridProps> = ({
           })}
         </View>
 
-        {/* Clean 5-Color Clinical Status Legend */}
+        {/* Clean, Simple Legend */}
         <View style={styles.legendContainer}>
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: Colors.urgentRed }]} />
-              <Text style={styles.legendText}>7 दिन (अति आवश्यक - Red)</Text>
+              <Text style={styles.legendText}>{t('legend7Days')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: Colors.mediumPink }]} />
-              <Text style={styles.legendText}>15 दिन (शीघ्र - Pink)</Text>
+              <Text style={styles.legendText}>{t('legend15Days')}</Text>
             </View>
           </View>
-          <View style={[styles.legendRow, { marginTop: 6 }]}>
+          <View style={[styles.legendRow, { marginTop: 8 }]}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: Colors.dueYellow }]} />
-              <Text style={styles.legendText}>30 दिन (नियमित - Yellow)</Text>
+              <Text style={styles.legendText}>{t('legend30Days')}</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: Colors.visitedGreen }]} />
-              <Text style={styles.legendText}>भेंट पूर्ण (Visited - Green)</Text>
+              <Text style={styles.legendText}>{t('legendVisited')}</Text>
             </View>
           </View>
-          <View style={[styles.legendRow, { marginTop: 6 }]}>
+          <View style={[styles.legendRow, { marginTop: 8 }]}>
             <View style={[styles.legendItem, { width: '100%' }]}>
               <View style={[styles.legendDot, { backgroundColor: Colors.grayNoData }]} />
-              <Text style={styles.legendText}>अनुपस्थिति / डेटा नहीं (Grey of Absence)</Text>
+              <Text style={styles.legendText}>{t('legendNoData')}</Text>
             </View>
           </View>
         </View>
@@ -165,9 +166,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   matrixBoxSelected: {
-    borderWidth: 3,
-    borderColor: '#000000',
-    transform: [{ scale: 1.18 }],
+    borderWidth: 2.5,
+    borderColor: Colors.primary,
+    transform: [{ scale: 1.15 }],
     zIndex: 10,
   },
   matrixHouseText: {
