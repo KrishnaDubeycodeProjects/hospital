@@ -6,7 +6,7 @@ import axios from 'axios';
 // 3. window.location.origin        → safe fallback when deployed (same-origin)
 export const API_URL =
   import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' ? window.location.origin : 'https://princete.com');
+  (typeof window !== 'undefined' ? window.location.origin : 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com');
 
 export const client = axios.create({
   baseURL: API_URL,

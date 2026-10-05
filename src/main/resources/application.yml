@@ -101,7 +101,7 @@ app:
   jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:720}
 
   webhook-verify-token: ${WEBHOOK_VERIFY_TOKEN:clinic_queue_token}
-  allowed-origins: ${ALLOWED_ORIGINS:https://hospital-ten-blond.vercel.app,https://hospital.princete.com,https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}
+  allowed-origins: ${ALLOWED_ORIGINS:https://hospital-ten-blond.vercel.app,https://frontend-nu-blond-1ea9x4z95l.vercel.app,https://hospital.princete.com,https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}
 
   # WhatsApp provider: 'meta' (Meta Cloud API exclusively)
   wa-provider: ${WA_PROVIDER:meta}

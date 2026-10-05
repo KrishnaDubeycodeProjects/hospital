@@ -237,12 +237,12 @@ def deploy_to_lambda(session, role_arn: str, jar_path: Path, env_vars: dict, s3_
     return func_url
 
 def update_frontend(func_url: str):
-    print(f"\n🎨 Linking frontend to live Lambda URL: {func_url}")
+    api_gw_url = "https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com"
+    print(f"\n🎨 Linking frontend to live API Gateway URL: {api_gw_url}")
     frontend_env = FRONTEND_DIR / ".env.production"
-    clean_url = func_url.rstrip("/")
     with open(frontend_env, "w", encoding="utf-8") as f:
-        f.write(f"# Auto-generated for AWS Lambda deployment\n")
-        f.write(f"VITE_API_URL={clean_url}\n")
+        f.write(f"# Auto-generated for AWS deployment\n")
+        f.write(f"VITE_API_URL={api_gw_url}\n")
     print(f"✅ Updated {frontend_env.relative_to(WORKSPACE_DIR)}")
 
 def main():

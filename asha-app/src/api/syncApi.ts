@@ -11,7 +11,7 @@ const BACKEND_BASE_URL =
   window.location.origin.startsWith('http') &&
   !isRunningOnFrontendDevServer
     ? window.location.origin
-    : 'https://decency-immovable-synopsis.ngrok-free.dev';
+    : 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
 
 // Required for ngrok free tier to skip the browser warning interstitial page
 const NGROK_HEADERS: Record<string, string> = {
