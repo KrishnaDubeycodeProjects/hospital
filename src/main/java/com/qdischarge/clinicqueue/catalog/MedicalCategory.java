@@ -99,7 +99,7 @@ public final class MedicalCategory {
         String lower = trimmed.toLowerCase();
 
         // Colloquial / symptom / vernacular matching for rural patients
-        if (matchesAny(lower, "fever", "cold", "cough", "bukhar", "khasi", "sardi", "taap", "khokla", "headache", "sar dard", "dokedukhi", "infection", "weakness", "kamjori", "bp", "sugar", "diabetes", "general", "opd", "medicine", "dawa", "bukhar")) {
+        if (matchesAny(lower, "checkup", "check up", "check-up", "fever", "cold", "cough", "bukhar", "khasi", "sardi", "taap", "khokla", "headache", "sar dard", "dokedukhi", "infection", "weakness", "kamjori", "bp", "sugar", "diabetes", "general", "opd", "medicine", "dawa", "जांच", "तपासणी")) {
             return "General Medicine / Internal Medicine";
         }
         if (matchesAny(lower, "bone", "joint", "fracture", "haddi", "haad", "sandhe", "kamar dard", "back pain", "sprain", "ortho", "plaster", "leg pain", "haadache", "sandhi")) {

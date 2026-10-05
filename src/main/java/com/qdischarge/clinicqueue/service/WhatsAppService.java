@@ -65,6 +65,8 @@ public class WhatsAppService {
 
     /**
      * Chains async execution per phone number so outbound messages arrive in strict FIFO order.
+     * In serverless environments like AWS Lambda, background threads are frozen when the HTTP handler
+     * returns, so tasks are executed synchronously before Lambda pauses the container.
      */
     private void runSequenced(String phone, Runnable task) {
         String key = formatPhone(phone);
@@ -72,6 +74,16 @@ public class WhatsAppService {
             log.warn("Cannot send WhatsApp message: phone number is empty");
             return;
         }
+
+        if (System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null) {
+            try {
+                task.run();
+            } catch (Exception e) {
+                log.error("Error executing WhatsApp message in Lambda: {}", e.getMessage(), e);
+            }
+            return;
+        }
+
         phonePipelines.compute(key, (k, prev) -> {
             if (prev == null || prev.isDone()) {
                 return CompletableFuture.runAsync(task, whatsappExecutor);

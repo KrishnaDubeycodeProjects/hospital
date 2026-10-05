@@ -513,12 +513,19 @@ export default function Book() {
   const selectedVisual = getDepartmentVisual(selectedDept);
 
   return (
-    <div className="arogyaflow-backdrop">
-      <main className="arogyaflow-phone-frame">
-        {/* Top Sheet Drag Indicator Bar */}
-        <div className="arogyaflow-drag-handle">
-          <div className="arogyaflow-drag-bar" />
-        </div>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      <main
+        style={{
+          width: '100%',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          backgroundColor: '#ffffff',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}
+      >
 
         {/* Top App Bar (Header) */}
         <header

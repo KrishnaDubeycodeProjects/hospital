@@ -1,7 +1,8 @@
 {
   "rewrites": [
     { "source": "/wa/(.*)", "destination": "/wa/$1" },
-    { "source": "/api/(.*)", "destination": "https://decency-immovable-synopsis.ngrok-free.dev/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com/api/$1" },
+    { "source": "/actuator/(.*)", "destination": "https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com/actuator/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

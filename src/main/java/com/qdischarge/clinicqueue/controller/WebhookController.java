@@ -55,6 +55,7 @@ public class WebhookController {
     private final com.qdischarge.clinicqueue.security.JwtService jwtService;
     private final com.qdischarge.clinicqueue.service.PatientDocumentService patientDocumentService;
     private final com.qdischarge.clinicqueue.service.WebhookDeduplicationService webhookDeduplicationService;
+    private final com.qdischarge.clinicqueue.service.TestEnvironmentService testEnvironmentService;
 
     private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern DIGIPIN_PATTERN = Pattern.compile("^[A-Z0-9]{10}$");
@@ -166,6 +167,38 @@ public class WebhookController {
                 fromPhone, pushName, incomingMessage, buttonId);
 
         try {
+            // Check for direct demo / test environment activation trigger:
+            // Allows instant conversion from real to demo mode at any point, even without saying 'hi'
+            boolean isDemoTrigger = "btn_activate_test_mode".equals(buttonId)
+                    || "test".equals(cleanMessage)
+                    || "demo".equals(cleanMessage)
+                    || "परीक्षण".equals(cleanMessage)
+                    || "टेस्ट".equals(cleanMessage)
+                    || cleanMessage.startsWith("demo")
+                    || cleanMessage.startsWith("test")
+                    || cleanMessage.contains("try demo");
+
+            if (isDemoTrigger) {
+                log.info("🧪 DIRECT DEMO ENVIRONMENT ACTIVATION triggered by [{}] msg='{}' button='{}'", fromPhone, cleanMessage, buttonId);
+                WaSessionService.WaSession existingSession = waSessionService.get(fromPhone);
+                Lang lang = Lang.EN;
+                if (existingSession != null && existingSession.language() != null) {
+                    lang = existingSession.language();
+                } else if (cleanMessage.contains("परीक्षण") || cleanMessage.contains("टेस्ट")) {
+                    lang = Lang.HI;
+                }
+                if (existingSession == null) {
+                    waSessionService.createAwaitingLanguage(fromPhone);
+                }
+                waSessionService.setLanguage(fromPhone, lang);
+                waSessionService.setStage(fromPhone, "ready");
+
+                com.qdischarge.clinicqueue.service.TestEnvironmentService.TestPatientProfile profile = testEnvironmentService.seedPatientTestEnvironment(fromPhone);
+                sendTestEnvironmentWelcome(fromPhone, lang, profile);
+                sendServicesMenu(fromPhone, lang);
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
             // STEP 1: Session & Language
             WaSessionService.WaSession session = waSessionService.get(fromPhone);
             if (session == null) {
@@ -185,8 +218,15 @@ public class WebhookController {
             }
 
             Lang lang = session.language();
-            
-            // Check if user is registered in database (Registration guard)
+
+            if ("btn_register_prompt".equals(buttonId)) {
+                String regUrl = buildAuthWebviewUrl("/book", fromPhone, Map.of());
+                whatsAppService.sendUrlButtonMessage(fromPhone, "📝 Patient Registration",
+                        botMessages.unregisteredPrompt(lang, appProperties.getClinicName()),
+                        "📝 Register Now", regUrl, appProperties.getClinicName());
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+
             List<FamilyMemberDto> members = familyUnitService.listMembersByCleanPhone(fromPhone);
             if (members == null || members.isEmpty()) {
                 if (incomingMessage.startsWith("#REGISTERED:")) {
@@ -195,10 +235,15 @@ public class WebhookController {
                     sendServicesMenu(fromPhone, lang);
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
-                String regUrl = buildAuthWebviewUrl("/book", fromPhone, Map.of());
-                whatsAppService.sendUrlButtonMessage(fromPhone, "📝 Patient Registration",
-                        botMessages.unregisteredPrompt(lang, appProperties.getClinicName()),
-                        "📝 Register Now", regUrl, appProperties.getClinicName());
+                String regPrompt = switch(lang) {
+                    case EN -> "👋 *Welcome to " + appProperties.getClinicName() + "!*\n\nYou are not registered yet.\n\nChoose an option below:\n• *🧪 Try Demo Mode* to test all features instantly (pre-loaded ABHA, records, referrals)\n• *📝 Register Now* to create your own health profile";
+                    case HI -> "👋 *" + appProperties.getClinicName() + " में आपका स्वागत है!*\n\nआप अभी पंजीकृत नहीं हैं।\n\nनीचे एक विकल्प चुनें:\n• *🧪 डेमो मोड* सभी सुविधाओं का परीक्षण करने के लिए (आभा, रिकॉर्ड, रेफरल तैयार)\n• *📝 पंजीकरण करें* अपना नया खाता बनाने के लिए";
+                    case MR -> "👋 *" + appProperties.getClinicName() + " मध्ये स्वागत!*\n\nतुमची नोंदणी झालेली नाही.\n\nखालील पर्याय निवडा:\n• *🧪 डेमो मोड* सर्व वैशिष्ट्ये त्वरित तपासण्यासाठी\n• *📝 नोंदणी करा* नवीन खाते तयार करण्यासाठी";
+                };
+                whatsAppService.sendButtonsMessage(fromPhone, "🏥 Patient Access", regPrompt, List.of(
+                        new WaButton("btn_activate_test_mode", switch(lang) { case EN -> "🧪 Try Demo Mode"; case HI -> "🧪 डेमो मोड"; case MR -> "🧪 डेमो मोड"; }),
+                        new WaButton("btn_register_prompt", switch(lang) { case EN -> "📝 Register Now"; case HI -> "📝 अभी पंजीकरण"; case MR -> "📝 नोंदणी करा"; })
+                ), appProperties.getClinicName());
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
@@ -565,7 +610,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && "awaiting_new_member_name".equals(activeToken.getSessionStep())) {
+            if (buttonId.isEmpty() && activeToken != null && "awaiting_new_member_name".equals(activeToken.getSessionStep())) {
                 if (Intent.isReservedWord(cleanMessage)) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidNameReminder(lang));
                     return ResponseEntity.ok("EVENT_RECEIVED");
@@ -576,7 +621,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && "awaiting_new_member_rel".equals(activeToken.getSessionStep())) {
+            if (buttonId.isEmpty() && activeToken != null && "awaiting_new_member_rel".equals(activeToken.getSessionStep())) {
                 String rel = incomingMessage.trim();
                 queueManagerService.setSessionStepWithPrev(activeToken.getId(), "awaiting_new_member_gender", "awaiting_new_member_rel");
                 queueManagerService.setSessionStep(activeToken.getId(), "awaiting_new_member_gender:" + rel);
@@ -600,7 +645,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && activeToken.getSessionStep() != null && activeToken.getSessionStep().startsWith("awaiting_new_member_age")) {
+            if (buttonId.isEmpty() && activeToken != null && activeToken.getSessionStep() != null && activeToken.getSessionStep().startsWith("awaiting_new_member_age")) {
                 Integer age = parseAge(cleanMessage);
                 if (age == null) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidAgeReminder(lang));
@@ -618,7 +663,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && "awaiting_name".equals(activeToken.getSessionStep())) {
+            if (buttonId.isEmpty() && activeToken != null && "awaiting_name".equals(activeToken.getSessionStep())) {
                 if (Intent.isReservedWord(cleanMessage)) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidNameReminder(lang));
                     return ResponseEntity.ok("EVENT_RECEIVED");
@@ -639,7 +684,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && "awaiting_age".equals(activeToken.getSessionStep())) {
+            if (buttonId.isEmpty() && activeToken != null && "awaiting_age".equals(activeToken.getSessionStep())) {
                 Integer age = parseAge(cleanMessage);
                 if (age == null) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidAgeReminder(lang));
@@ -650,13 +695,22 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
 
-            if (activeToken != null && "awaiting_category".equals(activeToken.getSessionStep())) {
+            if (buttonId.isEmpty() && activeToken != null && ("awaiting_category".equals(activeToken.getSessionStep()) || "awaiting_department_selection".equals(activeToken.getSessionStep()))) {
                 String category = MedicalCategory.match(incomingMessage);
                 if (category == null) {
                     whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidCategoryReminder(lang));
                     return ResponseEntity.ok("EVENT_RECEIVED");
                 }
                 queueManagerService.captureDepartment(activeToken.getId(), category);
+                if (activeToken.getPatientLat() != null && activeToken.getPatientLon() != null) {
+                    HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
+                            category, activeToken.getGender(), activeToken.getPatientLat(), activeToken.getPatientLon(), 0, QueueManagerService.HOSPITAL_PAGE_SIZE);
+                    if (page != null && !page.results().isEmpty()) {
+                        queueManagerService.setSessionStepWithPrev(activeToken.getId(), "awaiting_hospital_selection", "awaiting_department_selection");
+                        sendHospitalResultsList(fromPhone, activeToken, page, lang);
+                        return ResponseEntity.ok("EVENT_RECEIVED");
+                    }
+                }
                 sendLocationPrompt(fromPhone, lang, category);
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
@@ -851,15 +905,20 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
             if (intent == Intent.BOOK_APPOINTMENT) {
-                if (activeToken == null || isTerminal(activeToken)) {
+                if (activeToken == null || isTerminal(activeToken) || "registering_name".equals(activeToken.getStatus())) {
                     if (members != null && members.size() == 1) {
-                        TokenDto draft = queueManagerService.createRegisteringToken(fromPhone);
+                        TokenDto draft = (activeToken != null && "registering_name".equals(activeToken.getStatus()))
+                                ? activeToken
+                                : queueManagerService.createRegisteringToken(fromPhone);
                         FamilyMemberDto head = members.get(0);
                         queueManagerService.selectFamilyMember(draft.getId(), head.getId(), head.getName(), head.getAge(), head.getGender());
                         queueManagerService.setSessionStepWithPrev(draft.getId(), "awaiting_department_selection", "awaiting_family_selection");
                         sendDepartmentSelectionList(fromPhone, lang, draft, head.getName());
                     } else {
-                        queueManagerService.createFamilyRegisteringToken(fromPhone);
+                        TokenDto draft = (activeToken != null && "registering_name".equals(activeToken.getStatus()))
+                                ? activeToken
+                                : queueManagerService.createFamilyRegisteringToken(fromPhone);
+                        queueManagerService.setSessionStep(draft.getId(), "awaiting_family_selection");
                         sendFamilySelectionList(fromPhone, lang, members);
                     }
                 } else {
@@ -869,7 +928,7 @@ public class WebhookController {
                 return ResponseEntity.ok("EVENT_RECEIVED");
             }
             if (intent == Intent.TRACK_APPOINTMENT) {
-                if (activeToken == null || isTerminal(activeToken)) {
+                if (activeToken == null || isTerminal(activeToken) || "registering_name".equals(activeToken.getStatus())) {
                     whatsAppService.sendButtonsMessage(fromPhone, "", switch(lang) {
                         case EN -> "❌  *No Active Appointment Found*\n\nYou don't have an active OPD appointment right now.\n\nWould you like to book one?";
                         case HI -> "❌  *कोई सक्रिय अपॉइंटमेंट नहीं*\n\nफिलहाल आपका कोई सक्रिय ओपीडी अपॉइंटमेंट नहीं है।\n\nक्या आप एक बुक करना चाहते हैं?";
@@ -1269,38 +1328,108 @@ public class WebhookController {
         List<WaListRow> rows = new ArrayList<>();
         List<HospitalService.HospitalMatch> results = page.results();
         int limit = Math.min(results.size(), 9); // max 9 + possibly 1 show more row
+
         for (int i = 0; i < limit; i++) {
             HospitalService.HospitalMatch hm = results.get(i);
             HospitalDto h = hm.hospital();
-            String emoji = hospitalEmoji(h.getName());
-            String title = emoji + " " + truncateTitle(h.getName(), 18);
             boolean opdOpen = isOpdOpen(h);
             String status = opdOpen ? "Open ✅" : "Closed ❌";
-            String desc = String.format("%.1f", hm.distanceKm()) + " km · " + status;
+
+            // Compliant <= 24 char title for Meta WhatsApp list row
+            String shortName = sanitizeShortHospitalName(h.getName(), 20);
+            String title = (i + 1) + ". " + shortName;
+            if (title.length() > 24) {
+                title = title.substring(0, 24);
+            }
+            String desc = String.format("%.1f km", hm.distanceKm()) + " · " + status;
             rows.add(new WaListRow("hosp_" + h.getId(), title, desc));
         }
+
         if (page.hasMore()) {
             String moreTitle = switch(lang) { case EN -> "➕ Show More"; case HI -> "➕ और देखें"; case MR -> "➕ आणखी पहा"; };
             rows.add(new WaListRow("show_more", moreTitle, switch(lang) { case EN -> "Next 10 hospitals"; case HI -> "अगले 10 अस्पताल"; case MR -> "पुढील 10 रुग्णालये"; }));
         }
-        String header = switch(lang) { case EN -> "🏥 HOSPITALS NEAR YOU"; case HI -> "🏥 पास के अस्पताल"; case MR -> "🏥 जवळची रुग्णालये"; };
-        String body = switch(lang) {
-            case EN -> "Hospitals offering *" + draft.getCategory() + "* near you:\nTap below to select:";
-            case HI -> "*" + draft.getCategory() + "* के लिए पास के अस्पताल:\nचुनने के लिए नीचे टैप करें:";
-            case MR -> "*" + draft.getCategory() + "* साठी जवळची रुग्णालये:\nनिवडण्यासाठी खाली टॅप करा:";
+
+        String deptName = draft.getCategory() != null ? draft.getCategory() : "General OPD";
+        String listBody = switch(lang) {
+            case EN -> "Found verified hospitals offering *" + deptName + "* near your location.\n\nPlease tap below to view the list and select your preferred hospital:";
+            case HI -> "आपके स्थान के निकट *" + deptName + "* के सत्यापित अस्पताल उपलब्ध हैं।\n\nसूची देखने और अस्पताल चुनने के लिए नीचे टैप करें:";
+            case MR -> "तुमच्या स्थानाजवळ *" + deptName + "* ची पडताळणी केलेली रुग्णालये उपलब्ध आहेत.\n\nयादी पाहण्यासाठी आणि रुग्णालय निवडण्यासाठी खाली टॅप करा:";
         };
-        String btn = switch(lang) { case EN -> "🏥 Hospitals"; case HI -> "🏥 अस्पताल"; case MR -> "🏥 रुग्णालये"; };
+
+        String header = switch(lang) { case EN -> "🏥 NEARBY HOSPITALS"; case HI -> "🏥 पास के अस्पताल"; case MR -> "🏥 जवळची रुग्णालये"; };
+        String btn = switch(lang) { case EN -> "🏥 Select Hospital"; case HI -> "🏥 अस्पताल चुनें"; case MR -> "🏥 रुग्णालय निवडा"; };
         String section = switch(lang) { case EN -> "Nearby Hospitals"; case HI -> "पास के अस्पताल"; case MR -> "जवळची रुग्णालये"; };
-        whatsAppService.sendListMessage(phone, header, body, List.of(new WaListSection(section, rows)), appProperties.getClinicName(), btn);
+        whatsAppService.sendListMessage(phone, header, listBody, List.of(new WaListSection(section, rows)), appProperties.getClinicName(), btn);
         
         String webviewUrl = buildAuthWebviewUrl("/find-hospital", phone,
                 Map.of("category", draft.getCategory() != null ? draft.getCategory() : "General OPD",
                        "lat", draft.getPatientLat() != null ? String.valueOf(draft.getPatientLat()) : "",
                        "lon", draft.getPatientLon() != null ? String.valueOf(draft.getPatientLon()) : ""));
-        whatsAppService.sendUrlButtonMessage(phone, switch(lang){case EN->"📱 Map View";case HI->"📱 नक्शा देखें";case MR->"📱 नकाशा पहा";},
-                switch(lang){case EN->"Prefer browsing on interactive map?";case HI->"क्या आप इंटरेक्टिव मैप पर देखना चाहते हैं?";case MR->"तुम्हाला परस्पर नकाशावर पाहायचे आहे का?";},
-                switch(lang){case EN->"🌐 Open Map";case HI->"🌐 मैप खोलें";case MR->"🌐 नकाशा उघडा";},
+        whatsAppService.sendUrlButtonMessage(phone, switch(lang){case EN->"📱 Interactive Map";case HI->"📱 नक्शा देखें";case MR->"📱 नकाशा पहा";},
+                switch(lang){case EN->"Prefer visual map selection?";case HI->"क्या आप नक्शे पर देखना चाहते हैं?";case MR->"नकाशावर पाहायचे आहे का?";},
+                switch(lang){case EN->"🌐 Open Hospital Map";case HI->"🌐 मैप खोलें";case MR->"🌐 नकाशा उघडा";},
                 webviewUrl, appProperties.getClinicName());
+    }
+
+    private String sanitizeShortHospitalName(String name, int maxLen) {
+        if (name == null) return "Hospital";
+        String s = name.replace("Government", "Govt")
+                .replace("Hospital", "Hosp")
+                .replace("Municipal", "Mun")
+                .replace("Medical College", "MC")
+                .replace("General", "Gen")
+                .trim();
+        return s.length() <= maxLen ? s : s.substring(0, maxLen - 1) + "…";
+    }
+
+    private String getEmojiNumber(int num) {
+        return switch (num) {
+            case 1 -> "1️⃣";
+            case 2 -> "2️⃣";
+            case 3 -> "3️⃣";
+            case 4 -> "4️⃣";
+            case 5 -> "5️⃣";
+            case 6 -> "6️⃣";
+            case 7 -> "7️⃣";
+            case 8 -> "8️⃣";
+            case 9 -> "9️⃣";
+            default -> "🔹";
+        };
+    }
+
+    private void sendTestEnvironmentWelcome(String phone, Lang lang, com.qdischarge.clinicqueue.service.TestEnvironmentService.TestPatientProfile profile) {
+        String msg = switch (lang) {
+            case EN -> "🧪 *TEST ENVIRONMENT ACTIVATED!*\n\n"
+                    + "Welcome, *Ramesh Kumar* (Test Patient)!\n\n"
+                    + "✅ *Pre-Configured Demo Profile:*\n"
+                    + "• 🆔 *Ayushman ABHA:* `91-2345-6789-1011`\n"
+                    + "• 👨‍👩‍👧 *Family Members:* 4 (Self, Wife, Son, Mother)\n"
+                    + "• 📑 *Health Records:* 5 files (CBC, AIIMS Rx, Chest X-Ray, etc.)\n"
+                    + "• 🩺 *Referrals & Care:* Active Cardiology Referral\n\n"
+                    + "You can now test all features:\n"
+                    + "1️⃣ Book OPD & Live Token Tracking\n"
+                    + "2️⃣ View & Upload Health Documents\n"
+                    + "3️⃣ Ayushman ABHA & Family Management\n"
+                    + "4️⃣ Seamless Web Portal Access";
+            case HI -> "🧪 *टेस्ट एनवायरनमेंट सक्रिय!*\n\n"
+                    + "नमस्ते, *रमेश कुमार* (परीक्षण मरीज़)!\n\n"
+                    + "✅ *डेमो प्रोफाइल लोड हो गया:*\n"
+                    + "• 🆔 *आयुष्मान आभा:* `91-2345-6789-1011`\n"
+                    + "• 👨‍👩‍👧 *परिवार के सदस्य:* 4 (स्वयं, पत्नी, पुत्र, माता)\n"
+                    + "• 📑 *स्वास्थ्य रिकॉर्ड:* 5 फाइलें (CBC, पर्चा, एक्स-रे)\n"
+                    + "• 🩺 *रेफरल:* कार्डियोलॉजी सक्रिय रेफरल\n\n"
+                    + "अब आप बिना पंजीकरण सभी सुविधाओं का परीक्षण कर सकते हैं!";
+            case MR -> "🧪 *चाचणी वातावरण सक्रिय!*\n\n"
+                    + "स्वागत आहे, *रमेश कुमार* (चाचणी रुग्ण)!\n\n"
+                    + "✅ *डेमो प्रोफाइल लोड झाले:*\n"
+                    + "• 🆔 *आयुष्मान आभा:* `91-2345-6789-1011`\n"
+                    + "• 👨‍👩‍👧 *कुटुंबातील सदस्य:* 4 (स्वतः, पत्नी, मुलगा, आई)\n"
+                    + "• 📑 *आरोग्य नोंदी:* 5 फाइल्स (CBC, प्रिस्क्रिप्शन, एक्स-रे)\n"
+                    + "• 🩺 *रेफरल:* कार्डिओलॉजी सक्रिय रेफरल\n\n"
+                    + "आता तुम्ही सर्व वैशिष्ट्ये सहज तपासू शकता!";
+        };
+        whatsAppService.sendWhatsAppMessage(phone, msg);
     }
 
     private boolean isShowMoreCommand(String cleanMessage) {
@@ -1387,7 +1516,10 @@ public class WebhookController {
     private String buildBookingCard(Lang lang, String name, Integer age, String gender, String hospitalName, String category, String tokenCode, int ahead, int waitMins, String status, String today) {
         String div = "━━━━━━━━━━━━━━━━━━━━━━";
         boolean isReserved = "reserved".equals(status);
-        String statusStr = isReserved
+        boolean isFrozen = "frozen".equals(status);
+        String statusStr = isFrozen
+                ? switch(lang){case EN->"❄️ Scheduled (Travel ETA)";case HI->"❄️ निर्धारित (यात्रा में)";case MR->"❄️ नियोजित (प्रवासात)";}
+                : isReserved
                 ? switch(lang){case EN->"🟡 Reserved Buffer";case HI->"🟡 बफर अवधि";case MR->"🟡 बफर कालावधी";}
                 : switch(lang){case EN->"🔵 Waiting in Queue";case HI->"🔵 कतार में प्रतीक्षारत";case MR->"🔵 रांगेत प्रतीक्षेत";};
         
@@ -1478,7 +1610,8 @@ public class WebhookController {
     }
 
     private boolean isTerminal(TokenDto token) {
-        return token == null || "completed".equals(token.getStatus()) || "missed".equals(token.getStatus());
+        return token == null || "completed".equals(token.getStatus()) || "missed".equals(token.getStatus())
+                || "cancelled".equals(token.getStatus()) || "rejected".equals(token.getStatus());
     }
 
     private Integer parseAge(String cleanMessage) {
@@ -1549,7 +1682,7 @@ public class WebhookController {
             }
         }
 
-        if (lower.contains("near") || lower.contains("civil") || lower.contains("district") || lower.contains("hospital") || lower.contains("main") || lower.contains("पास")) {
+        if (lower.contains("near") || lower.contains("civil") || lower.contains("district") || lower.contains("hospital") || lower.contains("main") || lower.contains("पास") || lower.contains("here") || lower.contains("skip") || lower.contains("default") || lower.contains("me")) {
             HospitalDto op = hospitalService.getOperatingHospital();
             if (op != null && op.getLatitude() != null && op.getLongitude() != null) {
                 return new SetLocationRequest(null, op.getLatitude(), op.getLongitude());

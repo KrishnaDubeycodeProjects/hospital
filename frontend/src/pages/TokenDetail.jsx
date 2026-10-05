@@ -65,21 +65,21 @@ export default function TokenDetail() {
 
   if (loading) {
     return (
-      <div className="arogyaflow-backdrop">
-        <main className="arogyaflow-phone-frame" style={{ justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+        <div style={{ textAlign: 'center' }}>
           <div className="spinner" />
           <div style={{ marginTop: '14px', color: '#64748b', fontSize: '14px', fontWeight: '500' }}>
             Loading live token…
           </div>
-        </main>
+        </div>
       </div>
     );
   }
 
   if (!token) {
     return (
-      <div className="arogyaflow-backdrop">
-        <main className="arogyaflow-phone-frame" style={{ padding: '24px', textAlign: 'center', justifyContent: 'center', backgroundColor: '#ffffff' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', padding: '20px' }}>
+        <div style={{ maxWidth: '440px', width: '100%', backgroundColor: '#ffffff', borderRadius: '16px', padding: '32px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
           <h2 style={{ fontSize: '19px', fontWeight: '800', color: '#0f172a' }}>Token Not Found</h2>
           <p style={{ fontSize: '13.5px', color: '#64748b', margin: '8px 0 24px' }}>
@@ -101,7 +101,7 @@ export default function TokenDetail() {
           >
             Find Hospital & Book
           </button>
-        </main>
+        </div>
       </div>
     );
   }
@@ -152,15 +152,18 @@ export default function TokenDetail() {
   const status = statusConfig[token.status] || statusConfig.waiting;
 
   return (
-    <div className="arogyaflow-backdrop">
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
       <main
-        className="arogyaflow-phone-frame"
         style={{
+          width: '100%',
+          maxWidth: '860px',
+          margin: '0 auto',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: '#ffffff',
-          justifyContent: 'space-between',
+          flex: 1,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
       >
         {/* Top App Bar (Header) */}

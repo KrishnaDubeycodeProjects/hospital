@@ -30,6 +30,10 @@ public class HospitalSeedRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null) {
+            log.info("AWS Lambda environment detected: skipping HospitalSeedRunner.");
+            return;
+        }
         boolean hasDigipin = appProperties.getHospitalDigipin() != null && !appProperties.getHospitalDigipin().isBlank();
         boolean hasLatLon = appProperties.getHospitalLatitude() != null && appProperties.getHospitalLongitude() != null;
 

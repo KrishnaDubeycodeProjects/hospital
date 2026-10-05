@@ -244,178 +244,222 @@ function PatientMobileShell({ session, onLogout }) {
   ];
 
   return (
-    <div className="arogyaflow-backdrop">
-      <main
-        className="arogyaflow-phone-frame"
+    <div className="arogyaflow-backdrop" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
+      {/* Modern Responsive Top Website Navigation */}
+      <header
         style={{
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
+          width: '100%',
           backgroundColor: '#ffffff',
-          justifyContent: 'space-between',
-          height: '100dvh',
-          maxHeight: '100dvh',
-          overflow: 'hidden',
+          borderBottom: '1px solid #E2E8F0',
+          position: 'sticky',
+          top: 0,
+          zIndex: 40,
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
         }}
       >
-        {/* Top App Bar Header */}
-        <header
+        <div
           style={{
-            padding: '14px 18px 12px',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: '12px 20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: '#ffffff',
-            borderBottom: '1px solid #F1F5F9',
-            flexShrink: 0,
+            gap: '16px',
           }}
         >
-          {/* Left: Circular back button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (location.pathname === '/patient') {
-                navigate('/');
-              } else {
-                navigate(-1);
-              }
-            }}
-            aria-label="Back"
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#F3F4F6',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#1F2937',
-              flexShrink: 0,
-              transition: 'background-color 0.15s ease',
-            }}
-          >
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-
-          {/* Center: Title + Subtitle */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <h1
+          {/* Brand Logo & Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/patient')}>
+            <div
               style={{
-                margin: 0,
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #004D40, #059669)',
+                color: '#ffffff',
+                fontWeight: '900',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 fontSize: '18px',
-                fontWeight: '800',
-                color: '#004D40',
-                letterSpacing: '-0.02em',
-                lineHeight: 1.2,
-                textAlign: 'center',
+                boxShadow: '0 2px 6px rgba(0, 77, 64, 0.25)',
               }}
             >
-              {getTitle()}
-            </h1>
-            <span style={{ fontSize: '11.5px', color: '#6B7280', fontWeight: '500' }}>
-              {session.subject || 'Aarogya Flow Patient'}
-            </span>
-          </div>
-
-          {/* Right: Circular Log out button */}
-          <button
-            type="button"
-            onClick={onLogout}
-            title="Log out"
-            aria-label="Log out"
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#FEE2E2',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#DC2626',
-              flexShrink: 0,
-              transition: 'background-color 0.15s ease',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
-        </header>
-
-        {/* Scrollable Main Body Content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '16px 16px 20px',
-            backgroundColor: '#ffffff',
-          }}
-        >
-          <Outlet />
-        </div>
-
-        {/* Bottom Mobile Navigation Tabs */}
-        <nav
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-around',
-            backgroundColor: '#ffffff',
-            borderTop: '1px solid #F1F5F9',
-            padding: '8px 10px 4px',
-          }}
-        >
-          {patientTabs.map((tab) => {
-            const isActive = tab.end
-              ? location.pathname === tab.to
-              : location.pathname.startsWith(tab.to);
-
-            return (
-              <button
-                key={tab.to}
-                type="button"
-                onClick={() => navigate(tab.to)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '3px',
-                  backgroundColor: isActive ? '#E8F5E9' : 'transparent',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '6px 12px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {tab.renderIcon(isActive)}
+              +
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#004D40', fontWeight: '800', fontSize: '18px', letterSpacing: '-0.02em' }}>
+                  AarogyaFlow
+                </span>
                 <span
                   style={{
-                    fontSize: '11px',
-                    fontWeight: isActive ? '700' : '500',
-                    color: isActive ? '#004D40' : '#6B7280',
-                    letterSpacing: '-0.01em',
+                    fontSize: '10.5px',
+                    fontWeight: '700',
+                    backgroundColor: '#E8F5E9',
+                    color: '#004D40',
+                    border: '1px solid #C8E6C9',
+                    padding: '1px 7px',
+                    borderRadius: '6px',
+                    letterSpacing: '0.02em',
                   }}
                 >
-                  {tab.label}
+                  ABDM PORTAL
                 </span>
-              </button>
-            );
-          })}
-        </nav>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                {getTitle()} &bull; <strong style={{ color: '#334155' }}>{session.subject || 'Patient'}</strong>
+              </div>
+            </div>
+          </div>
 
-        {/* Pinned Standard Footer */}
-        <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '6px 16px 14px' }} />
+          {/* Desktop Nav Links */}
+          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {patientTabs.map((tab) => {
+              const isActive = tab.end
+                ? location.pathname === tab.to
+                : location.pathname.startsWith(tab.to);
+
+              return (
+                <button
+                  key={tab.to}
+                  type="button"
+                  onClick={() => navigate(tab.to)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: isActive ? '#E8F5E9' : 'transparent',
+                    border: isActive ? '1px solid #C8E6C9' : '1px solid transparent',
+                    borderRadius: '8px',
+                    padding: '7px 14px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: isActive ? '700' : '600',
+                    color: isActive ? '#004D40' : '#475569',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {tab.renderIcon(isActive)}
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right Action: Return Home & Log out */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              title="AarogyaFlow Home"
+              style={{
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#475569',
+                backgroundColor: '#F1F5F9',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                padding: '7px 12px',
+                cursor: 'pointer',
+              }}
+            >
+              🏠 Home
+            </button>
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Log out"
+              style={{
+                fontSize: '12px',
+                fontWeight: '700',
+                color: '#DC2626',
+                backgroundColor: '#FEE2E2',
+                border: '1px solid #FECACA',
+                borderRadius: '8px',
+                padding: '7px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              <span>Log out</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Responsive Content Container */}
+      <main
+        style={{
+          width: '100%',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          flex: 1,
+          padding: '24px 20px',
+          backgroundColor: '#ffffff',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}
+      >
+        <Outlet />
       </main>
+
+      {/* Mobile Navigation Tabs (visible only on small screens) */}
+      <nav
+        className="mobile-patient-bottom-nav"
+        style={{
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 30,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid #E2E8F0',
+          padding: '8px 12px 6px',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+        }}
+      >
+        {patientTabs.map((tab) => {
+          const isActive = tab.end
+            ? location.pathname === tab.to
+            : location.pathname.startsWith(tab.to);
+
+          return (
+            <button
+              key={tab.to}
+              type="button"
+              onClick={() => navigate(tab.to)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '3px',
+                backgroundColor: isActive ? '#E8F5E9' : 'transparent',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+              }}
+            >
+              {tab.renderIcon(isActive)}
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: isActive ? '700' : '500',
+                  color: isActive ? '#004D40' : '#6B7280',
+                }}
+              >
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Pinned Standard Website Footer */}
+      <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '16px 20px 24px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }} />
     </div>
   );
 }

@@ -1,350 +1,561 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { otpApi, doctorApi } from '../api/client';
 import AyushmanFooter from '../components/AyushmanFooter';
 
 export default function Landing() {
-  const [selectedService, setSelectedService] = useState(null);
-  const [isContinueActive, setIsContinueActive] = useState(false);
-  const [selectorOpen, setSelectorOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const selectorRef = useRef(null);
-  const contentRef = useRef(null);
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const toast = useToast();
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const services = [
     {
       id: 'book',
       title: 'Book OPD Token',
-      subtitle: 'Join queue at a hospital near you',
+      subtitle: 'Select department, check hospital distance & book online',
+      icon: '📅',
       color: '#E0F2FE',
-      iconColor: '#0284C7',
+      border: '#BAE6FD',
       route: '/find-hospital',
-      renderIcon: () => (
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0284C7" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-          <line x1="16" y1="2" x2="16" y2="6" />
-          <line x1="8" y1="2" x2="8" y2="6" />
-          <line x1="3" y1="10" x2="21" y2="10" />
-          <path d="m9 16 2 2 4-4" />
-        </svg>
-      ),
     },
     {
       id: 'track',
-      title: 'Track My Turn',
-      subtitle: 'Check live queue position & wait time',
+      title: 'Track Live Queue',
+      subtitle: 'Watch your exact position, wait time & travel buffer in real-time',
+      icon: '⏱️',
       color: '#FFEDD5',
-      iconColor: '#EA580C',
+      border: '#FED7AA',
       route: '/track',
-      renderIcon: () => (
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#EA580C" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
-        </svg>
-      ),
     },
     {
       id: 'records',
-      title: 'My Health Records',
-      subtitle: 'Prescriptions, lab reports, referrals',
+      title: 'Ayushman Health Vault',
+      subtitle: 'Prescriptions, CBC blood reports, lab findings & referrals',
+      icon: '📑',
       color: '#F3E8FF',
-      iconColor: '#7C3AED',
+      border: '#E9D5FF',
       route: '/login/patient',
-      renderIcon: () => (
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
-        </svg>
-      ),
     },
     {
       id: 'hospitals',
-      title: 'Find Hospitals',
-      subtitle: 'Nearby OPDs with live queue status',
+      title: 'Find Hospitals & Counters',
+      subtitle: 'Locate nearby OPDs with live counter load & timings',
+      icon: '🏥',
       color: '#DCFCE7',
-      iconColor: '#059669',
+      border: '#BBF7D0',
       route: '/find-hospital',
-      renderIcon: () => (
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0H5m14 0h2m-16 0H3m6-12h6m-3-3v6" />
-        </svg>
-      ),
     },
     {
       id: 'family',
-      title: 'Family & ABHA',
-      subtitle: 'Manage family & link Ayushman card',
+      title: 'Family Members & ABHA',
+      subtitle: 'Link 14-digit ABHA IDs and manage dependents seamlessly',
+      icon: '👨‍👩‍👧',
       color: '#FFE4E6',
-      iconColor: '#E11D48',
+      border: '#FECDD3',
       route: '/login/patient',
-      renderIcon: () => (
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E11D48" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        </svg>
-      ),
+    },
+    {
+      id: 'doctor',
+      title: 'Doctor Consultation Room',
+      subtitle: 'Electronic health records, e-prescriptions & live queue calling',
+      icon: '👨‍⚕️',
+      color: '#E0E7FF',
+      border: '#C7D2FE',
+      route: '/login/doctor',
     },
   ];
 
-  const selectedItem = services.find((s) => s.id === selectedService);
-
-  function handleToggleSelector() {
-    const nextState = !selectorOpen;
-    setSelectorOpen(nextState);
-    if (nextState) {
-      setTimeout(() => {
-        if (contentRef.current && selectorRef.current) {
-          const targetOffset = selectorRef.current.offsetTop - 8;
-          contentRef.current.scrollTo({
-            top: targetOffset,
-            behavior: 'smooth',
-          });
-        }
-      }, 60);
-    }
-  }
-
-  function handleSelectService(service) {
-    setSelectedService(service.id);
-    setIsContinueActive(true);
-    setSelectorOpen(false);
-  }
-
-  function handleContinue() {
-    setIsContinueActive(true);
-    const item = selectedItem || services[0];
-    if (selectedService) {
-      navigate(item.route);
-    } else {
-      setSelectedService(item.id);
-      setTimeout(() => {
-        navigate(item.route);
-      }, 200);
+  async function handleLaunchDemoPatient() {
+    setDemoLoading(true);
+    try {
+      await fetch('/api/test/patient/seed?phone=%2B919100000099', { method: 'POST' });
+      const res = await otpApi.verify('+919100000099', '123456');
+      login('PATIENT', res.token);
+      toast.success('Logged in as Ramesh Kumar (Demo Patient)');
+      navigate('/patient');
+    } catch (e) {
+      toast.error(e.message || 'Demo activation error');
+    } finally {
+      setDemoLoading(false);
     }
   }
 
   return (
-    <div className="arogyaflow-backdrop">
-      <main
-        className="arogyaflow-phone-frame"
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      {/* Website Top Navigation Header */}
+      <header
         style={{
           backgroundColor: '#ffffff',
-          height: '100dvh',
-          maxHeight: '100dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          borderBottom: '1px solid #E2E8F0',
+          position: 'sticky',
+          top: 0,
+          zIndex: 40,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
-        aria-label="Aarogya Flow Platform"
       >
-        {/* Top Drag Handle Bar */}
-        <div className="arogyaflow-drag-handle" data-purpose="drag-handle-bar">
-          <div className="arogyaflow-drag-bar" />
-        </div>
-
-        {/* 1. Top App Bar (Header): White background, 'X' on left, 'Aarogya Flow' center, kebab menu on right */}
-        <header className="arogyaflow-top-bar" style={{ borderBottom: 'none', backgroundColor: '#ffffff' }} data-purpose="modal-header">
-          {/* Left: Close Button (X) */}
-          <button
-            aria-label="Close"
-            className="arogyaflow-icon-btn"
-            type="button"
-            onClick={() => {
-              setSelectedService(null);
-              setIsContinueActive(false);
-              setSelectorOpen(false);
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          {/* Center: Title "Aarogya Flow" in bold modern font */}
-          <h1 className="arogyaflow-bar-title" style={{ color: '#043c2c', fontSize: '18px', fontWeight: '700' }}>
-            Aarogya Flow
-          </h1>
-
-          {/* Right: Vertical three-dot (kebab) menu icon */}
-          <div style={{ position: 'relative' }}>
-            <button
-              aria-label="More options"
-              className="arogyaflow-icon-btn"
-              type="button"
-              onClick={() => setMenuOpen(!menuOpen)}
+        <div
+          style={{
+            maxWidth: '1200px',
+            margin: '0 auto',
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          {/* Brand */}
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #004D40, #059669)',
+                color: '#ffffff',
+                fontWeight: '900',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                boxShadow: '0 2px 8px rgba(0, 77, 64, 0.25)',
+              }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#374151">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
-            </button>
-
-            {menuOpen && (
-              <div className="arogyaflow-dropdown">
-                <button
-                  type="button"
-                  className="arogyaflow-menu-item"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    navigate('/find-hospital');
+              +
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#004D40', fontWeight: '800', fontSize: '20px', letterSpacing: '-0.02em' }}>
+                  AarogyaFlow
+                </span>
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    backgroundColor: '#E8F5E9',
+                    color: '#004D40',
+                    border: '1px solid #C8E6C9',
+                    padding: '2px 7px',
+                    borderRadius: '6px',
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <span>Nearby OPDs</span>
-                </button>
-                <button
-                  type="button"
-                  className="arogyaflow-menu-item"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    navigate('/login/doctor');
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <span>Doctor Portal</span>
-                </button>
-                <button
-                  type="button"
-                  className="arogyaflow-menu-item"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    navigate('/login/admin');
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-                  </svg>
-                  <span>Staff Portal</span>
-                </button>
+                  ABDM CERTIFIED
+                </span>
               </div>
-            )}
-          </div>
-        </header>
+              <div style={{ fontSize: '11px', color: '#64748B' }}>
+                Smart Healthcare & Zero-Wait OPD Access
+              </div>
+            </div>
+          </Link>
 
-        {/* 2 & 3: Content Area (Standard ~16px mobile margin) */}
-        <div className="arogyaflow-content" ref={contentRef}>
-          {/* 2. Hero Banner: illustration card with rounded corners & subtle drop shadow */}
-          <section className="arogyaflow-hero-card" data-purpose="hero-banner">
-            <img
-              src="/aarogya_flow_banner.png"
-              alt="Aarogya Flow: Care Closer. Healthier Tomorrow."
-              className="arogyaflow-hero-img"
-            />
-          </section>
+          {/* Center Navigation Links (Hidden on small mobile) */}
+          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <Link to="/find-hospital" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
+              Find Hospital
+            </Link>
+            <Link to="/track" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
+              Track Queue
+            </Link>
+            <Link to="/login/patient" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
+              Patient Portal
+            </Link>
+            <Link to="/login/doctor" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
+              Doctor Portal
+            </Link>
+          </nav>
 
-          {/* 3. Middle Action Element: Choose your service sleek button */}
-          <section
-            ref={selectorRef}
-            style={{ width: '100%', position: 'relative', scrollMarginTop: '12px' }}
-            data-purpose="service-dropdown-selector"
-          >
+          {/* Right Action Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
-              className="arogyaflow-service-selector-btn"
-              onClick={handleToggleSelector}
               type="button"
+              onClick={handleLaunchDemoPatient}
+              disabled={demoLoading}
+              style={{
+                backgroundColor: '#DCFCE7',
+                color: '#15803D',
+                border: '1px solid #86EFAC',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
             >
-              {/* Left-aligned text: "Choose your service" in medium gray, regular weight */}
-              <span className={`arogyaflow-service-selector-text ${selectedItem ? 'selected' : ''}`}>
-                {selectedItem ? selectedItem.title : 'Choose your service'}
-              </span>
-
-              {/* Right-aligned icon: small refined chevron (>) */}
-              <svg
-                className={`arogyaflow-chevron-icon ${selectorOpen ? 'open' : ''}`}
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
+              🧪 {demoLoading ? 'Loading...' : 'Try Demo Mode'}
             </button>
+            <button
+              type="button"
+              onClick={() => navigate('/login/patient')}
+              style={{
+                backgroundColor: '#004D40',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
+              }}
+            >
+              Sign In
+            </button>
+          </div>
+        </div>
+      </header>
 
-            {/* Expandable Service Selection List */}
-            {selectorOpen && (
-              <div
+      {/* Main Website Content */}
+      <main style={{ flex: 1 }}>
+        {/* Hero Section */}
+        <section
+          style={{
+            background: 'linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%)',
+            borderBottom: '1px solid #E2E8F0',
+            padding: '50px 20px 40px',
+          }}
+        >
+          <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                fontWeight: '700',
+                color: '#004D40',
+                backgroundColor: '#E8F5E9',
+                border: '1px solid #C8E6C9',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                marginBottom: '16px',
+              }}
+            >
+              <span>🏛️</span> National Health Authority &bull; ABDM Integrated OPD System
+            </span>
+            <h1
+              style={{
+                fontSize: 'clamp(28px, 4vw, 44px)',
+                fontWeight: '900',
+                color: '#004D40',
+                margin: '0 0 16px',
+                letterSpacing: '-0.03em',
+                lineHeight: 1.15,
+              }}
+            >
+              Smart, Zero-Wait Hospital OPDs <br />
+              <span style={{ color: '#059669' }}>For Every Indian Citizen</span>
+            </h1>
+            <p
+              style={{
+                fontSize: '16px',
+                color: '#475569',
+                maxWidth: '680px',
+                margin: '0 auto 28px',
+                lineHeight: 1.6,
+              }}
+            >
+              Experience seamless queue management with live digital tokens, Ayushman Bharat ABHA Health Vault, and automated WhatsApp access.
+            </p>
+
+            {/* Quick Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '36px' }}>
+              <button
+                type="button"
+                onClick={() => navigate('/find-hospital')}
                 style={{
-                  marginTop: '10px',
+                  backgroundColor: '#004D40',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '12px 24px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  paddingBottom: '16px',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(0, 77, 64, 0.2)',
                 }}
               >
-                {services.map((item) => {
-                  const isSelected = selectedService === item.id;
-                  return (
-                    <div
-                      key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => handleSelectService(item)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') handleSelectService(item);
-                      }}
-                      className={`arogyaflow-card ${isSelected ? 'selected' : ''}`}
-                    >
-                      <div
-                        className="arogyaflow-card-icon"
-                        style={{
-                          backgroundColor: item.color,
-                        }}
-                      >
-                        {item.renderIcon()}
-                      </div>
-                      <div className="arogyaflow-card-content">
-                        <div className="arogyaflow-card-title">
-                          {item.title}
-                        </div>
-                        <div className="arogyaflow-card-subtitle">
-                          {item.subtitle}
-                        </div>
-                      </div>
-                      <div className="arogyaflow-card-chevron">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </div>
-                    </div>
-                  );
-                })}
+                <span>📅</span> Book OPD Appointment
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/track')}
+                style={{
+                  backgroundColor: '#ffffff',
+                  color: '#334155',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '10px',
+                  padding: '12px 22px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>⏱️</span> Track Active Token
+              </button>
+              <button
+                type="button"
+                onClick={handleLaunchDemoPatient}
+                disabled={demoLoading}
+                style={{
+                  backgroundColor: '#DCFCE7',
+                  color: '#15803D',
+                  border: '1px solid #86EFAC',
+                  borderRadius: '10px',
+                  padding: '12px 20px',
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>🧪</span> 1-Click Demo Sandbox
+              </button>
+            </div>
+
+            {/* Stat Badges */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '16px',
+                maxWidth: '900px',
+                margin: '0 auto',
+              }}
+            >
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#004D40' }}>33+</div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Medical Specialties</div>
               </div>
-            )}
-          </section>
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#059669' }}>&lt; 15 min</div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Average Queue Wait</div>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#2563EB' }}>100%</div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>ABDM Paperless Vault</div>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#D97706' }}>24 &times; 7</div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>WhatsApp Assistance</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-          {/* 4. Empty Space: Ample empty white space only when selector is closed */}
-          {!selectorOpen && <div className="arogyaflow-spacer" />}
-        </div>
+        {/* Core Services Section */}
+        <section style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 20px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+            <h2 style={{ fontSize: '26px', fontWeight: '800', color: '#004D40', margin: '0 0 8px' }}>
+              Comprehensive Healthcare Services
+            </h2>
+            <p style={{ fontSize: '14px', color: '#64748B', margin: 0 }}>
+              Access everything from hospital discovery to longitudinal digital care records in one unified platform.
+            </p>
+          </div>
 
-        {/* 5. Bottom Sticky Footer: Pinned to bottom, full-width Continue pill + 2-line trust footer */}
-        <footer className="arogyaflow-bottom-section" style={{ flexShrink: 0, marginTop: 'auto' }}>
-          <button
-            type="button"
-            className={`arogyaflow-btn-continue ${isContinueActive ? 'active-green' : ''}`}
-            onClick={handleContinue}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {services.map((svc) => (
+              <div
+                key={svc.id}
+                onClick={() => navigate(svc.route)}
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '14px',
+                  padding: '24px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  gap: '16px',
+                  alignItems: 'flex-start',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
+                  e.currentTarget.style.borderColor = svc.border;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)';
+                  e.currentTarget.style.borderColor = '#E2E8F0';
+                }}
+              >
+                <div
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    backgroundColor: svc.color,
+                    border: `1px solid ${svc.border}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '24px',
+                    flexShrink: 0,
+                  }}
+                >
+                  {svc.icon}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1E293B' }}>
+                    {svc.title}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748B', lineHeight: '1.5' }}>
+                    {svc.subtitle}
+                  </p>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12.5px', fontWeight: '700', color: '#004D40' }}>
+                    Open Service &rarr;
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Role Portals Quick Switcher */}
+        <section style={{ backgroundColor: '#F1F5F9', borderTop: '1px solid #E2E8F0', padding: '40px 20px' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#1E293B', margin: '0 0 6px' }}>
+                Dedicated Stakeholder Portals
+              </h2>
+              <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
+                Tailored interfaces for patients, clinicians, and hospital administrative staff.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
+                <div style={{ fontSize: '28px', marginBottom: '10px' }}>🩺</div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#004D40' }}>Patient Portal</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
+                  View active queue token slips, access CBC and prescription vaults, and manage family ABHA cards.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/login/patient')}
+                  style={{ width: '100%', padding: '9px', backgroundColor: '#E8F5E9', color: '#004D40', border: '1px solid #C8E6C9', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Enter Patient Portal &rarr;
+                </button>
+              </div>
+
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
+                <div style={{ fontSize: '28px', marginBottom: '10px' }}>👨‍⚕️</div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1D4ED8' }}>Doctor Portal</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
+                  Call patients into the chair, generate e-prescriptions with Eka Care registry, and manage clinical care courses.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/login/doctor')}
+                  style={{ width: '100%', padding: '9px', backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Enter Doctor Portal &rarr;
+                </button>
+              </div>
+
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
+                <div style={{ fontSize: '28px', marginBottom: '10px' }}>🏥</div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#0F766E' }}>Hospital Admin & Counters</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
+                  Manage department counters, handle missed and exponentially penalized tokens, and inspect hospital metrics.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/login/admin')}
+                  style={{ width: '100%', padding: '9px', backgroundColor: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Enter Staff Console &rarr;
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* WhatsApp Notification & AI Assistant Banner */}
+        <section style={{ backgroundColor: '#ffffff', borderTop: '1px solid #E2E8F0', padding: '36px 20px' }}>
+          <div
+            style={{
+              maxWidth: '900px',
+              margin: '0 auto',
+              backgroundColor: '#F0FDF4',
+              border: '2px solid #86EFAC',
+              borderRadius: '16px',
+              padding: '24px 28px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '20px',
+            }}
           >
-            Continue
-          </button>
-          <AyushmanFooter style={{ padding: '0', marginTop: '2px' }} />
-        </footer>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  backgroundColor: '#22C55E',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '26px',
+                  flexShrink: 0,
+                }}
+              >
+                💬
+              </div>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '17px', fontWeight: '800', color: '#166534' }}>
+                  AarogyaFlow 24/7 WhatsApp AI Assistant
+                </h3>
+                <p style={{ margin: 0, fontSize: '13px', color: '#15803D' }}>
+                  Book OPDs, track tokens, upload prescriptions and test demo mode directly on WhatsApp: <strong>+91 91201 23877</strong>
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://wa.me/919120123877?text=Hi"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                backgroundColor: '#16A34A',
+                color: '#ffffff',
+                textDecoration: 'none',
+                padding: '10px 20px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '13.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)',
+              }}
+            >
+              <span>📲</span> Open WhatsApp Bot
+            </a>
+          </div>
+        </section>
       </main>
+
+      {/* Official Ayushman Footer */}
+      <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '24px 20px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }} />
     </div>
   );
 }
-
-

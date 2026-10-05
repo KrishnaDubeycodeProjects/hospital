@@ -284,6 +284,103 @@ export default function DoctorConsultation() {
 
   const [showQueueBoard, setShowQueueBoard] = useState(true);
 
+  // Doctor Test Environment Sandbox State
+  const [testModeOpen, setTestModeOpen] = useState(false);
+  const [testPatientName, setTestPatientName] = useState('Ramesh Kumar');
+  const [testPatientAge, setTestPatientAge] = useState('28');
+  const [testPatientGender, setTestPatientGender] = useState('male');
+  const [testPatientPhone, setTestPatientPhone] = useState('+919100000099');
+  const [testDistanceKm, setTestDistanceKm] = useState('18.5');
+  const [testTravelMinutes, setTestTravelMinutes] = useState('45');
+  const [testTargetStatus, setTestTargetStatus] = useState('waiting');
+  const [testSelectedTokenId, setTestSelectedTokenId] = useState('');
+  const [testCreating, setTestCreating] = useState(false);
+
+  async function handleAddTestPatient(overrideStatus = null) {
+    if (!profile?.hospitalId) return;
+    setTestCreating(true);
+    const targetStatus = overrideStatus || testTargetStatus || 'waiting';
+    try {
+      const resp = await fetch('/api/test/queue/inject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: testPatientName || 'Demo Patient',
+          age: parseInt(testPatientAge) || 30,
+          gender: testPatientGender || 'male',
+          phone: testPatientPhone || '+919100000099',
+          category: profile.category || 'General Medicine',
+          hospitalId: profile.hospitalId,
+          status: targetStatus,
+          distanceKm: testDistanceKm ? parseFloat(testDistanceKm) : null,
+          travelMinutes: testTravelMinutes ? parseInt(testTravelMinutes) : null,
+        }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        toast.success(`Patient #${data.data?.dailyNumber || data.data?.tokenId || ''} (${testPatientName}) injected into queue as ${targetStatus.toUpperCase()}!`);
+        loadData();
+      } else {
+        toast.error(data.message || 'Failed to inject test patient');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to inject test patient');
+    } finally {
+      setTestCreating(false);
+    }
+  }
+
+  async function handleUnfreeze(tokenId) {
+    if (!tokenId) {
+      toast.error('Please select a token to unfreeze');
+      return;
+    }
+    try {
+      await queueApi.unfreeze(tokenId);
+      toast.success(`Token #${tokenId} unfrozen & placed into active FIFO queue!`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to unfreeze token');
+    }
+  }
+
+  async function handleDirectCheckIn(tokenId) {
+    if (!tokenId) {
+      toast.error('Please select a token to check in');
+      return;
+    }
+    try {
+      const resp = await fetch('/api/queue/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tokenId: parseInt(tokenId) }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        toast.success(data.message || `Token #${tokenId} checked in and verified successfully!`);
+        loadData();
+      } else {
+        toast.error(data.message || 'Verification failed');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to check in token');
+    }
+  }
+
+  async function handleQuickStatusChange(tokenId, status) {
+    if (!tokenId) {
+      toast.error('Please select a token');
+      return;
+    }
+    try {
+      await queueApi.updateStatus(tokenId, status);
+      toast.success(`Token #${tokenId} status changed to ${status}!`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Status update failed');
+    }
+  }
+
   async function handleCallPatient(tokenId) {
     try {
       await queueApi.updateStatus(tokenId, 'serving');
@@ -436,9 +533,280 @@ export default function DoctorConsultation() {
           </p>
         </div>
         <div className="row-gap">
+          <Button
+            size="sm"
+            variant={testModeOpen ? 'primary' : 'secondary'}
+            onClick={() => setTestModeOpen(!testModeOpen)}
+            style={{
+              backgroundColor: testModeOpen ? '#059669' : '#F0FDF4',
+              color: testModeOpen ? '#ffffff' : '#166534',
+              border: '1px solid #BBF7D0',
+              fontWeight: 700,
+            }}
+          >
+            🧪 {testModeOpen ? 'Test Sandbox Active' : 'Test Environment'}
+          </Button>
           <span className="badge badge-green">Live Counter Active</span>
         </div>
       </div>
+
+      {/* 🧪 Doctor Test Environment Sandbox */}
+      {testModeOpen && (
+        <div
+          style={{
+            backgroundColor: '#F0FDF4',
+            border: '2px solid #86EFAC',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            boxShadow: '0 4px 12px rgba(22, 163, 74, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid #BBF7D0', paddingBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🧪</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#166534' }}>
+                  Doctor Queue Sandbox & Simulation Control
+                </h3>
+                <span style={{ fontSize: '12px', color: '#15803D' }}>
+                  Inject test patients, select & reserve custom tokens, trigger 1-click check-ins, or manipulate queue states.
+                </span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => setTestModeOpen(false)}
+              style={{ fontWeight: 700 }}
+            >
+              ❌ Exit Test Mode
+            </Button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+            {/* Box 1: Add Test Patient */}
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '14px' }}>
+              <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#166534', marginBottom: '10px' }}>
+                ➕ Add / Inject Test Patient
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Input
+                  value={testPatientName}
+                  onChange={(e) => setTestPatientName(e.target.value)}
+                  placeholder="Patient Name"
+                  style={{ fontSize: '13px' }}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <Input
+                    value={testPatientAge}
+                    onChange={(e) => setTestPatientAge(e.target.value)}
+                    placeholder="Age"
+                    type="number"
+                    style={{ fontSize: '13px' }}
+                  />
+                  <Select
+                    value={testPatientGender}
+                    onChange={(e) => setTestPatientGender(e.target.value)}
+                    style={{ fontSize: '13px' }}
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </Select>
+                </div>
+                <Input
+                  value={testPatientPhone}
+                  onChange={(e) => setTestPatientPhone(e.target.value)}
+                  placeholder="Phone (+91...)"
+                  style={{ fontSize: '13px' }}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <Input
+                    value={testDistanceKm}
+                    onChange={(e) => setTestDistanceKm(e.target.value)}
+                    placeholder="Distance (km, e.g. 18.5)"
+                    type="number"
+                    step="0.1"
+                    style={{ fontSize: '13px' }}
+                    title="Distance in km"
+                  />
+                  <Input
+                    value={testTravelMinutes}
+                    onChange={(e) => setTestTravelMinutes(e.target.value)}
+                    placeholder="Travel (min, e.g. 45)"
+                    type="number"
+                    style={{ fontSize: '13px' }}
+                    title="Estimated travel time in minutes"
+                  />
+                </div>
+                <Select
+                  value={testTargetStatus}
+                  onChange={(e) => setTestTargetStatus(e.target.value)}
+                  style={{ fontSize: '13px', fontWeight: 600 }}
+                >
+                  <option value="waiting">🔵 Initial State: Waiting (FIFO Queue)</option>
+                  <option value="frozen">❄️ Initial State: Frozen Buffer (&gt;15km Far)</option>
+                  <option value="serving">🪑 Initial State: Serving (Direct Chair)</option>
+                  <option value="missed">🔴 Initial State: Missed / Demoted</option>
+                </Select>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    loading={testCreating}
+                    onClick={() => handleAddTestPatient()}
+                    style={{ flex: 1, fontSize: '12px', fontWeight: 700 }}
+                  >
+                    ➕ Inject Patient
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={testCreating}
+                    onClick={() => handleAddTestPatient('frozen')}
+                    style={{ flex: 1, fontSize: '12px', fontWeight: 700, backgroundColor: '#CCFBF1', color: '#0F766E' }}
+                  >
+                    ❄️ Inject as Frozen
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Box 2: Select Token & 1-Click Actions */}
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '14px' }}>
+              <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#166534', marginBottom: '10px' }}>
+                🎯 Select Token & 1-Click Actions
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Select
+                  value={testSelectedTokenId}
+                  onChange={(e) => setTestSelectedTokenId(e.target.value)}
+                  style={{ fontSize: '13px' }}
+                >
+                  <option value="">-- Choose Token from Any Queue --</option>
+                  {(currentQueue?.frozen || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      ❄️ #{t.dailyNumber || t.id} - {t.name} (Frozen Buffer - {t.distanceKm ? t.distanceKm + 'km' : 'Far'})
+                    </option>
+                  ))}
+                  {(currentQueue?.tokens?.filter((t) => t.status === 'waiting') || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      🔵 #{t.dailyNumber || t.id} - {t.name} (Waiting FIFO)
+                    </option>
+                  ))}
+                  {(currentQueue?.reserved || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      🟡 #{t.dailyNumber || t.id} - {t.name} (Reserved Buffer)
+                    </option>
+                  ))}
+                  {(currentQueue?.missed || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      🔴 #{t.dailyNumber || t.id} - {t.name} (Missed Queue)
+                    </option>
+                  ))}
+                </Select>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={!testSelectedTokenId}
+                    onClick={() => handleDirectCheckIn(testSelectedTokenId)}
+                    style={{ fontSize: '12px', fontWeight: 700 }}
+                  >
+                    ✅ 1-Click Check-In
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!testSelectedTokenId}
+                    onClick={() => handleUnfreeze(testSelectedTokenId)}
+                    style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#E0F2FE', color: '#0369A1' }}
+                  >
+                    ☀️ 1-Click Unfreeze
+                  </Button>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!testSelectedTokenId}
+                  onClick={() => handleCallPatient(testSelectedTokenId)}
+                  style={{ width: '100%', fontSize: '12.5px', fontWeight: 700 }}
+                >
+                  🪑 Call Selected into Chair
+                </Button>
+              </div>
+            </div>
+
+            {/* Box 3: Quick Status Override */}
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '14px' }}>
+              <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#166534', marginBottom: '10px' }}>
+                🔄 Queue Status Transition Override
+              </div>
+              <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px' }}>
+                Quickly test edge cases and state machine transitions for Token #{testSelectedTokenId || activeToken?.id || '—'}:
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'waiting')}
+                  disabled={!testSelectedTokenId && !activeToken?.id}
+                  style={{ fontSize: '11.5px', border: '1px solid #cbd5e1' }}
+                >
+                  Set: Waiting
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'frozen')}
+                  disabled={!testSelectedTokenId && !activeToken?.id}
+                  style={{ fontSize: '11.5px', border: '1px solid #99f6e4', color: '#0f766e', backgroundColor: '#f0fdfa' }}
+                >
+                  Set: Frozen
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'serving')}
+                  disabled={!testSelectedTokenId && !activeToken?.id}
+                  style={{ fontSize: '11.5px', border: '1px solid #93c5fd', color: '#1d4ed8' }}
+                >
+                  Set: Serving
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'completed')}
+                  disabled={!testSelectedTokenId && !activeToken?.id}
+                  style={{ fontSize: '11.5px', border: '1px solid #86efac', color: '#15803d' }}
+                >
+                  Set: Completed
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'missed')}
+                  disabled={!testSelectedTokenId && !activeToken?.id}
+                  style={{ fontSize: '11.5px', border: '1px solid #fca5a5', color: '#b91c1c' }}
+                >
+                  Set: Missed
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'reserved')}
+                  disabled={!testSelectedTokenId && !activeToken?.id}
+                  style={{ fontSize: '11.5px', border: '1px solid #fde68a', color: '#92400e' }}
+                >
+                  Set: Reserved
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active Token Call Board - OPDX 4 Metric Cards */}
       <div className="stat-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
@@ -469,9 +837,9 @@ export default function DoctorConsultation() {
         </div>
       </div>
 
-      {/* 3-Section Live Queue Dashboard for Doctor */}
+      {/* 4-Section Live Queue Dashboard for Doctor */}
       <Card
-        title="Live Department Queue (3-Sections)"
+        title="Live Department Queue (4-Section Buffer & FIFO Control)"
         actions={
           <div className="row-gap">
             <Button size="sm" variant="ghost" onClick={() => setShowQueueBoard(!showQueueBoard)}>
@@ -484,9 +852,49 @@ export default function DoctorConsultation() {
         }
       >
         {showQueueBoard && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', alignItems: 'start' }}>
-            
-            {/* 1. 🟡 RESERVED / BUFFER QUEUE */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '14px', alignItems: 'start' }}>
+
+            {/* 1. ❄️ FROZEN / TRAVEL BUFFER QUEUE */}
+            <div style={{ background: '#f0fdfa', borderRadius: '10px', border: '1.5px solid #99f6e4', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ccfbf1', paddingBottom: '6px' }}>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#0f766e' }}>❄️ Frozen (Travel Buffer)</span>
+                <span style={{ background: '#ccfbf1', color: '#0f766e', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
+                  {currentQueue?.frozen?.length ?? 0}
+                </span>
+              </div>
+              {(!currentQueue?.frozen || currentQueue.frozen.length === 0) ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#0d9488', fontSize: '12px' }}>
+                  No frozen buffer patients.
+                </div>
+              ) : (
+                currentQueue.frozen.map((t) => (
+                  <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #99f6e4', padding: '8px', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <strong style={{ color: '#0f766e' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                      <span style={{ fontSize: '10px', color: '#0f766e', background: '#ccfbf1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                        ❄️ Frozen Buffer
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
+                      {t.name || 'Patient'} {t.age ? `(${t.gender || 'M'}, ${t.age}y)` : ''}
+                    </div>
+                    <div style={{ color: '#0d9488', fontSize: '11px', marginTop: '2px', fontWeight: 500 }}>
+                      📍 {t.distanceKm != null ? `${t.distanceKm} km` : '18.5 km'} &bull; {t.travelMinutes != null ? `${t.travelMinutes}m ETA` : '45m buffer'}
+                    </div>
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '6px', justifyContent: 'flex-end' }}>
+                      <Button size="sm" variant="secondary" onClick={() => handleUnfreeze(t.id)} style={{ fontSize: '11px', backgroundColor: '#e0f2fe', color: '#0369a1' }}>
+                        ☀️ Unfreeze
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px' }}>
+                        Call Chair
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 2. 🟡 RESERVED / BUFFER QUEUE */}
             <div style={{ background: '#fffbeb', borderRadius: '10px', border: '1.5px solid #fde68a', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fef3c7', paddingBottom: '6px' }}>
                 <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#92400e' }}>🟡 Reserved (En Route)</span>

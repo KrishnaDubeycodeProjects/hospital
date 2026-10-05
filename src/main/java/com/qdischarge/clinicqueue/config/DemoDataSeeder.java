@@ -66,35 +66,43 @@ public class DemoDataSeeder implements ApplicationRunner {
             hospitalDepartmentService.ensure(mainHospitalId, "General Medicine");
             hospitalDepartmentService.updateCounters(mainHospitalId, "General Medicine", 3);
 
-            // 3. Register Test Doctor: Dr. Rajesh Sharma
+            // 3. Register Test Doctors: Dr. Rajesh Sharma and Dr. Krishna Dubey (8850934544)
             String doctorPhone = "+919888877777";
+            String doctorPhone2 = "+918850934544";
+            String doctorPhone2Alt = "8850934544";
             try {
-                List<Integer> docIds = jdbc.query(
-                        "SELECT id FROM doctors WHERE phone = :phone",
-                        Map.of("phone", doctorPhone),
-                        (rs, rowNum) -> rs.getInt("id"));
-                Integer docId = docIds.isEmpty() ? null : docIds.get(0);
+                for (String[] docInfo : new String[][]{
+                        {doctorPhone, "Dr. Rajesh Sharma"},
+                        {doctorPhone2, "Dr. Krishna Dubey"},
+                        {doctorPhone2Alt, "Dr. Krishna Dubey"}
+                }) {
+                    List<Integer> docIds = jdbc.query(
+                            "SELECT id FROM doctors WHERE phone = :phone",
+                            Map.of("phone", docInfo[0]),
+                            (rs, rowNum) -> rs.getInt("id"));
+                    Integer docId = docIds.isEmpty() ? null : docIds.get(0);
 
-                if (docId == null) {
-                    jdbc.update(
-                            """
-                            INSERT INTO doctors (phone, name, hospital_id, counter_id, category)
-                            VALUES (:phone, 'Dr. Rajesh Sharma', :hospitalId, 1, 'General Medicine')
-                            """,
-                            Map.of("phone", doctorPhone, "hospitalId", mainHospitalId));
-                } else {
-                    jdbc.update(
-                            "UPDATE doctors SET hospital_id = :hospitalId, counter_id = 1, category = 'General Medicine' WHERE id = :id",
-                            Map.of("hospitalId", mainHospitalId, "id", docId));
+                    if (docId == null) {
+                        jdbc.update(
+                                """
+                                INSERT INTO doctors (phone, name, hospital_id, counter_id, category)
+                                VALUES (:phone, :name, :hospitalId, 1, 'General Medicine')
+                                """,
+                                Map.of("phone", docInfo[0], "name", docInfo[1], "hospitalId", mainHospitalId));
+                    } else {
+                        jdbc.update(
+                                "UPDATE doctors SET hospital_id = :hospitalId, counter_id = 1, category = 'General Medicine', name = :name WHERE id = :id",
+                                Map.of("hospitalId", mainHospitalId, "id", docId, "name", docInfo[1]));
+                    }
                 }
             } catch (Exception e) {
                 log.warn("Note: doctor registration seeding fallback: {}", e.getMessage());
             }
 
-            // 4. Pre-verify OTP for Doctor and Test Patients
+            // 4. Pre-verify OTP for Doctors and Test Patients
             String codeHash = passwordEncoder.encode("123456");
             String[] testPhones = {
-                    doctorPhone,
+                    doctorPhone, doctorPhone2, doctorPhone2Alt,
                     "+919100000001", "+919100000002", "+919100000003", "+919100000004", "+919100000005",
                     "+919100000006", "+919100000007", "+919100000008", "+919100000009", "+919100000010",
                     "+919100000011", "+919100000012"
@@ -105,6 +113,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                         """
                         INSERT INTO otp_verifications (phone, code_hash, purpose, expires_at, verified, verified_at)
                         VALUES (:phone, :hash, 'registration', NOW() + INTERVAL '30 days', TRUE, NOW())
+                        ON CONFLICT DO NOTHING
                         """,
                         Map.of("phone", phone, "hash", codeHash));
             }
@@ -321,6 +330,27 @@ public class DemoDataSeeder implements ApplicationRunner {
                         """,
                         Map.of("hId", mainHospitalId, "cId", activeCourseId != null ? activeCourseId : 1));
                 log.info("✅ Seeded live serving consultation token for patient 8850934544 (Kavish Ahuja)");
+            }
+
+            // 11. Ensure Access Grants for Doctor 8850934544 / +918850934544 to view patient records
+            try {
+                List<Integer> doc2Ids = jdbc.query(
+                        "SELECT id FROM doctors WHERE phone IN ('8850934544', '+918850934544')",
+                        Map.of(), (rs, rowNum) -> rs.getInt("id"));
+                for (int dId : doc2Ids) {
+                    for (String pPhone : List.of("8850934544", "+918850934544")) {
+                        Integer agCount = jdbc.queryForObject(
+                                "SELECT COUNT(*) FROM access_grants WHERE doctor_id = :dId AND patient_phone = :phone AND revoked_at IS NULL",
+                                Map.of("dId", dId, "phone", pPhone), Integer.class);
+                        if (agCount == null || agCount == 0) {
+                            jdbc.update(
+                                    "INSERT INTO access_grants (doctor_id, patient_phone, granted_at) VALUES (:dId, :phone, NOW())",
+                                    Map.of("dId", dId, "phone", pPhone));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Access grant seeding note: {}", e.getMessage());
             }
 
             log.info("✅ Video Demo Scenarios, Clinical Courses, Referrals & Credentials successfully seeded!");

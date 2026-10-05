@@ -4,7 +4,7 @@ import java.util.Set;
 
 public enum Intent {
     // Main services (buttonId = the WA list row id)
-    APPOINTMENT("srv_appointment", Set.of("srv_appointment", "srv_book", "appointment", "opd", "book", "book appointment", "opd appointment", "token", "अपॉइंटमेंट", "अपॉइंटमेंट बुक", "ओपीडी", "अपॉइंटमेंट बुक करा")),
+    APPOINTMENT("srv_appointment", Set.of("srv_appointment", "srv_book", "appointment", "opd", "book", "book appointment", "opd appointment", "token", "checkup", "check up", "check-up", "health checkup", "full checkup", "check up flow", "अपॉइंटमेंट", "अपॉइंटमेंट बुक", "ओपीडी", "अपॉइंटमेंट बुक करा", "जांच", "तपासणी")),
     FAMILY_ABHA("srv_family_abha", Set.of("srv_family_abha", "srv_family", "family", "abha", "family abha", "परिवार", "कुटुंब", "आभा")),
     HEALTH_RECORDS("srv_health_records", Set.of("srv_health_records", "srv_records", "health records", "records", "documents", "medical records", "रिकॉर्ड", "दस्तावेज़", "नोंदी")),
     REFERRALS("srv_referrals", Set.of("srv_referrals", "referrals", "referral", "follow up", "रेफरल", "फॉलो अप")),
@@ -12,7 +12,7 @@ public enum Intent {
     CHANGE_LANGUAGE("srv_lang_change", Set.of("srv_lang_change", "change language", "language", "भाषा बदलें", "भाषा", "भाषा बदला")),
     
     // Sub-service intents
-    BOOK_APPOINTMENT("apt_book", Set.of("apt_book", "book appointment", "book token", "बुक", "टोकन बुक", "नोंदणी करा")),
+    BOOK_APPOINTMENT("apt_book", Set.of("apt_book", "book appointment", "book token", "बुक", "टोकन बुक", "नोंदणी करा", "book checkup", "checkup book")),
     TRACK_APPOINTMENT("apt_track", Set.of("apt_track", "srv_track", "track", "status", "check status", "live status", "ट्रैक", "स्थिति", "स्थिती")),
     
     UPLOAD_RECORD("rec_upload", Set.of("rec_upload", "upload", "upload document", "अपलोड", "दस्तावेज़ अपलोड")),

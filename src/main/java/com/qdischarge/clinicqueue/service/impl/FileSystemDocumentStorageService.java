@@ -36,15 +36,26 @@ public class FileSystemDocumentStorageService implements DocumentStorageService 
     public void init() {
         String uploadDir = appProperties.getStorageUploadDir();
         if (uploadDir == null || uploadDir.isBlank()) {
-            uploadDir = "./storage/documents";
+            if (System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null) {
+                uploadDir = "/tmp/storage/documents";
+            } else {
+                uploadDir = "./storage/documents";
+            }
         }
         this.rootLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.rootLocation);
             log.info("Initialized document storage directory at: {}", this.rootLocation);
-        } catch (IOException e) {
-            log.error("Could not initialize storage directory: {}", e.getMessage());
-            throw new RuntimeException("Could not initialize document storage location", e);
+        } catch (Exception e) {
+            log.warn("Could not initialize storage directory at {}: {}. Falling back to /tmp/storage/documents", this.rootLocation, e.getMessage());
+            this.rootLocation = Paths.get("/tmp/storage/documents").toAbsolutePath().normalize();
+            try {
+                Files.createDirectories(this.rootLocation);
+                log.info("Initialized fallback storage directory at: {}", this.rootLocation);
+            } catch (IOException ex) {
+                log.error("Fatal: Could not initialize /tmp storage location: {}", ex.getMessage());
+                throw new RuntimeException("Could not initialize document storage location", ex);
+            }
         }
 
         String allowed = appProperties.getStorageAllowedTypes();

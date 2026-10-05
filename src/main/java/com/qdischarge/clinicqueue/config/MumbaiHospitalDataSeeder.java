@@ -28,6 +28,11 @@ public class MumbaiHospitalDataSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null) {
+            log.info("AWS Lambda environment detected: skipping MumbaiHospitalDataSeeder.");
+            return;
+        }
+
         try {
             log.info("🌱 Seeding 125+ hospitals across Thane & Mumbai Western Suburbs...");
             List<HospitalSeedData> seedList = getHospitalsList();

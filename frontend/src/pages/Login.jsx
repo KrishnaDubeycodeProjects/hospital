@@ -16,144 +16,45 @@ export default function Login() {
   const { role = 'patient' } = useParams();
   const navigate = useNavigate();
 
-  if (role === 'patient') {
-    return (
-      <div className="arogyaflow-backdrop">
-        <main
-          className="arogyaflow-phone-frame"
-          style={{
-            position: 'relative',
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: '#ffffff',
-            justifyContent: 'space-between',
-            height: '100dvh',
-            maxHeight: '100dvh',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Top App Bar Header */}
-          <header
-            style={{
-              padding: '16px 20px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              backgroundColor: '#ffffff',
-              borderBottom: '1px solid #F1F5F9',
-              flexShrink: 0,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              aria-label="Back"
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '50%',
-                backgroundColor: '#F3F4F6',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#1F2937',
-                flexShrink: 0,
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-
-            <h1
-              style={{
-                margin: 0,
-                fontSize: '19px',
-                fontWeight: '800',
-                color: '#004D40',
-                letterSpacing: '-0.02em',
-                textAlign: 'center',
-              }}
-            >
-              Patient Sign In
-            </h1>
-
-            <button
-              type="button"
-              onClick={() => navigate('/login/admin')}
-              title="Staff Login"
-              style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                color: '#004D40',
-                backgroundColor: '#E8F5E9',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '7px 12px',
-                cursor: 'pointer',
-              }}
-            >
-              Staff
-            </button>
-          </header>
-
-          {/* Scrollable Content */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '24px 20px 16px',
-              backgroundColor: '#ffffff',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-            }}
-          >
-            <OtpAuthFlow kind="patient" isMobile />
-          </div>
-
-          {/* Pinned Standard Footer */}
-          <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '8px 16px 18px' }} />
-        </main>
-      </div>
-    );
-  }
-
   return (
-    <div className="auth-page">
-      <div className="auth-card-wrap">
-        <div className="auth-header">
-          <Link to="/" className="auth-back">
-            ← Back to ArogyaFlow
-          </Link>
-          <div className="auth-brand">
-            <div className="brand-mark">AF</div>
-            <div>
-              <div className="brand-name">ArogyaFlow</div>
-              <div className="brand-sub">Smart Healthcare Access</div>
+    <div className="auth-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '32px 16px' }}>
+        <div className="auth-card-wrap" style={{ width: '100%', maxWidth: '520px' }}>
+          <div className="auth-header">
+            <Link to="/" className="auth-back">
+              ← Back to ArogyaFlow
+            </Link>
+            <div className="auth-brand">
+              <div className="brand-mark" style={{ background: 'linear-gradient(135deg, #004D40, #059669)', color: '#fff', fontWeight: 800 }}>
+                AF
+              </div>
+              <div>
+                <div className="brand-name" style={{ color: '#004D40', fontWeight: 800 }}>ArogyaFlow</div>
+                <div className="brand-sub">Ayushman Bharat OPD & Queue Portal</div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="auth-tabs">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              className={`auth-tab ${role === t.key ? 'active' : ''}`}
-              onClick={() => navigate(`/login/${t.key}`)}
-            >
-              <span style={{ marginRight: '6px' }}>{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </div>
+          <div className="auth-tabs" style={{ marginBottom: '20px' }}>
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`auth-tab ${role === t.key ? 'active' : ''}`}
+                onClick={() => navigate(`/login/${t.key}`)}
+              >
+                <span style={{ marginRight: '6px' }}>{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-        {role === 'admin' && <AdminLogin />}
-        {role === 'patient' && <OtpAuthFlow kind="patient" />}
-        {role === 'doctor' && <OtpAuthFlow kind="doctor" />}
+          {role === 'admin' && <AdminLogin />}
+          {role === 'patient' && <OtpAuthFlow kind="patient" />}
+          {role === 'doctor' && <OtpAuthFlow kind="doctor" />}
+        </div>
       </div>
+      <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', backgroundColor: '#ffffff' }} />
     </div>
   );
 }
@@ -213,12 +114,11 @@ function AdminLogin() {
 
 /** 
  * Comprehensive Phone + OTP Authentication & Sign-Up Component
- * Supports both Sign In (Existing User) & Sign Up (New User registration)
+ * Supports both Sign In & Sign Up with 1-click Test Environment Auto-Fill
  */
-function OtpAuthFlow({ kind, isMobile = false }) {
+function OtpAuthFlow({ kind }) {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
   const [phone, setPhone] = useState('');
-  const [rawDigits, setRawDigits] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [stage, setStage] = useState('phone'); // 'phone' -> 'otp' -> 'profile' (for signup)
@@ -247,13 +147,12 @@ function OtpAuthFlow({ kind, isMobile = false }) {
 
   async function handleSendOtp(e) {
     e?.preventDefault();
-    const targetPhone = isMobile ? `+91${rawDigits}` : phone;
-    if (!targetPhone || targetPhone.length < 12) {
+    if (!phone || phone.length < 10) {
       toast.error('Please enter a valid 10-digit mobile number');
       return;
     }
 
-    const formatted = cleanPhone(targetPhone);
+    const formatted = cleanPhone(phone);
     setPhone(formatted);
     setSending(true);
     try {
@@ -292,15 +191,13 @@ function OtpAuthFlow({ kind, isMobile = false }) {
           const docRes = await doctorApi.login(phone);
           login('DOCTOR', docRes.token);
           toast.success(docRes.message || 'Welcome back, Doctor!');
-          navigate('/doctor');
+          navigate('/doctor/consultation');
         } catch (err) {
-          // If login fails because doctor isn't registered, prompt to complete registration
           toast.info('No existing doctor account found with this number. Please complete registration below.');
           setMode('signup');
           setStage('profile');
         }
       } else {
-        // Sign up mode for doctor
         setStage('profile');
       }
     } catch (err) {
@@ -322,226 +219,12 @@ function OtpAuthFlow({ kind, isMobile = false }) {
       const res = await doctorApi.register(name.trim(), phone);
       login('DOCTOR', res.token);
       toast.success(res.message || 'Doctor account created successfully!');
-      navigate('/doctor');
+      navigate('/doctor/consultation');
     } catch (err) {
       toast.error(err.message || 'Registration failed');
     } finally {
       setVerifying(false);
     }
-  }
-
-  if (isMobile) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {stage === 'phone' && (
-          <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: '#004D40',
-                  backgroundColor: '#E8F5E9',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  display: 'inline-block',
-                  marginBottom: '8px',
-                }}
-              >
-                Patient Verification
-              </span>
-              <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#111827', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-                Enter Mobile Number
-              </h2>
-              <p style={{ fontSize: '13.5px', color: '#6B7280', margin: 0, lineHeight: 1.4 }}>
-                Enter the mobile number linked with your hospital tokens, family ABHA cards, and health records.
-              </p>
-            </div>
-
-            {/* Mobile number input field with +91 prefix and phone icon */}
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>
-                Mobile Number
-              </label>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  height: '52px',
-                  backgroundColor: '#ffffff',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '12px',
-                  padding: '0 14px',
-                  transition: 'border-color 0.15s ease',
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px', flexShrink: 0 }}>
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                </svg>
-                <span style={{ fontWeight: '700', fontSize: '15px', color: '#111827', marginRight: '8px' }}>
-                  +91
-                </span>
-                <span style={{ color: '#CBD5E1', marginRight: '10px' }}>|</span>
-                <input
-                  type="tel"
-                  maxLength={10}
-                  value={rawDigits}
-                  onChange={(e) => setRawDigits(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="9876543210"
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    width: '100%',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    color: '#0f172a',
-                  }}
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            {/* Submit button: turns active dark green when 10 digits entered */}
-            <button
-              type="submit"
-              disabled={rawDigits.length !== 10 || sending}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '12px',
-                backgroundColor: rawDigits.length === 10 ? '#004D40' : '#E2E8F0',
-                color: rawDigits.length === 10 ? '#ffffff' : '#94A3B8',
-                fontSize: '15.5px',
-                fontWeight: '700',
-                border: 'none',
-                cursor: rawDigits.length === 10 && !sending ? 'pointer' : 'not-allowed',
-                transition: 'all 0.15s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                marginTop: '6px',
-              }}
-            >
-              {sending ? 'Sending OTP…' : 'Send Verification Code'}
-            </button>
-          </form>
-        )}
-
-        {stage === 'otp' && (
-          <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <div>
-              <span
-                style={{
-                  fontSize: '11.5px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: '#004D40',
-                  backgroundColor: '#E8F5E9',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  display: 'inline-block',
-                  marginBottom: '8px',
-                }}
-              >
-                OTP Verification
-              </span>
-              <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#111827', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-                Enter OTP Code
-              </h2>
-              <p style={{ fontSize: '13.5px', color: '#6B7280', margin: 0 }}>
-                We sent a 6-digit code to <strong style={{ color: '#111827' }}>{phone}</strong>
-              </p>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>
-                6-Digit Code
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="••••••"
-                autoFocus
-                style={{
-                  width: '100%',
-                  height: '52px',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '12px',
-                  textAlign: 'center',
-                  fontSize: '22px',
-                  letterSpacing: '0.3em',
-                  fontWeight: '800',
-                  color: '#004D40',
-                  outline: 'none',
-                }}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={code.length < 4 || verifying}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '12px',
-                backgroundColor: code.length >= 4 ? '#004D40' : '#E2E8F0',
-                color: code.length >= 4 ? '#ffffff' : '#94A3B8',
-                fontSize: '15.5px',
-                fontWeight: '700',
-                border: 'none',
-                cursor: code.length >= 4 && !verifying ? 'pointer' : 'not-allowed',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {verifying ? 'Verifying…' : 'Verify & Enter Portal'}
-            </button>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-              <button
-                type="button"
-                onClick={() => setStage('phone')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#004D40',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                ← Change Number
-              </button>
-
-              <button
-                type="button"
-                disabled={resendTimer > 0 || sending}
-                onClick={handleSendOtp}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: resendTimer > 0 ? '#94A3B8' : '#004D40',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  cursor: resendTimer > 0 ? 'default' : 'pointer',
-                  padding: 0,
-                }}
-              >
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    );
   }
 
   return (
@@ -561,6 +244,94 @@ function OtpAuthFlow({ kind, isMobile = false }) {
         </span>
       }
     >
+      {/* 🧪 Demo / Test User Card */}
+      {stage === 'phone' && (
+        <div
+          style={{
+            marginBottom: '18px',
+            padding: '14px',
+            backgroundColor: '#F0FDF4',
+            border: '1px solid #BBF7D0',
+            borderRadius: '10px',
+            fontSize: '13px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ fontWeight: '700', color: '#166534', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              🧪 {kind === 'doctor' ? 'Demo Doctor Credentials' : 'Demo Patient Credentials'}
+            </span>
+            <span style={{ fontSize: '11px', backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 7px', borderRadius: '4px', fontWeight: '700' }}>
+              PROTOTYPE TEST
+            </span>
+          </div>
+          <div style={{ color: '#15803D', fontSize: '12.5px', marginBottom: '10px', lineHeight: '1.4' }}>
+            {kind === 'doctor' ? (
+              <>
+                <strong>Dr. Rajesh Sharma</strong> &bull; General Medicine<br />
+                Phone: <code style={{ background: '#DCFCE7', padding: '1px 5px', borderRadius: '3px' }}>+91 98888 77777</code> &bull; OTP: <code>123456</code>
+              </>
+            ) : (
+              <>
+                <strong>Ramesh Kumar</strong> &bull; Ayushman ABHA Linked<br />
+                Phone: <code style={{ background: '#DCFCE7', padding: '1px 5px', borderRadius: '3px' }}>+91 91000 00099</code> &bull; OTP: <code>123456</code>
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              if (kind === 'doctor') {
+                setPhone('+919888877777');
+                setCode('123456');
+                setStage('otp');
+                toast.success('Auto-filling Doctor credentials...');
+                try {
+                  const res = await otpApi.verify('+919888877777', '123456');
+                  const docRes = await doctorApi.login('+919888877777');
+                  login('DOCTOR', docRes.token);
+                  toast.success('Logged in as Dr. Rajesh Sharma');
+                  navigate('/doctor/consultation');
+                } catch (e) {
+                  toast.error(e.message || 'Auto-login error');
+                }
+              } else {
+                setPhone('+919100000099');
+                setCode('123456');
+                setStage('otp');
+                toast.success('Seeding & Logging in Demo Patient...');
+                try {
+                  await fetch('/api/test/patient/seed?phone=%2B919100000099', { method: 'POST' });
+                  const res = await otpApi.verify('+919100000099', '123456');
+                  login('PATIENT', res.token);
+                  toast.success('Logged in as Ramesh Kumar (Demo)');
+                  navigate('/patient');
+                } catch (e) {
+                  toast.error(e.message || 'Auto-login error');
+                }
+              }
+            }}
+            style={{
+              width: '100%',
+              backgroundColor: '#16A34A',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            }}
+          >
+            ⚡ {kind === 'doctor' ? 'Auto-Fill & Doctor Login' : 'Auto-Fill & Patient Login'}
+          </button>
+        </div>
+      )}
+
       {/* Mode Switcher: Sign In vs Sign Up */}
       <div className="auth-mode-toggle">
         <button
@@ -620,7 +391,7 @@ function OtpAuthFlow({ kind, isMobile = false }) {
           </Button>
 
           <div className="auth-help-hint">
-            🔒 Safe & Secure. We will send an instant code via SMS.
+            🔒 Safe & Secure. Instant SMS OTP authentication.
           </div>
         </form>
       )}

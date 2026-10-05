@@ -27,6 +27,11 @@ public class SchemaInitRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null) {
+            log.info("AWS Lambda environment detected: database schema already initialized, skipping SchemaInitRunner.");
+            return;
+        }
+
         try {
             log.info("🌱 Running database schema initialization...");
             ClassPathResource resource = new ClassPathResource("schema.sql");

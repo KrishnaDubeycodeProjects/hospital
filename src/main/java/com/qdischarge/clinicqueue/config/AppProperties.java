@@ -26,10 +26,10 @@ public class AppProperties {
     }
 
     public String getFrontendUrl() {
-        if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost") && !frontendUrl.contains("ngrok")) {
+        if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.contains("localhost")) {
             return frontendUrl.replaceAll("/+$", "");
         }
-        return "https://hospital-ten-blond.vercel.app";
+        return "https://decency-immovable-synopsis.ngrok-free.dev";
     }
 
     // --- Admin auth ---

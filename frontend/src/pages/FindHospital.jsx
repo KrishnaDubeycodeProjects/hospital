@@ -255,23 +255,20 @@ export default function FindHospital() {
     : hospitals;
 
   return (
-    <div className="arogyaflow-backdrop">
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
       <main
-        className="arogyaflow-phone-frame"
         style={{
+          width: '100%',
+          maxWidth: '1200px',
+          margin: '0 auto',
           backgroundColor: '#ffffff',
-          height: '100dvh',
-          maxHeight: '100dvh',
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         }}
         aria-label="Find Hospital"
       >
-        {/* Top Drag Handle Bar */}
-        <div className="arogyaflow-drag-handle" data-purpose="drag-handle-bar">
-          <div className="arogyaflow-drag-bar" />
-        </div>
 
         {/* 1. Top App Bar (Header): Back button, Find Hospital title */}
         <header
@@ -439,10 +436,11 @@ export default function FindHospital() {
             flex: '1 1 0%',
             minHeight: 0,
             overflowY: 'auto',
-            padding: '4px 16px 16px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
+            padding: '16px 20px 24px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '16px',
+            alignContent: 'start',
             WebkitOverflowScrolling: 'touch',
           }}
         >

@@ -99,7 +99,13 @@ public class DoctorService {
     }
 
     private DoctorDto findByPhone(String phone) {
-        List<DoctorDto> rows = jdbc.query(JOINED_SELECT + " WHERE d.phone = :phone", Map.of("phone", phone), DoctorService::mapRow);
+        String clean = phone != null ? phone.trim() : "";
+        String withPlus = clean.startsWith("+") ? clean : ("+91" + clean);
+        String withoutPlus = clean.startsWith("+91") ? clean.substring(3) : clean.replaceFirst("^\\+", "");
+        List<DoctorDto> rows = jdbc.query(
+                JOINED_SELECT + " WHERE d.phone IN (:p1, :p2, :p3) ORDER BY d.id ASC LIMIT 1",
+                Map.of("p1", clean, "p2", withPlus, "p3", withoutPlus),
+                DoctorService::mapRow);
         return rows.isEmpty() ? null : rows.get(0);
     }
 

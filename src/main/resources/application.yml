@@ -105,7 +105,7 @@ app:
 
   # WhatsApp provider: 'meta' (Meta Cloud API exclusively)
   wa-provider: ${WA_PROVIDER:meta}
-  meta-access-token: ${META_ACCESS_TOKEN:${WHATSAPP_TOKEN:${META_TOKEN:${WHATSAPP_ACCESS_TOKEN:EAAXvYwe64aEBSqsD9JIO6ZCaRrFANpZCdPrCDT41VyU7vgSkNPNCi4mY02iD7TTyN2XDUnTS5tcnUj4A6DjCBdUtkxQZAD4L5HgQ5oYWzszismCW86wVQrEcZC6ZCcYyYzfPnOpzoMUvBscQzlS5VcgzryF1qARy9KWmV57IZBiBD3mZBrQoFCdwF2RYlgso2oFPz5lqBoFN5AwZCZAF8cBKR4NWCe34VBSfC4qOmT6LIZA5OSKxZB71qALr4H7HFb8PfxNHlwilqpgew57v4oUZAnZAVZAkjMsQ8v4VPZBFx66EI0ZD}}}}
+  meta-access-token: ${META_ACCESS_TOKEN:${WHATSAPP_TOKEN:${META_TOKEN:${WHATSAPP_ACCESS_TOKEN:EAAXvYwe64aEBSninRi2YX8tNvC40wAlnxdtrnTncfh6zib2WCZAivPiQEmXwMGiAZCypGRZApeVEwLoQw31tVZBz0FIgEstvxt4StG4EEE6ZA7KBoZCHTFADg0WEQX0mDMMyNNVS2NLhC2XMciiqleva4wYVgOLRJiLPMj4hccZBiZB7Q84WsxOzs0BiqBWyToKygAZDZD}}}}
   meta-phone-number-id: ${META_PHONE_NUMBER_ID:${WHATSAPP_PHONE_NUMBER_ID:1309956365539677}}
   meta-api-version: ${META_API_VERSION:v21.0}
   bot-phone-number: ${BOT_PHONE_NUMBER:${WHATSAPP_BOT_NUMBER:919120123877}}
@@ -188,6 +188,8 @@ management:
   health:
     defaults:
       enabled: true
+    diskspace:
+      enabled: false
     livenessState:
       enabled: true
     readinessState:
