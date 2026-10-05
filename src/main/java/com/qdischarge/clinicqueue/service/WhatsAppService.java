@@ -391,8 +391,45 @@ public class WhatsAppService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(appProperties.getMetaAccessToken());
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-        log.info("✅ Meta Cloud API message sent successfully to {}", cleanedPhone);
-        return response.getBody();
+        // Retry with exponential backoff for transient errors (including 429)
+        int attempts = 0;
+        int maxAttempts = 3;
+        long backoffMs = 500;
+        while (true) {
+            try {
+                ResponseEntity<Map> response = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
+                log.info("✅ Meta Cloud API message sent successfully to {}", cleanedPhone);
+                return response.getBody();
+            } catch (HttpStatusCodeException e) {
+                attempts++;
+                int status = e.getRawStatusCode();
+                String error = extractError(e);
+                log.warn("⚠️ Meta API request failed (status {}): {}. Attempt {}/{}", status, error, attempts, maxAttempts);
+                if (attempts >= maxAttempts) {
+                    log.error("❌ All retry attempts exhausted for phone {}", cleanedPhone);
+                    throw e;
+                }
+                // Respect Retry-After header if present
+                String retryAfter = e.getResponseHeaders() != null ? e.getResponseHeaders().getFirst("Retry-After") : null;
+                long wait = backoffMs;
+                if (retryAfter != null) {
+                    try {
+                        wait = Long.parseLong(retryAfter) * 1000L;
+                    } catch (NumberFormatException ignored) {}
+                }
+                try { Thread.sleep(wait); } catch (InterruptedException ignored) {}
+                backoffMs *= 2;
+            } catch (RestClientException e) {
+                attempts++;
+                String error = extractError(e);
+                log.warn("⚠️ Meta API request error: {}. Attempt {}/{}", error, attempts, maxAttempts);
+                if (attempts >= maxAttempts) {
+                    log.error("❌ All retry attempts exhausted for phone {}", cleanedPhone);
+                    throw e;
+                }
+                try { Thread.sleep(backoffMs); } catch (InterruptedException ignored) {}
+                backoffMs *= 2;
+            }
+        }
     }
 }
