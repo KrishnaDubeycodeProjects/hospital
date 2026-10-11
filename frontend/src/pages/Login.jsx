@@ -24,20 +24,29 @@ export default function Login() {
         <div className="auth-card-wrap" style={{ width: '100%', maxWidth: '520px' }}>
           <div className="auth-header">
             <Link to="/" className="auth-back">
-              ← Back to ArogyaFlow
+              ← Back to Arogya Flow
             </Link>
-            <div className="auth-brand">
-              <div className="brand-mark" style={{ background: 'linear-gradient(135deg, #00A884, #00684A)', color: '#fff', fontWeight: 800 }}>
-                AF
-              </div>
+            <div className="auth-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <img
+                src="/aarogya_flow_icon_transparent.png"
+                alt="Aarogya Flow"
+                style={{ width: '44px', height: '44px', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
               <div>
-                <div className="brand-name" style={{ color: '#004D40', fontWeight: 800 }}>ArogyaFlow</div>
-                <div className="brand-sub">Ayushman Bharat OPD & Queue Portal</div>
+                <div className="brand-name" style={{ color: '#185a44', fontWeight: 800, fontSize: '20px' }}>
+                  Aarogya Flow
+                </div>
+                <div className="brand-sub" style={{ color: '#4b5d54', fontSize: '12px', fontWeight: 500 }}>
+                  Care Closer. Healthier Tomorrow.
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="auth-tabs" style={{ marginBottom: '20px' }}>
+          <div className="auth-tabs" style={{ marginBottom: '14px' }}>
             {TABS.map((t) => {
               const IconComp = t.icon;
               return (
@@ -53,6 +62,28 @@ export default function Login() {
                 </button>
               );
             })}
+          </div>
+
+          {/* Quick link to ASHA Worker Portal */}
+          <div style={{ marginBottom: '18px', textAlign: 'center' }}>
+            <Link
+              to="/asha"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#DCFCE7',
+                border: '1px solid #86EFAC',
+                color: '#15803D',
+                borderRadius: '8px',
+                padding: '6px 14px',
+                fontSize: '12.5px',
+                fontWeight: '700',
+                textDecoration: 'none',
+              }}
+            >
+              <span>🌿 Looking for ASHA Worker Hub? Open ASHA App &rarr;</span>
+            </Link>
           </div>
 
           {role === 'admin' && <AdminLogin />}

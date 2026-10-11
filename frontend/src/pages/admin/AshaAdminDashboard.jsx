@@ -240,23 +240,15 @@ export default function AshaAdminDashboard() {
           }}
         >
           {/* Logo & Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                backgroundColor: '#004d40',
-                color: '#ffffff',
-                fontWeight: '800',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '17px',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => navigate('/')}>
+            <img
+              src="/aarogya_flow_icon_transparent.png"
+              alt="Aarogya Flow"
+              style={{ width: '34px', height: '34px', objectFit: 'contain' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
               }}
-            >
-              +
-            </div>
+            />
             <div>
               <div style={{ fontSize: '16.5px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                 Aarogya Flow

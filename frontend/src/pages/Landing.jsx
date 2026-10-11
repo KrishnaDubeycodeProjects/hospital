@@ -126,36 +126,26 @@ export default function Landing() {
           }}
         >
           {/* Brand */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #00A884, #00684A)',
-                color: '#ffffff',
-                fontWeight: '900',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                letterSpacing: '-0.02em',
-                boxShadow: '0 2px 8px rgba(0, 104, 74, 0.25)',
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+            <img
+              src="/aarogya_flow_icon_transparent.png"
+              alt="Aarogya Flow"
+              style={{ width: '40px', height: '40px', objectFit: 'contain' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
               }}
-            >
-              AF
-            </div>
+            />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#004D40', fontWeight: '800', fontSize: '20px', letterSpacing: '-0.02em' }}>
-                  ArogyaFlow
+                <span style={{ color: '#185a44', fontWeight: '800', fontSize: '20px', letterSpacing: '-0.02em' }}>
+                  Aarogya Flow
                 </span>
                 <span
                   style={{
                     fontSize: '10px',
                     fontWeight: '700',
                     backgroundColor: '#E8F5E9',
-                    color: '#004D40',
+                    color: '#185a44',
                     border: '1px solid #C8E6C9',
                     padding: '2px 7px',
                     borderRadius: '6px',
@@ -164,14 +154,14 @@ export default function Landing() {
                   ABDM CERTIFIED
                 </span>
               </div>
-              <div style={{ fontSize: '11px', color: '#64748B' }}>
-                Smart Healthcare & Zero-Wait OPD Access
+              <div style={{ fontSize: '11px', color: '#4b5d54', fontWeight: 500 }}>
+                Care Closer. Healthier Tomorrow.
               </div>
             </div>
           </Link>
 
           {/* Center Navigation Links (Hidden on small mobile) */}
-          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <Link to="/find-hospital" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
               Find Hospital
             </Link>
@@ -183,6 +173,9 @@ export default function Landing() {
             </Link>
             <Link to="/login/doctor" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
               Doctor Portal
+            </Link>
+            <Link to="/asha" style={{ color: '#15803D', textDecoration: 'none', fontSize: '13px', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '4px 10px', borderRadius: '6px', border: '1px solid #86EFAC' }}>
+              ASHA Hub
             </Link>
           </nav>
 
@@ -513,6 +506,23 @@ export default function Landing() {
                   style={{ width: '100%', padding: '9px', backgroundColor: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
                   Enter Staff Console &rarr;
+                </button>
+              </div>
+
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #86EFAC' }}>
+                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Users size={24} style={{ color: '#15803D' }} />
+                </div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#15803D' }}>ASHA Worker & CHO Portal</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
+                  Household health surveys, maternal HRP tracking, offline village sync, and remote CHO teleconsultation reviews.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/asha')}
+                  style={{ width: '100%', padding: '9px', backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Launch ASHA Worker App &rarr;
                 </button>
               </div>
             </div>

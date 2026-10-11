@@ -2385,5 +2385,35 @@ a:hover {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ===========================================================================
+   Responsive Mobile & Laptop Layout Optimizations
+   =========================================================================== */
+@media (max-width: 768px) {
+  .desktop-patient-nav {
+    display: none !important;
+  }
 
+  .auth-card-wrap {
+    padding: 0 4px;
+  }
 
+  .ayushman-footer {
+    padding: 12px 10px 24px !important;
+  }
+
+  .ayushman-footer > div {
+    max-width: 96% !important;
+    padding: 8px 14px !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .desktop-patient-nav {
+    display: flex !important;
+  }
+
+  .app-shell {
+    display: flex;
+    min-height: 100vh;
+  }
+}

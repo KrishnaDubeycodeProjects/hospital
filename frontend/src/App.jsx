@@ -13,6 +13,11 @@ import Track from './pages/Track';
 import TokenDetail from './pages/TokenDetail';
 
 import AshaAdminDashboard from './pages/admin/AshaAdminDashboard';
+import AdminQueue from './pages/admin/AdminQueue';
+import AdminCounters from './pages/admin/AdminCounters';
+import AdminMissed from './pages/admin/AdminMissed';
+import AdminHistory from './pages/admin/AdminHistory';
+import AdminHospitals from './pages/admin/AdminHospitals';
 
 import PatientQueue from './pages/patient/PatientQueue';
 import PatientFamily from './pages/patient/PatientFamily';
@@ -44,8 +49,18 @@ export default function App() {
             <Route path="/records-select" element={<HealthRecordsScreen />} />
             <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
 
-            <Route path="/admin" element={<AshaAdminDashboard />} />
-            <Route path="/admin/*" element={<AshaAdminDashboard />} />
+            {/* Dedicated ASHA & Community Health Worker Hub */}
+            <Route path="/asha" element={<AshaAdminDashboard />} />
+            <Route path="/asha/*" element={<AshaAdminDashboard />} />
+
+            {/* Hospital Admin & Counter Staff Console */}
+            <Route path="/admin" element={<RoleShell role="admin" />}>
+              <Route index element={<AdminQueue />} />
+              <Route path="counters" element={<AdminCounters />} />
+              <Route path="missed" element={<AdminMissed />} />
+              <Route path="history" element={<AdminHistory />} />
+              <Route path="hospitals" element={<AdminHospitals />} />
+            </Route>
 
             <Route path="/patient" element={<RoleShell role="patient" />}>
               <Route index element={<PatientQueue />} />

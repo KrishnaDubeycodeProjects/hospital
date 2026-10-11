@@ -10,6 +10,7 @@ const NAV = {
     { to: '/admin/missed', label: 'Missed Queue', icon: '❌' },
     { to: '/admin/history', label: 'Visit History', icon: '📜' },
     { to: '/admin/hospitals', label: 'Hospitals', icon: '🏛️' },
+    { to: '/asha', label: 'ASHA & CHO Hub', icon: '🌿' },
   ],
   patient: [
     { to: '/patient', label: 'My Queue', icon: '🎟️', end: true },
@@ -28,9 +29,9 @@ const NAV = {
 };
 
 const ROLE_TITLE = {
-  admin: 'OPDX Staff Console',
+  admin: 'Hospital Staff Console',
   patient: 'Ayushman Patient Portal',
-  doctor: 'OPDX Doctor Portal',
+  doctor: 'Doctor Consultation Portal',
 };
 
 export function RoleShell({ role }) {
@@ -58,28 +59,18 @@ export function RoleShell({ role }) {
         {/* Brand Header */}
         <div className="sidebar-brand">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #00A884, #00684A)',
-                color: '#ffffff',
-                fontWeight: '900',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                letterSpacing: '-0.02em',
-                boxShadow: '0 2px 8px rgba(0, 104, 74, 0.3)',
+            <img
+              src="/aarogya_flow_icon_transparent.png"
+              alt="Aarogya Flow"
+              style={{ width: '36px', height: '36px', objectFit: 'contain' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
               }}
-            >
-              AF
-            </div>
+            />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#ffffff', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.02em' }}>
-                  ArogyaFlow
+                  Aarogya Flow
                 </span>
                 <span
                   style={{
@@ -92,7 +83,7 @@ export function RoleShell({ role }) {
                     borderRadius: '4px',
                   }}
                 >
-                  OPDX
+                  OPD
                 </span>
               </div>
               <div style={{ fontSize: '11px', color: '#94a3b8' }}>{ROLE_TITLE[role]}</div>
@@ -271,29 +262,19 @@ function PatientMobileShell({ session, onLogout }) {
           }}
         >
           {/* Brand Logo & Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/patient')}>
-            <div
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '11px',
-                background: 'linear-gradient(135deg, #00A884, #00684A)',
-                color: '#ffffff',
-                fontWeight: '900',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '17px',
-                letterSpacing: '-0.02em',
-                boxShadow: '0 2px 8px rgba(0, 104, 74, 0.25)',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => navigate('/patient')}>
+            <img
+              src="/aarogya_flow_icon_transparent.png"
+              alt="Aarogya Flow"
+              style={{ width: '38px', height: '38px', objectFit: 'contain' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
               }}
-            >
-              AF
-            </div>
+            />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#004D40', fontWeight: '800', fontSize: '18px', letterSpacing: '-0.02em' }}>
-                  ArogyaFlow
+                <span style={{ color: '#185a44', fontWeight: '800', fontSize: '18px', letterSpacing: '-0.02em' }}>
+                  Aarogya Flow
                 </span>
                 <span
                   style={{
