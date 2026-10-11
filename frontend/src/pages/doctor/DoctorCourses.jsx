@@ -117,12 +117,51 @@ export default function DoctorCourses() {
 
   return (
     <div className="stack-lg">
-      <div className="card-head">
-        <div>
-          <h1>Care Episodes & Longitudinal Courses</h1>
-          <p className="muted-text">
-            Search patient care courses to review clinical encounters, prescriptions, and Apache Tika-verified documents.
-          </p>
+      {/* Explanatory Banner: What is a Care Episode? */}
+      <div
+        style={{
+          backgroundColor: '#F0FDF4',
+          border: '1.5px solid #86EFAC',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '20px' }}>📋</span>
+          <strong style={{ fontSize: '15px', color: '#166534' }}>
+            What is a Care Episode (Longitudinal Care Course)?
+          </strong>
+        </div>
+        <p style={{ fontSize: '13px', color: '#15803D', margin: 0, lineHeight: 1.5 }}>
+          A <strong>Care Episode</strong> connects multiple hospital OPD visits, clinical encounters, lab tests, prescriptions, and follow-ups under a unified longitudinal treatment plan (such as <em>Hypertension Management</em>, <em>Antenatal Care</em>, or <em>Post-op Recovery</em>). Rather than treating every OPD token in isolation, it allows doctors across departments to view the complete chronological timeline and patient progress.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#166534' }}>Quick Test Seeded Courses:</span>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+            <button
+              key={num}
+              type="button"
+              onClick={() => {
+                setCourseIdInput(String(num));
+                loadCourse(String(num));
+              }}
+              style={{
+                backgroundColor: '#DCFCE7',
+                border: '1px solid #BBF7D0',
+                color: '#166534',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+              }}
+            >
+              Course #{num}
+            </button>
+          ))}
         </div>
       </div>
 

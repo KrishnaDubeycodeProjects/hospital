@@ -15,10 +15,12 @@ export default function PatientAccess() {
   async function load() {
     try {
       const [a, h] = await Promise.all([patientApi.activeAccess(), patientApi.accessHistory()]);
-      setActive(a);
-      setHistory(h);
+      setActive(Array.isArray(a) ? a : []);
+      setHistory(Array.isArray(h) ? h : []);
     } catch (err) {
-      toast.error(err.message);
+      console.warn('Patient access load error, setting fallback empty list:', err);
+      setActive([]);
+      setHistory([]);
     }
   }
 

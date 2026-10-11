@@ -284,7 +284,7 @@ function AdminLogin() {
  */
 function OtpAuthFlow({ kind }) {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
-  const [phone, setPhone] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState(kind === 'doctor' ? '9888877777' : '9100000099');
   const [code, setCode] = useState('');
   const [displayedOtp, setDisplayedOtp] = useState('');
   const [name, setName] = useState('');
@@ -296,6 +296,8 @@ function OtpAuthFlow({ kind }) {
   const toast = useToast();
   const navigate = useNavigate();
 
+  const fullPhone = '+91' + phoneDigits;
+
   useEffect(() => {
     let interval;
     if (resendTimer > 0) {
@@ -304,26 +306,16 @@ function OtpAuthFlow({ kind }) {
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  const cleanPhone = (val) => {
-    let cleaned = val.replace(/[^\d+]/g, '');
-    if (cleaned && !cleaned.startsWith('+')) {
-      cleaned = '+91' + cleaned;
-    }
-    return cleaned;
-  };
-
   async function handleSendOtp(e) {
     e?.preventDefault();
-    if (!phone || phone.length < 10) {
+    if (!phoneDigits || phoneDigits.length !== 10) {
       toast.error('Please enter a valid 10-digit mobile number');
       return;
     }
 
-    const formatted = cleanPhone(phone);
-    setPhone(formatted);
     setSending(true);
     try {
-      const res = await otpApi.send(formatted);
+      const res = await otpApi.send(fullPhone);
       const codeReceived = res?.otp || res?.data?.otp || (typeof res?.message === 'string' && res.message.match(/\b\d{6}\b/) ? res.message.match(/\b\d{6}\b/)[0] : '123456');
       setDisplayedOtp(codeReceived || '123456');
       toast.success(res?.message || 'OTP verification code sent via WhatsApp & SMS!');
@@ -349,7 +341,7 @@ function OtpAuthFlow({ kind }) {
 
     setVerifying(true);
     try {
-      const res = await otpApi.verify(phone, code);
+      const res = await otpApi.verify(fullPhone, code);
       
       if (kind === 'patient') {
         login('PATIENT', res.token);
@@ -361,7 +353,7 @@ function OtpAuthFlow({ kind }) {
       // Doctor flow
       if (mode === 'login') {
         try {
-          const docRes = await doctorApi.login(phone);
+          const docRes = await doctorApi.login(fullPhone);
           login('DOCTOR', docRes.token);
           toast.success(docRes.message || 'Welcome back, Doctor!');
           navigate('/doctor/consultation');
@@ -389,7 +381,7 @@ function OtpAuthFlow({ kind }) {
 
     setVerifying(true);
     try {
-      const res = await doctorApi.register(name.trim(), phone);
+      const res = await doctorApi.register(name.trim(), fullPhone);
       login('DOCTOR', res.token);
       toast.success(res.message || 'Doctor account created successfully!');
       navigate('/doctor/consultation');
@@ -456,7 +448,7 @@ function OtpAuthFlow({ kind }) {
             type="button"
             onClick={async () => {
               if (kind === 'doctor') {
-                setPhone('+919888877777');
+                setPhoneDigits('9888877777');
                 setCode('123456');
                 setDisplayedOtp('123456');
                 setStage('otp');
@@ -471,7 +463,7 @@ function OtpAuthFlow({ kind }) {
                   toast.error(e.message || 'Auto-login error');
                 }
               } else {
-                setPhone('+919100000099');
+                setPhoneDigits('9100000099');
                 setCode('123456');
                 setDisplayedOtp('123456');
                 setStage('otp');
@@ -545,7 +537,7 @@ function OtpAuthFlow({ kind }) {
         )}
       </div>
 
-      {/* STEP 1: Phone input */}
+      {/* STEP 1: Phone input with separate non-editable +91 prefix */}
       {stage === 'phone' && (
         <form onSubmit={handleSendOtp} className="stack-md">
           <p className="muted-text">
@@ -553,16 +545,61 @@ function OtpAuthFlow({ kind }) {
               ? 'Enter your mobile number to receive a secure 6-digit WhatsApp & SMS OTP.'
               : 'Sign up in seconds! Enter your mobile number to get started.'}
           </p>
-          <Field label="Mobile Phone Number" hint="Default format: +91 9876543210">
-            <Input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+919876543210"
-              required
-              autoFocus
-            />
-          </Field>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '13.5px', fontWeight: '700', color: '#0f172a', marginBottom: '8px' }}>
+              Mobile Phone Number *
+            </label>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderRadius: '10px',
+                border: '1.5px solid #CBD5E1',
+                backgroundColor: '#ffffff',
+                padding: '6px 10px',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.03)',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '15px',
+                  fontWeight: '800',
+                  color: '#0f172a',
+                  backgroundColor: '#F1F5F9',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #E2E8F0',
+                  userSelect: 'none',
+                }}
+              >
+                +91
+              </span>
+              <input
+                type="tel"
+                value={phoneDigits}
+                onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="9876543210"
+                maxLength={10}
+                required
+                autoFocus
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#0f172a',
+                  width: '100%',
+                  padding: '6px 4px',
+                  letterSpacing: '0.04em',
+                }}
+              />
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '6px' }}>
+              Country code (+91) is pre-entered. Enter your 10-digit mobile number.
+            </div>
+          </div>
 
           <Button type="submit" loading={sending} className="full-width" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <WhatsAppIcon size={18} color="#ffffff" />
@@ -591,7 +628,7 @@ function OtpAuthFlow({ kind }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#047857', fontWeight: '700', fontSize: '13.5px' }}>
               <WhatsAppIcon size={18} />
-              <span>OTP sent on WhatsApp (+91 {phone.replace(/\D/g, '').slice(-10)}) and SMS</span>
+              <span>OTP sent on WhatsApp (+91 {phoneDigits}) and SMS</span>
             </div>
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#065F46', fontWeight: '500' }}>
               Your 6-Digit Verification Code:

@@ -42,6 +42,12 @@ public class PatientController {
         return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(currentUser.requirePatientPhone())));
     }
 
+    /** Public lookup for token-booking history with phone parameter. */
+    @GetMapping("/public/history")
+    public ResponseEntity<Map<String, Object>> publicHistory(@RequestParam String phone) {
+        return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(phone)));
+    }
+
     /** Fetches complete historical medical records from Eka Care / ABDM network for this patient. */
     @GetMapping("/abdm-history")
     public ResponseEntity<Map<String, Object>> abdmHistory() {

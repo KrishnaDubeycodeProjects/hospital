@@ -249,6 +249,7 @@ export default function DoctorConsultation() {
 
   // Result dialog
   const [completedResult, setCompletedResult] = useState(null);
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const toast = useToast();
 
   async function loadData() {
@@ -810,12 +811,24 @@ export default function DoctorConsultation() {
 
       {/* Active Token Call Board - OPDX 4 Metric Cards */}
       <div className="stat-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <div className="opdx-stat-card blue">
+        <div className="opdx-stat-card blue" style={{ position: 'relative' }}>
           <div className="opdx-stat-title">In Chair</div>
           <div className="opdx-stat-number">{activeToken ? `#${activeToken.dailyNumber || activeToken.id}` : '—'}</div>
           <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginTop: '4px' }}>
             {activeToken ? `${activeToken.name || 'Walk-in'} (${activeToken.gender || 'M'}, ${activeToken.age || ''}y)` : 'No patient in chair'}
           </div>
+          {activeToken && (
+            <div style={{ marginTop: '10px' }}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => setShowPrescriptionModal(true)}
+                style={{ width: '100%', fontWeight: 700, backgroundColor: '#0284c7', borderColor: '#0284c7' }}
+              >
+                📝 Write Prescription
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="opdx-stat-card amber">
@@ -1394,6 +1407,134 @@ export default function DoctorConsultation() {
             >
               Continue with Next Patient
             </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Quick Prescription & Consultation Modal for Patient in Chair */}
+      {showPrescriptionModal && (
+        <Modal
+          open={showPrescriptionModal}
+          title={`Prescription & Care Plan: ${activeToken ? (activeToken.name || 'Patient') : 'Patient in Chair'}`}
+          onClose={() => setShowPrescriptionModal(false)}
+        >
+          <div className="stack-md" style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ background: '#F0FDF4', padding: '12px 14px', borderRadius: '10px', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <strong style={{ color: '#166534', fontSize: '14px' }}>
+                  Patient: {activeToken?.name || 'Walk-in'} ({activeToken?.gender || 'M'}, {activeToken?.age || '28'}y)
+                </strong>
+                <div style={{ fontSize: '11.5px', color: '#15803D', marginTop: '2px' }}>
+                  Queue Token #{activeToken?.dailyNumber || activeToken?.id || '—'} &bull; Phone: {activeToken?.phone || '+91 9100000099'}
+                </div>
+              </div>
+              <span className="badge badge-green">In Chair</span>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                setShowPrescriptionModal(false);
+                handleCompleteAndNext(e);
+              }}
+              className="stack-md"
+            >
+              <Field label="Chief Complaint *" hint="Primary medical complaint">
+                <Input
+                  value={chiefComplaint}
+                  onChange={(e) => setChiefComplaint(e.target.value)}
+                  placeholder="e.g. Mild fever, dry cough, throat irritation for 2 days"
+                  required
+                />
+              </Field>
+
+              <div className="field-row">
+                <Field label="Clinical Notes">
+                  <Textarea
+                    rows={2}
+                    value={clinicalNotes}
+                    onChange={(e) => setClinicalNotes(e.target.value)}
+                    placeholder="Patient reports symptom onset 48 hours ago..."
+                  />
+                </Field>
+
+                <Field label="Examination Findings">
+                  <Textarea
+                    rows={2}
+                    value={examinationFindings}
+                    onChange={(e) => setExaminationFindings(e.target.value)}
+                    placeholder="BP 120/80, SpO2 98%, chest clear..."
+                  />
+                </Field>
+              </div>
+
+              {/* Rx Prescriptions Section */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>Prescription (Rx)</h4>
+                  <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionRow}>
+                    + Add Drug
+                  </Button>
+                </div>
+
+                {prescriptions.map((rx, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
+                      gap: '6px',
+                      alignItems: 'center',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <DrugInputWithLiveRegistry
+                      value={rx.drugName}
+                      onChange={(val) => updatePrescription(idx, 'drugName', val)}
+                      onSelectSuggestion={(drug) => {
+                        updatePrescription(idx, 'drugName', drug.name);
+                        if (drug.strength) updatePrescription(idx, 'dosage', drug.strength);
+                      }}
+                    />
+                    <Input
+                      placeholder="Dose (500mg)"
+                      value={rx.dosage}
+                      onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
+                    />
+                    <Input
+                      placeholder="Freq (1-0-1)"
+                      value={rx.frequency}
+                      onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
+                    />
+                    <Input
+                      placeholder="Days (3)"
+                      type="number"
+                      value={rx.durationDays}
+                      onChange={(e) => updatePrescription(idx, 'durationDays', Number(e.target.value))}
+                    />
+                    <Button type="button" size="sm" variant="ghost" onClick={() => removePrescriptionRow(idx)}>
+                      ✕
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <Field label="Care Plan & Dietary Advice">
+                <Input
+                  value={plan}
+                  onChange={(e) => setPlan(e.target.value)}
+                  placeholder="Drink warm water, rest for 2 days, review if fever persists"
+                />
+              </Field>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
+                <Button type="button" variant="ghost" onClick={() => setShowPrescriptionModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" loading={actionBusy}>
+                  ✓ Save Prescription & Complete Visit
+                </Button>
+              </div>
+            </form>
           </div>
         </Modal>
       )}

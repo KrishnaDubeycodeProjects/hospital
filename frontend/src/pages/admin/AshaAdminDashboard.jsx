@@ -21,15 +21,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import AshaFieldWorkerApp from './AshaFieldWorkerApp';
 
 export default function AshaAdminDashboard() {
   const { admin, logout } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Active Role: 'CHO' | 'ASHA' (can switch with 1-click)
-  const [currentRole, setCurrentRole] = useState('CHO');
+  // Active Role: 'CHO' | 'ASHA' (can switch with 1-click or via ?role=asha)
+  const initialRole = searchParams.get('role')?.toUpperCase() === 'ASHA' ? 'ASHA' : 'CHO';
+  const [currentRole, setCurrentRole] = useState(initialRole);
 
   // Active Tab: 'Overview' | 'Workers' | 'Referrals'
   const [activeTab, setActiveTab] = useState('Workers');
@@ -316,9 +319,12 @@ export default function AshaAdminDashboard() {
         {/* SCROLLABLE MAIN BODY */}
         <main style={{ flex: 1, padding: '16px 16px 80px', overflowY: 'auto' }}>
           {bottomNav === 'dashboard' ? (
-            <>
-              {/* AYUSHMAN AROGYA MANDIR (HWC) BANNER CARD */}
-              <div
+            currentRole === 'ASHA' ? (
+              <AshaFieldWorkerApp onSwitchRole={() => setCurrentRole('CHO')} />
+            ) : (
+              <>
+                {/* AYUSHMAN AROGYA MANDIR (HWC) BANNER CARD */}
+                <div
                 style={{
                   backgroundColor: '#ffffff',
                   border: '1.5px solid #e2e8f0',
@@ -850,7 +856,7 @@ export default function AshaAdminDashboard() {
                 </div>
               )}
             </>
-          ) : (
+          )) : (
             /* PROFILE SCREEN TAB */
             <div style={{ padding: '8px 0' }}>
               <div

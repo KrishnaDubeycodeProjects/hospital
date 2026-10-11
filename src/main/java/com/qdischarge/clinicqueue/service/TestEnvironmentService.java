@@ -125,50 +125,111 @@ public class TestEnvironmentService {
                 Map.of("uId", unitId), (rs, rowNum) -> rs.getInt("id"));
         Integer rameshMemberId = selfMemberIds.isEmpty() ? null : selfMemberIds.get(0);
 
+        // 6. Ensure 10 specialized doctors exist
+        String[][] doctorsList = {
+            {"Dr. Rajesh Sharma", "+919888877777", "General Medicine", "1"},
+            {"Dr. Priya Patel", "+919888877771", "Endocrinology", "2"},
+            {"Dr. Vikram Malhotra", "+919888877772", "Orthopedics", "3"},
+            {"Dr. Neha Kapoor", "+919888877773", "ENT", "4"},
+            {"Dr. Amit Desai", "+919888877774", "Ophthalmology", "5"},
+            {"Dr. Sunita Rao", "+919888877775", "Pulmonology", "6"},
+            {"Dr. Arvind Menon", "+919888877776", "Neurology", "7"},
+            {"Dr. Kavita Iyer", "+919888877778", "Gastroenterology", "8"},
+            {"Dr. Sanjay Gupta", "+919888877779", "Dermatology", "9"},
+            {"Dr. Meenakshi Sundaram", "+919888877780", "Nephrology", "10"}
+        };
+        for (String[] doc : doctorsList) {
+            Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM doctors WHERE phone = :phone", Map.of("phone", doc[1]), Integer.class);
+            if (count == null || count == 0) {
+                jdbc.update(
+                    "INSERT INTO doctors (name, phone, category, counter_id, hospital_id) VALUES (:name, :phone, :cat, :cid, :hid)",
+                    Map.of("name", doc[0], "phone", doc[1], "cat", doc[2], "cid", Integer.parseInt(doc[3]), "hid", hospitalId)
+                );
+            }
+        }
+
+        // 7. Seed 10 Clinical Care Courses for Ramesh Kumar across doctors
         Integer courseCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM courses WHERE patient_phone IN (:phone, :digits)",
                 Map.of("phone", cleanPhone, "digits", digitsOnly), Integer.class);
 
-        if (courseCount == null || courseCount == 0) {
-            List<Integer> docIds = jdbc.query(
-                    "SELECT id FROM doctors ORDER BY id ASC LIMIT 1",
-                    Map.of(), (rs, rowNum) -> rs.getInt("id"));
-            int docId = docIds.isEmpty() ? 1 : docIds.get(0);
+        if (courseCount == null || courseCount < 10) {
+            String[][] courseDefinitions = {
+                {"hypertension", "Hypertension & Cardiovascular Health", "Essential (primary) hypertension", "I10", "+919888877777", "Dr. Rajesh Sharma", "Stage 1 hypertension under active monitoring.", "Amlodipine 5mg", "Once daily (Night)", "BP 138/88 mmHg. 2D Echo recommended."},
+                {"diabetes", "Type 2 Diabetes Mellitus Care", "Type 2 diabetes without complications", "E11.9", "+919888877771", "Dr. Priya Patel", "HbA1c 7.2%. Controlled with oral hypoglycemic agents.", "Metformin 500mg", "Twice daily with meals", "Maintain diabetic diet. HbA1c in 3 months."},
+                {"orthopedics", "Lumbar Spondylosis & Spine Care", "Lumbosacral spondylosis without myelopathy", "M47.817", "+919888877772", "Dr. Vikram Malhotra", "Chronic lower back ache with morning stiffness.", "Aceclofenac 100mg + Paracetamol", "Twice daily SOS", "Core strengthening physiotherapy advised."},
+                {"ent", "Chronic Rhinosinusitis & Allergy Course", "Chronic sinusitis, unspecified", "J32.9", "+919888877773", "Dr. Neha Kapoor", "Bilateral nasal congestion and frontal headache.", "Fluticasone Nasal Spray", "1 spray each nostril BD", "Steam inhalation twice daily."},
+                {"ophthalmology", "Preventive Ophthalmic & Retinopathy Review", "Routine eye exam and refractive error", "Z01.00", "+919888877774", "Dr. Amit Desai", "Visual acuity 6/9 right, 6/6 left. Mild dry eye syndrome.", "Carboxymethylcellulose 0.5% Drops", "1 drop QID", "Anti-reflective glasses prescribed."},
+                {"pulmonology", "Bronchial Airway & Cough Evaluation", "Mild persistent asthma", "J45.30", "+919888877775", "Dr. Sunita Rao", "Nocturnal dry cough and mild wheeze.", "Budesonide + Formoterol Inhaler", "2 puffs BD", "Peak flow monitoring advised."},
+                {"neurology", "Tension Headache Prophylaxis", "Tension-type headache, chronic", "G44.22", "+919888877776", "Dr. Arvind Menon", "Bilateral band-like squeezing head pain.", "Amitriptyline 10mg", "Once daily at bedtime", "Regular sleep cycle & stress reduction."},
+                {"gastroenterology", "GERD & Upper GI Care", "Gastro-esophageal reflux disease without esophagitis", "K21.9", "+919888877778", "Dr. Kavita Iyer", "Post-prandial heartburn and acid regurgitation.", "Rabeprazole 20mg", "Once daily 30m before breakfast", "Avoid late dinner & elevate head of bed."},
+                {"dermatology", "Contact Dermatitis & Eczema Management", "Allergic contact dermatitis", "L23.9", "+919888877779", "Dr. Sanjay Gupta", "Pruritic erythematous plaques on forearms.", "Mometasone Furoate 0.1% Cream", "Apply topically BD", "Use mild soap and fragrance-free moisturizer."},
+                {"nephrology", "Renal Function & Microalbuminuria Screening", "Microalbuminuria in hypertension", "R80.9", "+919888877780", "Dr. Meenakshi Sundaram", "Urine albumin-to-creatinine ratio screening within target.", "Telmisartan 40mg", "Once daily morning", "Repeat eGFR and spot urine ACR in 60 days."}
+            };
 
-            Integer cId = jdbc.queryForObject(
-                    """
-                    INSERT INTO courses (patient_phone, patient_name, family_member_id, course_type, title, diagnosis, icd10_code, status, started_by_doctor_id, started_at_hospital_id, current_summary, created_at, updated_at)
-                    VALUES (:phone, 'Ramesh Kumar', :mId, 'hypertension', 'Hypertension & Cardiac Follow-up', 'Essential (primary) hypertension', 'I10', 'active', :docId, :hId, 'Stage 1 hypertension under active monitoring.', NOW() - INTERVAL '20 days', NOW() - INTERVAL '2 days')
-                    RETURNING id
-                    """,
-                    Map.of("phone", cleanPhone, "mId", rameshMemberId != null ? rameshMemberId : 1, "docId", docId, "hId", hospitalId),
-                    Integer.class);
+            int startOffset = courseCount == null ? 0 : courseCount;
+            for (int i = startOffset; i < courseDefinitions.length; i++) {
+                String[] def = courseDefinitions[i];
+                List<Integer> dIdList = jdbc.query("SELECT id FROM doctors WHERE phone = :p LIMIT 1", Map.of("p", def[4]), (rs, rowNum) -> rs.getInt("id"));
+                int docId = dIdList.isEmpty() ? 1 : dIdList.get(0);
+                int daysAgo = 3 + (i * 5);
 
-            if (cId != null) {
-                Integer encId = jdbc.queryForObject(
+                Integer cId = jdbc.queryForObject(
                         """
-                        INSERT INTO course_encounters (course_id, doctor_id, hospital_id, visit_date, chief_complaint, clinical_notes, examination_findings, plan, created_at)
-                        VALUES (:cId, :docId, :hId, NOW() - INTERVAL '10 days', 'Occasional morning headache and elevated blood pressure.', 'BP 138/88 mmHg. Advised lifestyle modifications.', 'Chest clear, regular S1/S2 heart sounds.', 'Prescribed Amlodipine 5mg OD. Referred for 2D Echo.', NOW() - INTERVAL '10 days')
+                        INSERT INTO courses (patient_phone, patient_name, family_member_id, course_type, title, diagnosis, icd10_code, status, started_by_doctor_id, started_at_hospital_id, current_summary, created_at, updated_at)
+                        VALUES (:phone, 'Ramesh Kumar', :mId, :cType, :title, :diag, :icd, 'active', :docId, :hId, :summary, NOW() - (:days || ' days')::INTERVAL, NOW() - INTERVAL '1 day')
                         RETURNING id
                         """,
-                        Map.of("cId", cId, "docId", docId, "hId", hospitalId),
+                        Map.of("phone", cleanPhone, "mId", rameshMemberId != null ? rameshMemberId : 1, "cType", def[0], "title", def[1], "diag", def[2], "icd", def[3], "docId", docId, "hId", hospitalId, "summary", def[6], "days", String.valueOf(daysAgo)),
                         Integer.class);
 
-                jdbc.update(
-                        """
-                        INSERT INTO course_prescriptions (course_id, encounter_id, doctor_id, medicine_name, snomed_code, dosage, frequency, duration_days, route, instructions, is_nlem, created_at)
-                        VALUES (:cId, :encId, :docId, 'Amlodipine 5mg', '318445009', '5mg', 'Once daily (Night)', 30, 'Oral', 'Take after dinner', TRUE, NOW() - INTERVAL '10 days')
-                        """,
-                        Map.of("cId", cId, "encId", encId, "docId", docId));
+                if (cId != null) {
+                    Integer encId = jdbc.queryForObject(
+                            """
+                            INSERT INTO course_encounters (course_id, doctor_id, hospital_id, visit_date, chief_complaint, clinical_notes, examination_findings, plan, created_at)
+                            VALUES (:cId, :docId, :hId, NOW() - (:days || ' days')::INTERVAL, :complaint, :notes, :findings, :plan, NOW() - (:days || ' days')::INTERVAL)
+                            RETURNING id
+                            """,
+                            Map.of("cId", cId, "docId", docId, "hId", hospitalId, "days", String.valueOf(daysAgo), "complaint", def[1] + " initial consultation", "notes", def[6], "findings", "Vitals stable, oriented.", "plan", def[9]),
+                            Integer.class);
 
-                jdbc.update(
-                        """
-                        INSERT INTO course_referrals (course_id, encounter_id, referring_doctor_id, from_hospital_id, to_hospital_id, target_department, reason, priority_tier, valid_until, status, created_at)
-                        VALUES (:cId, :encId, :docId, :hId, :hId, 'Cardiology', '2D Echocardiogram and cardiology workup for persistent hypertension.', 'semi_urgent_14d', CURRENT_DATE + INTERVAL '14 days', 'issued', NOW() - INTERVAL '2 days')
-                        """,
-                        Map.of("cId", cId, "encId", encId, "docId", docId, "hId", hospitalId));
+                    jdbc.update(
+                            """
+                            INSERT INTO course_prescriptions (course_id, encounter_id, doctor_id, medicine_name, snomed_code, dosage, frequency, duration_days, route, instructions, is_nlem, created_at)
+                            VALUES (:cId, :encId, :docId, :med, '318445009', 'Standard', :freq, 30, 'Oral', :inst, TRUE, NOW() - (:days || ' days')::INTERVAL)
+                            """,
+                            Map.of("cId", cId, "encId", encId, "docId", docId, "med", def[7], "freq", def[8], "inst", def[9], "days", String.valueOf(daysAgo)));
+
+                    if (i == 0) {
+                        jdbc.update(
+                                """
+                                INSERT INTO course_referrals (course_id, encounter_id, referring_doctor_id, from_hospital_id, to_hospital_id, target_department, reason, priority_tier, valid_until, status, created_at)
+                                VALUES (:cId, :encId, :docId, :hId, :hId, 'Cardiology', '2D Echocardiogram workup for persistent hypertension.', 'semi_urgent_14d', CURRENT_DATE + INTERVAL '14 days', 'issued', NOW() - INTERVAL '2 days')
+                                """,
+                                Map.of("cId", cId, "encId", encId, "docId", docId, "hId", hospitalId));
+                    }
+                }
             }
-            log.info("🏥 Seeded care courses, prescriptions and referrals for {}", cleanPhone);
+            log.info("🏥 Seeded 10 specialized care courses for {}", cleanPhone);
+        }
+
+        // 8. Seed 10 OPD Visit records in token_history for booking history view
+        Integer historyCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM token_history WHERE phone IN (:phone, :digits)",
+                Map.of("phone", cleanPhone, "digits", digitsOnly), Integer.class);
+        if (historyCount == null || historyCount < 10) {
+            String[] depts = {"General Medicine", "Endocrinology", "Orthopedics", "ENT", "Ophthalmology", "Pulmonology", "Neurology", "Gastroenterology", "Dermatology", "Nephrology"};
+            for (int k = 0; k < depts.length; k++) {
+                int daysAgo = 2 + (k * 7);
+                jdbc.update(
+                    """
+                    INSERT INTO token_history (token_id, phone, name, age, gender, category, hospital_id, counter_id, created_at, served_at, completed_at)
+                    VALUES (:tId, :phone, 'Ramesh Kumar', 28, 'male', :cat, :hId, :cId, NOW() - (:days || ' days')::INTERVAL - INTERVAL '40 minutes', NOW() - (:days || ' days')::INTERVAL - INTERVAL '15 minutes', NOW() - (:days || ' days')::INTERVAL)
+                    """,
+                    Map.of("tId", 8100 + k, "phone", cleanPhone, "cat", depts[k], "hId", hospitalId, "cId", (k % 4) + 1, "days", String.valueOf(daysAgo))
+                );
+            }
+            log.info("📜 Seeded 10 past completed OPD visit history tokens for {}", cleanPhone);
         }
 
         List<FamilyMemberDto> members = familyUnitService.listMembers(cleanPhone);

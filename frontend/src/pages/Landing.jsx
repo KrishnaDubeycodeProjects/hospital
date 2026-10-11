@@ -84,6 +84,16 @@ export default function Landing() {
       iconColor: '#4F46E5',
       route: '/login/doctor',
     },
+    {
+      id: 'asha',
+      title: 'ASHA & CHO Rural Hub',
+      subtitle: 'Village household surveys, HRP tracking & offline maternal care',
+      icon: Users,
+      color: '#DCFCE7',
+      border: '#BBF7D0',
+      iconColor: '#15803D',
+      route: '/asha',
+    },
   ];
 
   async function handleLaunchDemoPatient() {
@@ -183,24 +193,25 @@ export default function Landing() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               type="button"
-              onClick={handleLaunchDemoPatient}
-              disabled={demoLoading}
+              onClick={() => window.open('https://wa.me/919120123877?text=Hi', '_blank')}
               style={{
                 backgroundColor: '#DCFCE7',
                 color: '#15803D',
                 border: '1px solid #86EFAC',
                 borderRadius: '8px',
-                padding: '8px 14px',
-                fontSize: '12.5px',
+                padding: '8px 12px',
+                fontSize: '12px',
                 fontWeight: '700',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
+                whiteSpace: 'nowrap',
               }}
+              title="Open WhatsApp with pre-filled Hi message"
             >
-              <Sparkles size={15} />
-              <span>{demoLoading ? 'Loading...' : 'Try Demo Mode'}</span>
+              <WhatsAppIcon size={15} color="#15803D" />
+              <span>Try Demo Mode</span>
             </button>
             <button
               type="button"
@@ -321,8 +332,7 @@ export default function Landing() {
               </button>
               <button
                 type="button"
-                onClick={handleLaunchDemoPatient}
-                disabled={demoLoading}
+                onClick={() => window.open('https://wa.me/919120123877?text=Hi', '_blank')}
                 style={{
                   backgroundColor: '#DCFCE7',
                   color: '#15803D',
@@ -337,8 +347,8 @@ export default function Landing() {
                   gap: '8px',
                 }}
               >
-                <Sparkles size={18} />
-                <span>1-Click Demo Sandbox</span>
+                <WhatsAppIcon size={18} color="#15803D" />
+                <span>Chat on WhatsApp ("Hi")</span>
               </button>
             </div>
 

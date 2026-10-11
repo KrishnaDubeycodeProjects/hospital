@@ -9,11 +9,9 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
         className={`ayushman-footer ${className}`}
         style={{
           width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '16px 16px 20px',
+          borderTop: '1px solid #E2E8F0',
+          backgroundColor: 'transparent',
+          padding: '16px 20px',
           userSelect: 'none',
           boxSizing: 'border-box',
           ...style,
@@ -21,35 +19,30 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
       >
         <div
           style={{
-            display: 'inline-flex',
-            flexDirection: 'column',
+            maxWidth: '1200px',
+            margin: '0 auto',
+            width: '100%',
+            display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: '4px',
-            backgroundColor: '#ffffff',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            padding: '10px 22px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-            maxWidth: '92%',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
           }}
         >
-          {/* Line 1: Official Emblem + Brand Name | A rural health initiative */}
+          {/* Brand & Rural Health Initiative */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              flexWrap: 'wrap',
-              gap: '6px',
-              fontSize: '12.5px',
+              gap: '8px',
+              fontSize: '13px',
               color: '#334155',
             }}
           >
             <img
               src="/aarogya_flow_icon_transparent.png"
               alt="Aarogya Flow"
-              style={{ width: '16px', height: '16px', objectFit: 'contain' }}
+              style={{ width: '22px', height: '22px', objectFit: 'contain' }}
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
@@ -61,19 +54,22 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
               Aarogya Flow
             </strong>
             <span style={{ color: '#CBD5E1' }}>|</span>
-            <span style={{ color: '#64748B', fontWeight: 500 }}>A rural health initiative</span>
+            <span style={{ color: '#64748B', fontWeight: 500 }}>Ayushman Bharat Rural &amp; ABDM Initiative</span>
           </div>
 
-          {/* Line 2: Signal strength + Works even on low internet */}
+          {/* Low internet & offline indicator */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
               gap: '6px',
-              fontSize: '11.5px',
+              fontSize: '12px',
               color: '#15803D',
               fontWeight: 600,
+              backgroundColor: '#F0FDF4',
+              border: '1px solid #BBF7D0',
+              padding: '4px 12px',
+              borderRadius: '20px',
             }}
           >
             <svg
@@ -88,7 +84,7 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
               <rect x="13" y="8" width="3.5" height="14" rx="1" />
               <rect x="18.5" y="4" width="3.5" height="18" rx="1" />
             </svg>
-            <span>Works even on low internet</span>
+            <span>Works even on low internet (2G / Offline Ready)</span>
           </div>
         </div>
       </footer>

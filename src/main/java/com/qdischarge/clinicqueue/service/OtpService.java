@@ -102,16 +102,10 @@ public class OtpService {
             log.warn("WhatsApp OTP dispatch attempt notice for {}: {}", phone, e.getMessage());
         }
 
-        // 2. Dispatch via SMS if Twilio is enabled
-        if (isTwilio()) {
+        // 2. Dispatch via SMS if Twilio is enabled (uses the exact same generated code)
+        if (isTwilioSms() || isTwilio()) {
             try {
-                sendViaTwilio(phone);
-            } catch (Exception e) {
-                log.warn("Twilio Verify SMS attempt for {}: {}", phone, e.getMessage());
-            }
-        } else if (isTwilioSms()) {
-            try {
-                sendViaTwilioSms(phone);
+                sendViaTwilioSms(phone, code);
             } catch (Exception e) {
                 log.warn("Twilio SMS attempt for {}: {}", phone, e.getMessage());
             }
@@ -259,14 +253,15 @@ public class OtpService {
     // plain Messages API (not Verify) just delivers the SMS
     // -------------------------------------------------------------
 
-    private OtpResult sendViaTwilioSms(String phone) {
-        String code = generateAndStoreLocalOtp(phone);
+    private OtpResult sendViaTwilioSms(String phone, String code) {
         String url = "https://api.twilio.com/2010-04-01/Accounts/%s/Messages.json"
                 .formatted(appProperties.getTwilioAccountSid());
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("To", phone);
-        body.add("MessagingServiceSid", appProperties.getTwilioMessagingServiceSid());
-        body.add("Body", "Your verification code is " + code + " (valid " + appProperties.getOtpTtlMinutes() + " minutes).");
+        if (appProperties.getTwilioMessagingServiceSid() != null && !appProperties.getTwilioMessagingServiceSid().isBlank()) {
+            body.add("MessagingServiceSid", appProperties.getTwilioMessagingServiceSid());
+        }
+        body.add("Body", "Your AarogyaFlow verification code is " + code + " (valid " + appProperties.getOtpTtlMinutes() + " minutes).");
         try {
             restTemplate.postForEntity(url, new HttpEntity<>(body, twilioHeaders()), Map.class);
             return new OtpResult(true, "OTP sent via SMS.");

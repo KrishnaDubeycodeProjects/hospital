@@ -216,6 +216,7 @@ export const doctorApi = {
 
 export const patientApi = {
   history: () => getD('/api/patients/history', authFor('PATIENT')),
+  publicHistory: (phone) => getD('/api/patients/public/history', { params: { phone } }),
   uploadDocument: (formData) =>
     postD('/api/patients/documents', formData, {
       ...authFor('PATIENT'),

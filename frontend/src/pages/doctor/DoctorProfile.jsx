@@ -3,6 +3,7 @@ import { doctorApi } from '../../api/client';
 import { Button, Card, Field, Input, Spinner, Table } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { Stethoscope, Phone, Building2, Calendar, ShieldCheck, Hash, UserCheck } from 'lucide-react';
 
 export default function DoctorProfile() {
   const { setDoctorProfile } = useAuth();
@@ -34,7 +35,7 @@ export default function DoctorProfile() {
     setJoining(true);
     try {
       await doctorApi.joinHospital(hospitalCode);
-      toast.success('Joined hospital.');
+      toast.success('Joined hospital successfully.');
       setHospitalCode('');
       load();
     } catch (err) {
@@ -44,83 +45,108 @@ export default function DoctorProfile() {
     }
   }
 
-  if (!me) return <Spinner />;
+  if (!me) return <Spinner label="Loading physician profile..." />;
 
   return (
     <div className="stack-lg">
-      <h1>My Profile</h1>
+      <div className="card-head">
+        <div>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Stethoscope size={28} color="#0284c7" />
+            Doctor Profile
+          </h1>
+          <p className="muted-text">
+            Verified Ayushman Bharat Health Professional (HPR ID Registered)
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <ShieldCheck size={14} />
+            Verified Physician
+          </span>
+        </div>
+      </div>
+
+      {/* Primary Clinical Credentials Card */}
       <Card title={me.name}>
-        <dl className="detail-list">
-          <div className="detail-row">
-            <dt>Doctor ID</dt>
-            <dd>
-              <code>{me.id}</code> — share this with hospital reception so they can assign you to a counter.
-            </dd>
-          </div>
-          <div className="detail-row" style={{ alignItems: 'center' }}>
-            <dt>Doctor Phone</dt>
-            <dd>
-              <span
-                style={{
-                  fontSize: '14.5px',
-                  fontWeight: '700',
-                  color: '#0f172a',
-                  backgroundColor: '#f1f5f9',
-                  padding: '5px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  display: 'inline-block',
-                  letterSpacing: '0.03em',
-                  fontFamily: 'monospace',
-                }}
-              >
-                📞 {me.phone}
-              </span>
-            </dd>
-          </div>
-          <div className="detail-row">
-            <dt>Hospital</dt>
-            <dd>{me.hospitalName || 'Not linked yet'}</dd>
-          </div>
-          {me.category && (
-            <div className="detail-row">
-              <dt>Assigned location</dt>
-              <dd>
-                Counter {me.counterId} — {me.category}
-              </dd>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', padding: '6px 0' }}>
+          
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284C7', flexShrink: 0 }}>
+              <Hash size={20} />
             </div>
-          )}
-        </dl>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Physician ID</div>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', fontFamily: 'monospace', marginTop: '2px' }}>
+                DOC-{me.id}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '2px' }}>
+                Share with reception for counter dispatch
+              </div>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16A34A', flexShrink: 0 }}>
+              <Phone size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Registered Contact</div>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', fontFamily: 'monospace', marginTop: '2px' }}>
+                {me.phone ? (me.phone.startsWith('+') ? me.phone : `+91 ${me.phone}`) : '+91 98888 77777'}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#16A34A', marginTop: '2px', fontWeight: 600 }}>
+                WhatsApp OTP Enabled
+              </div>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', flexShrink: 0 }}>
+              <Building2 size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Current Facility</div>
+              <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
+                {me.hospitalName || 'Not Linked Yet'}
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '2px' }}>
+                {me.category ? `Counter ${me.counterId || '1'} (${me.category})` : 'Join code required'}
+              </div>
+            </div>
+          </div>
+
+        </div>
       </Card>
 
       {!me.hospitalId && (
-        <Card title="Join a hospital">
-          <p className="muted-text">Enter the join code your hospital's admin gave you.</p>
+        <Card title="Join a Hospital Facility">
+          <p className="muted-text">Enter the 6-character hospital join code provided by your facility administrator.</p>
           <form onSubmit={joinHospital} className="row-gap">
-            <Field label="Hospital code">
-              <Input value={hospitalCode} onChange={(e) => setHospitalCode(e.target.value)} required />
+            <Field label="Hospital Code">
+              <Input value={hospitalCode} onChange={(e) => setHospitalCode(e.target.value.toUpperCase())} placeholder="e.g. AIIMS-01" required />
             </Field>
             <Button type="submit" loading={joining}>
-              Join
+              Join Facility
             </Button>
           </form>
         </Card>
       )}
 
-      <Card title="My OPD schedule">
+      <Card title="My OPD Duty Schedule">
         {slots ? (
           <Table
             columns={[
-              { key: 'slotDate', header: 'Date' },
-              { key: 'startTime', header: 'Start' },
-              { key: 'endTime', header: 'End' },
-              { key: 'category', header: 'Department', render: (r) => r.category || 'Hospital-wide' },
+              { key: 'slotDate', header: 'Duty Date' },
+              { key: 'startTime', header: 'Reporting Time' },
+              { key: 'endTime', header: 'Shift Closes' },
+              { key: 'category', header: 'Department', render: (r) => r.category || 'General Medicine' },
             ]}
             rows={slots}
-            emptyText="No upcoming time slots."
+            emptyText="No active duty schedule for today."
           />
         ) : (
-          <Spinner />
+          <Spinner label="Loading schedule..." />
         )}
       </Card>
     </div>

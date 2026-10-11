@@ -142,6 +142,35 @@ a:hover {
   z-index: 30;
 }
 
+/* Dedicated High-Contrast Navy Sidebar for Clinical / Doctor Portals */
+.opdx-sidebar {
+  background: #0F172A !important;
+  border-right: 1px solid #1E293B !important;
+}
+
+.opdx-sidebar .sidebar-brand {
+  border-bottom: 1px solid #1E293B;
+  padding-bottom: 18px;
+  margin-bottom: 14px;
+}
+
+.opdx-sidebar .sidebar-link {
+  color: #CBD5E1 !important;
+  font-weight: 600;
+}
+
+.opdx-sidebar .sidebar-link:hover {
+  background: #1E293B !important;
+  color: #38BDF8 !important;
+}
+
+.opdx-sidebar .sidebar-link.active {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+}
+
 .sidebar-brand {
   display: flex;
   align-items: center;

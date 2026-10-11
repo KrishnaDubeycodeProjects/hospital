@@ -123,6 +123,29 @@ export default function DoctorReferrals() {
         </div>
       </div>
 
+      {/* Explanatory Banner: What is Referral Triage? */}
+      <div
+        style={{
+          backgroundColor: '#EFF6FF',
+          border: '1.5px solid #93C5FD',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '20px' }}>🔄</span>
+          <strong style={{ fontSize: '15px', color: '#1E40AF' }}>
+            What is Referral Triage?
+          </strong>
+        </div>
+        <p style={{ fontSize: '13px', color: '#1E3A8A', margin: 0, lineHeight: 1.5 }}>
+          <strong>Referral Triage</strong> is the clinical transfer mechanism for escalating a patient from primary/community health centers or general OPD counters to specialized secondary and tertiary care centers (e.g., Cardiology, Oncology, Surgery). It utilizes <strong>Quota Locks</strong> to prevent hospital overcrowding, issues <strong>QR Admission Passes</strong> to bypass walk-in registration lines, and securely transmits the patient's entire diagnostic history and episode timeline so the receiving specialist has immediate prior clinical context.
+        </p>
+      </div>
+
       {/* Quota Overview Cards */}
       <div className="stat-row">
         <div className="stat-card stat-blue">

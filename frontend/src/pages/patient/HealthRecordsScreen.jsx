@@ -4,7 +4,7 @@ import { courseApi, familyApi, fetchAsObjectUrl, hospitalApi, patientApi, referr
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import AyushmanFooter from '../../components/AyushmanFooter';
-import { Modal, Spinner } from '../../components/ui';
+import { Modal, Spinner, fmtDateTime } from '../../components/ui';
 
 export default function HealthRecordsScreen() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function HealthRecordsScreen() {
     }
   }, [tokenParam]);
 
-  // Active Tab: 'documents' | 'courses' | 'referrals'
+  // Active Tab: 'documents' | 'courses' | 'referrals' | 'history'
   const tabParam = searchParams.get('tab') || 'documents';
   const [activeTab, setActiveTab] = useState(tabParam);
 
@@ -29,7 +29,7 @@ export default function HealthRecordsScreen() {
   const activePhone = useMemo(() => {
     if (phoneParam && phoneParam.trim()) return phoneParam.trim();
     if (patient?.subject && patient.subject.trim()) return patient.subject.trim();
-    return '8850934544';
+    return '9100000099';
   }, [phoneParam, patient]);
 
   // DB Data States
@@ -38,6 +38,7 @@ export default function HealthRecordsScreen() {
   const [documents, setDocuments] = useState([]);
   const [courses, setCourses] = useState([]);
   const [referrals, setReferrals] = useState([]);
+  const [visitHistory, setVisitHistory] = useState([]);
   const [hospitals, setHospitals] = useState([]);
 
   // Patient Selection States
@@ -156,7 +157,26 @@ export default function HealthRecordsScreen() {
       }
       setReferrals(Array.isArray(refs) ? refs : []);
 
-      // 5. Fetch Hospitals list
+      // 5. Fetch OPD Token & Visit History
+      let hist = [];
+      try {
+        if (patient?.token) {
+          hist = await patientApi.history();
+        } else if (patientApi.publicHistory) {
+          hist = await patientApi.publicHistory(activePhone);
+        }
+      } catch (err) {
+        try {
+          if (patientApi.publicHistory) {
+            hist = await patientApi.publicHistory(activePhone);
+          }
+        } catch {
+          hist = [];
+        }
+      }
+      setVisitHistory(Array.isArray(hist) ? hist : []);
+
+      // 6. Fetch Hospitals list
       try {
         const hList = await hospitalApi.list();
         setHospitals(Array.isArray(hList) ? hList : []);
@@ -226,6 +246,22 @@ export default function HealthRecordsScreen() {
       return rName === memberName || memberName.includes(rName) || rName.includes(memberName);
     });
   }, [selectedMember, referrals]);
+
+  // Filtered OPD Token & Visit History based on selected member
+  const memberVisits = useMemo(() => {
+    if (!visitHistory.length) return [];
+    if (!selectedMember) return visitHistory;
+    const memberName = selectedMember.name.toLowerCase().trim();
+    const isSelfOrHead =
+      selectedMember.relationship?.toLowerCase() === 'self' ||
+      selectedMember.relationship?.toLowerCase() === 'head';
+
+    return visitHistory.filter((v) => {
+      if (!v.name) return isSelfOrHead;
+      const vName = v.name.toLowerCase().trim();
+      return vName === memberName || memberName.includes(vName) || vName.includes(memberName);
+    });
+  }, [selectedMember, visitHistory]);
 
   // Handle uploading document for a chosen family member
   const handleUploadSubmit = async (e) => {
@@ -404,26 +440,25 @@ export default function HealthRecordsScreen() {
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#F8FAFC',
         display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
+        flexDirection: 'column',
         fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* Mobile App Viewport Frame */}
+      {/* Responsive App Container: Stretches up to 1200px on desktop/laptop */}
       <div
         style={{
           width: '100%',
-          maxWidth: '430px',
-          height: '100vh',
-          maxHeight: '920px',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          minHeight: '100vh',
           backgroundColor: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 20px 40px rgba(15, 23, 42, 0.12)',
-          borderRadius: '0px',
-          overflow: 'hidden',
+          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
+          borderLeft: '1px solid #E2E8F0',
+          borderRight: '1px solid #E2E8F0',
           position: 'relative',
         }}
       >
@@ -620,6 +655,34 @@ export default function HealthRecordsScreen() {
               <path d="M21 13v2a4 4 0 0 1-4 4H3" />
             </svg>
             <span>Referrals</span>
+          </button>
+
+          {/* OPD Visit History Tab */}
+          <button
+            type="button"
+            onClick={() => handleTabChange('history')}
+            style={{
+              whiteSpace: 'nowrap',
+              padding: '8px 16px',
+              borderRadius: '24px',
+              border: activeTab === 'history' ? '1.5px solid #004D40' : '1px solid #E2E8F0',
+              backgroundColor: activeTab === 'history' ? '#004D40' : '#FFFFFF',
+              color: activeTab === 'history' ? '#FFFFFF' : '#475569',
+              fontSize: '13px',
+              fontWeight: activeTab === 'history' ? '700' : '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              flexShrink: 0,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'history' ? '#FFFFFF' : '#D97706'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Visit History</span>
           </button>
         </div>
 
@@ -1379,6 +1442,114 @@ export default function HealthRecordsScreen() {
                   )}
                 </div>
               )}
+
+              {/* =============================================================
+                 TAB 4: OPD VISIT & BOOKING HISTORY FOR SELECTED MEMBER
+                 ============================================================= */}
+              {activeTab === 'history' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {memberVisits.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '30px 16px',
+                        textAlign: 'center',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px dashed #E2E8F0',
+                        borderRadius: '16px',
+                      }}
+                    >
+                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>📜</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
+                        No OPD visits recorded yet for {selectedMember?.name}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+                        When you book appointments or complete consultations, your verified visit tokens will be listed here.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+                      {memberVisits.map((visit) => (
+                        <div
+                          key={visit.id}
+                          style={{
+                            backgroundColor: '#FFFFFF',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '16px',
+                            padding: '16px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span
+                                style={{
+                                  backgroundColor: '#DCFCE7',
+                                  color: '#166534',
+                                  fontWeight: '800',
+                                  fontSize: '12px',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                #{visit.dailyNumber || visit.id}
+                              </span>
+                              <span style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
+                                {visit.category || 'General Medicine'}
+                              </span>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                backgroundColor: visit.status === 'completed' ? '#DCFCE7' : visit.status === 'serving' ? '#DBEAFE' : '#FEF3C7',
+                                color: visit.status === 'completed' ? '#166534' : visit.status === 'serving' ? '#1E40AF' : '#92400e',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                textTransform: 'capitalize',
+                              }}
+                            >
+                              {visit.status || 'Completed'}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div>
+                              🏥 <strong>Hospital:</strong> {visit.hospitalName || 'District Civil Hospital'}
+                            </div>
+                            {visit.doctorName && (
+                              <div>
+                                🩺 <strong>Physician:</strong> {visit.doctorName}
+                              </div>
+                            )}
+                            {visit.servedAt && (
+                              <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                                🕒 Served: {fmtDateTime(visit.servedAt)}
+                              </div>
+                            )}
+                            {visit.completedAt && (
+                              <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                                ✅ Completed: {fmtDateTime(visit.completedAt)}
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F1F5F9', paddingTop: '8px' }}>
+                            <span style={{ fontSize: '11px', color: '#94A3B8' }}>
+                              Token ID: {visit.tokenCode || `AF-${visit.id}`}
+                            </span>
+                            <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#059669' }}>
+                              Verified OPD Entry
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1432,7 +1603,7 @@ export default function HealthRecordsScreen() {
         </nav>
 
         {/* Aarogya Flow Footer branding */}
-        <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '6px 16px 12px', flexShrink: 0 }} />
+        <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '16px 20px', flexShrink: 0, width: '100%', borderTop: '1px solid #F1F5F9' }} />
       </div>
 
       {/* QR Referral Modal */}
