@@ -47,7 +47,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
   onBack,
   onSelectMember,
 }) => {
-  const { families, members, childVaccinations, addMember } = useOfflineData();
+  const { families, members, childVaccinations, addMember, markFamilyVisited } = useOfflineData();
   const { t } = useLanguage();
 
   // Locate the family
@@ -63,6 +63,10 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
   // Child Vaccination Modal State
   const [selectedChildRecord, setSelectedChildRecord] = useState<any>(null);
   const [showVaxModal, setShowVaxModal] = useState(false);
+
+  // Revisit Priority Modal State
+  const [showPriorityModal, setShowPriorityModal] = useState(false);
+  const [visitSuccessMsg, setVisitSuccessMsg] = useState<string | null>(null);
 
   // Add Member Modal State
   const [showModal, setShowModal] = useState(false);
@@ -126,6 +130,9 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
       .substring(0, 2)
       .toUpperCase();
 
+    const parsedAge = Number(age) || (isChild ? 1 : 25);
+    const canBePregnant = gender === 'Female' && !isChild && parsedAge >= 12;
+
     await addMember({
       familyUnitId: currentFamily.id,
       name: name.trim(),
@@ -133,15 +140,15 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
       dob: dob.trim() || undefined,
       phone: phone.trim() || undefined,
       fatherOrHusbandName: fatherOrHusband.trim() || undefined,
-      age: Number(age) || (isChild ? 1 : 25),
+      age: parsedAge,
       gender,
-      relationship,
+      relationship: relationship.trim() || 'सदस्य',
       education,
       maritalStatus,
       isAbhaLinked: false,
-      isPregnant,
-      isHrp,
-      isChild,
+      isPregnant: canBePregnant && isPregnant,
+      isHrp: canBePregnant && isHrp,
+      isChild: isChild || parsedAge <= 5,
       hasChronicCondition: hasChronic,
       chronicConditionType: hasChronic ? 'Chronic General' : undefined,
     });
@@ -218,6 +225,31 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
             <StatusBadge type={currentFamily.status} label={currentFamily.nextVisitDate} />
           )}
         </View>
+
+        {/* Household Visit & Revisit Priority Action */}
+        <View style={styles.visitActionBar}>
+          <TouchableOpacity
+            style={[
+              styles.markVisitedBtn,
+              currentFamily?.status === 'visited' && styles.markVisitedBtnDone,
+            ]}
+            onPress={() => setShowPriorityModal(true)}
+            activeOpacity={0.85}
+          >
+            <UserCheck size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.markVisitedBtnText}>
+              {currentFamily?.status === 'visited'
+                ? '✓ भेंट पूर्ण (प्राथमिकता बदलें)'
+                : 'भेंट की (Mark Visited)'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {visitSuccessMsg ? (
+          <View style={styles.visitToast}>
+            <Text style={styles.visitToastText}>{visitSuccessMsg}</Text>
+          </View>
+        ) : null}
 
         {/* Section 3: Gram Survey Registry Card (Sanitation, Water, BPL, Caste) */}
         <View style={styles.gramSurveyCard}>
@@ -315,37 +347,41 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
         </View>
 
         {/* Members List */}
-        {familyMembers.map((member) => (
-          <View key={member.id} style={styles.memberCardContainer}>
-            <TouchableOpacity
-              style={styles.memberCard}
-              onPress={() => onSelectMember(member)}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.memberAvatar,
-                  member.isPregnant && styles.pregnantAvatar,
-                ]}
+        {familyMembers.map((member) => {
+          const isReallyPregnant = member.gender === 'Female' && member.isPregnant && (!member.age || member.age >= 12);
+          const isReallyChild = member.isChild || (member.age && member.age <= 5);
+
+          return (
+            <View key={member.id} style={styles.memberCardContainer}>
+              <TouchableOpacity
+                style={styles.memberCard}
+                onPress={() => onSelectMember(member)}
+                activeOpacity={0.7}
               >
-                <Text
+                <View
                   style={[
-                    styles.avatarInitials,
-                    member.isPregnant && styles.pregnantInitials,
+                    styles.memberAvatar,
+                    isReallyPregnant && styles.pregnantAvatar,
                   ]}
                 >
-                  {member.initials}
-                </Text>
-              </View>
+                  <Text
+                    style={[
+                      styles.avatarInitials,
+                      isReallyPregnant && styles.pregnantInitials,
+                    ]}
+                  >
+                    {member.initials}
+                  </Text>
+                </View>
 
-              <View style={styles.memberInfo}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.memberName}>{member.name}</Text>
-                  {member.isPregnant && (
-                    <View style={styles.pregnantBadge}>
-                      <Text style={styles.pregnantBadgeText}>{t('pregnant')}</Text>
-                    </View>
-                  )}
+                <View style={styles.memberInfo}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.memberName}>{member.name}</Text>
+                    {isReallyPregnant && (
+                      <View style={styles.pregnantBadge}>
+                        <Text style={styles.pregnantBadgeText}>{t('pregnant')}</Text>
+                      </View>
+                    )}
                   {member.isHrp && (
                     <View style={styles.hrpBadge}>
                       <ShieldAlert size={11} color="#B91C1C" style={{ marginRight: 2 }} />
@@ -411,7 +447,8 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
               </TouchableOpacity>
             )}
           </View>
-        ))}
+        );
+      })}
       </ScrollView>
 
       {/* Child Vaccination Schedule Modal */}
@@ -485,7 +522,19 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
                     keyboardType="numeric"
                     placeholderTextColor={Colors.textMuted}
                     value={age}
-                    onChangeText={setAge}
+                    onChangeText={(val) => {
+                      setAge(val);
+                      const num = Number(val);
+                      if (num < 12) {
+                        setIsPregnant(false);
+                        setIsHrp(false);
+                      }
+                      if (num > 0 && num <= 5) {
+                        setIsChild(true);
+                      } else if (num > 18) {
+                        setIsChild(false);
+                      }
+                    }}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -507,7 +556,13 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
                   <TouchableOpacity
                     key={g}
                     style={[styles.genderBtn, gender === g && styles.genderBtnActive]}
-                    onPress={() => setGender(g)}
+                    onPress={() => {
+                      setGender(g);
+                      if (g === 'Male') {
+                        setIsPregnant(false);
+                        setIsHrp(false);
+                      }
+                    }}
                   >
                     <Text
                       style={[
@@ -521,34 +576,53 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
                 ))}
               </View>
 
-              {/* Quick Health Flags */}
+              {/* Quick Health Flags - Child or Male CANNOT be pregnant */}
               <View style={styles.flagRow}>
-                <TouchableOpacity
-                  style={[styles.flagBtn, isPregnant && styles.flagBtnActive]}
-                  onPress={() => setIsPregnant(!isPregnant)}
-                >
-                  <Text style={[styles.flagText, isPregnant && styles.flagTextActive]}>
-                    {isPregnant ? `✓ ${t('pregnant')}` : `+ ${t('pregnant')}`}
-                  </Text>
-                </TouchableOpacity>
+                {gender === 'Female' && !isChild && (!age || Number(age) >= 12) && (
+                  <TouchableOpacity
+                    style={[styles.flagBtn, isPregnant && styles.flagBtnActive]}
+                    onPress={() => {
+                      const nextPreg = !isPregnant;
+                      setIsPregnant(nextPreg);
+                      if (nextPreg) {
+                        setIsChild(false);
+                      }
+                    }}
+                  >
+                    <Text style={[styles.flagText, isPregnant && styles.flagTextActive]}>
+                      {isPregnant ? `✓ ${t('pregnant')}` : `+ ${t('pregnant')}`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
-                <TouchableOpacity
-                  style={[styles.flagBtn, isHrp && styles.flagBtnActiveHrp]}
-                  onPress={() => setIsHrp(!isHrp)}
-                >
-                  <Text style={[styles.flagText, isHrp && styles.flagTextActiveHrp]}>
-                    {isHrp ? '✓ उच्च जोखिम (HRP)' : '+ उच्च जोखिम'}
-                  </Text>
-                </TouchableOpacity>
+                {gender === 'Female' && isPregnant && (
+                  <TouchableOpacity
+                    style={[styles.flagBtn, isHrp && styles.flagBtnActiveHrp]}
+                    onPress={() => setIsHrp(!isHrp)}
+                  >
+                    <Text style={[styles.flagText, isHrp && styles.flagTextActiveHrp]}>
+                      {isHrp ? '✓ उच्च जोखिम (HRP)' : '+ उच्च जोखिम'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
-                <TouchableOpacity
-                  style={[styles.flagBtn, isChild && styles.flagBtnActiveChild]}
-                  onPress={() => setIsChild(!isChild)}
-                >
-                  <Text style={[styles.flagText, isChild && styles.flagTextActiveChild]}>
-                    {isChild ? '✓ बालक (टीकाकरण)' : '+ बालक (Child)'}
-                  </Text>
-                </TouchableOpacity>
+                {(!age || Number(age) <= 18) && (
+                  <TouchableOpacity
+                    style={[styles.flagBtn, isChild && styles.flagBtnActiveChild]}
+                    onPress={() => {
+                      const nextChild = !isChild;
+                      setIsChild(nextChild);
+                      if (nextChild) {
+                        setIsPregnant(false);
+                        setIsHrp(false);
+                      }
+                    }}
+                  >
+                    <Text style={[styles.flagText, isChild && styles.flagTextActiveChild]}>
+                      {isChild ? '✓ बालक (टीकाकरण)' : '+ बालक (Child)'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <TouchableOpacity
@@ -559,6 +633,80 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
                 <Text style={styles.saveBtnText}>{t('saveMemberLocally')}</Text>
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Revisit Priority Modal (Red, Pink, Yellow) */}
+      <Modal visible={showPriorityModal} transparent animationType="fade">
+        <View style={styles.priorityModalOverlay}>
+          <View style={styles.priorityModalContent}>
+            <View style={styles.priorityModalHeader}>
+              <Text style={styles.priorityModalTitle}>पुनः भेंट प्राथमिकता चुनें</Text>
+              <TouchableOpacity onPress={() => setShowPriorityModal(false)}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.priorityModalSub}>
+              गृह भेंट दर्ज करने हेतु पुनः भेंट की प्राथमिकता चुनें:
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.priorityOptionCard, styles.priorityCardRed]}
+              onPress={async () => {
+                if (currentFamily) {
+                  await markFamilyVisited(currentFamily.id, '7days');
+                  setVisitSuccessMsg('✓ गृह भेंट दर्ज! प्राथमिकता: गंभीर (उच्च प्राथमिकता)');
+                  setTimeout(() => setVisitSuccessMsg(null), 4000);
+                }
+                setShowPriorityModal(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.priorityColorDot, { backgroundColor: '#EF4444' }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.priorityTitle, { color: '#DC2626' }]}>🔴 गंभीर (Severe)</Text>
+                <Text style={styles.priorityDesc}>उच्च प्राथमिकता • अति आवश्यक निगरानी</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.priorityOptionCard, styles.priorityCardPink]}
+              onPress={async () => {
+                if (currentFamily) {
+                  await markFamilyVisited(currentFamily.id, '15days');
+                  setVisitSuccessMsg('✓ गृह भेंट दर्ज! प्राथमिकता: मध्यम (समीक्षा / ANC)');
+                  setTimeout(() => setVisitSuccessMsg(null), 4000);
+                }
+                setShowPriorityModal(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.priorityColorDot, { backgroundColor: '#EC4899' }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.priorityTitle, { color: '#BE185D' }]}>🌸 मध्यम (Medium)</Text>
+                <Text style={styles.priorityDesc}>मध्यम प्राथमिकता • गर्भवती (ANC) व समीक्षा</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.priorityOptionCard, styles.priorityCardYellow]}
+              onPress={async () => {
+                if (currentFamily) {
+                  await markFamilyVisited(currentFamily.id, '30days');
+                  setVisitSuccessMsg('✓ गृह भेंट दर्ज! प्राथमिकता: सामान्य (नियमित जाँच)');
+                  setTimeout(() => setVisitSuccessMsg(null), 4000);
+                }
+                setShowPriorityModal(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.priorityColorDot, { backgroundColor: '#F59E0B' }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.priorityTitle, { color: '#B45309' }]}>🟡 सामान्य (Normal)</Text>
+                <Text style={styles.priorityDesc}>नियमित स्वास्थ्य जाँच</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -993,5 +1141,119 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  // Visit Action Bar
+  visitActionBar: {
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  markVisitedBtn: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  markVisitedBtnDone: {
+    backgroundColor: '#059669',
+  },
+  markVisitedBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  visitToast: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  visitToastText: {
+    color: '#065F46',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  // Revisit Priority Modal
+  priorityModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  priorityModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  priorityModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  priorityModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  priorityModalSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+  },
+  priorityOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1.5,
+  },
+  priorityCardRed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F87171',
+  },
+  priorityCardPink: {
+    backgroundColor: '#FDF2F8',
+    borderColor: '#F472B6',
+  },
+  priorityCardYellow: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FCD34D',
+  },
+  priorityColorDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 12,
+  },
+  priorityTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  priorityDesc: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
 });

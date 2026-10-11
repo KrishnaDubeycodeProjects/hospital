@@ -21,6 +21,8 @@ import {
   Activity,
   Send,
   Camera,
+  Image as ImageIcon,
+  FlaskConical,
 } from 'lucide-react-native';
 import jsQR from 'jsqr';
 import { useOfflineData } from '../context/OfflineDataContext';
@@ -36,7 +38,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
   onBack,
   onSuccess,
 }) => {
-  const { childVaccinations, surveys, isSyncing, sendToAnm } = useOfflineData();
+  const { childVaccinations, surveys, members, isSyncing, sendToAnm } = useOfflineData();
   const { t } = useLanguage();
 
   const [selectedCluster, setSelectedCluster] = useState<'CHILD_VAX' | 'ANC' | 'NCD'>('CHILD_VAX');
@@ -45,6 +47,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
   const [scanStatusMessage, setScanStatusMessage] = useState('');
   const [isDecoding, setIsDecoding] = useState(false);
   const fileInputRef = useRef<any>(null);
+  const cameraInputRef = useRef<any>(null);
 
   const handleQrImageFile = (e: any) => {
     const file = e.target?.files?.[0];
@@ -83,37 +86,45 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Counts for each clustered category
-  const childVaxCount = childVaccinations.length;
-  const ancCount = surveys.filter((s) => s.categoryCode === 'PREGNANCY').length;
-  const ncdCount = surveys.filter((s) => s.categoryCode === 'DISEASE').length;
+  // Accurate counts for each clustered category
+  const childVaxCount = childVaccinations.length || members.filter((m) => m.isChild || (m.age && m.age <= 5)).length;
+  // Strictly female pregnant members
+  const ancCount = members.filter((m) => m.gender === 'Female' && m.isPregnant && (!m.age || m.age >= 12)).length;
+  const ncdCount = members.filter((m) => m.hasChronicCondition || m.isNcdPatient).length || surveys.filter((s) => s.categoryCode === 'DISEASE').length;
 
-  const handleDirectScan = async () => {
-    const code = manualCode.trim() || `ANM-QR-${selectedCluster}-SYNCED`;
+  const handleDirectScan = async (codeToUse?: string) => {
+    const code = (codeToUse || manualCode).trim() || `ANM-QR-${selectedCluster}-SYNCED`;
     await sendToAnm(selectedCluster, code);
     onSuccess();
+  };
+
+  const setTestCode = (code: string, cluster: 'CHILD_VAX' | 'ANC' | 'NCD') => {
+    setSelectedCluster(cluster);
+    setManualCode(code);
+    setShowManualInput(true);
+    setScanStatusMessage(`✓ टेस्ट कोड लोड हुआ: ${code}`);
   };
 
   const getClusterInfo = () => {
     switch (selectedCluster) {
       case 'CHILD_VAX':
         return {
-          title: 'बाल टीकाकरण क्लस्टर (Child Vaccination)',
+          title: 'बाल टीकाकरण (Child Vaccination)',
           count: childVaxCount,
-          desc: 'सभी बच्चों के टीकाकरण रिकॉर्ड सीधे एएनएम के टीकाकरण सत्र में भेजे जाएंगे।',
+          desc: 'बच्चों के टीकाकरण रिकॉर्ड सीधे एएनएम सत्र में भेजे जाएंगे।',
         };
       case 'ANC':
         return {
-          title: 'मातृ स्वास्थ्य क्लस्टर (Pregnancy ANC)',
+          title: 'मातृ स्वास्थ्य (Pregnancy ANC)',
           count: ancCount,
-          desc: 'गर्भवती महिलाओं के प्रसव पूर्व जांच रिकॉर्ड सीधे एएनएम को भेजे जाएंगे।',
+          desc: 'गर्भवती महिलाओं की स्वास्थ्य जांच सीधे एएनएम को भेजी जाएगी।',
         };
       case 'NCD':
       default:
         return {
-          title: 'गैर-संचारी रोग क्लस्टर (NCD / Cancer)',
+          title: 'रोग जांच (NCD Screening)',
           count: ncdCount,
-          desc: 'बीपी, शुगर एवं कैंसर स्क्रीनिंग के क्लस्टर्ड फॉर्म भेजे जाएंगे।',
+          desc: 'बीपी, शुगर एवं कैंसर स्क्रीनिंग रिकॉर्ड भेजे जाएंगे।',
         };
     }
   };
@@ -127,21 +138,21 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
           <ArrowLeft size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>एएनएम को क्लस्टर डेटा भेजें</Text>
+        <Text style={styles.headerTitle}>एएनएम को डेटा भेजें</Text>
         <View style={{ width: 30 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Voice Guide Banner */}
         <VoiceGuideBanner
-          sectionTitle="एएनएम डायरेक्ट QR सिंक"
-          guideTextHi="क्लस्टर चुनें—जैसे बाल टीकाकरण या मातृ स्वास्थ्य—और एएनएम का QR कोड सीधे स्कैन करके सारा क्लस्टर डेटा तुरंत भेजें।"
-          guideTextMr="क्लस्टर निवडा आणि एएनएमचा QR कोड थेट स्कॅन करून सर्व डेटा त्वरित पाठवा."
-          guideTextEn="Select category cluster (Child Vaccination, ANC, or NCD) and scan the ANM's session QR code to transfer all records directly."
+          sectionName="एएनएम डायरेक्ट QR सिंक"
+          explanationHi="क्लस्टर चुनें और एएनएम का QR कोड स्कैन करके ऑफलाइन डेटा तुरंत भेजें।"
+          explanationMr="क्लस्टर निवडा आणि एएनएमचा QR कोड स्कॅन करून डेटा त्वरित पाठवा."
+          explanationEn="Select cluster and scan ANM session QR code to transfer offline records directly."
         />
 
         {/* 1. Clustered Section Options (Direct Buttons) */}
-        <Text style={styles.sectionHeading}>भेजने हेतु श्रेणी क्लस्टर चुनें (Select Cluster):</Text>
+        <Text style={styles.sectionHeading}>भेजने हेतु श्रेणी चुनें:</Text>
         <View style={styles.clusterOptionsCol}>
           {/* Child Vaccination Cluster */}
           <TouchableOpacity
@@ -157,7 +168,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.clusterTitle}>💉 बाल टीकाकरण (Child Vaccination)</Text>
-              <Text style={styles.clusterMeta}>{childVaxCount} बच्चों का संपूर्ण टीकाकरण डेटा</Text>
+              <Text style={styles.clusterMeta}>{childVaxCount} बच्चों का टीकाकरण रिकॉर्ड</Text>
             </View>
             <View style={styles.clusterBadge}>
               <Text style={styles.clusterBadgeText}>{childVaxCount} रिकॉर्ड</Text>
@@ -178,7 +189,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.clusterTitle}>🤰 मातृ स्वास्थ्य (Pregnancy ANC)</Text>
-              <Text style={styles.clusterMeta}>{ancCount} गर्भवती महिलाओं की स्वास्थ्य जांच</Text>
+              <Text style={styles.clusterMeta}>{ancCount} गर्भवती महिलाओं की जाँच</Text>
             </View>
             <View style={styles.clusterBadge}>
               <Text style={styles.clusterBadgeText}>{ancCount} रिकॉर्ड</Text>
@@ -198,8 +209,8 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
               <Activity size={20} color="#BE185D" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.clusterTitle}>🩺 रोग जांच (NCD / Cancer)</Text>
-              <Text style={styles.clusterMeta}>{ncdCount} गैर-संचारी रोग स्क्रीनिंग फॉर्म</Text>
+              <Text style={styles.clusterTitle}>🩺 रोग जांच (NCD Screening)</Text>
+              <Text style={styles.clusterMeta}>{ncdCount} स्क्रीनिंग रिकॉर्ड</Text>
             </View>
             <View style={styles.clusterBadge}>
               <Text style={styles.clusterBadgeText}>{ncdCount} रिकॉर्ड</Text>
@@ -213,30 +224,29 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
           <Text style={styles.readyDesc}>{clusterInfo.desc}</Text>
         </View>
 
-        {/* Hidden File Input for Real QR Image & Camera Decode */}
+        {/* Hidden Inputs for Direct Camera and File Pick */}
         {Platform.OS === 'web' && (
-          <input
-            type="file"
-            accept="image/*"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            onChange={handleQrImageFile}
-          />
+          <>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              ref={cameraInputRef}
+              style={{ display: 'none' }}
+              onChange={handleQrImageFile}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              onChange={handleQrImageFile}
+            />
+          </>
         )}
 
         {/* 3. Direct QR Scan Viewfinder Card */}
-        <TouchableOpacity
-          style={styles.viewfinderCard}
-          onPress={() => {
-            if (Platform.OS === 'web' && fileInputRef.current) {
-              fileInputRef.current.click();
-            } else {
-              handleDirectScan();
-            }
-          }}
-          activeOpacity={0.85}
-          disabled={isSyncing || isDecoding}
-        >
+        <View style={styles.viewfinderCard}>
           <View style={styles.reticle}>
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
@@ -245,13 +255,48 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
             {isSyncing || isDecoding ? (
               <ActivityIndicator size="large" color={Colors.primary} />
             ) : (
-              <Camera size={56} color={Colors.primary} />
+              <QrCode size={56} color={Colors.primary} />
             )}
           </View>
           <Text style={styles.reticleHintText}>
-            कैमरा या QR फोटो से स्कैन करने के लिए टैप करें
+            एएनएम के सत्र का QR कोड स्कैन करें
           </Text>
-        </TouchableOpacity>
+
+          {/* Camera & Gallery Action Buttons */}
+          <View style={styles.scanActionRow}>
+            <TouchableOpacity
+              style={styles.scanActionBtn}
+              onPress={() => {
+                if (Platform.OS === 'web' && cameraInputRef.current) {
+                  cameraInputRef.current.click();
+                } else {
+                  handleDirectScan();
+                }
+              }}
+              activeOpacity={0.8}
+              disabled={isSyncing || isDecoding}
+            >
+              <Camera size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+              <Text style={styles.scanActionBtnText}>कैमरा खोलें</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.scanActionBtn, styles.scanActionBtnAlt]}
+              onPress={() => {
+                if (Platform.OS === 'web' && fileInputRef.current) {
+                  fileInputRef.current.click();
+                } else {
+                  handleDirectScan();
+                }
+              }}
+              activeOpacity={0.8}
+              disabled={isSyncing || isDecoding}
+            >
+              <ImageIcon size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.scanActionBtnAltText}>QR फ़ोटो चुनें</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {scanStatusMessage ? (
           <View style={styles.scanStatusNotice}>
@@ -259,16 +304,64 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
           </View>
         ) : null}
 
+        {/* 4. One-Click Example Test Codes for ASHA Worker */}
+        <View style={styles.testSection}>
+          <View style={styles.testHeaderRow}>
+            <FlaskConical size={14} color={Colors.primary} style={{ marginRight: 5 }} />
+            <Text style={styles.testSectionTitle}>परीक्षण हेतु उदाहरण कोड (Test Codes):</Text>
+          </View>
+          <View style={styles.testPillRow}>
+            <TouchableOpacity
+              style={[
+                styles.testPill,
+                manualCode === 'ANM-QR-CHILD-VAX' && styles.testPillActive,
+              ]}
+              onPress={() => setTestCode('ANM-QR-CHILD-VAX', 'CHILD_VAX')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.testPillText, manualCode === 'ANM-QR-CHILD-VAX' && styles.testPillTextActive]}>
+                ANM-QR-CHILD-VAX
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.testPill,
+                manualCode === 'ANM-QR-ANC-SYNC' && styles.testPillActive,
+              ]}
+              onPress={() => setTestCode('ANM-QR-ANC-SYNC', 'ANC')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.testPillText, manualCode === 'ANM-QR-ANC-SYNC' && styles.testPillTextActive]}>
+                ANM-QR-ANC-SYNC
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.testPill,
+                manualCode === 'ANM-QR-NCD-SYNC' && styles.testPillActive,
+              ]}
+              onPress={() => setTestCode('ANM-QR-NCD-SYNC', 'NCD')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.testPillText, manualCode === 'ANM-QR-NCD-SYNC' && styles.testPillTextActive]}>
+                ANM-QR-NCD-SYNC
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Action Button directly below QR viewfinder */}
         <TouchableOpacity
           style={styles.directSendBtn}
-          onPress={handleDirectScan}
+          onPress={() => handleDirectScan()}
           activeOpacity={0.85}
           disabled={isSyncing}
         >
           <Send size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.directSendBtnText}>
-            {isSyncing ? 'डेटा भेजा जा रहा है...' : 'डायरेक्ट QR कोड से डेटा भेजें'}
+            {isSyncing ? 'डेटा भेजा जा रहा है...' : 'डेटा सीधे एएनएम को भेजें'}
           </Text>
         </TouchableOpacity>
 
@@ -277,14 +370,14 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
           <View style={styles.manualInputRow}>
             <TextInput
               style={styles.manualInput}
-              placeholder="एएनएम सत्र कोड (उदा. ANM-QR-CHILD-VAX)"
+              placeholder="सत्र कोड (उदा. ANM-QR-CHILD-VAX)"
               placeholderTextColor={Colors.textMuted}
               value={manualCode}
               onChangeText={setManualCode}
             />
             <TouchableOpacity
               style={styles.manualSendBtn}
-              onPress={handleDirectScan}
+              onPress={() => handleDirectScan()}
               activeOpacity={0.8}
             >
               <Text style={styles.manualSendText}>भेजें</Text>
@@ -314,7 +407,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingTop: 45,
+    paddingTop: 12,
     paddingBottom: 12,
     paddingHorizontal: 16,
     flexDirection: 'row',
@@ -368,7 +461,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   clusterTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
@@ -378,56 +471,60 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   clusterBadge: {
-    backgroundColor: '#E0F2FE',
+    backgroundColor: '#E5E7EB',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   clusterBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#0369A1',
+    color: Colors.textSecondary,
   },
   readyBox: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#EFF6FF',
     borderRadius: 10,
-    padding: 10,
+    padding: 12,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 12,
+    borderColor: '#BFDBFE',
   },
   readyTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
+    color: '#1E40AF',
   },
   readyDesc: {
     fontSize: 11,
-    color: Colors.textSecondary,
+    color: '#3B82F6',
     marginTop: 2,
   },
   viewfinderCard: {
-    width: '100%',
-    height: 160,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   reticle: {
-    width: 100,
-    height: 100,
+    width: 140,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    marginBottom: 12,
   },
   corner: {
     position: 'absolute',
-    width: 16,
-    height: 16,
+    width: 20,
+    height: 20,
     borderColor: Colors.primary,
   },
   topLeft: {
@@ -455,24 +552,97 @@ const styles = StyleSheet.create({
     borderRightWidth: 3,
   },
   reticleHintText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 8,
+    fontSize: 12,
+    color: Colors.textSecondary,
     fontWeight: '600',
+    marginBottom: 12,
+  },
+  scanActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  scanActionBtn: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  scanActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scanActionBtnAlt: {
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  scanActionBtnAltText: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
   },
   scanStatusNotice: {
-    backgroundColor: '#EFF6FF',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#A7F3D0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
     alignItems: 'center',
   },
   scanStatusNoticeText: {
     fontSize: 12,
+    color: '#065F46',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  testSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  testHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  testSectionTitle: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#1D4ED8',
+    color: Colors.textPrimary,
+  },
+  testPillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  testPill: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  testPillActive: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
+  },
+  testPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  testPillTextActive: {
+    color: Colors.primary,
   },
   directSendBtn: {
     backgroundColor: Colors.primary,
@@ -481,7 +651,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 10,
-    marginBottom: 10,
+    marginBottom: 12,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   directSendBtnText: {
     color: '#FFFFFF',
@@ -490,7 +665,8 @@ const styles = StyleSheet.create({
   },
   manualInputRow: {
     flexDirection: 'row',
-    marginBottom: 10,
+    gap: 8,
+    marginBottom: 12,
   },
   manualInput: {
     flex: 1,
@@ -499,8 +675,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 12,
+    paddingVertical: 10,
+    fontSize: 13,
     color: Colors.textPrimary,
   },
   manualSendBtn: {
@@ -508,18 +684,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     justifyContent: 'center',
-    marginLeft: 8,
+    alignItems: 'center',
   },
   manualSendText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: 13,
   },
   manualToggleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   manualToggleText: {
     fontSize: 12,

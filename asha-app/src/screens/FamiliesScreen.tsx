@@ -67,7 +67,7 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({
       primaryPhone: newPhone.trim() || '+91 98765 00000',
       villageName: 'Chandpur',
       visitIntervalDays: 15,
-      nextVisitDate: '15 days',
+      nextVisitDate: 'मध्यम (Medium)',
       lastVisitedAt: null,
       ashaWorkerPhone: '9876543210',
       status: '15days',

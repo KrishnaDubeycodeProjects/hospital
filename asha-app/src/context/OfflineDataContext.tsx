@@ -46,6 +46,7 @@ interface OfflineDataContextType {
     reason?: string,
     memberName?: string
   ) => Promise<{ task: any; family: any; syncedOnline: boolean }>;
+  markFamilyVisited: (familyId: string, priority: '7days' | '15days' | '30days') => Promise<void>;
   sendToAnm: (sectionFilter?: string, anmCode?: string) => Promise<SyncResult>;
   resetToDefaults: () => Promise<void>;
 }
@@ -210,6 +211,29 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const markFamilyVisited = async (
+    familyId: string,
+    priority: '7days' | '15days' | '30days'
+  ) => {
+    const existingFamily = families.find((f) => f.id === familyId);
+    if (!existingFamily) return;
+
+    const intervalDays = priority === '7days' ? 7 : priority === '15days' ? 15 : 30;
+    const priorityLabel = priority === '7days' ? 'गंभीर (Severe)' : priority === '15days' ? 'मध्यम (Medium)' : 'सामान्य (Normal)';
+
+    const updated: FamilyUnit = {
+      ...existingFamily,
+      status: 'visited',
+      visitIntervalDays: intervalDays,
+      nextVisitDate: priorityLabel,
+      lastVisitedAt: 'आज (Today)',
+      updatedAt: new Date().toISOString(),
+    };
+
+    await OfflineStorageService.saveFamily(updated);
+    await refreshData();
+  };
+
   const resetToDefaults = async () => {
     setIsLoading(true);
     await OfflineStorageService.clearAllData();
@@ -242,6 +266,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         toggleFollowUp,
         triggerSync,
         simulateMissedReferral,
+        markFamilyVisited,
         sendToAnm,
         resetToDefaults,
       }}

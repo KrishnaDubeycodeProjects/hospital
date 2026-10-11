@@ -36,9 +36,9 @@ export const GridScreen: React.FC<GridScreenProps> = ({
   const subFilterOptions: Record<MainCategory, { key: string; labelHi: string; labelEn: string }[]> = {
     All: [
       { key: 'all', labelHi: 'सभी 24 परिवार', labelEn: 'All 24 Families' },
-      { key: 'due7', labelHi: '7 दिन (अति आवश्यक)', labelEn: '7 Days Urgent' },
-      { key: 'due15', labelHi: '15 दिन (शीघ्र देय)', labelEn: '15 Days Review' },
-      { key: 'due30', labelHi: '30 दिन (नियमित)', labelEn: '30 Days Routine' },
+      { key: 'due7', labelHi: 'गंभीर (उच्च प्राथमिकता)', labelEn: 'Severe (High Priority)' },
+      { key: 'due15', labelHi: 'मध्यम (समीक्षा / ANC)', labelEn: 'Medium (Review / ANC)' },
+      { key: 'due30', labelHi: 'सामान्य (नियमित)', labelEn: 'Normal (Routine Check)' },
     ],
     Pregnancy: [
       { key: 'all_preg', labelHi: 'सभी गर्भवती', labelEn: 'All Pregnant' },

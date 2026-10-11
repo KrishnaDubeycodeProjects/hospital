@@ -177,29 +177,32 @@ const styles = StyleSheet.create({
   },
   // Clean Clinical Legend
   legendContainer: {
-    marginTop: 14,
-    paddingTop: 12,
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   legendRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 8,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: '48%',
+    flex: 1,
   },
   legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     marginRight: 6,
+    flexShrink: 0,
   },
   legendText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
     color: Colors.textSecondary,
+    flexShrink: 1,
   },
 });

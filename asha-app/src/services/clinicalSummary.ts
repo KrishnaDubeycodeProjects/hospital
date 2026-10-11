@@ -44,7 +44,9 @@ export function generateClinicalSummary(
 
   // 1. If no survey submitted yet, provide synthesized baseline from member health profile
   if (!survey) {
-    if (member.isPregnant) {
+    const isFemalePregnant = member.gender === 'Female' && member.isPregnant && (!member.age || member.age >= 12);
+
+    if (isFemalePregnant) {
       const highlights: SummaryHighlight[] = [
         {
           id: 'preg',
@@ -79,6 +81,40 @@ export function generateClinicalSummary(
         memberName: member.name,
         categoryTitle: isHi ? 'मातृ एवं शिशु स्वास्थ्य' : isMr ? 'मातृ व बाल आरोग्य' : 'Maternal & Child Health',
         surveyDate: member.lastSurveyDate || (isHi ? 'देय' : isMr ? 'देय' : 'Due'),
+        highlights,
+        spokenText,
+        detailedEntries: [],
+        hasData: true,
+      };
+    }
+
+    if (member.isChild || (member.age && member.age <= 5)) {
+      const highlights: SummaryHighlight[] = [
+        {
+          id: 'child_vax',
+          label: isHi ? 'बाल स्वास्थ्य' : isMr ? 'बाल आरोग्य' : 'Child Health',
+          value: isHi ? 'टीकाकरण देय' : isMr ? 'लसीकरण देय' : 'Vaccines Due',
+          isNormal: true,
+          statusType: 'check',
+        },
+        {
+          id: 'child_age',
+          label: isHi ? 'उम्र' : isMr ? 'वय' : 'Age',
+          value: `${member.age || 1} वर्ष`,
+          statusType: 'info',
+        },
+      ];
+      const spokenText = isHi
+        ? `${member.name} का संक्षेप: बालक आयु ${member.age || 1} वर्ष। नियमित बाल टीकाकरण एवं पोषण आवश्यक।`
+        : isMr
+        ? `${member.name} सारांश: बालक वय ${member.age || 1} वर्ष. नियमित लसीकरण आवश्यक.`
+        : `${member.name} summary: Child age ${member.age || 1} years. Routine vaccination advised.`;
+
+      return {
+        memberId: member.id,
+        memberName: member.name,
+        categoryTitle: isHi ? 'बाल स्वास्थ्य एवं टीकाकरण' : isMr ? 'बाल आरोग्य व लसीकरण' : 'Child Immunization',
+        surveyDate: member.lastSurveyDate || (isHi ? 'देय' : 'Due'),
         highlights,
         spokenText,
         detailedEntries: [],
@@ -152,11 +188,14 @@ export function generateClinicalSummary(
 
   // 2. Parse submitted survey answers
   const answers = survey.answers || {};
-  const isPregnancySurvey = survey.categoryCode === 'PREGNANCY' || member.isPregnant;
+  const isPregnancySurvey =
+    (survey.categoryCode === 'PREGNANCY' || member.isPregnant) &&
+    member.gender === 'Female' &&
+    (!member.age || member.age >= 12);
 
   if (isPregnancySurvey) {
     const isFirstPreg = answers.isFirstPregnancy === 'Yes' || answers.firstPregnancy === 'Yes';
-    const lmp = answers.lmpDate || '12/06/2025';
+    const lmp = answers.lmpDate || member.expectedDeliveryDate || (isHi ? 'लागू नहीं' : 'N/A');
     const hasComplications =
       answers.hasComplications === 'Yes' ||
       (Array.isArray(answers.complicationsList) &&

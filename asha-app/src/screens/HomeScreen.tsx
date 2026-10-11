@@ -59,9 +59,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // Map local storage families to HouseholdDot items for the Suchi Grid
   const dots: HouseholdDot[] = families.map((fam) => {
     const famMembers = members.filter((m) => m.familyUnitId === fam.id);
-    const hasPreg = famMembers.some((m) => m.isPregnant) || fam.hasPregnancy;
-    const hasChild = famMembers.some((m) => m.isChild || m.age <= 5) || fam.hasChild;
-    const hasDisease = famMembers.some((m) => m.hasChronicCondition) || fam.hasDisease;
+    const hasPreg = famMembers.some((m) => m.gender === 'Female' && m.isPregnant && (!m.age || m.age >= 12)) || (fam.hasPregnancy && famMembers.some(m => m.gender === 'Female'));
+    const hasChild = famMembers.some((m) => m.isChild || (m.age && m.age <= 5)) || fam.hasChild;
+    const hasDisease = famMembers.some((m) => m.hasChronicCondition || m.isNcdPatient) || fam.hasDisease;
 
     let status: HouseholdDot['status'] = (fam.status as HouseholdDot['status']) || 'noData';
     if (fam.visitIntervalDays === 7) status = '7days';
@@ -95,9 +95,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     };
   });
 
-  // Filter pregnant women
+  // Filter pregnant women (Strictly Female and reproductive age)
   const pregnantWomen = members.filter((m) => {
-    if (!m.isPregnant) return false;
+    if (m.gender !== 'Female' || !m.isPregnant || (m.age && m.age < 12)) return false;
     if (pregnancyFilter === 'hrp') return m.isHrp;
     return true;
   });
