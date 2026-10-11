@@ -111,10 +111,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         activeOpacity={0.7}
       >
         <ClipboardList
-          size={20}
+          size={19}
           color={activeTab === 'Home' ? Colors.primary : Colors.textMuted}
         />
-        <Text style={[styles.tabText, activeTab === 'Home' && styles.activeTabText]}>
+        <Text style={[styles.tabText, activeTab === 'Home' && styles.activeTabText]} numberOfLines={1}>
           {t('suchi')}
         </Text>
       </TouchableOpacity>
@@ -126,10 +126,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         activeOpacity={0.7}
       >
         <Users
-          size={20}
+          size={19}
           color={activeTab === 'Families' ? Colors.primary : Colors.textMuted}
         />
-        <Text style={[styles.tabText, activeTab === 'Families' && styles.activeTabText]}>
+        <Text style={[styles.tabText, activeTab === 'Families' && styles.activeTabText]} numberOfLines={1}>
           {t('families')}
         </Text>
       </TouchableOpacity>
@@ -142,7 +142,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       >
         <View>
           <Clock
-            size={20}
+            size={19}
             color={activeTab === 'FollowUps' ? Colors.primary : Colors.textMuted}
           />
           {followUpCount > 0 && (
@@ -151,7 +151,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             </View>
           )}
         </View>
-        <Text style={[styles.tabText, activeTab === 'FollowUps' && styles.activeTabText]}>
+        <Text style={[styles.tabText, activeTab === 'FollowUps' && styles.activeTabText]} numberOfLines={1}>
           {t('followups')}
         </Text>
       </TouchableOpacity>
@@ -163,10 +163,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         activeOpacity={0.7}
       >
         <CalendarCheck
-          size={20}
+          size={19}
           color={activeTab === 'Meetings' ? Colors.primary : Colors.textMuted}
         />
-        <Text style={[styles.tabText, activeTab === 'Meetings' && styles.activeTabText]}>
+        <Text style={[styles.tabText, activeTab === 'Meetings' && styles.activeTabText]} numberOfLines={1}>
           {t('meetings')}
         </Text>
       </TouchableOpacity>
@@ -178,10 +178,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         activeOpacity={0.7}
       >
         <User
-          size={20}
+          size={19}
           color={activeTab === 'Profile' ? Colors.primary : Colors.textMuted}
         />
-        <Text style={[styles.tabText, activeTab === 'Profile' && styles.activeTabText]}>
+        <Text style={[styles.tabText, activeTab === 'Profile' && styles.activeTabText]} numberOfLines={1}>
           {t('profile')}
         </Text>
       </TouchableOpacity>

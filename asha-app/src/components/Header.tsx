@@ -38,8 +38,8 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           resizeMode="contain"
         />
         <View style={styles.titleCol}>
-          <Text style={styles.appTitle}>{t('appTitle')}</Text>
-          <Text style={styles.appSubtitle}>{t('appSubtitle')}</Text>
+          <Text style={styles.appTitle} numberOfLines={1}>{t('appTitle')}</Text>
+          <Text style={styles.appSubtitle} numberOfLines={1} ellipsizeMode="tail">{t('appSubtitle')}</Text>
         </View>
       </View>
 

@@ -260,23 +260,25 @@ const MainAppContent: React.FC = () => {
   const isFormFilling = currentScreen === 'SurveyQuestion';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      {/* Universal Top Header with Aarogya Flow branding and offline sync status */}
-      {!isFormFilling && <Header />}
+    <View style={styles.outerContainer}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        {/* Universal Top Header with Aarogya Flow branding and offline sync status */}
+        {!isFormFilling && <Header />}
 
-      {/* Main Screen Surface */}
-      <View style={styles.body}>{renderActiveScreen()}</View>
+        {/* Main Screen Surface */}
+        <View style={styles.body}>{renderActiveScreen()}</View>
 
-      {/* Persistent Bottom Navigation Bar */}
-      {!isFormFilling && (
-        <BottomNav
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          followUpCount={pendingFollowUpsCount}
-        />
-      )}
-    </SafeAreaView>
+        {/* Persistent Bottom Navigation Bar */}
+        {!isFormFilling && (
+          <BottomNav
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            followUpCount={pendingFollowUpsCount}
+          />
+        )}
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -293,9 +295,26 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#0F172A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   safeArea: {
     flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    height: '100%',
     backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
   },
   body: {
     flex: 1,

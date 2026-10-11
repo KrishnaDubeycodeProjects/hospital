@@ -147,8 +147,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('All')}
           activeOpacity={0.8}
         >
-          <LayoutGrid size={16} color={activeSection === 'All' ? Colors.primary : '#64748B'} />
-          <Text style={[styles.tabText, activeSection === 'All' && styles.tabTextActive]}>
+          <LayoutGrid size={15} color={activeSection === 'All' ? Colors.primary : '#64748B'} />
+          <Text style={[styles.tabText, activeSection === 'All' && styles.tabTextActive]} numberOfLines={1}>
             {t('allHouses')}
           </Text>
         </TouchableOpacity>
@@ -158,8 +158,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('Pregnancy')}
           activeOpacity={0.8}
         >
-          <Baby size={16} color={activeSection === 'Pregnancy' ? '#DC2626' : '#64748B'} />
-          <Text style={[styles.tabText, activeSection === 'Pregnancy' && styles.tabTextActive]}>
+          <Baby size={15} color={activeSection === 'Pregnancy' ? '#DC2626' : '#64748B'} />
+          <Text style={[styles.tabText, activeSection === 'Pregnancy' && styles.tabTextActive]} numberOfLines={1}>
             {t('pregnant')}
           </Text>
         </TouchableOpacity>
@@ -169,8 +169,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('Child')}
           activeOpacity={0.8}
         >
-          <Syringe size={16} color={activeSection === 'Child' ? '#0284C7' : '#64748B'} />
-          <Text style={[styles.tabText, activeSection === 'Child' && styles.tabTextActive]}>
+          <Syringe size={15} color={activeSection === 'Child' ? '#0284C7' : '#64748B'} />
+          <Text style={[styles.tabText, activeSection === 'Child' && styles.tabTextActive]} numberOfLines={1}>
             {t('childHealth')}
           </Text>
         </TouchableOpacity>
@@ -180,8 +180,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onPress={() => setActiveSection('OtherServices')}
           activeOpacity={0.8}
         >
-          <HeartPulse size={16} color={activeSection === 'OtherServices' ? '#059669' : '#64748B'} />
-          <Text style={[styles.tabText, activeSection === 'OtherServices' && styles.tabTextActive]}>
+          <HeartPulse size={15} color={activeSection === 'OtherServices' ? '#059669' : '#64748B'} />
+          <Text style={[styles.tabText, activeSection === 'OtherServices' && styles.tabTextActive]} numberOfLines={1}>
             {t('otherServices')}
           </Text>
         </TouchableOpacity>
