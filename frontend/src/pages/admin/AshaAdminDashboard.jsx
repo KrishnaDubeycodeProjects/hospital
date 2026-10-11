@@ -28,6 +28,9 @@ export default function AshaAdminDashboard() {
   const toast = useToast();
   const navigate = useNavigate();
 
+  // Active Role: 'CHO' | 'ASHA' (can switch with 1-click)
+  const [currentRole, setCurrentRole] = useState('CHO');
+
   // Active Tab: 'Overview' | 'Workers' | 'Referrals'
   const [activeTab, setActiveTab] = useState('Workers');
 
@@ -279,24 +282,34 @@ export default function AshaAdminDashboard() {
               <span>Online</span>
             </div>
 
-            <div
+            <button
+              type="button"
+              onClick={() => {
+                const next = currentRole === 'CHO' ? 'ASHA' : 'CHO';
+                setCurrentRole(next);
+                toast.success(`Role switched to ${next === 'CHO' ? 'Community Health Officer (CHO Supervisor)' : 'ASHA Worker (Field Staff)'}`);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                backgroundColor: '#f1f5f9',
-                color: '#334155',
-                padding: '4px 10px',
+                gap: '6px',
+                backgroundColor: currentRole === 'CHO' ? '#EFF6FF' : '#DCFCE7',
+                color: currentRole === 'CHO' ? '#1D4ED8' : '#15803D',
+                border: currentRole === 'CHO' ? '1.5px solid #93C5FD' : '1.5px solid #86EFAC',
+                padding: '5px 12px',
                 borderRadius: '20px',
                 fontSize: '12px',
-                fontWeight: '700',
+                fontWeight: '800',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                transition: 'all 0.15s ease',
               }}
-              title="Community Health Officer"
+              title="Click to switch between CHO Supervisor and ASHA Worker roles"
             >
-              <Users size={13} color="#334155" />
-              <span>CHO</span>
-              <RefreshCw size={11} color="#64748b" style={{ marginLeft: '2px' }} />
-            </div>
+              <Users size={13} />
+              <span>Role: {currentRole}</span>
+              <RefreshCw size={11} style={{ marginLeft: '2px' }} />
+            </button>
           </div>
         </header>
 
@@ -323,21 +336,48 @@ export default function AshaAdminDashboard() {
                     width: '48px',
                     height: '48px',
                     borderRadius: '14px',
-                    backgroundColor: '#ecfdf5',
+                    backgroundColor: currentRole === 'CHO' ? '#eff6ff' : '#ecfdf5',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                   }}
                 >
-                  <Building2 size={26} color="#059669" />
+                  <Building2 size={26} color={currentRole === 'CHO' ? '#1d4ed8' : '#059669'} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '16.5px', fontWeight: '800', color: '#0f172a', lineHeight: 1.2 }}>
-                    आयुष्मान आरोग्य मंदिर (HWC)
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                    <div style={{ fontSize: '16.5px', fontWeight: '800', color: '#0f172a', lineHeight: 1.2 }}>
+                      आयुष्मान आरोग्य मंदिर (HWC)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = currentRole === 'CHO' ? 'ASHA' : 'CHO';
+                        setCurrentRole(next);
+                        toast.success(`Role switched to ${next === 'CHO' ? 'CHO Supervisor' : 'ASHA Field Worker'}`);
+                      }}
+                      style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: currentRole === 'CHO' ? '#dbeafe' : '#dcfce7',
+                        color: currentRole === 'CHO' ? '#1e40af' : '#15803d',
+                        border: 'none',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <RefreshCw size={10} /> Switch Role: {currentRole === 'CHO' ? 'ASHA' : 'CHO'}
+                    </button>
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', fontWeight: '500' }}>
-                    कम्युनिटी हेल्थ ऑफिसर (CHO) कार्यक्षेत्र पोर्टल
+                    {currentRole === 'CHO'
+                      ? 'कम्युनिटी हेल्थ ऑफिसर (CHO Supervisor) कार्यक्षेत्र पोर्टल'
+                      : 'आशा कार्यकर्ता (ASHA Field Worker) ग्राम सर्वेक्षण एवं रेफरल पोर्टल'}
                   </div>
                 </div>
               </div>

@@ -5,13 +5,14 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Button, Card, Field, Input } from '../components/ui';
 import AyushmanFooter from '../components/AyushmanFooter';
-import { Stethoscope, UserCheck, Building2, KeyRound, ShieldCheck, Sparkles, Phone, CheckCircle2 } from 'lucide-react';
+import { Stethoscope, UserCheck, Building2, KeyRound, ShieldCheck, Sparkles, Phone, CheckCircle2, Users } from 'lucide-react';
 import { WhatsAppIcon } from '../components/Icons';
 
 const TABS = [
   { key: 'patient', label: 'Patient Portal', icon: UserCheck },
   { key: 'doctor', label: 'Doctor Portal', icon: Stethoscope },
   { key: 'admin', label: 'Hospital Staff', icon: Building2 },
+  { key: 'asha', label: 'ASHA Worker', icon: Users },
 ];
 
 export default function Login() {
@@ -89,10 +90,87 @@ export default function Login() {
           {role === 'admin' && <AdminLogin />}
           {role === 'patient' && <OtpAuthFlow kind="patient" />}
           {role === 'doctor' && <OtpAuthFlow kind="doctor" />}
+          {role === 'asha' && <AshaLoginFlow />}
         </div>
       </div>
       <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '16px 20px', borderTop: '1px solid #E2E8F0', backgroundColor: '#ffffff' }} />
     </div>
+  );
+}
+
+/** Dedicated ASHA Worker & Community Health Officer Flow */
+function AshaLoginFlow() {
+  const navigate = useNavigate();
+
+  return (
+    <Card className="stack-lg">
+      <div style={{ textAlign: 'center', padding: '12px 0 6px' }}>
+        <div
+          style={{
+            width: '54px',
+            height: '54px',
+            borderRadius: '16px',
+            backgroundColor: '#DCFCE7',
+            color: '#15803D',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '12px',
+            boxShadow: '0 4px 12px rgba(21, 128, 61, 0.15)',
+          }}
+        >
+          <Users size={28} />
+        </div>
+        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#15803D', margin: '0 0 6px' }}>
+          ASHA &amp; CHO Community Hub
+        </h2>
+        <p style={{ fontSize: '13.5px', color: '#64748B', margin: 0, lineHeight: 1.5 }}>
+          Household village surveys, maternal HRP tracking, offline rural care sync, and remote CHO teleconsultation reviews.
+        </p>
+      </div>
+
+      <div
+        style={{
+          backgroundColor: '#F0FDF4',
+          border: '1.5px solid #86EFAC',
+          borderRadius: '12px',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: '700', fontSize: '13.5px' }}>
+          <ShieldCheck size={16} />
+          <span>Accredited Healthcare Worker Console</span>
+        </div>
+        <div style={{ fontSize: '12.5px', color: '#15803D', lineHeight: 1.5 }}>
+          Authorized for ASHA Workers, ANMs, and Community Health Officers (CHOs). No complex passwords required.
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        className="full-width"
+        onClick={() => navigate('/asha')}
+        style={{
+          backgroundColor: '#15803D',
+          color: '#ffffff',
+          fontWeight: '700',
+          padding: '13px',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)',
+          cursor: 'pointer',
+        }}
+      >
+        <Sparkles size={16} />
+        <span>Open ASHA &amp; CHO Workspace &rarr;</span>
+      </Button>
+    </Card>
   );
 }
 
