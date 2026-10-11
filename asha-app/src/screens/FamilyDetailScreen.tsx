@@ -48,7 +48,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
   onSelectMember,
 }) => {
   const { families, members, childVaccinations, addMember, markFamilyVisited } = useOfflineData();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Locate the family
   const currentFamily =
@@ -239,8 +239,8 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
             <UserCheck size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
             <Text style={styles.markVisitedBtnText}>
               {currentFamily?.status === 'visited'
-                ? '✓ भेंट पूर्ण (प्राथमिकता बदलें)'
-                : 'भेंट की (Mark Visited)'}
+                ? (language === 'hi' ? '✓ भेंट की (प्राथमिकता बदलें)' : language === 'mr' ? '✓ भेट दिली (प्राधान्य बदला)' : '✓ Mark Visited (Update Priority)')
+                : (language === 'hi' ? 'भेंट की' : language === 'mr' ? 'भेट दिली' : 'Mark Visited')}
             </Text>
           </TouchableOpacity>
         </View>

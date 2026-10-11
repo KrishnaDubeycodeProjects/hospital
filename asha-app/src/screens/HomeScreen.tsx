@@ -55,6 +55,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [pregnancyFilter, setPregnancyFilter] = useState<'all' | 'due' | 'hrp' | 'vax'>('all');
   const [childFilter, setChildFilter] = useState<'all' | 'due' | 'growth'>('all');
   const [otherCategory, setOtherCategory] = useState<'fp' | 'pnc' | 'adolescent'>('fp');
+  const [allRegisterFilter, setAllRegisterFilter] = useState<'all' | 'pregnancy' | 'child' | 'other'>('all');
 
   // Map local storage families to HouseholdDot items for the Suchi Grid
   const dots: HouseholdDot[] = families.map((fam) => {
@@ -285,6 +286,198 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* ============================================================== */}
         {/* VIEW MODE 2: OFFICIAL REGISTER BENEFICIARY DUE LISTS           */}
         {/* ============================================================== */}
+        {viewMode === 'dueList' && activeSection === 'All' && (
+          <View>
+            {/* Filter Pills */}
+            <View style={styles.filterPillsRow}>
+              {[
+                { key: 'all', label: `सभी (${pregnantWomen.length + children.length + otherBeneficiaries.length})` },
+                { key: 'pregnancy', label: `गर्भवती (${pregnantWomen.length})` },
+                { key: 'child', label: `बच्चे (${children.length})` },
+                { key: 'other', label: `अन्य (${otherBeneficiaries.length})` },
+              ].map((p) => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={[
+                    styles.pillBtn,
+                    allRegisterFilter === p.key && styles.pillBtnActive,
+                  ]}
+                  onPress={() => setAllRegisterFilter(p.key as any)}
+                >
+                  <Text
+                    style={[
+                      styles.pillText,
+                      allRegisterFilter === p.key && styles.pillTextActive,
+                    ]}
+                  >
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.listHeaderTitle}>
+                समस्त रजिस्टर ड्यू सूची ({pregnantWomen.length + children.length + otherBeneficiaries.length})
+              </Text>
+              <Text style={styles.listHeaderBadge}>पंजी 18 अ / ब / स</Text>
+            </View>
+
+            {/* PREGNANT WOMEN */}
+            {(allRegisterFilter === 'all' || allRegisterFilter === 'pregnancy') &&
+              pregnantWomen.map((woman, idx) => {
+                const fam = getFamilyInfo(woman.familyUnitId);
+                const husbandName = woman.fatherOrHusbandName || fam.head;
+                const survey = surveys.find((s) => s.familyMemberId === woman.id);
+                const answers = survey?.answers || {};
+
+                return (
+                  <View key={`all-preg-${woman.id}`} style={styles.cleanCard}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.avatarCircle, { backgroundColor: '#FEE2E2' }]}>
+                        <Text style={[styles.avatarText, { color: '#DC2626' }]}>🤰</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={styles.cleanCardTitle}>{woman.name}</Text>
+                          <Text style={styles.cleanCardAge}>, {woman.age}</Text>
+                        </View>
+                        <Text style={styles.cleanCardSub}>
+                          {fam.head}: {husbandName} • {fam.house}
+                        </Text>
+                      </View>
+
+                      {woman.isHrp ? (
+                        <View style={styles.hrpBadge}>
+                          <ShieldAlert size={12} color="#DC2626" style={{ marginRight: 3 }} />
+                          <Text style={styles.hrpBadgeText}>HRP</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.dueBadge}>
+                          <Text style={styles.dueBadgeText}>
+                            {answers.ancVisitNumber || 'ANC 2'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.openFormBtn}
+                      onPress={() => onOpenPregnancyForm(woman, woman.familyUnitId)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.openFormBtnText}>{t('fillForm')}</Text>
+                      <ArrowRight size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+
+            {/* CHILDREN */}
+            {(allRegisterFilter === 'all' || allRegisterFilter === 'child') &&
+              children.map((child, idx) => {
+                const fam = getFamilyInfo(child.familyUnitId);
+                const fatherName = child.fatherOrHusbandName || fam.head;
+                const ageMonths = child.age ? child.age * 12 : 6;
+                const dueVaccine = getDueVaccineForAge(ageMonths);
+
+                return (
+                  <View key={`all-child-${child.id}`} style={styles.cleanCard}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.avatarCircle, { backgroundColor: '#E0F2FE' }]}>
+                        <Text style={[styles.avatarText, { color: '#0369A1' }]}>👶</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={styles.cleanCardTitle}>{child.name}</Text>
+                          <Text style={styles.cleanCardAge}> ({ageMonths} माह)</Text>
+                        </View>
+                        <Text style={styles.cleanCardSub}>
+                          पिता: {fatherName} • {fam.house}
+                        </Text>
+                      </View>
+                      <View style={styles.childAgeBadge}>
+                        <Text style={styles.childAgeBadgeText}>{child.age || 1} वर्ष</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.vaccineDueNotice}>
+                      <Syringe size={14} color="#0284C7" style={{ marginRight: 6 }} />
+                      <Text style={styles.vaccineDueText} numberOfLines={1}>
+                        देय: {dueVaccine}
+                      </Text>
+                    </View>
+
+                    <View style={styles.cardButtonRow}>
+                      <TouchableOpacity
+                        style={styles.quickVaxBtn}
+                        onPress={async () => {
+                          await updateChildVaccine(child.id, 'Penta-1', 'Given');
+                          alert(`✓ ${child.name}`);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <CheckCircle size={15} color="#059669" style={{ marginRight: 5 }} />
+                        <Text style={styles.quickVaxText}>{t('vaxGiven')}</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.openFormBtnSmall}
+                        onPress={() => onOpenChildForm(child, child.familyUnitId)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.openFormBtnText}>{t('fillForm')}</Text>
+                        <ArrowRight size={14} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+
+            {/* OTHER BENEFICIARIES */}
+            {(allRegisterFilter === 'all' || allRegisterFilter === 'other') &&
+              otherBeneficiaries.map((member, idx) => {
+                const fam = getFamilyInfo(member.familyUnitId);
+
+                return (
+                  <View key={`all-other-${member.id}`} style={styles.cleanCard}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.avatarCircle, { backgroundColor: '#ECFDF5' }]}>
+                        <Text style={[styles.avatarText, { color: '#047857' }]}>🌸</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cleanCardTitle}>{member.name}</Text>
+                        <Text style={styles.cleanCardSub}>
+                          {member.gender === 'Female' ? t('female') : t('male')}, {member.age} • {fam.house}
+                        </Text>
+                      </View>
+                      <View style={styles.otherServiceBadge}>
+                        <Text style={styles.otherServiceBadgeText}>
+                          {otherCategory === 'fp'
+                            ? t('familyPlanning')
+                            : otherCategory === 'pnc'
+                            ? t('lactatingMother')
+                            : t('adolescentHealth')}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.openFormBtn}
+                      onPress={() =>
+                        onOpenOtherServiceForm(member, member.familyUnitId, otherCategory)
+                      }
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.openFormBtnText}>{t('fillForm')}</Text>
+                      <ArrowRight size={16} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+          </View>
+        )}
+
         {viewMode === 'dueList' && activeSection === 'Pregnancy' && (
           <View>
             {/* Filter Pills */}

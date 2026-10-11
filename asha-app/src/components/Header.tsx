@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
@@ -29,11 +29,15 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
 
   const currentLangLabel = language === 'hi' ? 'हिं' : language === 'mr' ? 'मरा' : 'EN';
 
+  const logoSource = Platform.OS === 'web'
+    ? { uri: '/aarogya_flow_icon_transparent.png' }
+    : require('../../assets/aarogya_flow_icon_transparent.png');
+
   return (
     <View style={styles.container}>
       <View style={styles.brandingRow}>
         <Image
-          source={require('../../assets/aarogya_flow_logo_hd.png')}
+          source={logoSource}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -101,37 +105,42 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    paddingTop: 12,
-    paddingBottom: 10,
-    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    minHeight: 52,
   },
   brandingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 1,
-    marginRight: 8,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6,
   },
   logo: {
-    width: 36,
-    height: 36,
-    marginRight: 8,
+    width: 32,
+    height: 32,
+    marginRight: 6,
+    flexShrink: 0,
   },
   titleCol: {
+    flex: 1,
+    minWidth: 0,
     justifyContent: 'center',
   },
   appTitle: {
-    fontSize: 16,
+    fontSize: 14.5,
     fontWeight: '800',
     color: Colors.textPrimary,
     letterSpacing: -0.3,
   },
   appSubtitle: {
-    fontSize: 9.5,
+    fontSize: 9,
     color: Colors.textSecondary,
     fontWeight: '500',
   },
@@ -145,13 +154,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F3F4F6',
-    paddingVertical: 4,
-    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    paddingHorizontal: 6,
     borderRadius: 12,
     gap: 3,
   },
   storageText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '600',
     color: '#D97706',
   },
@@ -159,12 +168,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primaryLight,
-    paddingVertical: 4,
-    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    paddingHorizontal: 6,
     borderRadius: 12,
   },
   roleText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: Colors.primary,
     marginLeft: 2,
@@ -175,13 +184,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    paddingVertical: 4,
+    paddingVertical: 3.5,
     paddingHorizontal: 6,
     borderRadius: 12,
     gap: 3,
   },
   langText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: Colors.primary,
   },

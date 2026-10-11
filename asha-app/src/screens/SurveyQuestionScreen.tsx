@@ -16,8 +16,10 @@ import {
   CheckCircle,
   ArrowRight,
   Check,
+  Mic,
+  FileText,
 } from 'lucide-react-native';
-import { SpeechEngine } from '../voice/speechEngine';
+import { SpeechEngine, VoiceRecognition } from '../voice/speechEngine';
 import { useLanguage } from '../context/LanguageContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 
@@ -249,6 +251,33 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [clinicalNote, setClinicalNote] = useState('');
+
+  const toggleVoiceRecognition = () => {
+    if (isListening) {
+      VoiceRecognition.stop();
+      setIsListening(false);
+    } else {
+      setIsListening(true);
+      const speechLang = localeCode === 'en' ? 'en-IN' : localeCode === 'mr' ? 'mr-IN' : 'hi-IN';
+      VoiceRecognition.start(
+        speechLang,
+        (transcript) => {
+          setIsListening(false);
+          setClinicalNote((prev) => {
+            const updated = prev ? `${prev} ${transcript}` : transcript;
+            setAnswers((a) => ({ ...a, clinicalNote: updated, remarks: updated }));
+            return updated;
+          });
+        },
+        (err) => {
+          setIsListening(false);
+          console.warn('Voice recognition error:', err);
+        }
+      );
+    }
+  };
 
   const speak = (text: string) => {
     if (!ttsEnabled) return;
@@ -285,6 +314,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         ashaWorkerPhone: '9876543210',
         answers: {
           ...answers,
+          clinicalNote,
+          remarks: clinicalNote || answers.remarks || '',
           recordedAt: new Date().toISOString(),
           memberName,
         },
@@ -532,6 +563,49 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
                 {currentQ.helperText && (
                   <Text style={styles.helperNotice}>ℹ️ {currentQ.helperText}</Text>
                 )}
+              </View>
+            )}
+
+            {/* OPTIONAL CLINICAL NOTE WITH LIVE VOICE-TO-TEXT ON LAST QUESTION */}
+            {isLastQuestion && (
+              <View style={styles.voiceNoteCard}>
+                <View style={styles.voiceNoteHeader}>
+                  <View style={styles.voiceNoteTitleRow}>
+                    <FileText size={16} color={Colors.primary} style={{ marginRight: 6 }} />
+                    <Text style={styles.voiceNoteTitle}>
+                      टिप्पणी जोड़ें / Add Note (वैकल्पिक)
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.voiceMicBtn, isListening && styles.voiceMicBtnActive]}
+                    onPress={toggleVoiceRecognition}
+                    activeOpacity={0.8}
+                  >
+                    <Mic size={15} color={isListening ? '#FFFFFF' : Colors.primary} />
+                    <Text style={[styles.voiceMicBtnText, isListening && styles.voiceMicBtnTextActive]}>
+                      {isListening ? 'सुन रहे हैं... रोकें' : 'बोलकर लिखें'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.voiceNoteSub}>
+                  {isListening
+                    ? '🎙️ बोलिए... आपकी आवाज़ को टेक्स्ट में बदला जा रहा है।'
+                    : 'माइक दबाकर बोलें या यहाँ लिखें (वैकल्पिक टिप्पणी)'}
+                </Text>
+
+                <TextInput
+                  style={styles.voiceNoteInput}
+                  value={clinicalNote}
+                  onChangeText={(txt) => {
+                    setClinicalNote(txt);
+                    setAnswers((prev) => ({ ...prev, clinicalNote: txt, remarks: txt }));
+                  }}
+                  placeholder="यहाँ अपनी टिप्पणी बोलें या टाइप करें (वैकल्पिक)..."
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={3}
+                />
               </View>
             )}
           </View>
@@ -889,5 +963,66 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  voiceNoteCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  voiceNoteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  voiceNoteTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 6,
+  },
+  voiceNoteTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  voiceMicBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 16,
+    gap: 4,
+  },
+  voiceMicBtnActive: {
+    backgroundColor: '#EF4444',
+  },
+  voiceMicBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  voiceMicBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  voiceNoteSub: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  voiceNoteInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 10,
+    fontSize: 13,
+    color: Colors.textPrimary,
+    minHeight: 64,
+    textAlignVertical: 'top',
   },
 });
