@@ -1,28 +1,15 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { hospitalApi, locationApi, otpApi, queueApi, familyApi, setToken, warmUpBackend } from '../api/client';
+import { hospitalApi, locationApi, otpApi, queueApi, familyApi, setToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { cleanPhone, formatApproxDistance } from '../utils/helpers';
 import AyushmanFooter from '../components/AyushmanFooter';
 import {
-  MessageCircle,
-  ExternalLink,
-  ShieldCheck,
-  Clock,
-  MapPin,
-  Building2,
-  CheckCircle2,
-  User,
-  ArrowRight,
-  ArrowLeft
-} from 'lucide-react';
-import {
   POPULAR_DEPARTMENT_KEYS,
   getDepartmentVisual,
   DepartmentIcon,
 } from '../utils/departmentVisuals';
-
 
 function getFamilyAvatarVisual(member, index = 0) {
   const rel = (member?.relationship || '').toLowerCase();
@@ -63,12 +50,10 @@ export default function Book() {
   const { login, patient } = useAuth();
 
   useEffect(() => {
-    warmUpBackend();
     if (tokenParam) {
       setToken('PATIENT', tokenParam);
     }
   }, [tokenParam]);
-
 
   // Flow State: 1. 'department' -> 2. 'family' -> 3. 'confirm'
   const [step, setStep] = useState(() => (params.get('category') && hospitalIdParam ? 'family' : 'department'));
@@ -613,74 +598,6 @@ export default function Book() {
           <div style={{ width: '38px' }} />
         </header>
 
-        {/* WhatsApp Forced Booking Callout Banner */}
-        <div
-          style={{
-            margin: '12px 16px 4px',
-            backgroundColor: '#F0FDF4',
-            border: '1.5px solid #008069',
-            borderRadius: '10px',
-            padding: '11px 14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            flexWrap: 'wrap',
-            boxShadow: '0 2px 6px rgba(0, 128, 105, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '8px',
-                backgroundColor: '#008069',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <MessageCircle size={18} strokeWidth={2.4} />
-            </div>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: '800', color: '#043C2C' }}>
-                सीधे WhatsApp पर 30s में टोकन बनाएं
-              </div>
-              <div style={{ fontSize: '11.5px', color: '#15803D' }}>
-                बिना फॉर्म भरे संदेश भेजें: +91 91201 23877
-              </div>
-            </div>
-          </div>
-
-          <a
-            href="https://wa.me/919120123877?text=Hi%2C%20I%20want%20to%20book%20an%20OPD%20appointment"
-            target="_blank"
-            rel="noopener noreferrer"
-            onMouseEnter={() => warmUpBackend()}
-            onClick={() => warmUpBackend()}
-            style={{
-              backgroundColor: '#008069',
-              color: '#ffffff',
-              textDecoration: 'none',
-              borderRadius: '6px',
-              padding: '7px 14px',
-              fontSize: '12px',
-              fontWeight: '700',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 1px 3px rgba(0, 128, 105, 0.2)',
-            }}
-          >
-            <MessageCircle size={14} />
-            <span>व्हाट्सएप खोलें</span>
-            <ExternalLink size={12} />
-          </a>
-        </div>
-
         {/* ========================================================================= */}
         {/* STEP 1: SELECT DEPARTMENT                                                 */}
         {/* ========================================================================= */}
@@ -701,17 +618,16 @@ export default function Book() {
               {/* Selected Hospital Card */}
               <div
                 style={{
-                  backgroundColor: '#F8FAF9',
-                  border: '1.5px solid #CBD5E1',
-                  borderRadius: '12px',
+                  backgroundColor: '#F0F7FF',
+                  border: '1px solid #D6E8FC',
+                  borderRadius: '16px',
                   padding: '14px 16px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '14px',
-                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                  boxShadow: '0 2px 8px rgba(2, 132, 199, 0.04)',
                 }}
               >
-
                 <div
                   style={{
                     width: '58px',
@@ -906,18 +822,18 @@ export default function Book() {
                           type="button"
                           onClick={() => setSelectedDept(dept.fullLabel)}
                           style={{
-                            backgroundColor: active ? '#ECFDF5' : '#ffffff',
-                            border: active ? '2px solid #059669' : '1.5px solid #CBD5E1',
-                            borderRadius: '10px',
-                            padding: '10px 10px',
+                            backgroundColor: active ? '#F0FDF4' : '#ffffff',
+                            border: active ? '2px solid #00A884' : '1px solid #E2E8F0',
+                            borderRadius: '14px',
+                            padding: '10px 8px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '6px',
                             textAlign: 'left',
                             cursor: 'pointer',
                             boxShadow: active
-                              ? '0 4px 12px rgba(5, 150, 105, 0.15)'
-                              : '0 1px 3px rgba(15, 23, 42, 0.04)',
+                              ? '0 4px 12px rgba(0, 168, 132, 0.12)'
+                              : '0 1px 3px rgba(0, 0, 0, 0.03)',
                             transition: 'all 0.15s ease',
                             width: '100%',
                             boxSizing: 'border-box',
@@ -995,12 +911,11 @@ export default function Book() {
                   <div
                     style={{
                       backgroundColor: '#ffffff',
-                      border: '1.5px solid #CBD5E1',
-                      borderRadius: '12px',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '16px',
                       overflow: 'hidden',
-                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
                     }}
-
                   >
                     {filteredAll.map((dept, idx) => {
                       const active = isSelectedDept(dept);
@@ -1092,10 +1007,10 @@ export default function Book() {
                 style={{
                   width: '100%',
                   padding: '13px 16px',
-                  borderRadius: '10px',
+                  borderRadius: '12px',
                   border: 'none',
-                  backgroundColor: selectedDept ? '#047857' : '#E2E8F0',
-                  color: selectedDept ? '#ffffff' : '#64748B',
+                  backgroundColor: selectedDept ? '#00A884' : '#E2E8F0',
+                  color: selectedDept ? '#ffffff' : '#94A3B8',
                   fontSize: '15px',
                   fontWeight: '700',
                   cursor: selectedDept ? 'pointer' : 'not-allowed',
@@ -1103,17 +1018,28 @@ export default function Book() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: selectedDept ? '0 4px 14px rgba(4, 120, 87, 0.25)' : 'none',
+                  boxShadow: selectedDept ? '0 4px 14px rgba(0, 168, 132, 0.25)' : 'none',
                   transition: 'all 0.2s ease',
                 }}
               >
                 <span>Continue</span>
-                <ArrowRight size={18} color={selectedDept ? '#ffffff' : '#64748B'} />
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={selectedDept ? '#ffffff' : '#94A3B8'}
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
               </button>
             </div>
           </>
         )}
-
 
         {/* ========================================================================= */}
         {/* STEP 2: FAMILY MEMBER SELECTION (REAL DATABASE POPULATED)                 */}
@@ -1476,16 +1402,16 @@ export default function Book() {
               <div
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1.5px solid #CBD5E1',
-                  borderRadius: '12px',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
                   padding: '16px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '12px',
-                  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
                 }}
               >
-                <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   Appointment Summary
                 </div>
 
@@ -1504,7 +1430,7 @@ export default function Book() {
                         color: '#059669',
                       }}
                     >
-                      <User size={18} color="#059669" />
+                      👤
                     </div>
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>
@@ -1554,11 +1480,8 @@ export default function Book() {
                       <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#0f172a' }}>
                         {selectedVisual.displayName}
                       </div>
-                      <div style={{ fontSize: '12.5px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span>{hospitalName}</span>
-                        <span>·</span>
-                        <MapPin size={12} color="#64748B" />
-                        <span>{formatApproxDistance(distanceKm)}</span>
+                      <div style={{ fontSize: '12.5px', color: '#64748b' }}>
+                        {hospitalName} · 📍 {formatApproxDistance(distanceKm)}
                       </div>
                     </div>
                   </div>
@@ -1588,7 +1511,7 @@ export default function Book() {
               style={{
                 flexShrink: 0,
                 backgroundColor: '#ffffff',
-                borderTop: '1px solid #CBD5E1',
+                borderTop: '1px solid #E2E8F0',
                 padding: '12px 16px 10px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1602,9 +1525,9 @@ export default function Book() {
                 style={{
                   width: '100%',
                   padding: '13px 16px',
-                  borderRadius: '10px',
+                  borderRadius: '12px',
                   border: 'none',
-                  backgroundColor: '#047857',
+                  backgroundColor: '#00A884',
                   color: '#ffffff',
                   fontSize: '15px',
                   fontWeight: '700',
@@ -1614,14 +1537,13 @@ export default function Book() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 14px rgba(4, 120, 87, 0.25)',
+                  boxShadow: '0 4px 14px rgba(0, 168, 132, 0.25)',
                   transition: 'all 0.15s ease',
                 }}
               >
                 <span>{submitting ? 'Generating Token…' : 'Generate OPD Token'}</span>
               </button>
             </div>
-
           </>
         )}
 

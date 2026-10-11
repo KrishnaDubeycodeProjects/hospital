@@ -1,10 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { RoleShell } from './components/Layout';
-import { warmUpBackend } from './api/client';
-import { MessageCircle } from 'lucide-react';
 
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -29,65 +27,11 @@ import DoctorReferrals from './pages/doctor/DoctorReferrals';
 import DoctorAccess from './pages/doctor/DoctorAccess';
 import DoctorPatients from './pages/doctor/DoctorPatients';
 
-function WhatsAppFloatingButton() {
-  const handleWarmup = () => {
-    warmUpBackend();
-  };
-
-  return (
-    <a
-      href="https://wa.me/919120123877?text=Hi%2C%20I%20want%20to%20book%20an%20OPD%20appointment"
-      target="_blank"
-      rel="noopener noreferrer"
-      onMouseEnter={handleWarmup}
-      onClick={handleWarmup}
-      title="Book OPD on WhatsApp (+91 91201 23877)"
-      aria-label="Book OPD token on WhatsApp"
-      style={{
-        position: 'fixed',
-        bottom: '22px',
-        right: '22px',
-        zIndex: 9999,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '8px',
-        backgroundColor: '#008069',
-        color: '#ffffff',
-        padding: '11px 18px',
-        borderRadius: '9999px',
-        fontSize: '13.5px',
-        fontWeight: '700',
-        textDecoration: 'none',
-        boxShadow: '0 4px 16px rgba(0, 128, 105, 0.35)',
-        border: '1.5px solid #25D366',
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-      }}
-      onMouseOver={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 128, 105, 0.45)';
-      }}
-      onMouseOut={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 128, 105, 0.35)';
-      }}
-    >
-      <MessageCircle size={18} strokeWidth={2.2} />
-      <span>व्हाट्सएप पर पर्ची बनाएं</span>
-    </a>
-  );
-}
-
 export default function App() {
-  useEffect(() => {
-    // Proactively pre-warm AWS Lambda JVM on page load so first interaction is < 2s
-    warmUpBackend();
-  }, []);
-
   return (
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <WhatsAppFloatingButton />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/book" element={<Book />} />
@@ -100,9 +44,6 @@ export default function App() {
             <Route path="/records-select" element={<HealthRecordsScreen />} />
             <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
 
-            {/* ASHA Gramin Swasthya Worker & Admin Routes */}
-            <Route path="/asha" element={<AshaAdminDashboard />} />
-            <Route path="/asha-worker" element={<AshaAdminDashboard />} />
             <Route path="/admin" element={<AshaAdminDashboard />} />
             <Route path="/admin/*" element={<AshaAdminDashboard />} />
 
@@ -133,4 +74,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

@@ -18,14 +18,12 @@
   --surface-sunken: #f8fafc;
   --surface-glass: rgba(255, 255, 255, 0.85);
   
-  --border: #cbd5e1;
-  --border-strong: #94a3b8;
-  --border-focus: #059669;
+  --border: #e2e8f0;
+  --border-focus: #38bdf8;
   
   --text: #0f172a;
-  --text-muted: #334155;
-  --text-light: #64748b;
-
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
   
   --success: #10b981;
   --success-bg: #ecfdf5;
