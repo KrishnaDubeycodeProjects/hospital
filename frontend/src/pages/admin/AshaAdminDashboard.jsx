@@ -240,7 +240,11 @@ export default function AshaAdminDashboard() {
           }}
         >
           {/* Logo & Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            onClick={() => navigate('/')}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+            title="मुख्य पृष्ठ पर जाएं (Go to Home)"
+          >
             <div
               style={{
                 width: '32px',
@@ -266,6 +270,7 @@ export default function AshaAdminDashboard() {
               </div>
             </div>
           </div>
+
 
           {/* Right Badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

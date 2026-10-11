@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Institute Admin - WhatsApp AI Bot Control & Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --slate:#1B2E25; --slate-2:#284537; --chalk:#E9EFE9;
+  --paper:#F8F9F5; --line:#E2E6DF; --ink:#171E27; --muted:#64748B;
+  --blue:#2563EB; --marigold:#D97706; --red:#DC2626; --green:#16A34A;
+  --bubble-in:#FFFFFF; --bubble-out:#DCFCE7;
+  --font:'Lexend',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--font);background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* Login */
+#login{min-height:100%;display:grid;place-items:center;padding:24px;background:var(--slate)}
+.login-box{background:#fff;width:100%;max-width:440px;padding:36px;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.25)}
+.login-box h1{margin:0 0 6px;font-weight:700;font-size:26px;color:var(--slate)}
+.login-box p{margin:0 0 24px;color:var(--muted);font-size:14px}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 4px;font-weight:500}
+input,select,textarea{width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);outline:none}
+textarea{min-height:120px;resize:vertical}
+.btn{border:0;border-radius:8px;padding:10px 18px;cursor:pointer;background:var(--blue);color:#fff;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:opacity .15s;text-decoration:none}
+.btn:hover{opacity:.92}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--marigold);color:#fff}
+.btn.danger{background:var(--red);color:#fff}
+.btn.success{background:var(--green);color:#fff}
+.btn.small{padding:6px 12px;font-size:13px}
+.err{color:var(--red);font-size:13px;margin-top:10px;min-height:18px}
+
+/* Shell */
+#app{display:none;height:100%;grid-template-columns:260px 1fr}
+aside{background:var(--slate);color:var(--chalk);padding:24px 16px;display:flex;flex-direction:column;gap:6px}
+aside .brand{font-weight:700;font-size:19px;padding:0 10px 20px;color:#fff;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:10px}
+aside .brand small{display:block;font-weight:400;font-size:12px;color:#94A3B8;margin-top:2px}
+aside button.nav{all:unset;cursor:pointer;padding:11px 14px;border-radius:10px;color:var(--chalk);display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:500;transition:background .15s}
+aside button.nav:hover{background:var(--slate-2)}
+aside button.nav.active{background:rgba(255,255,255,0.15);color:#fff;font-weight:600}
+aside button.nav:focus-visible{outline:2px solid var(--marigold)}
+.pill{font-size:11px;background:var(--marigold);color:#fff;border-radius:20px;padding:2px 8px;font-weight:700}
+.aside-action{margin:16px 4px 6px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1)}
+aside .foot{margin-top:auto;font-size:12px;color:#94A3B8;padding:14px 10px;border-top:1px solid rgba(255,255,255,0.1)}
+aside .foot button{all:unset;cursor:pointer;color:#fff;text-decoration:underline;margin-top:4px;display:inline-block}
+
+/* Header & Main */
+main{overflow:auto;padding:28px 36px;background:var(--paper)}
+.header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+main h2{font-weight:700;font-size:26px;margin:0 0 4px;color:var(--ink)}
+.sub{color:var(--muted);margin:0;font-size:14px}
+.header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+.status-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#DCFCE7;color:#15803D;border-radius:20px;font-size:12px;font-weight:600}
+.status-badge.live::before{content:'';display:inline-block;width:8px;height:8px;background:#16A34A;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.2)}}
+
+.webhook-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#EFF6FF;color:#1E40AF;border-radius:10px;font-size:12px;font-weight:500;border:1px solid #DBEAFE}
+.webhook-badge code{font-family:monospace;background:#DBEAFE;padding:2px 6px;border-radius:4px;font-size:11px}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.toolbar input,.toolbar select{width:auto;min-width:220px}
+
+/* Stats & Analytics */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+.stat{background:#fff;padding:20px;border:1px solid var(--line);border-radius:14px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
+.stat b{display:block;font-size:32px;font-weight:700;color:var(--ink);letter-spacing:-0.5px}
+.stat span{color:var(--muted);font-size:13px;font-weight:500}
+.stat.alert b{color:var(--marigold)}
+.stat.primary b{color:var(--blue)}
+.stat.success b{color:var(--green)}
+
+/* Funnel Pipeline */
+.pipeline{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;background:#fff;padding:18px;border-radius:14px;border:1px solid var(--line);margin-bottom:24px}
+.stage-card{text-align:center;padding:12px 8px;border-radius:10px;background:#F8FAFC}
+.stage-card .count{font-size:22px;font-weight:700;color:var(--blue)}
+.stage-card .lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+h3{font-size:16px;font-weight:700;margin:0 0 12px;color:var(--ink)}
+
+/* Tables */
+.tablewrap{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:13px;padding:12px 16px;border-bottom:1px solid var(--line);background:#F8FAFC;white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td select{width:auto;padding:6px 10px;border-radius:6px}
+.tag{display:inline-block;font-size:12px;padding:3px 10px;border-radius:20px;background:#EEF2FF;color:var(--blue);font-weight:600}
+.tag.ok{background:#DCFCE7;color:var(--green)}
+.tag.hold{background:#FEF3C7;color:#92400E}
+.tag.in{background:#E0F2FE;color:#0369A1}
+.tag.out{background:#DCFCE7;color:#15803D}
+.empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+
+/* Chats WhatsApp Live Inbox */
+.inbox{display:grid;grid-template-columns:330px 1fr;height:calc(100vh - 180px);min-height:500px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.03)}
+.threads{border-right:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column}
+.threads-search{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:14px 16px;font-size:14px}
+.thread-list{flex:1;overflow-y:auto}
+.thread{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+.thread:hover{background:#F8FAFC}
+.thread.active{background:#EFF6FF;border-left:4px solid var(--blue)}
+.thread .top{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}
+.thread .name{font-weight:600;color:var(--ink);font-size:14px}
+.thread .time{font-size:12px;color:var(--muted)}
+.thread .prev{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.convo{display:flex;flex-direction:column;min-width:0;height:100%}
+.convo header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff}
+.convo header .who b{display:block;font-size:16px}
+.convo header .who span{font-size:13px;color:var(--muted)}
+.convo header .actions{display:flex;gap:8px;align-items:center}
+.msgs{flex:1;overflow-y:auto;padding:20px;background:#ECE5DD;display:flex;flex-direction:column;gap:10px}
+.bubble{max-width:72%;padding:10px 14px;border-radius:12px;background:var(--bubble-in);font-size:14px;white-space:pre-wrap;word-wrap:break-word;box-shadow:0 1px 2px rgba(0,0,0,0.08);line-height:1.45}
+.bubble.out{align-self:flex-end;background:var(--bubble-out)}
+.bubble small{display:block;font-size:11px;color:#64748B;margin-top:4px;text-align:right}
+.banner{padding:10px 18px;background:#FEF3C7;color:#92400E;font-size:13px;font-weight:500;border-bottom:1px solid #FDE68A}
+
+/* Chat Input Bar */
+.chat-input-box{padding:12px 18px;background:#fff;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.chat-input-box input{flex:1;padding:12px 16px;border-radius:24px;border:1px solid var(--line)}
+
+/* Modal */
+dialog{border:0;border-radius:16px;padding:28px;width:min(580px,94vw);box-shadow:0 25px 50px -12px rgba(0,0,0,0.25)}
+dialog::backdrop{background:rgba(15,23,42,.5);backdrop-filter:blur(3px)}
+dialog h3{margin-top:0;font-size:20px}
+.row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1E293B;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9999;box-shadow:0 10px 15px -3px rgba(0,0,0,0.2)}
+#toast.show{opacity:1}
+
+@media (max-width:880px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  aside{flex-direction:row;overflow-x:auto;padding:12px}
+  aside .brand,aside .foot{display:none}
+  aside button.nav{white-space:nowrap;padding:8px 12px}
+  main{padding:18px}
+  .two{grid-template-columns:1fr}
+  .inbox{grid-template-columns:1fr;height:auto}
+  .threads{max-height:280px}
+  .msgs{min-height:360px}
+}
+</style>
+</head>
+<body>
+
+<section id="login">
+  <div class="login-box">
+    <h1>Institute Admin</h1>
+    <p>Sign in with your authorized admin credentials.</p>
+    <div id="keyBlock">
+      <label for="anonKey">Supabase Anon Key</label>
+      <input id="anonKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+    </div>
+    <label for="email">Admin Email</label>
+    <input id="email" type="email" placeholder="admin@example.com" autocomplete="username">
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="••••••••" autocomplete="current-password">
+    <div style="margin-top:22px"><button class="btn" id="loginBtn" style="width:100%;justify-content:center;padding:12px">Sign In to Dashboard</button></div>
+    <div class="err" id="loginErr"></div>
+  </div>
+</section>
+
+<div id="app">
+  <aside>
+    <div class="brand">Institute Admin<small>WhatsApp AI Bot Engine</small></div>
+    <button class="nav active" data-view="overview">📊 Overview & Analytics</button>
+    <button class="nav" data-view="chats">💬 WhatsApp Chats <span class="pill" id="takeoverCount" hidden>0</span></button>
+    <button class="nav" data-view="leads">🎯 Student Leads</button>
+    <button class="nav" data-view="appointments">📅 Appointments</button>
+    <button class="nav" data-view="payments">💳 Payments (Simulation)</button>
+    <button class="nav" data-view="events">🎪 Campus Events</button>
+    <button class="nav" data-view="kb">📚 Knowledge Base</button>
+    
+    <a href="/asha" target="_blank" class="nav" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;color:#86EFAC;background:rgba(22,163,74,0.18);border:1px solid rgba(134,239,172,0.35);margin-top:6px;padding:10px 14px;border-radius:10px;">
+      <span>👩‍⚕️ ASHA Gramin Portal</span>
+      <span class="pill" style="background:#16A34A">LIVE ↗</span>
+    </a>
+    <a href="/find-hospital" target="_blank" class="nav" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;color:#93C5FD;background:rgba(37,99,235,0.15);border:1px solid rgba(147,197,253,0.3);margin-top:4px;padding:10px 14px;border-radius:10px;">
+      <span>🏥 OPD Booking Portal</span>
+      <span class="pill" style="background:#2563EB">WEB ↗</span>
+    </a>
+
+    <div class="aside-action">
+      <button class="btn warn small" id="asideTestWebhook" style="width:100%;justify-content:center">⚡ Test WhatsApp Webhook</button>
+    </div>
+
+    <div class="foot">
+      <span id="whoami">Admin User</span><br>
+      <button id="logoutBtn">Sign Out</button>
+    </div>
+  </aside>
+
+
+  <main id="view"></main>
+</div>
+
+<!-- Modal Dialog -->
+<dialog id="modal"></dialog>
+<div id="toast" role="status"></div>
+
+<script>
+/* ====== CONFIGURATION ====== */
+const SUPABASE_URL = 'https://msxfrobklfeyadzojbam.supabase.co';
+const INSTITUTE_ID = 'a0000000-0000-0000-0000-000000000001';
+const META_PHONE_NUMBER_ID = '1256898587514081';
+const META_ACCESS_TOKEN = 'EAAZBJiGD7dAgBSsh9oOickM9fn2DPIwRid50HXV0uk3ZBClOjAFuFVKZCvQEOrLX42nbta8mDIthtwBudPTXkzwSSRoKnQOOF74pxPtftBDU7vROQAZArVZB79MHXjt4R4eYAwEk4vKbZBw8E2bjUgDeUf2maVnpKg3g1FPvlZCEMt854LtAUyYZABQO4SKxbPOCfjpIZCh9FCGBZCXVwtqUGGJVZCMCNLMJDL9Tsy3N9YA72T4LXr66PbQsf9sjfuiLgJPHtJzR7teO2iOwjv2fXf02lviCwZDZD';
+
+let n8nWebhookUrl = localStorage.getItem('n8n_webhook_url') || 'http://localhost:5678/webhook/whatsapp-meta-ingress';
+let n8nPaymentWebhookUrl = localStorage.getItem('n8n_payment_webhook_url') || 'http://localhost:5678/webhook/razorpay-webhook';
+
+const LEAD_STAGES = ['NEW','QUALIFYING','QUALIFIED','COUNSELING','APPLIED','ADMITTED','LOST'];
+const APPT_STATUSES = ['REQUESTED','CONFIRMED','COMPLETED','CANCELLED','NO_SHOW'];
+
+/* ====== Helpers ====== */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = d => d ? new Date(d).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+const digits = p => String(p||'').replace(/\D/g,'');
+const inr = n => '₹' + Number(n||0).toLocaleString('en-IN');
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}
+function store(k,v){try{v===undefined?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
+function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+
+let sb = null;
+let hasBackend = false;
+let activePollInterval = null;
+
+function makeClient(key){
+  sb = supabase.createClient(SUPABASE_URL, key);
+}
+
+/* ====== Initialization: Auto-detect Host or Supabase ====== */
+(async function init(){
+  try {
+    const res = await fetch('/api/health');
+    if(res.ok){
+      const data = await res.json();
+      hasBackend = true;
+      if(data.n8n_webhook) n8nWebhookUrl = data.n8n_webhook;
+      if(data.payment_webhook) n8nPaymentWebhookUrl = data.payment_webhook;
+      enterApp({ user: { email: 'admin@hospital-institute.edu' } });
+      return;
+    }
+  } catch(e) {
+    // No local backend server, fall back to Supabase client
+  }
+
+  const key = load('sb_anon_key');
+  if(key){
+    $('#keyBlock').style.display='none';
+    makeClient(key);
+    const { data } = await sb.auth.getSession();
+    if(data.session) return enterApp(data.session);
+  }
+})();
+
+$('#loginBtn').onclick = async () => {
+  $('#loginErr').textContent='';
+  let key = load('sb_anon_key') || $('#anonKey').value.trim();
+  if(!key) return $('#loginErr').textContent='Please provide your Supabase Anon Key.';
+  makeClient(key);
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('#email').value.trim(), password: $('#password').value });
+  if(error) return $('#loginErr').textContent = error.message;
+  store('sb_anon_key', key);
+  enterApp(data.session);
+};
+$('#password').addEventListener('keydown', e => { if(e.key==='Enter') $('#loginBtn').click(); });
+$('#logoutBtn').onclick = async () => {
+  if(activePollInterval) clearInterval(activePollInterval);
+  if(sb) await sb.auth.signOut();
+  location.reload();
+};
+
+$('#asideTestWebhook').onclick = openWebhookSimulatorModal;
+
+function enterApp(session){
+  $('#login').style.display='none';
+  $('#app').style.display='grid';
+  $('#whoami').textContent = session.user.email;
+  go('overview');
+  refreshTakeoverPill();
+  setInterval(refreshTakeoverPill, 10000);
+}
+
+document.querySelectorAll('button.nav').forEach(b => b.onclick = () => go(b.dataset.view));
+function go(v){
+  if(activePollInterval){ clearInterval(activePollInterval); activePollInterval = null; }
+  document.querySelectorAll('button.nav').forEach(b => b.classList.toggle('active', b.dataset.view===v));
+  ({overview, chats, leads, appointments, payments, events, kb})[v]();
+}
+
+async function q(promise){
+  const { data, error } = await promise;
+  if(error){ toast('Error: '+error.message); console.error(error); return null; }
+  return data;
+}
+
+/* ====== Webhook Simulator Modal ====== */
+function openWebhookSimulatorModal(defaultPhone='', defaultText=''){
+  const m = $('#modal');
+  m.innerHTML = `
+    <h3>⚡ Send Simulated WhatsApp Message to n8n Webhook</h3>
+    <p class="sub" style="margin-bottom:16px">This dispatches a real Meta WhatsApp webhook payload directly to n8n (<code>${esc(n8nWebhookUrl)}</code>). n8n will process it via Google Gemini, log the message, and update student records.</p>
+    
+    <label for="simPhone">Student WhatsApp Phone Number</label>
+    <input id="simPhone" value="${esc(defaultPhone || '919876543210')}" placeholder="e.g. 919876543210">
+
+    <label for="simName">Student Name</label>
+    <input id="simName" value="Rahul Sharma" placeholder="e.g. Rahul Sharma">
+
+    <label for="simText">Message Content</label>
+    <textarea id="simText" style="min-height:90px" placeholder="e.g. Hi, what are the fees and eligibility for B.Tech in Computer Science?">${esc(defaultText || 'Hi, can you tell me the fees and admission process for B.Tech Computer Science?')}</textarea>
+
+    <label for="simWebhookUrl">n8n Webhook Target URL</label>
+    <input id="simWebhookUrl" value="${esc(n8nWebhookUrl)}">
+
+    <div class="row">
+      <button class="btn ghost" id="simCancel">Cancel</button>
+      <button class="btn" id="simSend">Send to n8n Webhook</button>
+    </div>
+  `;
+  m.showModal();
+  $('#simCancel').onclick = () => m.close();
+  $('#simSend').onclick = async () => {
+    const phone = $('#simPhone').value.trim();
+    const name = $('#simName').value.trim();
+    const text = $('#simText').value.trim();
+    const url = $('#simWebhookUrl').value.trim();
+    if(!phone || !text) return toast('Phone number and message cannot be empty');
+
+    n8nWebhookUrl = url;
+    store('n8n_webhook_url', url);
+
+    toast('Dispatching payload to n8n webhook…');
+
+    if(hasBackend){
+      try {
+        const resp = await fetch('/api/webhook/whatsapp', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ phone, name, message: text, webhook_url: url })
+        });
+        const rdata = await resp.json();
+        if(resp.ok){
+          toast('✅ Delivered to n8n Webhook! Bot is responding...');
+          m.close();
+          setTimeout(() => { if($('button.nav.active').dataset.view==='chats') openThread(digits(phone)); }, 1200);
+        } else {
+          toast('Error: ' + (rdata.error || 'Failed to dispatch to n8n'));
+        }
+      } catch(err) {
+        toast('Dispatch error: ' + err.message);
+      }
+    } else {
+      // Direct browser dispatch to n8n
+      const payload = {
+        object: "whatsapp_business_account",
+        entry: [{
+          id: "1824393072056577",
+          changes: [{
+            value: {
+              messaging_product: "whatsapp",
+              metadata: { display_phone_number: "+15551958925", phone_number_id: META_PHONE_NUMBER_ID },
+              contacts: [{ profile: { name: name }, wa_id: phone }],
+              messages: [{
+                from: phone,
+                id: "wamid.test_" + Date.now(),
+                timestamp: "" + Math.floor(Date.now()/1000),
+                text: { body: text },
+                type: "text"
+              }]
+            },
+            field: "messages"
+          }]
+        }]
+      };
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+          mode: 'no-cors'
+        });
+        toast('Message sent to n8n! Workflow running.');
+        m.close();
+      } catch(e) {
+        toast('Failed to reach webhook: ' + e.message);
+      }
+    }
+  };
+}
+
+/* ====== Overview & Complete Analytics ====== */
+async function overview(){
+  $('#view').innerHTML = `
+    <div class="header-row">
+      <div>
+        <h2>WhatsApp Bot Analytics & Control</h2>
+        <p class="sub">Complete real-time analytics synced live with n8n workflow and Supabase</p>
+      </div>
+      <div class="header-actions">
+        <div class="webhook-badge">
+          <span>n8n Webhook:</span>
+          <code>${esc(n8nWebhookUrl)}</code>
+          <button class="btn ghost small" id="editWebhookBtn" style="padding:2px 8px;font-size:11px">Edit</button>
+        </div>
+        <button class="btn warn small" id="ovSimulateBtn">⚡ Test Webhook</button>
+        <div class="status-badge live">🟢 Live WhatsApp Sync Active</div>
+      </div>
+    </div>
+
+    <!-- Top Key Metrics Cards -->
+    <div class="stats" id="stats"><div class="empty">Loading analytics…</div></div>
+
+    <!-- Funnel Pipeline -->
+    <h3>🎯 Lead Admission Pipeline (WhatsApp Inquiries)</h3>
+    <div class="pipeline" id="pipeline"><div class="empty">Calculating funnel…</div></div>
+
+    <!-- Split View: Top Inquired Programs & Live WhatsApp Inbound Activity -->
+    <div class="two">
+      <div>
+        <h3>🎓 Top Programs Inquired by Students</h3>
+        <div class="tablewrap" id="ovPrograms"><div class="empty">Analyzing student inquiries…</div></div>
+      </div>
+      <div>
+        <h3>⚡ Real-time Inbound WhatsApp Stream</h3>
+        <div class="tablewrap" id="ovInboundStream"><div class="empty">Listening for WhatsApp messages…</div></div>
+      </div>
+    </div>
+
+    <div class="two" style="margin-top:24px">
+      <div>
+        <h3>Newest Leads Captured</h3>
+        <div class="tablewrap" id="ovLeads"><div class="empty">Loading leads…</div></div>
+      </div>
+      <div>
+        <h3>Upcoming Counseling Appointments</h3>
+        <div class="tablewrap" id="ovAppts"><div class="empty">Loading appointments…</div></div>
+      </div>
+    </div>`;
+
+  $('#editWebhookBtn').onclick = () => {
+    const u = prompt('Enter n8n WhatsApp Webhook URL:', n8nWebhookUrl);
+    if(u && u.trim()){
+      n8nWebhookUrl = u.trim();
+      store('n8n_webhook_url', n8nWebhookUrl);
+      toast('Webhook URL updated');
+      overview();
+    }
+  };
+  $('#ovSimulateBtn').onclick = () => openWebhookSimulatorModal();
+
+  if(hasBackend){
+    const res = await fetch('/api/analytics');
+    const data = await res.json();
+    
+    // 1. Stats
+    $('#stats').innerHTML = [
+      ['Total WhatsApp Messages', data.total_messages || 0, 'primary'],
+      ['Inbound Messages (Students)', data.inbound_messages || 0, 'success'],
+      ['Outbound Bot / Counselor', data.outbound_messages || 0, ''],
+      ['Unique Students Contacted', data.unique_students || 0, 'primary'],
+      ['Counselor Takeovers Active', data.active_takeovers || 0, (data.active_takeovers > 0 ? 'alert' : '')],
+      ['Appointments to Confirm', data.pending_appts || 0, (data.pending_appts > 0 ? 'alert' : '')],
+      ['Fees Collected (Simulation)', inr(data.fees_collected), 'primary']
+    ].map(([l,v,c])=>`<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join('');
+
+    // 2. Pipeline
+    const stages = data.leads_by_stage || {};
+    $('#pipeline').innerHTML = LEAD_STAGES.map(st => `
+      <div class="stage-card">
+        <div class="count">${stages[st] || 0}</div>
+        <div class="lbl">${esc(st)}</div>
+      </div>`).join('');
+
+    // 3. Top Programs
+    const progs = data.top_programs || [];
+    $('#ovPrograms').innerHTML = progs.length ? `
+      <table>
+        <tr><th>Program Name</th><th>Interested Students</th></tr>
+        ${progs.map(p=>`<tr><td><b>${esc(p.prog)}</b></td><td><span class="tag">${p.count} inquiry</span></td></tr>`).join('')}
+      </table>` : '<div class="empty">No program inquiries recorded yet.</div>';
+
+    // 4. Inbound Stream
+    const stream = data.recent_inbound || [];
+    $('#ovInboundStream').innerHTML = stream.length ? `
+      <table>
+        <tr><th>Phone</th><th>Message Preview</th><th>Time</th></tr>
+        ${stream.map(m=>`<tr><td><b>+${esc(m.phone)}</b></td><td>${esc((m.content||'').slice(0,50))}${(m.content||'').length>50?'…':''}</td><td>${fmt(m.received_at)}</td></tr>`).join('')}
+      </table>` : '<div class="empty">No inbound messages yet.</div>';
+
+    // 5. Leads & Appts
+    const [lRes, aRes] = await Promise.all([fetch('/api/leads'), fetch('/api/appointments')]);
+    const leadsList = await lRes.json();
+    const apptsList = await aRes.json();
+
+    $('#ovLeads').innerHTML = leadsList.length ? `
+      <table>
+        <tr><th>Name</th><th>Program</th><th>Stage</th></tr>
+        ${leadsList.slice(0,6).map(r=>`<tr><td><b>${esc(r.name||r.phone)}</b></td><td>${esc(r.program||'—')}</td><td><span class="tag">${esc(r.stage)}</span></td></tr>`).join('')}
+      </table>` : '<div class="empty">No leads captured yet.</div>';
+
+    $('#ovAppts').innerHTML = apptsList.length ? `
+      <table>
+        <tr><th>Phone</th><th>Slot</th><th>Status</th></tr>
+        ${apptsList.slice(0,6).map(r=>`<tr><td><b>${esc(r.phone)}</b></td><td>${fmt(r.requested_at)}</td><td><span class="tag">${esc(r.status)}</span></td></tr>`).join('')}
+      </table>` : '<div class="empty">No upcoming appointments.</div>';
+
+  } else {
+    // Supabase JS Direct Client
+    const today = new Date(); today.setHours(0,0,0,0); const iso = today.toISOString();
+    const cnt = t => sb.from(t).select('*',{count:'exact',head:true}).eq('institute_id',INSTITUTE_ID);
+    
+    const [leadsAll, leadsToday, msgsToday, apptReq, takeovers, paid, allLeads] = await Promise.all([
+      cnt('leads'), cnt('leads').gte('created_at',iso), cnt('message_logs').eq('direction','inbound').gte('received_at',iso),
+      cnt('appointments').eq('status','REQUESTED'), cnt('sessions').eq('is_human_takeover',true),
+      sb.from('payments').select('amount').eq('institute_id',INSTITUTE_ID).eq('status','captured'),
+      sb.from('leads').select('stage').eq('institute_id',INSTITUTE_ID)
+    ]);
+
+    const paidSum = (paid.data||[]).reduce((s,r)=>s+Number(r.amount||0),0);
+    $('#stats').innerHTML = [
+      ['Total Captured Leads', leadsAll.count || 0, 'primary'],
+      ['New Leads Today', leadsToday.count || 0, ''],
+      ['Inbound Messages Today', msgsToday.count || 0, ''],
+      ['Appointments to Confirm', apptReq.count || 0, (apptReq.count > 0 ? 'alert' : '')],
+      ['Chats Waiting for Counselor', takeovers.count || 0, (takeovers.count > 0 ? 'alert' : '')],
+      ['Fees Collected (Simulation)', inr(paidSum), 'primary']
+    ].map(([l,v,c])=>`<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join('');
+
+    const stageCounts = {};
+    LEAD_STAGES.forEach(s => stageCounts[s] = 0);
+    (allLeads.data||[]).forEach(l => { const st = l.stage || 'NEW'; stageCounts[st] = (stageCounts[st] || 0) + 1; });
+    $('#pipeline').innerHTML = LEAD_STAGES.map(st => `
+      <div class="stage-card">
+        <div class="count">${stageCounts[st]}</div>
+        <div class="lbl">${esc(st)}</div>
+      </div>`).join('');
+
+    const nl = await q(sb.from('leads').select('*').eq('institute_id',INSTITUTE_ID).order('created_at',{ascending:false}).limit(6));
+    $('#ovLeads').innerHTML = nl?.length ? `<table><tr><th>Name</th><th>Program</th><th>Stage</th></tr>${nl.map(r=>`<tr><td>${esc(r.name||r.phone)}</td><td>${esc(r.program||'—')}</td><td><span class="tag">${esc(r.stage)}</span></td></tr>`).join('')}</table>` : '<div class="empty">No leads captured yet.</div>';
+
+    const ap = await q(sb.from('appointments').select('*').eq('institute_id',INSTITUTE_ID).order('requested_at',{ascending:false}).limit(6));
+    $('#ovAppts').innerHTML = ap?.length ? `<table><tr><th>Phone</th><th>When</th><th>Status</th></tr>${ap.map(r=>`<tr><td>${esc(r.phone)}</td><td>${fmt(r.requested_at)}</td><td><span class="tag">${esc(r.status)}</span></td></tr>`).join('')}</table>` : '<div class="empty">No upcoming appointments.</div>';
+  }
+}
+
+/* ====== Chats (WhatsApp Live Inbox & Webhook Integration) ====== */
+let chatState = { threads:[], active:null, msgCount:0 };
+
+async function chats(){
+  $('#view').innerHTML = `
+    <div class="header-row">
+      <div>
+        <h2>WhatsApp Live Inbox</h2>
+        <p class="sub">Monitor autonomous bot conversations, take over manually, or test student replies</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn warn small" id="chatsSimulateBtn">⚡ Simulate Student Message</button>
+        <div class="status-badge live">Polling Active (every 3s)</div>
+      </div>
+    </div>
+    <div class="inbox">
+      <div class="threads">
+        <input class="threads-search" id="tSearch" placeholder="🔍 Search student name or phone...">
+        <div class="thread-list" id="tList"><div class="empty">Loading conversations…</div></div>
+      </div>
+      <div class="convo" id="convo"><div class="empty" style="margin:auto">Pick a student conversation to view history.</div></div>
+    </div>`;
+
+  $('#chatsSimulateBtn').onclick = () => openWebhookSimulatorModal(chatState.active || '');
+
+  await loadThreadsData();
+  $('#tSearch').oninput = renderThreads;
+
+  activePollInterval = setInterval(async () => {
+    await loadThreadsData(true);
+    if(chatState.active){
+      await pollActiveThreadMessages(chatState.active);
+    }
+  }, 3500);
+}
+
+async function loadThreadsData(silent=false){
+  if(hasBackend){
+    try {
+      const res = await fetch('/api/threads');
+      const threads = await res.json();
+      chatState.threads = threads.map(t => ({
+        phone: digits(t.phone),
+        raw_phone: t.phone,
+        name: t.student_name,
+        is_human_takeover: t.is_human_takeover,
+        active_flow: t.active_flow,
+        last: { content: t.content, received_at: t.received_at, message_type: t.message_type, direction: t.direction }
+      }));
+      renderThreads();
+    } catch(e) {
+      console.error(e);
+    }
+  } else {
+    const [logs, users, sessions] = await Promise.all([
+      q(sb.from('message_logs').select('phone,content,direction,received_at,message_type').eq('institute_id',INSTITUTE_ID).order('received_at',{ascending:false}).limit(800)),
+      q(sb.from('users').select('*').eq('institute_id',INSTITUTE_ID)),
+      q(sb.from('sessions').select('*').eq('institute_id',INSTITUTE_ID))
+    ]);
+    if(!logs) return;
+    const seen = new Map();
+    logs.forEach(m => { const k = digits(m.phone); if(k && !seen.has(k)) seen.set(k, m); });
+    chatState.threads = [...seen.entries()].map(([ph,m]) => {
+      const u = (users||[]).find(x => digits(x.wa_id)===ph || digits(x.phone)===ph);
+      const s = u ? (sessions||[]).find(x => x.user_id===u.id) : null;
+      return { phone: ph, raw_phone: ph, name: u?.name, is_human_takeover: s?.is_human_takeover, active_flow: s?.active_flow, last: m };
+    });
+    renderThreads();
+  }
+}
+
+function renderThreads(){
+  const term = ($('#tSearch')?.value||'').toLowerCase();
+  const list = chatState.threads.filter(t => !term || t.phone.includes(term) || (t.name||'').toLowerCase().includes(term));
+  $('#tList').innerHTML = list.length ? list.map(t => `
+    <div class="thread ${chatState.active===t.phone?'active':''}" data-ph="${t.phone}" tabindex="0">
+      <div class="top">
+        <span class="name">${esc(t.name || '+'+t.phone)}</span>
+        <span class="time">${fmt(t.last.received_at)}</span>
+      </div>
+      <div class="prev">
+        ${t.is_human_takeover ? '<span class="tag hold">Counselor</span> ' : ''}
+        ${t.last.direction==='outbound' ? '<b>You:</b> ' : ''}
+        ${esc(t.last.content || '['+t.last.message_type+']')}
+      </div>
+    </div>`).join('') : '<div class="empty">No conversations found.</div>';
+
+  document.querySelectorAll('.thread').forEach(el => {
+    el.onclick = () => openThread(el.dataset.ph);
+    el.onkeydown = e => { if(e.key==='Enter') openThread(el.dataset.ph); };
+  });
+}
+
+async function openThread(ph){
+  chatState.active = ph;
+  renderThreads();
+  const t = chatState.threads.find(x=>x.phone===ph);
+  const paused = !!t?.is_human_takeover;
+
+  let msgs = [];
+  if(hasBackend){
+    const res = await fetch(`/api/messages?phone=${ph}`);
+    msgs = await res.json();
+  } else {
+    const variants = [ph, '+'+ph];
+    msgs = await q(sb.from('message_logs').select('*').eq('institute_id',INSTITUTE_ID).in('phone',variants).order('received_at').limit(300)) || [];
+  }
+  chatState.msgCount = msgs.length;
+
+  $('#convo').innerHTML = `
+    <header>
+      <div class="who">
+        <b>${esc(t?.name || '+'+ph)}</b>
+        <span>+${ph}${t?.active_flow ? ` · Flow: ${esc(t.active_flow)}` : ''}</span>
+      </div>
+      <div class="actions">
+        <button class="btn small ghost" id="simReplyStudentBtn" title="Send a simulated message from student to trigger the bot">⚡ Simulate Student Query</button>
+        <button class="btn small ${paused?'success':'warn'}" id="toggleBot">${paused?'▶ Resume AI Bot':'⏸ Pause Bot (Take Over)'}</button>
+      </div>
+    </header>
+    ${paused?'<div class="banner">⚠️ The AI Bot is currently PAUSED for this student. You can send replies below directly to their WhatsApp.</div>':''}
+    <div class="msgs" id="msgs">
+      ${msgs.map(m=>`
+        <div class="bubble ${m.direction==='outbound'?'out':''}">
+          ${esc(m.content||'['+m.message_type+']')}
+          <small>${fmt(m.received_at)}</small>
+        </div>`).join('') || '<div class="empty">No messages recorded yet.</div>'}
+    </div>
+    <div class="chat-input-box">
+      <input id="adminReplyText" placeholder="Type a message to send directly to student on WhatsApp..." />
+      <button class="btn" id="sendAdminReplyBtn">Send to WhatsApp</button>
+    </div>`;
+
+  const box = $('#msgs');
+  box.scrollTop = box.scrollHeight;
+
+  $('#simReplyStudentBtn').onclick = () => openWebhookSimulatorModal(ph, 'Can you tell me more about scholarships and eligibility?');
+
+  $('#toggleBot').onclick = async () => {
+    const nextState = !paused;
+    if(hasBackend){
+      await fetch('/api/sessions/toggle-bot', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ phone: ph, is_human_takeover: nextState })
+      });
+    } else {
+      await q(sb.from('sessions').update({ is_human_takeover: nextState }).eq('institute_id', INSTITUTE_ID));
+    }
+    if(t) t.is_human_takeover = nextState;
+    toast(nextState ? 'Bot paused: Counselor takeover active' : 'AI Bot resumed successfully');
+    openThread(ph);
+    refreshTakeoverPill();
+  };
+
+  $('#sendAdminReplyBtn').onclick = () => sendCounselorReply(ph, t);
+  $('#adminReplyText').addEventListener('keydown', e => { if(e.key==='Enter') sendCounselorReply(ph, t); });
+}
+
+async function pollActiveThreadMessages(ph){
+  let msgs = [];
+  if(hasBackend){
+    const res = await fetch(`/api/messages?phone=${ph}`);
+    msgs = await res.json();
+  } else {
+    const variants = [ph, '+'+ph];
+    msgs = await q(sb.from('message_logs').select('*').eq('institute_id',INSTITUTE_ID).in('phone',variants).order('received_at').limit(300)) || [];
+  }
+  if(msgs && msgs.length !== chatState.msgCount){
+    chatState.msgCount = msgs.length;
+    const box = $('#msgs');
+    if(!box) return;
+    box.innerHTML = msgs.map(m=>`
+      <div class="bubble ${m.direction==='outbound'?'out':''}">
+        ${esc(m.content||'['+m.message_type+']')}
+        <small>${fmt(m.received_at)}</small>
+      </div>`).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+async function sendCounselorReply(phone, threadObj){
+  const input = $('#adminReplyText');
+  const text = (input?.value || '').trim();
+  if(!text) return;
+  input.value = '';
+
+  if(hasBackend){
+    try {
+      const resp = await fetch('/api/counselor/reply', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ phone: phone, content: text })
+      });
+      const data = await resp.json();
+      if(resp.ok){
+        toast('Message sent to WhatsApp!');
+        if(threadObj) threadObj.is_human_takeover = true;
+      } else {
+        toast('Error sending: ' + data.error);
+      }
+    } catch(e) {
+      toast('Network error: ' + e.message);
+    }
+  } else {
+    try {
+      await fetch(`https://graph.facebook.com/v20.0/${META_PHONE_NUMBER_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${META_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: phone,
+          type: 'text',
+          text: { body: text }
+        })
+      });
+      await q(sb.from('message_logs').insert({
+        institute_id: INSTITUTE_ID,
+        message_id: 'admin_' + Date.now(),
+        phone: phone,
+        direction: 'outbound',
+        message_type: 'text',
+        content: text,
+        processing_status: 'completed',
+        delivery_status: 'sent',
+        received_at: new Date().toISOString()
+      }).select());
+      toast('Delivered to WhatsApp');
+    } catch(e) {
+      toast('Meta API error: ' + e.message);
+    }
+  }
+
+  await pollActiveThreadMessages(phone);
+  refreshTakeoverPill();
+}
+
+async function refreshTakeoverPill(){
+  let count = 0;
+  if(hasBackend){
+    try {
+      const r = await fetch('/api/analytics');
+      const d = await r.json();
+      count = d.active_takeovers || 0;
+    } catch(e) {}
+  } else if(sb) {
+    const res = await sb.from('sessions').select('*',{count:'exact',head:true}).eq('institute_id',INSTITUTE_ID).eq('is_human_takeover',true);
+    count = res.count || 0;
+  }
+  const p = $('#takeoverCount');
+  if(p){
+    p.hidden = !count;
+    p.textContent = count;
+  }
+}
+
+/* ====== Leads ====== */
+async function leads(){
+  $('#view').innerHTML = `
+    <div class="header-row">
+      <div>
+        <h2>Student Leads</h2>
+        <p class="sub">Admission leads captured automatically by Google Gemini AI Agent</p>
+      </div>
+      <button class="btn ghost" id="lCsv">📥 Export Leads CSV</button>
+    </div>
+    <div class="toolbar">
+      <input id="lSearch" placeholder="🔍 Search student name, phone, program, city...">
+      <select id="lStage">
+        <option value="">All Pipeline Stages</option>
+        ${LEAD_STAGES.map(s=>`<option>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="tablewrap" id="lTable"><div class="empty">Loading leads…</div></div>`;
+
+  let data = [];
+  if(hasBackend){
+    const r = await fetch('/api/leads');
+    data = await r.json();
+  } else {
+    data = await q(sb.from('leads').select('*').eq('institute_id',INSTITUTE_ID).order('updated_at',{ascending:false}).limit(500)) || [];
+  }
+
+  const render = () => {
+    const term = $('#lSearch').value.toLowerCase(), st = $('#lStage').value;
+    const rows = data.filter(r => (!st || r.stage===st) && (!term || [r.name,r.phone,r.program,r.city].join(' ').toLowerCase().includes(term)));
+    $('#lTable').innerHTML = rows.length ? `
+      <table>
+        <tr><th>Student Name</th><th>Phone</th><th>Program</th><th>Qualification</th><th>City</th><th>Status Stage</th><th>Updated</th></tr>
+        ${rows.map(r=>`
+          <tr>
+            <td><b>${esc(r.name||'—')}</b></td>
+            <td>${esc(r.phone)}</td>
+            <td><span class="tag">${esc(r.program||'—')}</span></td>
+            <td>${esc(r.qualification||'—')}</td>
+            <td>${esc(r.city||'—')}</td>
+            <td>
+              <select data-id="${r.id}">
+                ${[...new Set([r.stage,...LEAD_STAGES])].map(s=>`<option ${s===r.stage?'selected':''}>${esc(s)}</option>`).join('')}
+              </select>
+            </td>
+            <td>${fmt(r.updated_at)}</td>
+          </tr>`).join('')}
+      </table>` : '<div class="empty">No leads found matching the filters.</div>';
+
+    document.querySelectorAll('#lTable select').forEach(sel => sel.onchange = async () => {
+      const leadId = sel.dataset.id;
+      const stage = sel.value;
+      if(hasBackend){
+        await fetch('/api/leads/update-stage', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ id: leadId, stage: stage })
+        });
+      } else {
+        await q(sb.from('leads').update({stage: stage, updated_at:new Date().toISOString()}).eq('id',leadId).select());
+      }
+      toast('Lead stage updated successfully');
+    });
+    $('#lCsv').onclick = () => csv(rows, 'student-leads.csv');
+  };
+  $('#lSearch').oninput = render;
+  $('#lStage').onchange = render;
+  render();
+}
+
+function csv(rows, name){
+  if(!rows.length) return toast('Nothing to export');
+  const cols = Object.keys(rows[0]);
+  const body = [cols.join(','), ...rows.map(r => cols.map(c => `"${String(r[c]??'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([body],{type:'text/csv'})); a.download = name; a.click();
+}
+
+/* ====== Appointments ====== */
+async function appointments(){
+  $('#view').innerHTML = `
+    <h2>Counseling Appointments</h2>
+    <p class="sub">Bookings scheduled through the WhatsApp bot</p>
+    <div class="tablewrap" id="aTable"><div class="empty">Loading appointments…</div></div>`;
+
+  let data = [];
+  if(hasBackend){
+    const r = await fetch('/api/appointments');
+    data = await r.json();
+  } else {
+    data = await q(sb.from('appointments').select('*').eq('institute_id',INSTITUTE_ID).order('requested_at',{ascending:false}).limit(500)) || [];
+  }
+
+  $('#aTable').innerHTML = data.length ? `
+    <table>
+      <tr><th>Student Phone</th><th>Requested Slot</th><th>Status</th><th>Booked Date</th></tr>
+      ${data.map(r=>`
+        <tr>
+          <td><b>${esc(r.phone)}</b></td>
+          <td>${fmt(r.requested_at)}</td>
+          <td>
+            <select data-id="${r.id}">
+              ${[...new Set([r.status,...APPT_STATUSES])].map(s=>`<option ${s===r.status?'selected':''}>${esc(s)}</option>`).join('')}
+            </select>
+          </td>
+          <td>${fmt(r.created_at)}</td>
+        </tr>`).join('')}
+    </table>` : '<div class="empty">No appointments booked yet.</div>';
+
+  document.querySelectorAll('#aTable select').forEach(sel => sel.onchange = async () => {
+    const apptId = sel.dataset.id;
+    const status = sel.value;
+    if(hasBackend){
+      await fetch('/api/appointments/update-status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: apptId, status: status })
+      });
+    } else {
+      await q(sb.from('appointments').update({status: status}).eq('id',apptId).select());
+    }
+    toast('Appointment status updated');
+  });
+}
+
+/* ====== Payments (With n8n Webhook Simulation Trigger) ====== */
+async function payments(){
+  $('#view').innerHTML = `
+    <div class="header-row">
+      <div>
+        <h2>Fee Payments (Simulation Mode)</h2>
+        <p class="sub">Track student payments and trigger n8n Razorpay webhook simulations</p>
+      </div>
+      <button class="btn success" id="pSimulate">⚡ Simulate Payment via n8n Webhook</button>
+    </div>
+    <div class="tablewrap" id="pTable"><div class="empty">Loading payments…</div></div>`;
+
+  let data = [];
+  if(hasBackend){
+    const r = await fetch('/api/payments');
+    data = await r.json();
+  } else {
+    data = await q(sb.from('payments').select('*').eq('institute_id',INSTITUTE_ID).order('updated_at',{ascending:false}).limit(500)) || [];
+  }
+
+  $('#pTable').innerHTML = data.length ? `
+    <table>
+      <tr><th>Order Reference</th><th>Payment ID</th><th>Amount</th><th>Status</th><th>Updated</th></tr>
+      ${data.map(r=>`
+        <tr>
+          <td><code>${esc(r.razorpay_order_id||'—')}</code></td>
+          <td><code>${esc(r.razorpay_payment_id||'—')}</code></td>
+          <td><b>${inr(r.amount)}</b></td>
+          <td><span class="tag ${r.status==='captured'?'ok':'hold'}">${esc(r.status)}</span></td>
+          <td>${fmt(r.updated_at)}</td>
+        </tr>`).join('')}
+    </table>` : '<div class="empty">No payments recorded yet. Click "Simulate Payment via n8n Webhook" above!</div>';
+
+  $('#pSimulate').onclick = () => form('Simulate Test Payment via n8n', [
+    ['amount','Amount in INR (e.g. 1500)','number'],
+    ['phone','Student WhatsApp Phone Number','text'],
+    ['order_id','Simulated Order ID (optional)']
+  ], { amount: 1500, phone: '919876543210', order_id: 'order_sim_' + Math.floor(100000 + Math.random()*900000) }, async v => {
+    if(hasBackend){
+      const res = await fetch('/api/webhook/razorpay', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ amount: v.amount, order_id: v.order_id, phone: v.phone, webhook_url: n8nPaymentWebhookUrl })
+      });
+      return res.ok;
+    } else {
+      const payId = 'pay_sim_' + Math.floor(100000 + Math.random()*900000);
+      return q(sb.from('payments').insert({
+        institute_id: INSTITUTE_ID,
+        razorpay_order_id: v.order_id || ('order_sim_' + Date.now()),
+        razorpay_payment_id: payId,
+        amount: Number(v.amount || 1500),
+        currency: 'INR',
+        status: 'captured',
+        updated_at: new Date().toISOString()
+      }).select());
+    }
+  }, payments, 'Simulated test payment triggered successfully via n8n!');
+}
+
+/* ====== Campus Events ====== */
+async function events(){
+  $('#view').innerHTML = `
+    <div class="header-row">
+      <div>
+        <h2>Campus Events & Webinars</h2>
+        <p class="sub">Events shared automatically by the bot with prospective students on WhatsApp</p>
+      </div>
+      <button class="btn" id="eAdd">+ Add Campus Event</button>
+    </div>
+    <div class="tablewrap" id="eTable"><div class="empty">Loading campus events…</div></div>`;
+
+  let data = [];
+  if(hasBackend){
+    const r = await fetch('/api/events');
+    data = await r.json();
+  } else {
+    data = await q(sb.from('events').select('*').eq('institute_id',INSTITUTE_ID).order('starts_at',{ascending:false}).limit(200)) || [];
+  }
+
+  $('#eTable').innerHTML = data.length ? `
+    <table>
+      <tr><th>Event Title</th><th>Starts At</th><th>Location</th><th>Seats Available</th><th>Action</th></tr>
+      ${data.map(r=>`
+        <tr>
+          <td><b>${esc(r.title)}</b></td>
+          <td>${fmt(r.starts_at)}</td>
+          <td>${esc(r.location||'—')}</td>
+          <td>${esc(r.seats_left??'—')}</td>
+          <td><button class="btn small danger" data-del="${r.id}">Delete</button></td>
+        </tr>`).join('')}
+    </table>` : '<div class="empty">No events scheduled. Add one so the AI bot can share it with students.</div>';
+
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    if(!confirm('Delete this event?')) return;
+    if(hasBackend){
+      await fetch('/api/events/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: b.dataset.del })
+      });
+    } else {
+      await q(sb.from('events').delete().eq('id',b.dataset.del).select());
+    }
+    toast('Event deleted');
+    events();
+  });
+
+  $('#eAdd').onclick = () => form('Add Campus Event', [
+    ['title','Event Title'],
+    ['starts_at','Starts At (Date & Time)','datetime-local'],
+    ['location','Location / Online Link'],
+    ['seats_left','Seats Available','number']
+  ], {}, async v => {
+    v.starts_at = new Date(v.starts_at).toISOString();
+    v.seats_left = v.seats_left ? Number(v.seats_left) : null;
+    if(hasBackend){
+      const res = await fetch('/api/events/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(v)
+      });
+      return res.ok;
+    } else {
+      return q(sb.from('events').insert({...v, institute_id:INSTITUTE_ID}).select());
+    }
+  }, events, 'Event created successfully');
+}
+
+/* ====== Knowledge Base (AI RAG Repository) ====== */
+async function kb(){
+  $('#view').innerHTML = `
+    <div class="header-row">
+      <div>
+        <h2>Knowledge Base (AI RAG Repository)</h2>
+        <p class="sub">Ground truth data from which Google Gemini answers student questions on WhatsApp</p>
+      </div>
+      <button class="btn" id="kAdd">+ Add Knowledge Entry</button>
+    </div>
+    <div class="tablewrap" id="kTable"><div class="empty">Loading knowledge base…</div></div>`;
+
+  let data = [];
+  if(hasBackend){
+    const r = await fetch('/api/kb');
+    data = await r.json();
+  } else {
+    data = await q(sb.from('knowledge_base').select('*').eq('institute_id',INSTITUTE_ID).order('updated_at',{ascending:false}).limit(500)) || [];
+  }
+
+  const fields = [
+    ['title','Topic Title (e.g. B.Tech Fees, MCA Eligibility)'],
+    ['category','Category (admissions / fees / placements / scholarships)'],
+    ['content','Complete Answer Text','textarea']
+  ];
+
+  $('#kTable').innerHTML = data.length ? `
+    <table>
+      <tr><th>Title</th><th>Category</th><th>Content Preview</th><th>Actions</th></tr>
+      ${data.map(r=>`
+        <tr>
+          <td><b>${esc(r.title)}</b></td>
+          <td><span class="tag">${esc(r.category||'—')}</span></td>
+          <td>${esc((r.content||'').slice(0,140))}${(r.content||'').length>140?'…':''}</td>
+          <td style="white-space:nowrap">
+            <button class="btn small ghost" data-edit="${r.id}">Edit</button>
+            <button class="btn small danger" data-del="${r.id}">Delete</button>
+          </td>
+        </tr>`).join('')}
+    </table>` : '<div class="empty">Knowledge base is empty. Add fee and program entries so Gemini can answer!</div>';
+
+  document.querySelectorAll('[data-edit]').forEach(b => {
+    const r = data.find(x=>x.id==b.dataset.edit);
+    b.onclick = () => form('Edit Knowledge Entry', fields, r, async v => {
+      if(hasBackend){
+        const res = await fetch('/api/kb/save', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({...v, id: r.id})
+        });
+        return res.ok;
+      } else {
+        return q(sb.from('knowledge_base').update({...v, updated_at:new Date().toISOString()}).eq('id',r.id).select());
+      }
+    }, kb, 'Entry updated');
+  });
+
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    if(!confirm('Delete this knowledge entry?')) return;
+    if(hasBackend){
+      await fetch('/api/kb/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: b.dataset.del })
+      });
+    } else {
+      await q(sb.from('knowledge_base').delete().eq('id',b.dataset.del).select());
+    }
+    toast('Entry deleted');
+    kb();
+  });
+
+  $('#kAdd').onclick = () => form('Add Knowledge Entry', fields, {}, async v => {
+    if(hasBackend){
+      const res = await fetch('/api/kb/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(v)
+      });
+      return res.ok;
+    } else {
+      return q(sb.from('knowledge_base').insert({...v, institute_id:INSTITUTE_ID, updated_at:new Date().toISOString()}).select());
+    }
+  }, kb, 'Knowledge entry added');
+}
+
+/* ====== Generic Modal Form ====== */
+function form(title, fields, init, save, after, okMsg){
+  const m = $('#modal');
+  m.innerHTML = `
+    <h3>${title}</h3>
+    ${fields.map(([k,l,t])=>`
+      <label for="f_${k}">${l}</label>
+      ${t==='textarea' ? `<textarea id="f_${k}">${esc(init[k])}</textarea>` : `<input id="f_${k}" type="${t||'text'}" value="${esc(init[k])}">`}
+    `).join('')}
+    <div class="row">
+      <button class="btn ghost" id="fCancel">Cancel</button>
+      <button class="btn" id="fSave">Save</button>
+    </div>`;
+  m.showModal();
+  $('#fCancel').onclick = () => m.close();
+  $('#fSave').onclick = async () => {
+    const v = {};
+    fields.forEach(([k]) => v[k] = $('#f_'+k).value.trim());
+    if(await save(v)){
+      m.close();
+      toast(okMsg);
+      after();
+    }
+  };
+}
+</script>
+</body>
+</html>

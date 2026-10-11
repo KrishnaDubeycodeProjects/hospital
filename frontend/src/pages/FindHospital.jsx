@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { hospitalApi, setToken } from '../api/client';
+import { hospitalApi, setToken, warmUpBackend } from '../api/client';
 import { isOpenNow, formatApproxDistance } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
 import AyushmanFooter from '../components/AyushmanFooter';
+import { Building2, MessageCircle, MapPin, Clock, ArrowRight, Search } from 'lucide-react';
+
 
 const PAGE_SIZE = 20;
 
@@ -451,8 +453,10 @@ export default function FindHospital() {
             </div>
           ) : displayedHospitals.length === 0 ? (
             <div style={{ padding: '40px 20px', textAlign: 'center', color: '#64748b' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏥</div>
-              <div style={{ fontWeight: '600', color: '#0f172a', fontSize: '15px' }}>No hospitals found</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+                <Building2 size={36} color="#047857" />
+              </div>
+              <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '15px' }}>No hospitals found</div>
               <div style={{ fontSize: '13px', marginTop: '4px' }}>Try searching with a different hospital name or area</div>
             </div>
           ) : (
@@ -461,15 +465,16 @@ export default function FindHospital() {
                 key={h.id || idx}
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1px solid #edf2f7',
-                  borderRadius: '16px',
+                  border: '1.5px solid #CBD5E1',
+                  borderRadius: '12px',
                   padding: '16px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '12px',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+                  boxShadow: '0 2px 4px rgba(15, 23, 42, 0.04)',
                 }}
               >
+
                 {/* Card Internal Layout: Left Column Illustration, Right Column Details */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
                   {/* Left Column: Hospital illustration card */}

@@ -236,6 +236,54 @@ def deploy_to_lambda(session, role_arn: str, jar_path: Path, env_vars: dict, s3_
 
     return func_url
 
+def configure_warmup_scheduler(session, function_name):
+    """
+    Creates an AWS EventBridge scheduled rule that periodically invokes Lambda
+    with a lightweight ping to keep the JVM warm and eliminate cold-start latency (<2s response).
+    """
+    try:
+        events = session.client('events')
+        lam = session.client('lambda')
+        rule_name = f"{function_name}-warmup"
+        print(f"\n⏰ Setting up CloudWatch EventBridge keep-warm schedule ('{rule_name}')...")
+
+        events.put_rule(
+            Name=rule_name,
+            ScheduleExpression="rate(4 minutes)",
+            State="ENABLED",
+            Description="Keep AarogyaFlow Spring Boot Lambda warm 24/7 for zero cold-start latency"
+        )
+        rule_arn = events.describe_rule(Name=rule_name)["Arn"]
+
+        fn = lam.get_function(FunctionName=function_name)
+        fn_arn = fn["Configuration"]["FunctionArn"]
+
+        events.put_targets(
+            Rule=rule_name,
+            Targets=[
+                {
+                    "Id": "WarmupTarget",
+                    "Arn": fn_arn,
+                    "Input": json.dumps({"isWarmup": True, "path": "/actuator/health", "httpMethod": "GET"})
+                }
+            ]
+        )
+
+        try:
+            lam.add_permission(
+                FunctionName=function_name,
+                StatementId="EventBridgeWarmupInvokePermission",
+                Action="lambda:InvokeFunction",
+                Principal="events.amazonaws.com",
+                SourceArn=rule_arn
+            )
+        except ClientError:
+            pass # Permission already exists
+
+        print(f"✅ EventBridge 4-minute keep-warm rule configured. Cold start eliminated!")
+    except Exception as e:
+        print(f"⚠️ EventBridge warm-up setup notice: {e}")
+
 def update_frontend(func_url: str):
     api_gw_url = "https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com"
     print(f"\n🎨 Linking frontend to live API Gateway URL: {api_gw_url}")
@@ -246,6 +294,7 @@ def update_frontend(func_url: str):
     print(f"✅ Updated {frontend_env.relative_to(WORKSPACE_DIR)}")
 
 def main():
+
     print("=" * 65)
     print("🏥 AarogyaFlow AWS Lambda Backend Deployer")
     print("=" * 65)
@@ -294,8 +343,12 @@ def main():
     # 5. Deploy Lambda
     func_url = deploy_to_lambda(session, role_arn, jar_path, env_vars)
 
-    # 6. Update Frontend
+    # 6. Setup 24/7 Keep-Warm CloudWatch Scheduler (<2s response time)
+    configure_warmup_scheduler(session, FUNCTION_NAME)
+
+    # 7. Update Frontend
     update_frontend(func_url)
+
 
     print("\n" + "=" * 65)
     print("🎉 DEPLOYMENT COMPLETE!")

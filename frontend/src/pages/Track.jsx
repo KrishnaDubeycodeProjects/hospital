@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { queueApi, setToken } from '../api/client';
+import { queueApi, setToken, warmUpBackend } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { cleanPhone } from '../utils/helpers';
 import AyushmanFooter from '../components/AyushmanFooter';
+import { Clock, MessageCircle, Search, ArrowRight, ShieldCheck } from 'lucide-react';
+
 
 function extract10Digits(input) {
   if (!input) return '';
@@ -23,10 +25,12 @@ export default function Track() {
   const tokenParam = searchParams.get('token');
 
   useEffect(() => {
+    warmUpBackend();
     if (tokenParam) {
       setToken('PATIENT', tokenParam);
     }
   }, [tokenParam]);
+
 
   useEffect(() => {
     if (tokenIdParam) {
@@ -322,16 +326,19 @@ export default function Track() {
               style={{
                 marginTop: '18px',
                 backgroundColor: '#FEF2F2',
-                border: '1px solid #FECACA',
-                borderRadius: '14px',
+                border: '1.5px solid #FECACA',
+                borderRadius: '12px',
                 padding: '14px 16px',
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '12px',
               }}
             >
-              <span style={{ fontSize: '20px', lineHeight: 1 }}>🎟️</span>
+              <div style={{ marginTop: '2px', flexShrink: 0 }}>
+                <Clock size={20} color="#DC2626" />
+              </div>
               <div style={{ flex: 1 }}>
+
                 <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#991B1B' }}>
                   No Active Token Found
                 </div>
