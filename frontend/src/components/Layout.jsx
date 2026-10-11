@@ -60,24 +60,26 @@ export function RoleShell({ role }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, #2563eb, #14b8a6)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #00A884, #00684A)',
                 color: '#ffffff',
-                fontWeight: '800',
+                fontWeight: '900',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '16px',
+                letterSpacing: '-0.02em',
+                boxShadow: '0 2px 8px rgba(0, 104, 74, 0.3)',
               }}
             >
-              +
+              AF
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#ffffff', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.02em' }}>
-                  AarogyaFlow
+                  ArogyaFlow
                 </span>
                 <span
                   style={{
@@ -272,25 +274,26 @@ function PatientMobileShell({ session, onLogout }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/patient')}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #004D40, #059669)',
+                width: '38px',
+                height: '38px',
+                borderRadius: '11px',
+                background: 'linear-gradient(135deg, #00A884, #00684A)',
                 color: '#ffffff',
                 fontWeight: '900',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '18px',
-                boxShadow: '0 2px 6px rgba(0, 77, 64, 0.25)',
+                fontSize: '17px',
+                letterSpacing: '-0.02em',
+                boxShadow: '0 2px 8px rgba(0, 104, 74, 0.25)',
               }}
             >
-              +
+              AF
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#004D40', fontWeight: '800', fontSize: '18px', letterSpacing: '-0.02em' }}>
-                  AarogyaFlow
+                  ArogyaFlow
                 </span>
                 <span
                   style={{

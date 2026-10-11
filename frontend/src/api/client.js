@@ -121,7 +121,7 @@ export const queueApi = {
   login: (username, password) => post('/api/queue/login', { username, password }),
   getQueue: (hospitalId, category) => getD('/api/queue', { params: { hospitalId, category } }),
   current: (hospitalId, category) => getD('/api/queue/current', { params: { hospitalId, category } }),
-  position: (phone) => getD(`/api/queue/position/${encodeURIComponent(phone)}`),
+  position: (phone) => getD('/api/queue/position', { params: { phone } }),
   history: (phone) => getD(`/api/queue/history/${encodeURIComponent(phone)}`, authFor('ADMIN')),
   tokenDetails: (id) => getD(`/api/queue/token/${id}`),
   /** `{ success, alreadyExists, data }` -- read both `.alreadyExists` and `.data`. */

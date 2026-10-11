@@ -4,6 +4,7 @@ import { queueApi, setToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { cleanPhone } from '../utils/helpers';
 import AyushmanFooter from '../components/AyushmanFooter';
+import { Ticket } from 'lucide-react';
 
 function extract10Digits(input) {
   if (!input) return '';
@@ -53,13 +54,30 @@ export default function Track() {
   }, [params.phone, queryPhone, tokenIdParam]);
 
   async function handleLookup(p = phoneDigits) {
-    const cleaned = cleanPhone(p);
-    if (!cleaned || cleaned.replace(/\D/g, '').length < 10) return;
+    const raw = String(p || '').trim();
+    const digitsOnly = raw.replace(/\D/g, '');
+    if (digitsOnly.length < 10) return;
     setLoading(true);
     setNotFound(false);
-    localStorage.setItem('last_tracked_phone', cleaned);
+    localStorage.setItem('last_tracked_phone', digitsOnly);
+
+    const cleaned = cleanPhone(raw);
+    const tenDigits = digitsOnly.slice(-10);
+
     try {
-      const data = await queueApi.position(cleaned);
+      let data = null;
+      try {
+        data = await queueApi.position(cleaned);
+      } catch (err) {
+        if (tenDigits && tenDigits !== cleaned) {
+          try {
+            data = await queueApi.position(tenDigits);
+          } catch (_) {
+            data = null;
+          }
+        }
+      }
+
       if (data && data.id) {
         navigate(`/token/${data.id}`);
       } else {
@@ -330,7 +348,7 @@ export default function Track() {
                 gap: '12px',
               }}
             >
-              <span style={{ fontSize: '20px', lineHeight: 1 }}>🎟️</span>
+              <Ticket size={22} style={{ color: '#DC2626', flexShrink: 0, marginTop: '2px' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '14.5px', fontWeight: '700', color: '#991B1B' }}>
                   No Active Token Found

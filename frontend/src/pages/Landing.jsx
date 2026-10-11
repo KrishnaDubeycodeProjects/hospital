@@ -2,8 +2,20 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { otpApi, doctorApi } from '../api/client';
+import { otpApi } from '../api/client';
 import AyushmanFooter from '../components/AyushmanFooter';
+import { WhatsAppIcon } from '../components/Icons';
+import {
+  Calendar,
+  Clock,
+  FileText,
+  Building2,
+  Users,
+  Stethoscope,
+  Sparkles,
+  Landmark,
+  UserCheck,
+} from 'lucide-react';
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -16,54 +28,60 @@ export default function Landing() {
       id: 'book',
       title: 'Book OPD Token',
       subtitle: 'Select department, check hospital distance & book online',
-      icon: '📅',
+      icon: Calendar,
       color: '#E0F2FE',
       border: '#BAE6FD',
+      iconColor: '#0284C7',
       route: '/find-hospital',
     },
     {
       id: 'track',
       title: 'Track Live Queue',
       subtitle: 'Watch your exact position, wait time & travel buffer in real-time',
-      icon: '⏱️',
+      icon: Clock,
       color: '#FFEDD5',
       border: '#FED7AA',
+      iconColor: '#EA580C',
       route: '/track',
     },
     {
       id: 'records',
       title: 'Ayushman Health Vault',
       subtitle: 'Prescriptions, CBC blood reports, lab findings & referrals',
-      icon: '📑',
+      icon: FileText,
       color: '#F3E8FF',
       border: '#E9D5FF',
+      iconColor: '#9333EA',
       route: '/login/patient',
     },
     {
       id: 'hospitals',
       title: 'Find Hospitals & Counters',
       subtitle: 'Locate nearby OPDs with live counter load & timings',
-      icon: '🏥',
+      icon: Building2,
       color: '#DCFCE7',
       border: '#BBF7D0',
+      iconColor: '#16A34A',
       route: '/find-hospital',
     },
     {
       id: 'family',
       title: 'Family Members & ABHA',
       subtitle: 'Link 14-digit ABHA IDs and manage dependents seamlessly',
-      icon: '👨‍👩‍👧',
+      icon: Users,
       color: '#FFE4E6',
       border: '#FECDD3',
+      iconColor: '#E11D48',
       route: '/login/patient',
     },
     {
       id: 'doctor',
       title: 'Doctor Consultation Room',
       subtitle: 'Electronic health records, e-prescriptions & live queue calling',
-      icon: '👨‍⚕️',
+      icon: Stethoscope,
       color: '#E0E7FF',
       border: '#C7D2FE',
+      iconColor: '#4F46E5',
       route: '/login/doctor',
     },
   ];
@@ -111,25 +129,26 @@ export default function Landing() {
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
             <div
               style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '10px',
-                background: 'linear-gradient(135deg, #004D40, #059669)',
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #00A884, #00684A)',
                 color: '#ffffff',
                 fontWeight: '900',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '20px',
-                boxShadow: '0 2px 8px rgba(0, 77, 64, 0.25)',
+                fontSize: '18px',
+                letterSpacing: '-0.02em',
+                boxShadow: '0 2px 8px rgba(0, 104, 74, 0.25)',
               }}
             >
-              +
+              AF
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#004D40', fontWeight: '800', fontSize: '20px', letterSpacing: '-0.02em' }}>
-                  AarogyaFlow
+                  ArogyaFlow
                 </span>
                 <span
                   style={{
@@ -187,7 +206,8 @@ export default function Landing() {
                 gap: '6px',
               }}
             >
-              🧪 {demoLoading ? 'Loading...' : 'Try Demo Mode'}
+              <Sparkles size={15} />
+              <span>{demoLoading ? 'Loading...' : 'Try Demo Mode'}</span>
             </button>
             <button
               type="button"
@@ -224,18 +244,19 @@ export default function Landing() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '8px',
                 fontSize: '12px',
                 fontWeight: '700',
                 color: '#004D40',
                 backgroundColor: '#E8F5E9',
                 border: '1px solid #C8E6C9',
-                padding: '4px 12px',
+                padding: '4px 14px',
                 borderRadius: '20px',
                 marginBottom: '16px',
               }}
             >
-              <span>🏛️</span> National Health Authority &bull; ABDM Integrated OPD System
+              <Landmark size={14} style={{ color: '#004D40' }} />
+              <span>National Health Authority &bull; ABDM Integrated OPD System</span>
             </span>
             <h1
               style={{
@@ -282,7 +303,8 @@ export default function Landing() {
                   boxShadow: '0 4px 12px rgba(0, 77, 64, 0.2)',
                 }}
               >
-                <span>📅</span> Book OPD Appointment
+                <Calendar size={18} />
+                <span>Book OPD Appointment</span>
               </button>
               <button
                 type="button"
@@ -301,7 +323,8 @@ export default function Landing() {
                   gap: '8px',
                 }}
               >
-                <span>⏱️</span> Track Active Token
+                <Clock size={18} />
+                <span>Track Active Token</span>
               </button>
               <button
                 type="button"
@@ -321,7 +344,8 @@ export default function Landing() {
                   gap: '8px',
                 }}
               >
-                <span>🧪</span> 1-Click Demo Sandbox
+                <Sparkles size={18} />
+                <span>1-Click Demo Sandbox</span>
               </button>
             </div>
 
@@ -367,62 +391,64 @@ export default function Landing() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-            {services.map((svc) => (
-              <div
-                key={svc.id}
-                onClick={() => navigate(svc.route)}
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '14px',
-                  padding: '24px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-                  display: 'flex',
-                  gap: '16px',
-                  alignItems: 'flex-start',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-3px)';
-                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
-                  e.currentTarget.style.borderColor = svc.border;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)';
-                  e.currentTarget.style.borderColor = '#E2E8F0';
-                }}
-              >
+            {services.map((svc) => {
+              const IconComp = svc.icon;
+              return (
                 <div
+                  key={svc.id}
+                  onClick={() => navigate(svc.route)}
                   style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '12px',
-                    backgroundColor: svc.color,
-                    border: `1px solid ${svc.border}`,
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '14px',
+                    padding: '24px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '24px',
-                    flexShrink: 0,
+                    gap: '16px',
+                    alignItems: 'flex-start',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-3px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
+                    e.currentTarget.style.borderColor = svc.border;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                 >
-                  {svc.icon}
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      backgroundColor: svc.color,
+                      border: `1px solid ${svc.border}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <IconComp size={24} style={{ color: svc.iconColor }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1E293B' }}>
+                      {svc.title}
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748B', lineHeight: '1.5' }}>
+                      {svc.subtitle}
+                    </p>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12.5px', fontWeight: '700', color: '#004D40' }}>
+                      Open Service &rarr;
+                    </span>
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1E293B' }}>
-                    {svc.title}
-                  </h3>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#64748B', lineHeight: '1.5' }}>
-                    {svc.subtitle}
-                  </p>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12.5px', fontWeight: '700', color: '#004D40' }}>
-                    Open Service &rarr;
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -440,7 +466,9 @@ export default function Landing() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
               <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
-                <div style={{ fontSize: '28px', marginBottom: '10px' }}>🩺</div>
+                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserCheck size={24} style={{ color: '#004D40' }} />
+                </div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#004D40' }}>Patient Portal</h3>
                 <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
                   View active queue token slips, access CBC and prescription vaults, and manage family ABHA cards.
@@ -455,7 +483,9 @@ export default function Landing() {
               </div>
 
               <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
-                <div style={{ fontSize: '28px', marginBottom: '10px' }}>👨‍⚕️</div>
+                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Stethoscope size={24} style={{ color: '#1D4ED8' }} />
+                </div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1D4ED8' }}>Doctor Portal</h3>
                 <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
                   Call patients into the chair, generate e-prescriptions with Eka Care registry, and manage clinical care courses.
@@ -470,7 +500,9 @@ export default function Landing() {
               </div>
 
               <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
-                <div style={{ fontSize: '28px', marginBottom: '10px' }}>🏥</div>
+                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#F0FDFA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building2 size={24} style={{ color: '#0F766E' }} />
+                </div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#0F766E' }}>Hospital Admin & Counters</h3>
                 <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
                   Manage department counters, handle missed and exponentially penalized tokens, and inspect hospital metrics.
@@ -507,23 +539,23 @@ export default function Landing() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div
                 style={{
-                  width: '50px',
-                  height: '50px',
+                  width: '52px',
+                  height: '52px',
                   borderRadius: '50%',
-                  backgroundColor: '#22C55E',
+                  backgroundColor: '#25D366',
                   color: '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '26px',
                   flexShrink: 0,
+                  boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
                 }}
               >
-                💬
+                <WhatsAppIcon size={28} color="#ffffff" />
               </div>
               <div>
                 <h3 style={{ margin: '0 0 4px', fontSize: '17px', fontWeight: '800', color: '#166534' }}>
-                  AarogyaFlow 24/7 WhatsApp AI Assistant
+                  ArogyaFlow 24/7 WhatsApp AI Assistant
                 </h3>
                 <p style={{ margin: 0, fontSize: '13px', color: '#15803D' }}>
                   Book OPDs, track tokens, upload prescriptions and test demo mode directly on WhatsApp: <strong>+91 91201 23877</strong>
@@ -538,17 +570,18 @@ export default function Landing() {
                 backgroundColor: '#16A34A',
                 color: '#ffffff',
                 textDecoration: 'none',
-                padding: '10px 20px',
-                borderRadius: '8px',
+                padding: '11px 22px',
+                borderRadius: '10px',
                 fontWeight: '700',
                 fontSize: '13.5px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)',
+                boxShadow: '0 2px 8px rgba(22, 163, 74, 0.3)',
               }}
             >
-              <span>📲</span> Open WhatsApp Bot
+              <WhatsAppIcon size={18} color="#ffffff" />
+              <span>Open WhatsApp Bot</span>
             </a>
           </div>
         </section>
