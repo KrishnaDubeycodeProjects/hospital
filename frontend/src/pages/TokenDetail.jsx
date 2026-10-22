@@ -55,7 +55,11 @@ export default function TokenDetail() {
             setQrUrl(objUrl);
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (!cancelled) {
+            setQrUrl(queueApi.qrUrl(id));
+          }
+        });
     }
     return () => {
       cancelled = true;

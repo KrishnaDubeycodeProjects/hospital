@@ -137,14 +137,31 @@ export default function Landing() {
         >
           {/* Brand */}
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <img
-              src="/aarogya_flow_icon_transparent.png"
-              alt="Aarogya Flow"
-              style={{ width: '40px', height: '40px', objectFit: 'contain' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+                border: '1px solid #E2E8F0',
+                flexShrink: 0,
               }}
-            />
+            >
+              <img
+                src="/aarogya_flow_icon_transparent_hd.png"
+                alt="Aarogya Flow"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                }}
+              />
+            </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#185a44', fontWeight: '800', fontSize: '20px', letterSpacing: '-0.02em' }}>

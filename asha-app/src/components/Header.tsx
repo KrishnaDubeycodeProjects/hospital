@@ -30,17 +30,19 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
   const currentLangLabel = language === 'hi' ? 'हिं' : language === 'mr' ? 'मरा' : 'EN';
 
   const logoSource = Platform.OS === 'web'
-    ? { uri: '/aarogya_flow_icon_transparent.png' }
-    : require('../../assets/aarogya_flow_icon_transparent.png');
+    ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
+    : require('../../assets/aarogya_flow_icon_transparent_hd.png');
 
   return (
     <View style={styles.container}>
       <View style={styles.brandingRow}>
-        <Image
-          source={logoSource}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <View style={styles.logoContainer}>
+          <Image
+            source={logoSource}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
         <View style={styles.titleCol}>
           <Text style={styles.appTitle} numberOfLines={1}>{t('appTitle')}</Text>
           <Text style={styles.appSubtitle} numberOfLines={1} ellipsizeMode="tail">{t('appSubtitle')}</Text>
@@ -122,11 +124,27 @@ const styles = StyleSheet.create({
     minWidth: 0,
     marginRight: 6,
   },
-  logo: {
-    width: 32,
-    height: 32,
-    marginRight: 6,
+  logoContainer: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
     flexShrink: 0,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   titleCol: {
     flex: 1,

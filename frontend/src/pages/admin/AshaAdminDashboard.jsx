@@ -1,23 +1,14 @@
 import React, { useState } from 'react';
 import {
   Users,
-  CheckCircle,
-  AlertTriangle,
   Stethoscope,
   PhoneCall,
   Check,
   X,
   Building2,
-  Calendar,
-  Activity,
-  ShieldAlert,
   Volume2,
   RefreshCw,
-  Wifi,
-  Baby,
-  ChevronRight,
-  UserCheck,
-  FileText
+  Wifi
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -28,7 +19,7 @@ export default function AshaAdminDashboard() {
   const { admin, logout } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   // Active Role: 'CHO' | 'ASHA' (can switch with 1-click or via ?role=asha)
   const initialRole = searchParams.get('role')?.toUpperCase() === 'ASHA' ? 'ASHA' : 'CHO';
@@ -247,14 +238,31 @@ export default function AshaAdminDashboard() {
         >
           {/* Logo & Brand */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => navigate('/')}>
-            <img
-              src="/aarogya_flow_icon_transparent.png"
-              alt="Aarogya Flow"
-              style={{ width: '34px', height: '34px', objectFit: 'contain' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+                border: '1px solid #E2E8F0',
+                flexShrink: 0,
               }}
-            />
+            >
+              <img
+                src="/aarogya_flow_icon_transparent_hd.png"
+                alt="Aarogya Flow"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                }}
+              />
+            </div>
             <div>
               <div style={{ fontSize: '16.5px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                 Aarogya Flow
@@ -265,8 +273,8 @@ export default function AshaAdminDashboard() {
             </div>
           </div>
 
-          {/* Right Badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Right Actions & Badges */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <div
               style={{
                 display: 'flex',
@@ -284,6 +292,31 @@ export default function AshaAdminDashboard() {
               <Wifi size={13} color="#059669" />
               <span>Online</span>
             </div>
+
+            <a
+              href="/asha-app/index.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                backgroundColor: '#F3E8FF',
+                color: '#7E22CE',
+                border: '1.5px solid #D8B4FE',
+                padding: '5px 11px',
+                borderRadius: '20px',
+                fontSize: '11.5px',
+                fontWeight: '800',
+                textDecoration: 'none',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Launch standalone React Native mobile app in a new window"
+            >
+              <span>📱</span>
+              <span>Expo Mobile</span>
+            </a>
 
             <button
               type="button"
@@ -312,6 +345,28 @@ export default function AshaAdminDashboard() {
               <Users size={13} />
               <span>Role: {currentRole}</span>
               <RefreshCw size={11} style={{ marginLeft: '2px' }} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate(admin ? '/admin' : '/')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                backgroundColor: '#F1F5F9',
+                color: '#475569',
+                border: '1px solid #CBD5E1',
+                padding: '5px 10px',
+                borderRadius: '20px',
+                fontSize: '11.5px',
+                fontWeight: '700',
+                cursor: 'pointer',
+              }}
+              title="Exit to Hospital Portal"
+            >
+              <span>←</span>
+              <span>{admin ? 'Admin' : 'Exit'}</span>
             </button>
           </div>
         </header>

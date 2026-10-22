@@ -10,7 +10,7 @@ const NAV = {
     { to: '/admin/missed', label: 'Missed Queue', icon: '❌' },
     { to: '/admin/history', label: 'Visit History', icon: '📜' },
     { to: '/admin/hospitals', label: 'Hospitals', icon: '🏛️' },
-    { to: '/asha', label: 'ASHA & CHO Hub', icon: '🌿' },
+    { to: '/admin/asha', label: 'ASHA & CHO Hub', icon: '🌿' },
   ],
   patient: [
     { to: '/patient', label: 'My Queue', icon: '🎟️', end: true },
@@ -59,14 +59,31 @@ export function RoleShell({ role }) {
         {/* Brand Header */}
         <div className="sidebar-brand">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <img
-              src="/aarogya_flow_icon_transparent.png"
-              alt="Aarogya Flow"
-              style={{ width: '36px', height: '36px', objectFit: 'contain' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                flexShrink: 0,
               }}
-            />
+            >
+              <img
+                src="/aarogya_flow_icon_transparent_hd.png"
+                alt="Aarogya Flow"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                }}
+              />
+            </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ color: '#ffffff', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.02em' }}>
@@ -263,14 +280,31 @@ function PatientMobileShell({ session, onLogout }) {
         >
           {/* Brand Logo & Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => navigate('/patient')}>
-            <img
-              src="/aarogya_flow_icon_transparent.png"
-              alt="Aarogya Flow"
-              style={{ width: '38px', height: '38px', objectFit: 'contain' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+                border: '1px solid #E2E8F0',
+                flexShrink: 0,
               }}
-            />
+            >
+              <img
+                src="/aarogya_flow_icon_transparent_hd.png"
+                alt="Aarogya Flow"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                }}
+              />
+            </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#185a44', fontWeight: '800', fontSize: '18px', letterSpacing: '-0.02em' }}>

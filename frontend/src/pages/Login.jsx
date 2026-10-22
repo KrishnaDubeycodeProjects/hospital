@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { Button, Card, Field, Input } from '../components/ui';
 import AyushmanFooter from '../components/AyushmanFooter';
-import { Stethoscope, UserCheck, Building2, KeyRound, ShieldCheck, Sparkles, Phone, CheckCircle2, Users } from 'lucide-react';
+import { Stethoscope, UserCheck, Building2, KeyRound, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import { WhatsAppIcon } from '../components/Icons';
 
 const TABS = [
@@ -28,14 +28,31 @@ export default function Login() {
               ← Back to Arogya Flow
             </Link>
             <div className="auth-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <img
-                src="/aarogya_flow_icon_transparent.png"
-                alt="Aarogya Flow"
-                style={{ width: '44px', height: '44px', objectFit: 'contain' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '4px',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)',
+                  border: '1px solid #E2E8F0',
+                  flexShrink: 0,
                 }}
-              />
+              >
+                <img
+                  src="/aarogya_flow_icon_transparent_hd.png"
+                  alt="Aarogya Flow"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                  }}
+                />
+              </div>
               <div>
                 <div className="brand-name" style={{ color: '#185a44', fontWeight: 800, fontSize: '20px' }}>
                   Aarogya Flow
@@ -149,27 +166,51 @@ function AshaLoginFlow() {
         </div>
       </div>
 
-      <Button
-        type="button"
-        className="full-width"
-        onClick={() => navigate('/asha')}
-        style={{
-          backgroundColor: '#15803D',
-          color: '#ffffff',
-          fontWeight: '700',
-          padding: '13px',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)',
-          cursor: 'pointer',
-        }}
-      >
-        <Sparkles size={16} />
-        <span>Open ASHA &amp; CHO Workspace &rarr;</span>
-      </Button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <Button
+          type="button"
+          className="full-width"
+          onClick={() => navigate('/asha')}
+          style={{
+            backgroundColor: '#15803D',
+            color: '#ffffff',
+            fontWeight: '700',
+            padding: '13px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            boxShadow: '0 4px 12px rgba(21, 128, 61, 0.25)',
+            cursor: 'pointer',
+          }}
+        >
+          <Sparkles size={16} />
+          <span>Open Web ASHA &amp; CHO Workspace &rarr;</span>
+        </Button>
+
+        <a
+          href="/asha-app/index.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            backgroundColor: '#F8FAFC',
+            color: '#475569',
+            border: '1px solid #CBD5E1',
+            borderRadius: '10px',
+            padding: '11px',
+            fontSize: '13px',
+            fontWeight: '700',
+            textDecoration: 'none',
+          }}
+        >
+          <span>📱 Launch Standalone Expo Mobile App &rarr;</span>
+        </a>
+      </div>
     </Card>
   );
 }

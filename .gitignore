@@ -5,7 +5,7 @@ target/
 *.iml
 .vscode/
 .DS_Store
-.env
+.env*
 HELP.md
 node_modules/
 .expo/
@@ -15,3 +15,11 @@ storage/documents/
 .gradle/
 *.apk
 *.aab
+__pycache__/
+*.pyc
+.gemini/
+n8n-variables.json
+host_admin.py
+setup_admin_email.py
+setup_apigateway.py
+

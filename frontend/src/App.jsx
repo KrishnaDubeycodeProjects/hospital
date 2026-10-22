@@ -63,9 +63,9 @@ export default function App() {
             <Route path="/records-select" element={<HealthRecordsScreen />} />
             <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
 
-            {/* Dedicated Original React Native ASHA Mobile App */}
-            <Route path="/asha" element={<AshaRedirect />} />
-            <Route path="/asha/*" element={<AshaRedirect />} />
+            {/* Dedicated ASHA & CHO Supervisor Hub */}
+            <Route path="/asha" element={<AshaAdminDashboard />} />
+            <Route path="/asha/mobile" element={<AshaRedirect />} />
 
             {/* Hospital Admin & Counter Staff Console */}
             <Route path="/admin" element={<RoleShell role="admin" />}>
@@ -74,6 +74,7 @@ export default function App() {
               <Route path="missed" element={<AdminMissed />} />
               <Route path="history" element={<AdminHistory />} />
               <Route path="hospitals" element={<AdminHospitals />} />
+              <Route path="asha" element={<AshaAdminDashboard />} />
             </Route>
 
             <Route path="/patient" element={<RoleShell role="patient" />}>

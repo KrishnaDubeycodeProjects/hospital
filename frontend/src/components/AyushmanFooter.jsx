@@ -39,14 +39,31 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
               color: '#334155',
             }}
           >
-            <img
-              src="/aarogya_flow_icon_transparent.png"
-              alt="Aarogya Flow"
-              style={{ width: '22px', height: '22px', objectFit: 'contain' }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
+            <div
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '6px',
+                backgroundColor: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '2px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.08)',
+                border: '1px solid #E2E8F0',
+                flexShrink: 0,
               }}
-            />
+            >
+              <img
+                src="/aarogya_flow_icon_transparent_hd.png"
+                alt="Aarogya Flow"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                }}
+              />
+            </div>
             <strong
               style={{ color: '#043C2C', fontWeight: '800', cursor: 'pointer', letterSpacing: '-0.01em' }}
               onClick={() => setShowModal(true)}
@@ -117,11 +134,31 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img
-                  src="/aarogya_flow_icon_transparent.png"
-                  alt="Aarogya Flow"
-                  style={{ width: '24px', height: '24px', objectFit: 'contain' }}
-                />
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    backgroundColor: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '2px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+                    border: '1px solid #E2E8F0',
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src="/aarogya_flow_icon_transparent_hd.png"
+                    alt="Aarogya Flow"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                    }}
+                  />
+                </div>
                 <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#043C2C', margin: 0 }}>
                   Aarogya Flow Initiative
                 </h3>
