@@ -151,26 +151,50 @@ export const GridScreen: React.FC<GridScreenProps> = ({
     return true;
   };
 
-  // Map 24 households to interactive grid dots
-  const gridDots: HouseholdDot[] = families.map((fam) => {
-    const isMatch = checkFamilyMatch(fam);
-    const dotStatus = isMatch ? fam.status : 'noData';
+  // Map 24 households to interactive grid dots (strictly houses 1 to 24)
+  const gridDots: HouseholdDot[] = families
+    .filter((fam) => {
+      const num = Number(fam.houseNumber) || fam.sequentialNumber;
+      return num >= 1 && num <= 24;
+    })
+    .sort((a, b) => (Number(a.houseNumber) || a.sequentialNumber) - (Number(b.houseNumber) || b.sequentialNumber))
+    .map((fam) => {
+      const isMatch = checkFamilyMatch(fam);
+      const dotStatus = isMatch ? fam.status : 'noData';
+      const famMembers = members.filter((m) => m.familyUnitId === fam.id);
 
-    return {
-      id: fam.sequentialNumber,
-      houseNo: Number(fam.houseNumber),
-      familyName: fam.headName,
-      totalMembers: fam.totalMembers,
-      lastVisited: fam.lastVisitedAt || t('noData'),
-      nextVisit: fam.nextVisitDate,
-      status: dotStatus,
-      sectionData: {
-        pregnancy: fam.hasPregnancy,
-        disease: fam.hasDisease,
-        child: fam.hasChild,
-      },
-    };
-  });
+      return {
+        id: fam.sequentialNumber,
+        houseNo: Number(fam.houseNumber),
+        familyName: fam.headName,
+        totalMembers: famMembers.length || fam.totalMembers,
+        lastVisited: fam.lastVisitedAt || t('noData'),
+        nextVisit: fam.nextVisitDate,
+        status: dotStatus,
+        sectionData: {
+          pregnancy: fam.hasPregnancy,
+          disease: fam.hasDisease,
+          child: fam.hasChild,
+        },
+        familyUnitId: fam.id,
+        primaryPhone: fam.primaryPhone || '+91 98765 00000',
+        villageName: fam.villageName || 'चाँदपुर गाँव',
+        membersList: famMembers.map((m) => ({
+          id: m.id,
+          name: m.name,
+          age: m.age,
+          gender: m.gender,
+          isPregnant: m.isPregnant,
+          isChild: m.isChild || (m.age && m.age <= 5),
+          hasDisease: m.hasChronicCondition || m.isNcdPatient,
+          condition: m.isPregnant
+            ? 'गर्भवती (ANC)'
+            : m.isChild
+            ? 'शिशु (बाल स्वास्थ्य)'
+            : m.chronicConditionType || m.ncdDiagnosis || 'सामान्य',
+        })),
+      };
+    });
 
   const matchingCount = gridDots.filter((d) => d.status !== 'noData').length;
   const currentSubOptions = subFilterOptions[activeCategory] || [];
@@ -272,7 +296,12 @@ export const GridScreen: React.FC<GridScreenProps> = ({
           <DotGrid
             dots={gridDots}
             onDotPress={(dot) => setSelectedDot(dot)}
-            selectedDotId={selectedDot?.id}
+            selectedDotId={selectedDot?.id || (gridDots.length > 0 ? gridDots[0].id : 1)}
+            onViewFamilyDetail={(dot) => {
+              if (onNavigateToFamilyDetail) {
+                onNavigateToFamilyDetail(dot.houseNo, dot.familyName);
+              }
+            }}
           />
         </View>
 

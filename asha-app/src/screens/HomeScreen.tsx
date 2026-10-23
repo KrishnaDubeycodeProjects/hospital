@@ -246,7 +246,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <DotGrid
               dots={dots}
               onDotPress={(dot) => setSelectedDot(dot)}
-              selectedDotId={selectedDot?.id}
+              selectedDotId={selectedDot?.id || (dots.length > 0 ? dots[0].id : 1)}
+              onViewFamilyDetail={(dot) => {
+                if (onNavigateToFamilyDetail) {
+                  onNavigateToFamilyDetail(dot.houseNo, dot.familyName);
+                }
+              }}
             />
 
             {/* SENDER DATA MODULE (एएनएम को डेटा भेजें) */}
