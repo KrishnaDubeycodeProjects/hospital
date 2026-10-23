@@ -38,7 +38,7 @@ export class SyncApi {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const res = await fetch(`${BACKEND_BASE_URL}/api/asha/me`, {
+      const res = await fetch(`${BACKEND_BASE_URL}/actuator/health`, {
         method: 'GET',
         headers: { 'X-ASHA-Phone': '9876543210', ...NGROK_HEADERS },
         signal: controller.signal,
