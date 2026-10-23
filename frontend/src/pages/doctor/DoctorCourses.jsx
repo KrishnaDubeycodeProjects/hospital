@@ -310,7 +310,7 @@ export default function DoctorCourses() {
       </Card>
 
       {/* Patient Results Grid / Course Selector */}
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '20px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '20px', alignItems: 'start' }} className="responsive-split">
         {/* Left Column: Matched Patients & Courses List */}
         <div className="stack-md">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -528,17 +528,17 @@ export default function DoctorCourses() {
                         )}
 
                         {enc.clinicalNotes && (
-                          <p style={{ margin: '6px 0 2px', fontSize: '13px' }}>
+                          <p style={{ margin: '6px 0 2px', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
                             <strong>Clinical Notes:</strong> {enc.clinicalNotes}
                           </p>
                         )}
                         {enc.examinationFindings && (
-                          <p style={{ margin: '2px 0', fontSize: '13px' }}>
+                          <p style={{ margin: '2px 0', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
                             <strong>Exam Findings:</strong> {enc.examinationFindings}
                           </p>
                         )}
                         {enc.plan && (
-                          <p style={{ margin: '2px 0 8px', fontSize: '13px', color: 'var(--primary)' }}>
+                          <p style={{ margin: '2px 0 8px', fontSize: '13px', color: 'var(--primary)', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
                             <strong>Management Plan:</strong> {enc.plan}
                           </p>
                         )}
@@ -576,6 +576,7 @@ export default function DoctorCourses() {
                 {!timeline?.documents || timeline.documents.length === 0 ? (
                   <EmptyState title="No documents attached to this care course." hint="Use 'Attach Document' above to upload lab reports, discharge summaries, or imaging files." />
                 ) : (
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <Table
                     columns={[
                       { key: 'fileName', header: 'File Name' },
@@ -635,6 +636,7 @@ export default function DoctorCourses() {
                     ]}
                     rows={timeline.documents}
                   />
+                  </div>
                 )}
               </Card>
             </div>

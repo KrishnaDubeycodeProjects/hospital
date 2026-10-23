@@ -317,9 +317,19 @@ a:hover {
 }
 
 .app-content {
-  padding: 36px 40px;
-  max-width: 1200px;
+  padding: 24px 32px;
+  max-width: 1560px;
+  width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+@media (min-width: 1600px) {
+  .app-content {
+    max-width: 1680px;
+    padding: 28px 40px;
+  }
 }
 
 @media (max-width: 860px) {
@@ -673,12 +683,20 @@ a:hover {
   -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  width: 100%;
+  max-width: 100%;
 }
 
 .table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13.5px;
+}
+
+.table td {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .table th {
@@ -1535,13 +1553,16 @@ a:hover {
   justify-content: space-between;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
-  gap: 14px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .detail-row dt {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
+  flex-shrink: 0;
+  min-width: 140px;
 }
 
 .detail-row dd {
@@ -1549,6 +1570,10 @@ a:hover {
   font-weight: 700;
   text-align: right;
   color: var(--text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  flex: 1;
 }
 
 .qr-block {
@@ -2858,3 +2883,51 @@ a:hover {
 
 
 
+
+/* ------------------------------------------------------------- OPDX Doctor Stat Cards */
+.opdx-stat-card {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.opdx-stat-card:hover {
+  box-shadow: var(--shadow);
+}
+
+.opdx-stat-card.blue { border-left: 4px solid #0284c7; background: #f0f9ff; }
+.opdx-stat-card.amber { border-left: 4px solid #f59e0b; background: #fffbeb; }
+.opdx-stat-card.green { border-left: 4px solid #10b981; background: #f0fdf4; }
+.opdx-stat-card.red { border-left: 4px solid #ef4444; background: #fef2f2; }
+.opdx-stat-card.slate { border-left: 4px solid #64748b; background: #f8fafc; }
+.opdx-stat-card.purple { border-left: 4px solid #a855f7; background: #faf5ff; }
+
+.opdx-stat-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.opdx-stat-number {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+  word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+  .responsive-split {
+    grid-template-columns: 1fr !important;
+  }
+}

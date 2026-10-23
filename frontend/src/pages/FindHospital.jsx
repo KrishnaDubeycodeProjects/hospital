@@ -6,9 +6,20 @@ import { useToast } from '../context/ToastContext';
 import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 const DEFAULT_FALLBACK_HOSPITALS = [
+  {
+    id: 100,
+    name: 'AarogyaFlow Central Hospital',
+    uriSlug: 'main',
+    address: 'Naupada, Thane West, Maharashtra 400602',
+    ownership: 'Government',
+    activeCounters: 10,
+    openTime: '00:00',
+    closeTime: '23:59',
+    categories: ['General Medicine', 'General OPD', 'Pediatrics', 'Obstetrics & Gynaecology', 'Cardiology', 'Orthopedics', 'Dermatology'],
+  },
   {
     id: 1,
     name: 'Chhatrapati Shivaji Maharaj Hospital',
@@ -59,6 +70,9 @@ const DEFAULT_FALLBACK_HOSPITALS = [
 const DEFAULT_COORDS = { lat: 19.1895, lon: 72.964 };
 
 function formatOperatingHours(startTime, endTime) {
+  if ((startTime === '00:00' || !startTime) && (endTime === '23:59' || endTime === '24:00')) {
+    return 'Open 24 Hours';
+  }
   const formatSingle = (t) => {
     if (!t) return '';
     const [hh, mm] = t.split(':').map(Number);
@@ -175,15 +189,20 @@ function mapHospitalData(raw, defaultDist, index) {
     illustrationUrl = `/hospital_illustrations/hospital_${pick}.png`;
   }
 
+  const isAarogyaFlow = (h.uriSlug === 'main' || h.slug === 'main' || nameLower.includes('aarogyaflow'));
+  const is24Hours = isAarogyaFlow || (openTime === '00:00' && (closeTime === '23:59' || closeTime === '24:00'));
+
   return {
     id: h.id,
     slug: h.uriSlug || h.slug || '',
     hospital_name: hospitalName,
     hospital_type: hospitalType,
     distance_km: dist != null ? Number(dist) : null,
-    operating_hours_start: openTime,
-    operating_hours_end: closeTime,
-    is_currently_open: isOpenNow(h),
+    operating_hours_start: is24Hours ? '00:00' : openTime,
+    operating_hours_end: is24Hours ? '23:59' : closeTime,
+    is_currently_open: is24Hours ? true : isOpenNow(h),
+
+
     illustration_id: illustrationUrl,
     address: h.address || '',
   };

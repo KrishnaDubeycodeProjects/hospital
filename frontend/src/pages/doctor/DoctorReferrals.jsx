@@ -250,7 +250,7 @@ export default function DoctorReferrals() {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
                     <th style={{ padding: '10px 12px' }}>Ref #</th>
@@ -341,7 +341,7 @@ export default function DoctorReferrals() {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <table style={{ width: '100%', minWidth: '880px', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
                     <th style={{ padding: '10px 12px' }}>Ref #</th>
@@ -381,7 +381,7 @@ export default function DoctorReferrals() {
                           {r.priorityTier?.replace('_', ' ')}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '10px 12px', maxWidth: '320px', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.4 }}>
                         {r.reason}
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>

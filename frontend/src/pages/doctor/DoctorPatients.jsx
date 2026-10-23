@@ -262,7 +262,7 @@ export default function DoctorPatients() {
 
       {/* Main Split Layout: Patient List on Left, Detail & Documents on Right */}
       {!loading && filteredPatients.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '20px', alignItems: 'start' }} className="responsive-split">
           {/* Left Column: Patient Cards List */}
           <div className="stack-sm" style={{ maxHeight: '720px', overflowY: 'auto' }}>
             {filteredPatients.map((pt) => {
@@ -388,6 +388,7 @@ export default function DoctorPatients() {
                       hint="Click 'Upload Report / Rx' above to attach a prescription or diagnostic report."
                     />
                   ) : (
+                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <Table
                       columns={[
                         { key: 'fileName', header: 'Document Title' },
@@ -451,6 +452,7 @@ export default function DoctorPatients() {
                       ]}
                       rows={selectedPatient.documents}
                     />
+                    </div>
                   )}
                 </Card>
               </div>

@@ -940,11 +940,11 @@ export default function DoctorConsultation() {
                     <div style={{ color: '#0d9488', fontSize: '11px', marginTop: '2px', fontWeight: 500 }}>
                       📍 {t.distanceKm != null ? `${t.distanceKm} km` : '18.5 km'} &bull; {t.travelMinutes != null ? `${t.travelMinutes}m ETA` : '45m buffer'}
                     </div>
-                    <div style={{ display: 'flex', gap: '5px', marginTop: '6px', justifyContent: 'flex-end' }}>
-                      <Button size="sm" variant="secondary" onClick={() => handleUnfreeze(t.id)} style={{ fontSize: '11px', backgroundColor: '#e0f2fe', color: '#0369a1' }}>
-                        ☀️ Unfreeze
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <Button size="sm" variant="secondary" onClick={() => handleUnfreeze(t.id)} style={{ fontSize: '11px', backgroundColor: '#e0f2fe', color: '#0369a1', flex: '1 1 auto', padding: '4px 8px' }}>
+                        Unfreeze
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px' }}>
+                      <Button size="sm" variant="ghost" onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
                         Call Chair
                       </Button>
                     </div>
@@ -1038,11 +1038,11 @@ export default function DoctorConsultation() {
                         {t.name || 'Patient'} {t.age ? `(${t.gender || 'M'}, ${t.age}y)` : ''}
                       </div>
 
-                      <div style={{ display: 'flex', gap: '5px', marginTop: '6px', justifyContent: 'flex-end' }}>
-                        <Button size="sm" variant={isPos1 ? 'primary' : 'secondary'} onClick={() => handleCallPatient(t.id)}>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <Button size="sm" variant={isPos1 ? 'primary' : 'secondary'} onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
                           Call to Chair
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleNoShow(t.id)} title="Exponential demote">
+                        <Button size="sm" variant="ghost" onClick={() => handleNoShow(t.id)} title="Exponential demote" style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
                           Not Come Yet
                         </Button>
                       </div>
@@ -1096,7 +1096,7 @@ export default function DoctorConsultation() {
               <Input
                 type="text"
                 placeholder="Token ID (Auto-populated)"
-                value={activeToken ? `Token #${activeToken.id} - ${activeToken.name || 'Patient'}` : ''}
+                value={activeToken ? `Token #${activeToken.dailyNumber || activeToken.queuePosition || 1} - ${activeToken.name || 'Patient'}` : ''}
                 readOnly
               />
             </Field>
@@ -1151,63 +1151,81 @@ export default function DoctorConsultation() {
           {/* Rx Prescriptions Section */}
           <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Prescriptions (Rx)</h4>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Prescriptions (Rx)</h4>
+                <p className="muted-text" style={{ margin: '2px 0 0', fontSize: '12px' }}>
+                  Standardized formulation, dosage, frequency, and instructions
+                </p>
+              </div>
               <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionRow}>
                 + Add Medication
               </Button>
             </div>
 
-            {prescriptions.map((rx, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1fr 1.2fr 1fr 2fr auto',
-                  gap: '8px',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                }}
-              >
-                <DrugInputWithLiveRegistry
-                  value={rx.drugName}
-                  onChange={(val) => updatePrescription(idx, 'drugName', val)}
-                  onSelectSuggestion={(drug) => {
-                    updatePrescription(idx, 'drugName', drug.name);
-                    if (drug.strength) updatePrescription(idx, 'dosage', drug.strength);
-                    if (drug.defaultDosage && !drug.strength) updatePrescription(idx, 'dosage', drug.defaultDosage);
-                    if (drug.defaultFrequency) updatePrescription(idx, 'frequency', drug.defaultFrequency);
-                    if (drug.defaultDurationDays) updatePrescription(idx, 'durationDays', drug.defaultDurationDays);
-                    if (drug.defaultInstructions) updatePrescription(idx, 'instructions', drug.defaultInstructions);
-                  }}
-                />
-                <Input
-                  placeholder="Dosage (500mg)"
-                  value={rx.dosage}
-                  onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
-                />
-                <Input
-                  placeholder="Freq (TDS / BD)"
-                  value={rx.frequency}
-                  onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
-                />
-                <Input
-                  type="number"
-                  placeholder="Days"
-                  value={rx.durationDays}
-                  onChange={(e) => updatePrescription(idx, 'durationDays', Number(e.target.value))}
-                />
-                <Input
-                  placeholder="Instructions (After meals)"
-                  value={rx.instructions}
-                  onChange={(e) => updatePrescription(idx, 'instructions', e.target.value)}
-                />
-                {prescriptions.length > 1 && (
-                  <Button type="button" size="sm" variant="ghost" onClick={() => removePrescriptionRow(idx)}>
-                    ✕
-                  </Button>
-                )}
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '6px' }}>
+              <div style={{ minWidth: '760px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1.2fr 0.8fr 2fr 36px', gap: '8px', padding: '0 4px 6px', fontSize: '11px', fontWeight: 700, color: '#475569', letterSpacing: '0.04em' }}>
+                  <span>MEDICATION & FORMULATION *</span>
+                  <span>DOSAGE</span>
+                  <span>FREQUENCY</span>
+                  <span>DAYS</span>
+                  <span>SPECIAL INSTRUCTIONS</span>
+                  <span></span>
+                </div>
+
+                {prescriptions.map((rx, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2.5fr 1fr 1.2fr 0.8fr 2fr 36px',
+                      gap: '8px',
+                      alignItems: 'center',
+                      marginBottom: '8px',
+                    }}
+                  >
+                    <DrugInputWithLiveRegistry
+                      value={rx.drugName}
+                      onChange={(val) => updatePrescription(idx, 'drugName', val)}
+                      onSelectSuggestion={(drug) => {
+                        updatePrescription(idx, 'drugName', drug.name);
+                        if (drug.strength) updatePrescription(idx, 'dosage', drug.strength);
+                        if (drug.defaultDosage && !drug.strength) updatePrescription(idx, 'dosage', drug.defaultDosage);
+                        if (drug.defaultFrequency) updatePrescription(idx, 'frequency', drug.defaultFrequency);
+                        if (drug.defaultDurationDays) updatePrescription(idx, 'durationDays', drug.defaultDurationDays);
+                        if (drug.defaultInstructions) updatePrescription(idx, 'instructions', drug.defaultInstructions);
+                      }}
+                    />
+                    <Input
+                      placeholder="Dosage (500mg)"
+                      value={rx.dosage}
+                      onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
+                    />
+                    <Input
+                      placeholder="Freq (TDS / BD)"
+                      value={rx.frequency}
+                      onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Days"
+                      value={rx.durationDays}
+                      onChange={(e) => updatePrescription(idx, 'durationDays', Number(e.target.value))}
+                    />
+                    <Input
+                      placeholder="Instructions (After meals)"
+                      value={rx.instructions}
+                      onChange={(e) => updatePrescription(idx, 'instructions', e.target.value)}
+                    />
+                    {prescriptions.length > 1 && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => removePrescriptionRow(idx)} style={{ padding: '4px' }}>
+                        ✕
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
           {/* Diagnostic Investigations / Lab Orders Section (Eka Care Live Medical DB) */}

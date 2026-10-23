@@ -18,7 +18,11 @@ export function cleanPhone(input) {
  * Checks whether a hospital OPD is currently open based on openTime and closeTime (HH:mm format).
  */
 export function isOpenNow(h) {
-  if (!h || !h.openTime || !h.closeTime) return true;
+  if (!h) return true;
+  const name = (h.name || h.hospital_name || '').toLowerCase();
+  const slug = (h.uriSlug || h.slug || '').toLowerCase();
+  if (slug === 'main' || name.includes('aarogyaflow')) return true;
+  if (!h.openTime || !h.closeTime) return true;
   if (h.openTime === '00:00' && (h.closeTime === '23:59' || h.closeTime === '24:00')) return true;
 
   const now = new Date();
