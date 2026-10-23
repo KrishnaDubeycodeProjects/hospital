@@ -71,7 +71,7 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
               Aarogya Flow
             </strong>
             <span style={{ color: '#CBD5E1' }}>|</span>
-            <span style={{ color: '#64748B', fontWeight: 500 }}>Ayushman Bharat Rural &amp; ABDM Initiative</span>
+            <span style={{ color: '#64748B', fontWeight: 500 }}>Hospital Outpatient &amp; Digital Health Platform</span>
           </div>
 
           {/* Low internet & offline indicator */}
@@ -101,7 +101,7 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
               <rect x="13" y="8" width="3.5" height="14" rx="1" />
               <rect x="18.5" y="4" width="3.5" height="18" rx="1" />
             </svg>
-            <span>Works even on low internet (2G / Offline Ready)</span>
+            <span>Optimized for low-bandwidth environments</span>
           </div>
         </div>
       </footer>
@@ -160,7 +160,7 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
                   />
                 </div>
                 <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#043C2C', margin: 0 }}>
-                  Aarogya Flow Initiative
+                  Aarogya Flow Platform
                 </h3>
               </div>
               <button
@@ -170,21 +170,27 @@ export default function AyushmanFooter({ className = '', style = {}, brandFirst 
                   background: '#F1F5F9',
                   border: 'none',
                   borderRadius: '50%',
-                  width: '28px',
-                  height: '28px',
+                  width: '32px',
+                  height: '32px',
+                  minWidth: '32px',
+                  minHeight: '32px',
+                  aspectRatio: '1 / 1',
+                  padding: 0,
                   fontSize: '15px',
+                  lineHeight: 1,
                   color: '#64748B',
                   cursor: 'pointer',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >
                 ✕
               </button>
             </div>
             <p style={{ fontSize: '13.5px', color: '#475569', lineHeight: '1.6', margin: 0 }}>
-              Aarogya Flow brings zero-wait digital OPD queue passes, emergency tracking, and ABDM Ayushman health records directly to rural clinics, community health centers, and district hospitals — optimized to perform reliably even in low connectivity zones.
+              Aarogya Flow provides transparent digital OPD queue passes, live wait-time tracking, and longitudinal digital health records across community clinics and district hospitals — designed to operate reliably even under variable network conditions.
             </p>
           </div>
         </div>

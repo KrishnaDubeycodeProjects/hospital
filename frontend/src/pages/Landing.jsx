@@ -1,8 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
-import { otpApi } from '../api/client';
 import AyushmanFooter from '../components/AyushmanFooter';
 import { WhatsAppIcon } from '../components/Icons';
 import {
@@ -12,22 +9,21 @@ import {
   Building2,
   Users,
   Stethoscope,
-  Sparkles,
-  Landmark,
+  Activity,
+  ShieldCheck,
+  Smartphone,
+  ChevronRight,
   UserCheck,
 } from 'lucide-react';
 
 export default function Landing() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const toast = useToast();
-  const [demoLoading, setDemoLoading] = useState(false);
 
   const services = [
     {
       id: 'book',
       title: 'Book OPD Token',
-      subtitle: 'Select department, check hospital distance & book online',
+      subtitle: 'Select department, check hospital distance & register your visit token',
       icon: Calendar,
       color: '#E0F2FE',
       border: '#BAE6FD',
@@ -37,7 +33,7 @@ export default function Landing() {
     {
       id: 'track',
       title: 'Track Live Queue',
-      subtitle: 'Watch your exact position, wait time & travel buffer in real-time',
+      subtitle: 'Monitor real-time token progression and estimated waiting time',
       icon: Clock,
       color: '#FFEDD5',
       border: '#FED7AA',
@@ -46,8 +42,8 @@ export default function Landing() {
     },
     {
       id: 'records',
-      title: 'Ayushman Health Vault',
-      subtitle: 'Prescriptions, CBC blood reports, lab findings & referrals',
+      title: 'Health Records & ABHA',
+      subtitle: 'Access digital prescriptions, diagnostic lab reports & medical history',
       icon: FileText,
       color: '#F3E8FF',
       border: '#E9D5FF',
@@ -56,8 +52,8 @@ export default function Landing() {
     },
     {
       id: 'hospitals',
-      title: 'Find Hospitals & Counters',
-      subtitle: 'Locate nearby OPDs with live counter load & timings',
+      title: 'Hospitals & Departments',
+      subtitle: 'Explore participating medical centers, OPD timings and counter status',
       icon: Building2,
       color: '#DCFCE7',
       border: '#BBF7D0',
@@ -66,8 +62,8 @@ export default function Landing() {
     },
     {
       id: 'family',
-      title: 'Family Members & ABHA',
-      subtitle: 'Link 14-digit ABHA IDs and manage dependents seamlessly',
+      title: 'Family Health Profiles',
+      subtitle: 'Manage dependents, children, and elderly parents under a unified profile',
       icon: Users,
       color: '#FFE4E6',
       border: '#FECDD3',
@@ -76,8 +72,8 @@ export default function Landing() {
     },
     {
       id: 'doctor',
-      title: 'Doctor Consultation Room',
-      subtitle: 'Electronic health records, e-prescriptions & live queue calling',
+      title: 'Clinician Consultation Suite',
+      subtitle: 'Digital EHR consultation workflow, e-prescriptions & queue calling',
       icon: Stethoscope,
       color: '#E0E7FF',
       border: '#C7D2FE',
@@ -86,8 +82,8 @@ export default function Landing() {
     },
     {
       id: 'asha',
-      title: 'ASHA & CHO Rural Hub',
-      subtitle: 'Village household surveys, HRP tracking & offline maternal care',
+      title: 'Community Health Hub',
+      subtitle: 'ASHA worker survey tools, maternal health tracking & village sync',
       icon: Users,
       color: '#DCFCE7',
       border: '#BBF7D0',
@@ -96,20 +92,40 @@ export default function Landing() {
     },
   ];
 
-  async function handleLaunchDemoPatient() {
-    setDemoLoading(true);
-    try {
-      await fetch('/api/test/patient/seed?phone=%2B919100000099', { method: 'POST' });
-      const res = await otpApi.verify('+919100000099', '123456');
-      login('PATIENT', res.token);
-      toast.success('Logged in as Ramesh Kumar (Demo Patient)');
-      navigate('/patient');
-    } catch (e) {
-      toast.error(e.message || 'Demo activation error');
-    } finally {
-      setDemoLoading(false);
-    }
-  }
+  const platformPillars = [
+    {
+      icon: Clock,
+      title: 'Live Queue Tracking',
+      description: 'Transparent token call progression with travel-time buffers to reduce crowded waiting halls.',
+      iconColor: '#047857',
+      bgColor: '#ECFDF5',
+      borderColor: '#A7F3D0',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Digital Health Records',
+      description: 'Longitudinal medical vault linking verified ABHA accounts with prescriptions and lab results.',
+      iconColor: '#2563EB',
+      bgColor: '#EFF6FF',
+      borderColor: '#BFDBFE',
+    },
+    {
+      icon: Stethoscope,
+      title: 'Clinician Workflow',
+      description: 'Streamlined doctor desk with one-click patient calling, history review, and drug database.',
+      iconColor: '#7C3AED',
+      bgColor: '#F5F3FF',
+      borderColor: '#DDD6FE',
+    },
+    {
+      icon: Smartphone,
+      title: 'Mobile & WhatsApp Access',
+      description: 'Instant token booking and live notifications delivered directly to citizens via WhatsApp.',
+      iconColor: '#059669',
+      bgColor: '#F0FDF4',
+      borderColor: '#BBF7D0',
+    },
+  ];
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
@@ -121,14 +137,14 @@ export default function Landing() {
           position: 'sticky',
           top: 0,
           zIndex: 40,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}
       >
         <div
           style={{
             maxWidth: '1200px',
             margin: '0 auto',
-            padding: '14px 20px',
+            padding: '12px 20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -139,8 +155,8 @@ export default function Landing() {
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
             <div
               style={{
-                width: '40px',
-                height: '40px',
+                width: '38px',
+                height: '38px',
                 borderRadius: '10px',
                 backgroundColor: '#ffffff',
                 display: 'flex',
@@ -153,42 +169,28 @@ export default function Landing() {
               }}
             >
               <img
-                src="/aarogya_flow_icon_transparent_hd.png"
+                src="/aarogya_flow_icon_transparent.png"
                 alt="Aarogya Flow"
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+                  e.currentTarget.style.display = 'none';
                 }}
               />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#185a44', fontWeight: '800', fontSize: '20px', letterSpacing: '-0.02em' }}>
+                <span style={{ color: '#0F4C3A', fontWeight: '800', fontSize: '19px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
                   Aarogya Flow
                 </span>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: '700',
-                    backgroundColor: '#E8F5E9',
-                    color: '#185a44',
-                    border: '1px solid #C8E6C9',
-                    padding: '2px 7px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  ABDM CERTIFIED
-                </span>
               </div>
-              <div style={{ fontSize: '11px', color: '#4b5d54', fontWeight: 500 }}>
-                Care Closer. Healthier Tomorrow.
+              <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                Hospital Queue &amp; Care Management Platform
               </div>
             </div>
           </Link>
 
-          {/* Center Navigation Links (Hidden on small mobile) */}
-          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Center Navigation Links */}
+          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
             <Link to="/find-hospital" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
               Find Hospital
             </Link>
@@ -207,41 +209,44 @@ export default function Landing() {
           </nav>
 
           {/* Right Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => window.open('https://wa.me/919120123877?text=Hi', '_blank')}
               style={{
-                backgroundColor: '#DCFCE7',
+                backgroundColor: '#F0FDF4',
                 color: '#15803D',
-                border: '1px solid #86EFAC',
+                border: '1px solid #BBF7D0',
                 borderRadius: '8px',
-                padding: '8px 12px',
-                fontSize: '12px',
-                fontWeight: '700',
+                padding: '7px 12px',
+                fontSize: '12.5px',
+                fontWeight: '600',
                 cursor: 'pointer',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
                 whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
               }}
-              title="Open WhatsApp with pre-filled Hi message"
+              title="Open WhatsApp Support Bot"
             >
-              <WhatsAppIcon size={15} color="#15803D" />
-              <span>Try Demo Mode</span>
+              <WhatsAppIcon size={14} color="#15803D" />
+              <span>WhatsApp Access</span>
             </button>
             <button
               type="button"
               onClick={() => navigate('/login/patient')}
               style={{
-                backgroundColor: '#004D40',
+                backgroundColor: '#0F4C3A',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '8px 16px',
+                padding: '7px 16px',
                 fontSize: '13px',
                 fontWeight: '700',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.15s ease',
               }}
             >
               Sign In
@@ -257,10 +262,10 @@ export default function Landing() {
           style={{
             background: 'linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%)',
             borderBottom: '1px solid #E2E8F0',
-            padding: '50px 20px 40px',
+            padding: '52px 20px 44px',
           }}
         >
-          <div style={{ maxWidth: '1200px', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ maxWidth: '1000px', margin: '0 auto', textAlign: 'center' }}>
             <span
               style={{
                 display: 'inline-flex',
@@ -268,60 +273,63 @@ export default function Landing() {
                 gap: '8px',
                 fontSize: '12px',
                 fontWeight: '700',
-                color: '#004D40',
+                color: '#0F4C3A',
                 backgroundColor: '#E8F5E9',
                 border: '1px solid #C8E6C9',
-                padding: '4px 14px',
+                padding: '5px 14px',
                 borderRadius: '20px',
-                marginBottom: '16px',
+                marginBottom: '18px',
               }}
             >
-              <Landmark size={14} style={{ color: '#004D40' }} />
-              <span>National Health Authority &bull; ABDM Integrated OPD System</span>
+              <Activity size={14} style={{ color: '#0F4C3A' }} />
+              <span>Hospital Outpatient Queue &amp; Care Coordination System</span>
             </span>
+
             <h1
               style={{
-                fontSize: 'clamp(28px, 4vw, 44px)',
+                fontSize: 'clamp(28px, 4.2vw, 46px)',
                 fontWeight: '900',
-                color: '#004D40',
+                color: '#0F4C3A',
                 margin: '0 0 16px',
                 letterSpacing: '-0.03em',
-                lineHeight: 1.15,
+                lineHeight: 1.18,
               }}
             >
-              Smart, Zero-Wait Hospital OPDs <br />
-              <span style={{ color: '#059669' }}>For Every Indian Citizen</span>
+              Modern Outpatient Care &amp; <br />
+              <span style={{ color: '#059669' }}>Transparent Queue Management</span>
             </h1>
+
             <p
               style={{
-                fontSize: '16px',
+                fontSize: '15.5px',
                 color: '#475569',
                 maxWidth: '680px',
                 margin: '0 auto 28px',
                 lineHeight: 1.6,
               }}
             >
-              Experience seamless queue management with live digital tokens, Ayushman Bharat ABHA Health Vault, and automated WhatsApp access.
+              Connect patients, clinicians, and hospital counters through real-time queue visibility, digital health record vaults, and automated mobile updates.
             </p>
 
             {/* Quick Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '36px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '38px' }}>
               <button
                 type="button"
                 onClick={() => navigate('/find-hospital')}
                 style={{
-                  backgroundColor: '#004D40',
+                  backgroundColor: '#0F4C3A',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: '10px',
                   padding: '12px 24px',
-                  fontSize: '15px',
+                  fontSize: '14.5px',
                   fontWeight: '700',
                   cursor: 'pointer',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 12px rgba(0, 77, 64, 0.2)',
+                  boxShadow: '0 4px 12px rgba(15, 76, 58, 0.2)',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 <Calendar size={18} />
@@ -336,12 +344,14 @@ export default function Landing() {
                   border: '1px solid #CBD5E1',
                   borderRadius: '10px',
                   padding: '12px 22px',
-                  fontSize: '15px',
+                  fontSize: '14.5px',
                   fontWeight: '700',
                   cursor: 'pointer',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 <Clock size={18} />
@@ -356,61 +366,87 @@ export default function Landing() {
                   border: '1px solid #86EFAC',
                   borderRadius: '10px',
                   padding: '12px 20px',
-                  fontSize: '15px',
+                  fontSize: '14.5px',
                   fontWeight: '700',
                   cursor: 'pointer',
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                <WhatsAppIcon size={18} color="#15803D" />
-                <span>Chat on WhatsApp ("Hi")</span>
+                <WhatsAppIcon size={17} color="#15803D" />
+                <span>WhatsApp Assistant</span>
               </button>
             </div>
 
-            {/* Stat Badges */}
+            {/* Platform Feature Pillars */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '16px',
-                maxWidth: '900px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                gap: '14px',
+                maxWidth: '960px',
                 margin: '0 auto',
+                textAlign: 'left',
               }}
             >
-              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#004D40' }}>33+</div>
-                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Medical Specialties</div>
-              </div>
-              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#059669' }}>&lt; 15 min</div>
-                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>Average Queue Wait</div>
-              </div>
-              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#2563EB' }}>100%</div>
-                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>ABDM Paperless Vault</div>
-              </div>
-              <div style={{ backgroundColor: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#D97706' }}>24 &times; 7</div>
-                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>WhatsApp Assistance</div>
-              </div>
+              {platformPillars.map((p, idx) => {
+                const Icon = p.icon;
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        backgroundColor: p.bgColor,
+                        border: `1px solid ${p.borderColor}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon size={18} style={{ color: p.iconColor }} />
+                    </div>
+                    <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#1E293B' }}>
+                      {p.title}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748B', lineHeight: '1.45' }}>
+                      {p.description}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
 
         {/* Core Services Section */}
         <section style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 20px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-            <h2 style={{ fontSize: '26px', fontWeight: '800', color: '#004D40', margin: '0 0 8px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F4C3A', margin: '0 0 8px' }}>
               Comprehensive Healthcare Services
             </h2>
-            <p style={{ fontSize: '14px', color: '#64748B', margin: 0 }}>
-              Access everything from hospital discovery to longitudinal digital care records in one unified platform.
+            <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '640px', marginLeft: 'auto', marginRight: 'auto' }}>
+              Access everything from OPD appointment booking to electronic health records in one unified, patient-centric system.
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
             {services.map((svc) => {
               const IconComp = svc.icon;
               return (
@@ -421,29 +457,29 @@ export default function Landing() {
                     backgroundColor: '#ffffff',
                     border: '1px solid #E2E8F0',
                     borderRadius: '14px',
-                    padding: '24px',
+                    padding: '22px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    transition: 'all 0.15s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
                     display: 'flex',
                     gap: '16px',
                     alignItems: 'flex-start',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-3px)';
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.08)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
                     e.currentTarget.style.borderColor = svc.border;
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
                     e.currentTarget.style.borderColor = '#E2E8F0';
                   }}
                 >
                   <div
                     style={{
-                      width: '48px',
-                      height: '48px',
+                      width: '46px',
+                      height: '46px',
                       borderRadius: '12px',
                       backgroundColor: svc.color,
                       border: `1px solid ${svc.border}`,
@@ -453,17 +489,18 @@ export default function Landing() {
                       flexShrink: 0,
                     }}
                   >
-                    <IconComp size={24} style={{ color: svc.iconColor }} />
+                    <IconComp size={22} style={{ color: svc.iconColor }} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1E293B' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{ margin: '0 0 5px', fontSize: '16px', fontWeight: '700', color: '#1E293B' }}>
                       {svc.title}
                     </h3>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#64748B', lineHeight: '1.5' }}>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748B', lineHeight: '1.45' }}>
                       {svc.subtitle}
                     </p>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12.5px', fontWeight: '700', color: '#004D40' }}>
-                      Open Service &rarr;
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '10px', fontSize: '12px', fontWeight: '700', color: '#0F4C3A' }}>
+                      <span>Open Service</span>
+                      <ChevronRight size={14} />
                     </span>
                   </div>
                 </div>
@@ -472,60 +509,60 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Role Portals Quick Switcher */}
-        <section style={{ backgroundColor: '#F1F5F9', borderTop: '1px solid #E2E8F0', padding: '40px 20px' }}>
+        {/* Stakeholder Portals Section */}
+        <section style={{ backgroundColor: '#F1F5F9', borderTop: '1px solid #E2E8F0', padding: '42px 20px' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#1E293B', margin: '0 0 6px' }}>
                 Dedicated Stakeholder Portals
               </h2>
               <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
-                Tailored interfaces for patients, clinicians, and hospital administrative staff.
+                Tailored interfaces for patients, clinicians, hospital staff, and community health workers.
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
-                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <UserCheck size={24} style={{ color: '#004D40' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ marginBottom: '12px', width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserCheck size={22} style={{ color: '#0F4C3A' }} />
                 </div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#004D40' }}>Patient Portal</h3>
-                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
-                  View active queue token slips, access CBC and prescription vaults, and manage family ABHA cards.
+                <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#0F4C3A' }}>Patient &amp; Family</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5, flex: 1 }}>
+                  View live OPD tokens, digital prescription slips, lab results, and household member ABHA cards.
                 </p>
                 <button
                   type="button"
                   onClick={() => navigate('/login/patient')}
-                  style={{ width: '100%', padding: '9px', backgroundColor: '#E8F5E9', color: '#004D40', border: '1px solid #C8E6C9', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  style={{ width: '100%', padding: '9px', backgroundColor: '#E8F5E9', color: '#0F4C3A', border: '1px solid #C8E6C9', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
                   Enter Patient Portal &rarr;
                 </button>
               </div>
 
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
-                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Stethoscope size={24} style={{ color: '#1D4ED8' }} />
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ marginBottom: '12px', width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Stethoscope size={22} style={{ color: '#1D4ED8' }} />
                 </div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#1D4ED8' }}>Doctor Portal</h3>
-                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
-                  Call patients into the chair, generate e-prescriptions with Eka Care registry, and manage clinical care courses.
+                <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#1D4ED8' }}>Doctor Consultation</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5, flex: 1 }}>
+                  Call patients into the chair, generate e-prescriptions, order lab tests, and track care continuums.
                 </p>
                 <button
                   type="button"
                   onClick={() => navigate('/login/doctor')}
                   style={{ width: '100%', padding: '9px', backgroundColor: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
-                  Enter Doctor Portal &rarr;
+                  Enter Doctor Desk &rarr;
                 </button>
               </div>
 
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #CBD5E1' }}>
-                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#F0FDFA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Building2 size={24} style={{ color: '#0F766E' }} />
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ marginBottom: '12px', width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#F0FDFA', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building2 size={22} style={{ color: '#0F766E' }} />
                 </div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#0F766E' }}>Hospital Admin & Counters</h3>
-                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
-                  Manage department counters, handle missed and exponentially penalized tokens, and inspect hospital metrics.
+                <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#0F766E' }}>Hospital Admin &amp; Reception</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5, flex: 1 }}>
+                  Configure departments, manage counter queue queues, handle token calls, and view hospital analytics.
                 </p>
                 <button
                   type="button"
@@ -536,34 +573,34 @@ export default function Landing() {
                 </button>
               </div>
 
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '22px', border: '1px solid #86EFAC' }}>
-                <div style={{ marginBottom: '14px', width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Users size={24} style={{ color: '#15803D' }} />
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #86EFAC', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ marginBottom: '12px', width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Users size={22} style={{ color: '#15803D' }} />
                 </div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: '700', color: '#15803D' }}>ASHA Worker & CHO Portal</h3>
-                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5 }}>
-                  Household health surveys, maternal HRP tracking, offline village sync, and remote CHO teleconsultation reviews.
+                <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#15803D' }}>ASHA &amp; Community Health</h3>
+                <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5, flex: 1 }}>
+                  Conduct village household surveys, monitor maternal health status, and sync offline field data.
                 </p>
                 <button
                   type="button"
                   onClick={() => navigate('/asha')}
                   style={{ width: '100%', padding: '9px', backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
-                  Launch ASHA Worker App &rarr;
+                  Launch ASHA Hub &rarr;
                 </button>
               </div>
             </div>
           </div>
         </section>
 
-        {/* WhatsApp Notification & AI Assistant Banner */}
+        {/* WhatsApp Assistance Banner */}
         <section style={{ backgroundColor: '#ffffff', borderTop: '1px solid #E2E8F0', padding: '36px 20px' }}>
           <div
             style={{
               maxWidth: '900px',
               margin: '0 auto',
               backgroundColor: '#F0FDF4',
-              border: '2px solid #86EFAC',
+              border: '1.5px solid #86EFAC',
               borderRadius: '16px',
               padding: '24px 28px',
               display: 'flex',
@@ -576,8 +613,8 @@ export default function Landing() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div
                 style={{
-                  width: '52px',
-                  height: '52px',
+                  width: '48px',
+                  height: '48px',
                   borderRadius: '50%',
                   backgroundColor: '#25D366',
                   color: '#ffffff',
@@ -585,17 +622,17 @@ export default function Landing() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  boxShadow: '0 4px 12px rgba(37, 211, 102, 0.35)',
+                  boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)',
                 }}
               >
-                <WhatsAppIcon size={28} color="#ffffff" />
+                <WhatsAppIcon size={24} color="#ffffff" />
               </div>
               <div>
-                <h3 style={{ margin: '0 0 4px', fontSize: '17px', fontWeight: '800', color: '#166534' }}>
-                  ArogyaFlow 24/7 WhatsApp AI Assistant
+                <h3 style={{ margin: '0 0 4px', fontSize: '16.5px', fontWeight: '800', color: '#166534' }}>
+                  Automated WhatsApp Notification Bot
                 </h3>
                 <p style={{ margin: 0, fontSize: '13px', color: '#15803D' }}>
-                  Book OPDs, track tokens, upload prescriptions and test demo mode directly on WhatsApp: <strong>+91 91201 23877</strong>
+                  Book appointment tokens and receive live queue notifications on WhatsApp: <strong>+91 91201 23877</strong>
                 </p>
               </div>
             </div>
@@ -607,25 +644,25 @@ export default function Landing() {
                 backgroundColor: '#16A34A',
                 color: '#ffffff',
                 textDecoration: 'none',
-                padding: '11px 22px',
-                borderRadius: '10px',
+                padding: '10px 20px',
+                borderRadius: '8px',
                 fontWeight: '700',
-                fontSize: '13.5px',
+                fontSize: '13px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: '0 2px 8px rgba(22, 163, 74, 0.3)',
+                boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
               }}
             >
-              <WhatsAppIcon size={18} color="#ffffff" />
-              <span>Open WhatsApp Bot</span>
+              <WhatsAppIcon size={16} color="#ffffff" />
+              <span>Message on WhatsApp</span>
             </a>
           </div>
         </section>
       </main>
 
-      {/* Official Ayushman Footer */}
-      <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '24px 20px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }} />
+      {/* Footer */}
+      <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '20px 20px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }} />
     </div>
   );
 }
