@@ -1,11 +1,13 @@
 package com.qdischarge.clinicqueue.lambda;
 
 import com.amazonaws.serverless.exceptions.ContainerInitializationException;
+import com.amazonaws.serverless.proxy.internal.LambdaContainerHandler;
 import com.amazonaws.serverless.proxy.model.AwsProxyResponse;
 import com.amazonaws.serverless.proxy.model.HttpApiV2ProxyRequest;
 import com.amazonaws.serverless.proxy.spring.SpringBootLambdaContainerHandler;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.qdischarge.clinicqueue.ClinicQueueApplication;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,7 +28,9 @@ public class StreamLambdaHandler implements RequestStreamHandler {
     static {
         try {
             log.info("🚀 Bootstrapping Spring Boot 3 on AWS Lambda (HTTP API v2 / Function URL mode)...");
+            LambdaContainerHandler.getObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             handler = SpringBootLambdaContainerHandler.getHttpApiV2ProxyHandler(ClinicQueueApplication.class);
+            LambdaContainerHandler.getObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             log.info("✅ Spring Boot 3 initialized successfully on AWS Lambda!");
         } catch (ContainerInitializationException e) {
             log.error("❌ Could not initialize Spring Boot application for AWS Lambda", e);
