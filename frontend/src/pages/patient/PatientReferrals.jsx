@@ -30,7 +30,7 @@ export default function PatientReferrals() {
       return <span className="badge badge-red">🚨 Emergency (24h)</span>;
     }
     if (tier?.includes('urgent')) {
-      return <span className="badge badge-amber">⚡ Urgent (7-Day Quota)</span>;
+      return <span className="badge badge-amber">⚡ Urgent (Within 7 Days)</span>;
     }
     return <span className="badge badge-blue">Routine (30-Day)</span>;
   }
@@ -41,9 +41,9 @@ export default function PatientReferrals() {
     <div className="stack-lg">
       <div className="card-head">
         <div>
-          <h1>Hospital Referral Passes & Slips</h1>
+          <h1>Hospital Referral Passes</h1>
           <p className="muted-text">
-            Digital referral passes with cryptographically signed QR codes and guaranteed destination hospital quota reservations.
+            Digital referral passes for specialist hospital appointments with QR codes for fast admission.
           </p>
         </div>
       </div>
@@ -76,7 +76,7 @@ export default function PatientReferrals() {
               },
               {
                 key: 'tier',
-                header: 'Priority Tier',
+                header: 'Urgency',
                 render: (r) => getPriorityBadge(r.priorityTier),
               },
               {
@@ -150,7 +150,7 @@ export default function PatientReferrals() {
             )}
 
             <p className="muted-text" style={{ fontSize: '12px', margin: '12px 0 0' }}>
-              Show this QR code at the reception of the destination hospital. It grants admission and unlocks your medical history for the treating physician.
+              Show this QR code at the reception of the destination hospital. It confirms your appointment and lets the hospital doctor review your visit history.
             </p>
 
             <Button variant="primary" className="full-width" onClick={() => setSelectedSlip(null)}>
