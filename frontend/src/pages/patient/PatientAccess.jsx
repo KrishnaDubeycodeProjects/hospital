@@ -26,6 +26,15 @@ export default function PatientAccess() {
 
   useEffect(() => {
     load();
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlCode = params.get('code');
+      if (urlCode) {
+        setCode(urlCode.trim().toUpperCase());
+      }
+    } catch (e) {
+      console.warn('Could not parse URL params', e);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -35,10 +44,18 @@ export default function PatientAccess() {
       return;
     }
 
+    let cleanCode = rawCode.trim().toUpperCase();
+    if (cleanCode.includes('CODE=')) {
+      const match = cleanCode.match(/CODE=([A-Z0-9]+)/i);
+      if (match && match[1]) {
+        cleanCode = match[1].toUpperCase();
+      }
+    }
+
     setClaiming(true);
     try {
-      await patientApi.acceptAccess(rawCode.trim());
-      toast.success('Access granted successfully! The doctor can now view your authorized medical records.');
+      await patientApi.acceptAccess(cleanCode);
+      toast.success('Access granted successfully! A confirmation WhatsApp message has been dispatched to your phone.');
       setCode('');
       setScanOpen(false);
       load();

@@ -757,7 +757,7 @@ export default function DoctorServeEncounter() {
                 IN CHAIR (SERVING)
               </span>
               <span style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8', fontFamily: 'monospace' }}>
-                Token #{activeToken.dailyNumber || activeToken.id}
+                Token #{activeToken.dailyNumber || activeToken.queuePosition || 1}
               </span>
               <span style={{ fontSize: '13px', color: '#94a3b8' }}>
                 ({activeToken.tokenCode || `AF-${activeToken.id}`})
@@ -1717,7 +1717,7 @@ export default function DoctorServeEncounter() {
                 🎉 Patient Record Synchronized & WhatsApp Prescription Dispatched
               </div>
               <div style={{ fontSize: '13px', color: '#065f46', marginTop: '4px' }}>
-                Token #{activeToken.dailyNumber || activeToken.id} completed. Prescriptions, care episode, and diagnostic orders are securely stored.
+                Token #{activeToken.dailyNumber || activeToken.queuePosition || 1} completed. Prescriptions, care episode, and diagnostic orders are securely stored.
               </div>
             </div>
 

@@ -36,6 +36,8 @@ public class ReferralService {
     private final HospitalService hospitalService;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private WhatsAppService whatsAppService;
 
     private static final RowMapper<ReferralDto> REFERRAL_MAPPER = (rs, rowNum) -> {
         Date vu = rs.getDate("valid_until");
@@ -246,9 +248,62 @@ public class ReferralService {
         return getReferralById(referralId);
     }
 
+    public List<ReferralDto> listOutgoingReferrals(int fromHospitalId) {
+        return jdbc.query(
+                """
+                SELECT r.*, c.title AS course_title, c.patient_phone, c.patient_name,
+                       d.name AS referring_doctor_name, fh.name AS from_hospital_name,
+                       th.name AS to_hospital_name, rd.name AS referred_doctor_name
+                FROM course_referrals r
+                JOIN courses c ON r.course_id = c.id
+                LEFT JOIN doctors d ON r.referring_doctor_id = d.id
+                LEFT JOIN hospitals fh ON r.from_hospital_id = fh.id
+                LEFT JOIN hospitals th ON r.to_hospital_id = th.id
+                LEFT JOIN doctors rd ON r.referred_doctor_id = rd.id
+                WHERE r.from_hospital_id = :hId
+                ORDER BY r.created_at DESC
+                LIMIT 50
+                """,
+                Map.of("hId", fromHospitalId), REFERRAL_MAPPER);
+    }
+
+    public List<ReferralDto> listIncomingReferrals(int toHospitalId) {
+        return jdbc.query(
+                """
+                SELECT r.*, c.title AS course_title, c.patient_phone, c.patient_name,
+                       d.name AS referring_doctor_name, fh.name AS from_hospital_name,
+                       th.name AS to_hospital_name, rd.name AS referred_doctor_name
+                FROM course_referrals r
+                JOIN courses c ON r.course_id = c.id
+                LEFT JOIN doctors d ON r.referring_doctor_id = d.id
+                LEFT JOIN hospitals fh ON r.from_hospital_id = fh.id
+                LEFT JOIN hospitals th ON r.to_hospital_id = th.id
+                LEFT JOIN doctors rd ON r.referred_doctor_id = rd.id
+                WHERE r.to_hospital_id = :hId
+                ORDER BY r.created_at DESC
+                LIMIT 50
+                """,
+                Map.of("hId", toHospitalId), REFERRAL_MAPPER);
+    }
+
     private void sendReferralCardNotification(ReferralDto r) {
-        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
-        log.info("Referral {} issued for {}. WhatsApp notification skipped (only user-initiated responses permitted).", r.getId(), r.getPatientPhone());
+        try {
+            if (r.getPatientPhone() == null || r.getPatientPhone().isBlank()) return;
+            String dest = r.getToHospitalName() != null ? r.getToHospitalName() : "Specialist Center";
+            String doctor = r.getReferringDoctorName() != null ? r.getReferringDoctorName() : "Attending Doctor";
+            String msg = "🏥 *Hospital Referral Issued*\n\n"
+                    + "Hello " + (r.getPatientName() != null ? r.getPatientName() : "Patient") + ",\n"
+                    + "Dr. " + doctor + " has issued a priority referral for you.\n\n"
+                    + "• Destination: *" + dest + "*\n"
+                    + "• Department: *" + r.getTargetDepartment() + "*\n"
+                    + "• Priority Tier: *" + (r.getPriorityTier() != null ? r.getPriorityTier().toUpperCase() : "URGENT") + "*\n"
+                    + "• Valid Until: *" + r.getValidUntil() + "*\n\n"
+                    + "Show this message and pass upon arrival at the destination hospital to bypass normal OPD lines.";
+            whatsAppService.sendWhatsAppMessage(r.getPatientPhone(), msg);
+            log.info("✅ Sent Referral WhatsApp card to patient {}", r.getPatientPhone());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed sending referral WhatsApp notification: {}", e.getMessage());
+        }
     }
 
     private static List<String> getPhoneVariants(String phone) {

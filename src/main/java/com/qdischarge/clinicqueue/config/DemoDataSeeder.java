@@ -125,25 +125,11 @@ public class DemoDataSeeder implements ApplicationRunner {
                     Map.of("hId", mainHospitalId), Integer.class);
 
             if (existingTokenCount == null || existingTokenCount == 0) {
-                // Multi-Counter Active Serving Tokens (Counters 1, 2, 3)
-                seedToken(mainHospitalId, "General Medicine", 1, "Amit Kumar", 34, "male", "+919100000001", "serving", 1, null, 0, null, null, null);
-                seedToken(mainHospitalId, "General Medicine", 2, "Priya Patel", 28, "female", "+919100000002", "serving", 2, null, 0, null, null, null);
-                seedToken(mainHospitalId, "General Medicine", 3, "Suresh Verma", 52, "male", "+919100000003", "serving", 3, null, 0, null, null, null);
+                // Active In-Chair Consultation Token (Token #1: Kavish Ahuja)
+                seedToken(mainHospitalId, "General Medicine", 1, "Kavish Ahuja", 24, "male", "9876543210", "serving", 1, null, 0, 1.2, 5.0, null);
 
-                // Look-Ahead Reserved Queue (Next up for Counters 1, 2, 3)
-                seedToken(mainHospitalId, "General Medicine", 4, "Ananya Roy", 24, "female", "+919100000004", "waiting", null, 1, 0, null, null, null);
-                seedToken(mainHospitalId, "General Medicine", 5, "Rahul Sharma", 45, "male", "+919100000005", "waiting", null, 2, 0, null, null, null);
-                seedToken(mainHospitalId, "General Medicine", 6, "Deepak Gupta", 61, "male", "+919100000006", "waiting", null, 3, 0, null, null, null);
-
-                // Standard Waiting Tokens
-                seedToken(mainHospitalId, "General Medicine", 7, "Sunita Devi", 39, "female", "+919100000007", "waiting", null, null, 0, null, null, null);
-                seedToken(mainHospitalId, "General Medicine", 8, "Vikram Singh", 50, "male", "+919100000008", "waiting", null, null, 0, null, null, null);
-
-                // SPECIAL DEMO CASE 2: Far-Away Patient in Distance Anomaly Section (18.5 km away)
-                seedToken(mainHospitalId, "General Medicine", 9, "Farhan Akhtar (Far Patient)", 35, "male", "+919100000011", "waiting", null, null, 0, 18.5, 45.0, "NOW() + INTERVAL '30 minutes'");
-
-                // SPECIAL DEMO CASE 3: Intentional Delay / No-Show subjected to Exponential Backoff Penalty
-                seedToken(mainHospitalId, "General Medicine", 10, "Rohan Mehta (Delayed Patient)", 42, "male", "+919100000012", "waiting", null, null, 2, 1.2, 5.0, null);
+                // Active Waiting Queue (Token #2: Sunita Devi)
+                seedToken(mainHospitalId, "General Medicine", 2, "Sunita Devi", 39, "female", "+919100000007", "waiting", null, null, 0, 1.5, 7.0, null);
             }
 
             // 6. Seed Family Unit & Members for +91 98765 43210

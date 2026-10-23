@@ -33,6 +33,7 @@ public class AccessService {
     private final NamedParameterJdbcTemplate jdbc;
     private final WaSessionService waSessionService;
     private final BotMessages botMessages;
+    private final WhatsAppService whatsAppService;
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -132,9 +133,57 @@ public class AccessService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public AccessGrantDto claimForDoctor(String code, int doctorId, String patientPhone) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, doctor_id, status, expires_at FROM access_requests WHERE code = :code",
+                Map.of("code", code.trim().toUpperCase()));
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("Invalid access code.");
+        }
+        Map<String, Object> req = rows.get(0);
+        int requestId = (Integer) req.get("id");
+        int reqDoctorId = (Integer) req.get("doctor_id");
+        if (reqDoctorId != doctorId) {
+            throw new IllegalArgumentException("This access code belongs to another practitioner.");
+        }
+        String status = (String) req.get("status");
+        LocalDateTime expiresAt = ((Timestamp) req.get("expires_at")).toLocalDateTime();
+        if (!"pending".equals(status) || expiresAt.isBefore(LocalDateTime.now())) {
+            throw new IllegalStateException("This access code has expired or was already used.");
+        }
+
+        String cleanPhone = patientPhone.startsWith("+") ? patientPhone : ("+91" + patientPhone.replaceAll("[^0-9]", ""));
+
+        jdbc.update("UPDATE access_requests SET status = 'claimed', claimed_by_phone = :phone, claimed_at = NOW() WHERE id = :id",
+                Map.of("phone", cleanPhone, "id", requestId));
+
+        Integer grantId = jdbc.queryForObject(
+                "INSERT INTO access_grants (doctor_id, patient_phone, source_request_id) VALUES (:doctorId, :phone, :requestId) RETURNING id",
+                Map.of("doctorId", doctorId, "phone", cleanPhone, "requestId", requestId), Integer.class);
+
+        AccessGrantDto grant = getGrant(grantId);
+        notifyPatientOfNewAccess(grant);
+        return grant;
+    }
+
     private void notifyPatientOfNewAccess(AccessGrantDto grant) {
-        // Proactive WhatsApp notifications from server removed (only respond when user initiates)
-        log.info("Access grant {} created for patient {}. WhatsApp notification skipped (only user-initiated responses permitted).", grant.getId(), grant.getPatientPhone());
+        try {
+            if (grant.getPatientPhone() == null || grant.getPatientPhone().isBlank()) return;
+            String doctorName = grant.getDoctorName() != null ? grant.getDoctorName() : "Consulting Doctor";
+            String hospName = grant.getHospitalName() != null ? grant.getHospitalName() : "Clinic";
+
+            String msg = "📋 *ABDM / HIE Health Record Access Granted*\n\n"
+                    + "Hello, you have granted digital health record access to *" + doctorName + "* at *" + hospName + "*.\n\n"
+                    + "• Status: *Active Consent (Granted)*\n"
+                    + "• Purpose: OPD Consultation & Longitudinal Care Records\n"
+                    + "• Reference: Consent Grant #" + grant.getId() + "\n\n"
+                    + "Your records are now securely shared with your practitioner for this consultation episode. You can view or revoke access anytime from the Patient Portal.";
+
+            whatsAppService.sendWhatsAppMessage(grant.getPatientPhone(), msg);
+            log.info("✅ Sent HIE consent grant WhatsApp notification to patient {}", grant.getPatientPhone());
+        } catch (Exception e) {
+            log.warn("⚠️ Failed sending access grant WhatsApp notification: {}", e.getMessage());
+        }
     }
 
     private String generateCode() {

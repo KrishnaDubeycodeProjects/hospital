@@ -831,7 +831,7 @@ export default function DoctorConsultation() {
             <span style={{ fontSize: '28px' }}>🪑</span>
             <div>
               <div style={{ fontWeight: 800, fontSize: '15px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>PATIENT CURRENTLY IN CHAIR: #{activeToken.dailyNumber || activeToken.id} ({activeToken.name || 'Patient'})</span>
+                <span>PATIENT CURRENTLY IN CHAIR: #{activeToken.dailyNumber || activeToken.queuePosition || 1} ({activeToken.name || 'Patient'})</span>
                 <span className="badge badge-green" style={{ fontSize: '11px', animation: 'pulse 1.5s infinite' }}>Serving Active</span>
               </div>
               <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>

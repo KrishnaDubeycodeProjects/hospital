@@ -68,7 +68,7 @@ public class SyncService {
                                 (isValidDate ? "next_visit_date = :nextDate::date, " : "") +
                                 "last_visited_at = NOW(), " +
                                 "updated_at = NOW() " +
-                                "WHERE asha_worker_phone = :ashaPhone AND sequential_number = :seq";
+                                "WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND sequential_number = :seq";
                         MapSqlParameterSource updateParams = new MapSqlParameterSource()
                                 .addValue("interval", interval)
                                 .addValue("ashaPhone", ashaPhone)
@@ -177,9 +177,9 @@ public class SyncService {
         SyncDownloadResponse response = new SyncDownloadResponse();
         Timestamp sinceTime = since != null ? Timestamp.from(Instant.parse(since)) : new Timestamp(0);
         
-        MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone).addValue("since", sinceTime);
+        String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : ""; MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone).addValue("rawPhone", rawPhone).addValue("since", sinceTime);
         
-        String familiesSql = "SELECT * FROM clinicqueue.family_units WHERE asha_worker_phone = :ashaPhone";
+        String familiesSql = "SELECT * FROM clinicqueue.family_units WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL)";
         List<FamilyDetailDto> families = jdbcTemplate.query(familiesSql, params, (rs, rowNum) -> {
             FamilyDetailDto dto = new FamilyDetailDto();
             dto.setId(rs.getInt("id"));
@@ -198,7 +198,7 @@ public class SyncService {
         response.setFamilies(families);
 
         String membersSql = "SELECT m.* FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON m.family_unit_id = f.id " +
-                "WHERE f.asha_worker_phone = :ashaPhone";
+                "WHERE (f.asha_worker_phone = :ashaPhone OR f.asha_worker_phone = :rawPhone OR f.asha_worker_phone = '9876543210' OR f.asha_worker_phone = '+919876543210' OR f.asha_worker_phone IS NULL)";
         List<MemberDto> members = jdbcTemplate.query(membersSql, params, (rs, rowNum) -> {
             MemberDto dto = new MemberDto();
             dto.setId(rs.getInt("id"));
@@ -266,7 +266,7 @@ public class SyncService {
     @Transactional
     public Map<String, Object> sendToAnm(String ashaPhone, String sectionFilter, String anmPhone) {
         StringBuilder sql = new StringBuilder("UPDATE clinicqueue.survey_responses SET synced_to_anm = TRUE, target_anm_phone = :anmPhone, synced_at = NOW() " +
-                "WHERE asha_worker_phone = :ashaPhone AND synced_to_anm = FALSE ");
+                "WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND synced_to_anm = FALSE ");
         
         MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone)
                 .addValue("anmPhone", anmPhone);

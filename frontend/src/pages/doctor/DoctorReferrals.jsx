@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { doctorApi, hospitalApi, referralApi } from '../../api/client';
-import { Button, Card, Field, Input, Modal, Select, Spinner } from '../../components/ui';
+import { Button, Card, Field, Input, Modal, Select, Spinner, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
 export default function DoctorReferrals() {
@@ -8,34 +8,56 @@ export default function DoctorReferrals() {
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Quick referral modal
+  // Tab State: 'outgoing' | 'incoming'
+  const [activeTab, setActiveTab] = useState('outgoing');
+  const [outgoingList, setOutgoingList] = useState([]);
+  const [incomingList, setIncomingList] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Create Modal
   const [createModal, setCreateModal] = useState(false);
   const [courseId, setCourseId] = useState('');
   const [toHospitalId, setToHospitalId] = useState('');
-  const [targetDepartment, setTargetDepartment] = useState('General Medicine');
+  const [targetDepartment, setTargetDepartment] = useState('Cardiology');
   const [reason, setReason] = useState('');
   const [priorityTier, setPriorityTier] = useState('urgent_7d');
   const [submitting, setSubmitting] = useState(false);
 
-  // Prior Context Inspection modal
+  // Context Modal
   const [contextModal, setContextModal] = useState(false);
   const [contextCourseId, setContextCourseId] = useState('');
-  const [priorData, setPriorData] = useState(null);
   const [fetchingContext, setFetchingContext] = useState(false);
+  const [priorData, setPriorData] = useState(null);
 
-  // QR Viewer modal
+  // QR Viewer Modal
   const [selectedQr, setSelectedQr] = useState(null);
-
   const toast = useToast();
 
   async function loadData() {
     try {
-      const me = await doctorApi.me();
+      const [me, hospList] = await Promise.all([doctorApi.me(), hospitalApi.list()]);
       setProfile(me);
-      const list = await hospitalApi.list();
-      setHospitals(list || []);
+      setHospitals(hospList || []);
+
+      // Fetch outgoing and incoming hospital referrals
+      try {
+        const res = await fetch('/api/referrals/hospital', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.data) {
+            setOutgoingList(body.data.outgoing || []);
+            setIncomingList(body.data.incoming || []);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load hospital referrals:', e);
+      }
     } catch (err) {
-      toast.error(err.message || 'Failed loading referral workspace.');
+      toast.error(err.message || 'Failed loading referral details.');
     } finally {
       setLoading(false);
     }
@@ -67,6 +89,7 @@ export default function DoctorReferrals() {
       setCourseId('');
       setReason('');
       setSelectedQr(res);
+      loadData();
     } catch (err) {
       toast.error(err.message || 'Failed creating referral. Hospital quota may be exhausted.');
     } finally {
@@ -80,7 +103,7 @@ export default function DoctorReferrals() {
 
     setFetchingContext(true);
     try {
-      const data = await referralApi.priorContext(Number(contextCourseId), profile.hospitalId);
+      const data = await referralApi.priorContext(Number(contextCourseId), profile?.hospitalId || 1);
       setPriorData(data);
     } catch (err) {
       toast.error(err.message || 'Unable to retrieve prior context.');
@@ -91,26 +114,54 @@ export default function DoctorReferrals() {
   }
 
   async function handleCancelReferral(id) {
-    if (!window.confirm(`Are you sure you want to cancel Referral #${id}? This will free up the hospital quota slot.`)) {
+    if (!window.confirm(`Are you sure you want to cancel Referral #${id}? This will release the quota slot.`)) {
       return;
     }
     try {
       await referralApi.cancel(id);
       toast.success(`Referral #${id} cancelled. Quota slot released.`);
+      loadData();
     } catch (err) {
       toast.error(err.message || 'Failed cancelling referral.');
     }
   }
 
+  const q = searchQuery.toLowerCase().trim();
+  const filteredOutgoing = outgoingList.filter((r) => {
+    if (!q) return true;
+    return (
+      (r.patientName && r.patientName.toLowerCase().includes(q)) ||
+      (r.patientPhone && r.patientPhone.includes(q)) ||
+      (r.toHospitalName && r.toHospitalName.toLowerCase().includes(q)) ||
+      (r.targetDepartment && r.targetDepartment.toLowerCase().includes(q)) ||
+      (r.reason && r.reason.toLowerCase().includes(q))
+    );
+  });
+
+  const filteredIncoming = incomingList.filter((r) => {
+    if (!q) return true;
+    return (
+      (r.patientName && r.patientName.toLowerCase().includes(q)) ||
+      (r.patientPhone && r.patientPhone.includes(q)) ||
+      (r.fromHospitalName && r.fromHospitalName.toLowerCase().includes(q)) ||
+      (r.referringDoctorName && r.referringDoctorName.toLowerCase().includes(q)) ||
+      (r.targetDepartment && r.targetDepartment.toLowerCase().includes(q)) ||
+      (r.reason && r.reason.toLowerCase().includes(q))
+    );
+  });
+
   if (loading) return <Spinner label="Loading referral and triage console..." />;
 
   return (
     <div className="stack-lg">
-      <div className="card-head">
+      {/* Header Bar */}
+      <div className="card-head" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1>Tiered Referrals & Triage Console</h1>
-          <p className="muted-text">
-            Issue quota-guaranteed hospital referrals with concurrency locking, or inspect incoming patient clinical context.
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>
+            Referrals & Triage Console
+          </h1>
+          <p className="muted-text" style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
+            Manage outbound specialist referrals with pessimistic quota locking and admit incoming transfer patients with prior clinical context.
           </p>
         </div>
         <div className="row-gap">
@@ -118,64 +169,243 @@ export default function DoctorReferrals() {
             + Issue New Referral
           </Button>
           <Button variant="secondary" onClick={() => setContextModal(true)}>
-            🔍 Inspect Incoming Prior Context
+            Inspect Prior Context
           </Button>
         </div>
       </div>
 
-      {/* Explanatory Banner: What is Referral Triage? */}
-      <div
-        style={{
-          backgroundColor: '#EFF6FF',
-          border: '1.5px solid #93C5FD',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>🔄</span>
-          <strong style={{ fontSize: '15px', color: '#1E40AF' }}>
-            What is Referral Triage?
-          </strong>
-        </div>
-        <p style={{ fontSize: '13px', color: '#1E3A8A', margin: 0, lineHeight: 1.5 }}>
-          <strong>Referral Triage</strong> is the clinical transfer mechanism for escalating a patient from primary/community health centers or general OPD counters to specialized secondary and tertiary care centers (e.g., Cardiology, Oncology, Surgery). It utilizes <strong>Quota Locks</strong> to prevent hospital overcrowding, issues <strong>QR Admission Passes</strong> to bypass walk-in registration lines, and securely transmits the patient's entire diagnostic history and episode timeline so the receiving specialist has immediate prior clinical context.
-        </p>
-      </div>
-
-      {/* Quota Overview Cards */}
+      {/* Metric Quick Stats */}
       <div className="stat-row">
         <div className="stat-card stat-blue">
-          <div className="stat-value">{profile?.hospitalName ? 'Enforced' : '—'}</div>
-          <div className="stat-label">Pessimistic Quota Guard</div>
-        </div>
-        <div className="stat-card stat-amber">
-          <div className="stat-value">7 Days</div>
-          <div className="stat-label">Urgent Validity Ceiling</div>
+          <div className="stat-value">{outgoingList.length}</div>
+          <div className="stat-label">Outbound Referrals Issued</div>
         </div>
         <div className="stat-card stat-green">
-          <div className="stat-value">Real-Time</div>
-          <div className="stat-label">Post-Commit WhatsApp Slip</div>
+          <div className="stat-value">{incomingList.length}</div>
+          <div className="stat-label">Incoming Transfer Patients</div>
+        </div>
+        <div className="stat-card stat-amber">
+          <div className="stat-value">
+            {profile?.hospitalName ? 'Active' : 'Enforced'}
+          </div>
+          <div className="stat-label">Pessimistic Quota Guard</div>
         </div>
       </div>
 
-      {/* Instructions Card */}
-      <Card title="How Quota Locking & Seamless Admission Works">
-        <div className="stack-sm" style={{ fontSize: '14px', lineHeight: 1.6 }}>
-          <p style={{ margin: 0 }}>
-            <strong>1. Concurrency-Safe Quota Allocation:</strong> Destination hospitals enforce daily limits (e.g., max 5 urgent slots/day). The backend locks the hospital row with <code>SELECT ... FOR UPDATE</code> before incrementing, preventing accidental overbooking.
-          </p>
-          <p style={{ margin: 0 }}>
-            <strong>2. Encrypted QR Slip:</strong> The patient is issued a digitally verifiable QR code delivered straight to WhatsApp and the patient portal.
-          </p>
-          <p style={{ margin: 0 }}>
-            <strong>3. Prior Context Ingestion:</strong> When the patient arrives at the receiving hospital, the doctor enters the Course ID or scans the slip to immediately unlock the full clinical summary, prescriptions, and lab history.
-          </p>
+      {/* Search and Tabs */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        {/* Dual Clean Tabs without icons */}
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #E2E8F0', paddingBottom: '2px' }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('outgoing')}
+            style={{
+              padding: '8px 16px',
+              fontSize: '14px',
+              fontWeight: 700,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              color: activeTab === 'outgoing' ? '#004D40' : '#64748B',
+              borderBottom: activeTab === 'outgoing' ? '3px solid #004D40' : '3px solid transparent',
+              marginBottom: '-4px',
+            }}
+          >
+            Outgoing Referrals ({outgoingList.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('incoming')}
+            style={{
+              padding: '8px 16px',
+              fontSize: '14px',
+              fontWeight: 700,
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              color: activeTab === 'incoming' ? '#004D40' : '#64748B',
+              borderBottom: activeTab === 'incoming' ? '3px solid #004D40' : '3px solid transparent',
+              marginBottom: '-4px',
+            }}
+          >
+            Incoming Referrals ({incomingList.length})
+          </button>
         </div>
-      </Card>
+
+        <div style={{ width: '280px' }}>
+          <Input
+            placeholder="Search patient, hospital, dept..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Main Table Content */}
+      {activeTab === 'outgoing' ? (
+        <Card title="Outgoing Referrals (Issued from this Clinic)">
+          {filteredOutgoing.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#64748B' }}>
+              No outgoing referrals found. Click &quot;+ Issue New Referral&quot; to transfer a patient with quota locking.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
+                    <th style={{ padding: '10px 12px' }}>Ref #</th>
+                    <th style={{ padding: '10px 12px' }}>Patient</th>
+                    <th style={{ padding: '10px 12px' }}>Destination Hospital</th>
+                    <th style={{ padding: '10px 12px' }}>Department</th>
+                    <th style={{ padding: '10px 12px' }}>Priority Tier</th>
+                    <th style={{ padding: '10px 12px' }}>Valid Until</th>
+                    <th style={{ padding: '10px 12px' }}>Status</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOutgoing.map((r) => (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 700, color: '#004D40' }}>
+                        #{r.id}
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 600 }}>{r.patientName || 'Patient'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B' }}>{r.patientPhone}</div>
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>{r.toHospitalName || 'Specialist Hospital'}</td>
+                      <td style={{ padding: '10px 12px' }}>{r.targetDepartment}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span
+                          className={`badge ${
+                            r.priorityTier?.includes('emergency')
+                              ? 'badge-red'
+                              : r.priorityTier?.includes('urgent')
+                              ? 'badge-amber'
+                              : 'badge-blue'
+                          }`}
+                          style={{ fontSize: '11px', textTransform: 'capitalize' }}
+                        >
+                          {r.priorityTier?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>{r.validUntil || '—'}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span
+                          className={`badge ${
+                            r.status === 'completed'
+                              ? 'badge-green'
+                              : r.status === 'cancelled'
+                              ? 'badge-red'
+                              : 'badge-blue'
+                          }`}
+                          style={{ fontSize: '11px', textTransform: 'capitalize' }}
+                        >
+                          {r.status || 'issued'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setSelectedQr(r)}
+                            style={{ fontSize: '11px' }}
+                          >
+                            View Pass QR
+                          </Button>
+                          {r.status === 'issued' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleCancelReferral(r.id)}
+                              style={{ fontSize: '11px', color: '#DC2626' }}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card title="Incoming Referrals (Transfers to this Hospital)">
+          {filteredIncoming.length === 0 ? (
+            <div style={{ padding: '32px', textAlign: 'center', color: '#64748B' }}>
+              No incoming transfer referrals at this time.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
+                    <th style={{ padding: '10px 12px' }}>Ref #</th>
+                    <th style={{ padding: '10px 12px' }}>Originating Facility</th>
+                    <th style={{ padding: '10px 12px' }}>Referring Doctor</th>
+                    <th style={{ padding: '10px 12px' }}>Patient</th>
+                    <th style={{ padding: '10px 12px' }}>Department</th>
+                    <th style={{ padding: '10px 12px' }}>Priority</th>
+                    <th style={{ padding: '10px 12px' }}>Reason</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredIncoming.map((r) => (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 700, color: '#004D40' }}>
+                        #{r.id}
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>{r.fromHospitalName || 'Primary Health Center'}</td>
+                      <td style={{ padding: '10px 12px' }}>{r.referringDoctorName || 'Referring Physician'}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <div style={{ fontWeight: 600 }}>{r.patientName || 'Patient'}</div>
+                        <div style={{ fontSize: '11px', color: '#64748B' }}>{r.patientPhone}</div>
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>{r.targetDepartment}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span
+                          className={`badge ${
+                            r.priorityTier?.includes('emergency')
+                              ? 'badge-red'
+                              : r.priorityTier?.includes('urgent')
+                              ? 'badge-amber'
+                              : 'badge-blue'
+                          }`}
+                          style={{ fontSize: '11px', textTransform: 'capitalize' }}
+                        >
+                          {r.priorityTier?.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.reason}
+                      </td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => {
+                            setContextCourseId(String(r.courseId));
+                            setPriorData(r);
+                            setContextModal(true);
+                          }}
+                          style={{ fontSize: '11px' }}
+                        >
+                          Inspect Context
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Create Referral Modal */}
       {createModal && (
@@ -191,7 +421,7 @@ export default function DoctorReferrals() {
               />
             </Field>
 
-            <Field label="Destination Hospital *" hint="Row locked via SELECT FOR UPDATE">
+            <Field label="Destination Hospital *" hint="Locked via pessimistic quota lock">
               <Select value={toHospitalId} onChange={(e) => setToHospitalId(e.target.value)} required>
                 <option value="">Select target hospital…</option>
                 {hospitals
@@ -217,9 +447,9 @@ export default function DoctorReferrals() {
 
               <Field label="Priority Tier">
                 <Select value={priorityTier} onChange={(e) => setPriorityTier(e.target.value)}>
-                  <option value="emergency_immediate">🚨 Emergency (Immediate 24h)</option>
-                  <option value="urgent_7d">⚡ Urgent (Strict 7-Day Quota)</option>
-                  <option value="routine_30d">📋 Routine (30-Day Window)</option>
+                  <option value="emergency_immediate">Emergency (Immediate 24h)</option>
+                  <option value="urgent_7d">Urgent (Strict 7-Day Quota)</option>
+                  <option value="routine_30d">Routine (30-Day Window)</option>
                 </Select>
               </Field>
             </div>
@@ -271,7 +501,7 @@ export default function DoctorReferrals() {
                 </h4>
                 <div style={{ fontSize: '13px', lineHeight: 1.6 }}>
                   <div><strong>Originating Clinic:</strong> {priorData.fromHospitalName || 'Referring Clinic'}</div>
-                  <div><strong>Referring Doctor:</strong> {priorData.referredByName || 'Attending Physician'}</div>
+                  <div><strong>Referring Doctor:</strong> {priorData.referredByName || priorData.referringDoctorName || 'Attending Physician'}</div>
                   <div><strong>Priority Tier:</strong> <span className="badge badge-amber">{priorData.priorityTier}</span></div>
                   <div><strong>Valid Until:</strong> {priorData.validUntil}</div>
                   <div style={{ marginTop: '8px' }}><strong>Transfer Reason:</strong> {priorData.reason}</div>
@@ -286,12 +516,13 @@ export default function DoctorReferrals() {
                         await referralApi.complete(priorData.id);
                         toast.success(`Referral #${priorData.id} marked as completed & admitted.`);
                         setContextModal(false);
+                        loadData();
                       } catch (e) {
                         toast.error(e.message || 'Failed admitting referral.');
                       }
                     }}
                   >
-                    ✓ Admit & Complete Referral
+                    Admit & Complete Referral
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => handleCancelReferral(priorData.id)}>
                     Cancel / Reject
@@ -316,7 +547,7 @@ export default function DoctorReferrals() {
               {selectedQr.toHospitalName || 'Destination Hospital'} &bull; {selectedQr.priorityTier}
             </div>
             <p className="muted-text" style={{ fontSize: '12px' }}>
-              Patient has received this QR code via WhatsApp. Show this pass upon OPD admission.
+              Patient has received this referral pass and notification. Show this pass upon OPD admission.
             </p>
             <Button variant="primary" onClick={() => setSelectedQr(null)}>
               Done

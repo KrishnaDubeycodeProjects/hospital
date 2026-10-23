@@ -74,6 +74,20 @@ public class ReferralController {
         }
     }
 
+    @GetMapping("/hospital")
+    public ResponseEntity<Map<String, Object>> getHospitalReferrals() {
+        int doctorId = currentUser.requireDoctorId();
+        DoctorDto doctor = doctorService.getById(doctorId);
+        int hospitalId = (doctor != null && doctor.getHospitalId() != null) ? doctor.getHospitalId() : 1;
+        List<ReferralDto> outgoing = referralService.listOutgoingReferrals(hospitalId);
+        List<ReferralDto> incoming = referralService.listIncomingReferrals(hospitalId);
+        return ResponseEntity.ok(ok(Map.of(
+                "hospitalId", hospitalId,
+                "outgoing", outgoing,
+                "incoming", incoming
+        )));
+    }
+
     @GetMapping("/prior-context")
     public ResponseEntity<Map<String, Object>> getPriorContext(
             @RequestParam int courseId,

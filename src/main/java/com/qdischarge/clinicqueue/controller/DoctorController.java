@@ -1,6 +1,7 @@
 package com.qdischarge.clinicqueue.controller;
 
 import com.qdischarge.clinicqueue.dto.AccessRequestDto;
+import com.qdischarge.clinicqueue.dto.AccessGrantDto;
 import com.qdischarge.clinicqueue.dto.DoctorDto;
 import com.qdischarge.clinicqueue.dto.DoctorLoginRequest;
 import com.qdischarge.clinicqueue.dto.DoctorPatientGroupDto;
@@ -79,7 +80,16 @@ public class DoctorController {
 
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> me() {
-        return ResponseEntity.ok(ok(doctorService.getById(currentUser.requireDoctorId())));
+        int doctorId = currentUser.requireDoctorId();
+        DoctorDto doctor = doctorService.getById(doctorId);
+        if (doctor != null && doctor.getHospitalId() == null) {
+            var op = hospitalService.getOperatingHospital();
+            if (op != null) {
+                doctorService.linkHospital(doctorId, op.getId());
+                doctor = doctorService.getById(doctorId);
+            }
+        }
+        return ResponseEntity.ok(ok(doctor));
     }
 
     /** Generates a fresh 30-minute access-request code; GET .../qr renders it as a scannable PNG. */
@@ -100,19 +110,50 @@ public class DoctorController {
     }
 
     @GetMapping("/access-requests/{code}/qr")
-    public ResponseEntity<?> accessRequestQr(@PathVariable String code) {
+    public ResponseEntity<?> accessRequestQr(@PathVariable String code, jakarta.servlet.http.HttpServletRequest req) {
         AccessRequestDto request = accessService.getByCode(code.trim().toUpperCase());
         if (request == null) {
             return ResponseEntity.status(404).body(msg("Access request not found."));
         }
         try {
-            byte[] png = qrCodeService.generatePng(request.getCode(), 350, 2, "#0f172a", "#ffffff");
+            String origin = req.getHeader("Origin");
+            if (origin == null || origin.isBlank()) {
+                String referer = req.getHeader("Referer");
+                if (referer != null && !referer.isBlank()) {
+                    try {
+                        java.net.URI uri = java.net.URI.create(referer);
+                        origin = uri.getScheme() + "://" + uri.getAuthority();
+                    } catch (Exception ignored) {}
+                }
+            }
+            if (origin == null || origin.isBlank()) {
+                origin = req.getScheme() + "://" + req.getServerName() + (req.getServerPort() == 80 || req.getServerPort() == 443 ? "" : ":" + req.getServerPort());
+            }
+            String consentUrl = origin + "/patient/access?code=" + request.getCode();
+            byte[] png = qrCodeService.generatePng(consentUrl, 350, 2, "#0f172a", "#ffffff");
             return ResponseEntity.ok()
                     .contentType(MediaType.IMAGE_PNG)
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
                     .body(png);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(err(e));
+        }
+    }
+
+    @PostMapping("/access-requests/{code}/grant-by-phone")
+    public ResponseEntity<Map<String, Object>> grantByPhone(
+            @PathVariable String code,
+            @RequestBody Map<String, String> body) {
+        String phone = body.get("phone");
+        if (phone == null || phone.isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Patient phone number is required."));
+        }
+        int doctorId = currentUser.requireDoctorId();
+        try {
+            AccessGrantDto grant = accessService.claimForDoctor(code, doctorId, phone.trim());
+            return ResponseEntity.ok(ok(grant));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
         }
     }
 

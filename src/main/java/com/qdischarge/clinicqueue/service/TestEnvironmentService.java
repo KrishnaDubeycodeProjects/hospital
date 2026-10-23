@@ -253,10 +253,15 @@ public class TestEnvironmentService {
             st = "waiting";
         }
 
+        Integer activeMax = jdbc.queryForObject(
+                """
+                SELECT COALESCE(MAX(daily_number), 0) FROM tokens
+                WHERE hospital_id = :hId AND category = :cat AND status IN ('serving', 'waiting', 'reserved')
+                  AND created_at::date = CURRENT_DATE
+                """,
+                Map.of("hId", hId, "cat", cat), Integer.class);
         Integer dailyNumber = "frozen".equals(st) ? null :
-                jdbc.queryForObject(
-                        "SELECT COALESCE(MAX(daily_number), 0) + 1 FROM tokens WHERE hospital_id = :hId AND category = :cat AND created_at::date = CURRENT_DATE",
-                        Map.of("hId", hId, "cat", cat), Integer.class);
+                ((activeMax != null && activeMax > 0) ? (activeMax + 1) : 1);
 
         Integer id = jdbc.queryForObject(
                 """

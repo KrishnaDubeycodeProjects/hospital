@@ -96,16 +96,25 @@ export default function DoctorAccess() {
 
     setVerifyingPhone(true);
     try {
-      // Call acceptAccess using the generated code on behalf of the patient
-      await patientApi.acceptAccess(request.code);
-      toast.success(`Access granted for ${patientPhoneInput.trim()}! Medical records unlocked.`);
-      setPatientPhoneInput('');
-      loadActiveCount();
-      generate(); // Refresh code for next patient
+      const res = await fetch(`/api/doctors/access-requests/${encodeURIComponent(request.code)}/grant-by-phone`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        body: JSON.stringify({ phone: patientPhoneInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Access granted for ${patientPhoneInput.trim()}! Medical records unlocked & WhatsApp notification sent.`);
+        setPatientPhoneInput('');
+        loadActiveCount();
+        generate(); // Refresh code for next patient
+      } else {
+        toast.error(data.message || 'Failed to grant access');
+      }
     } catch (err) {
-      // If patientApi needs patient auth, try demo fallback
-      toast.info(`Consent authorization simulated for ${patientPhoneInput.trim()}`);
-      loadActiveCount();
+      toast.error(err.message || 'Failed to verify consent');
     } finally {
       setVerifyingPhone(false);
     }

@@ -831,14 +831,25 @@ public class QueueManagerService {
         Map<String, Object> params = new HashMap<>();
         params.put("hospitalId", hospitalId);
         params.put("category", category);
-        Integer max = jdbc.queryForObject(
+        Integer activeMax = jdbc.queryForObject(
                 """
-                SELECT MAX(daily_number) FROM tokens
+                SELECT COALESCE(MAX(daily_number), 0) FROM tokens
+                WHERE hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND status IN ('serving', 'waiting', 'reserved')
+                  AND created_at::date = CURRENT_DATE
+                """,
+                params, Integer.class);
+        if (activeMax != null && activeMax > 0) {
+            return activeMax + 1;
+        }
+        Integer todayMax = jdbc.queryForObject(
+                """
+                SELECT COALESCE(MAX(daily_number), 0) FROM tokens
                 WHERE hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
                   AND created_at::date = CURRENT_DATE
                 """,
                 params, Integer.class);
-        return (max == null ? 0 : max) + 1;
+        return (todayMax == null || todayMax == 0) ? 1 : (todayMax + 1);
     }
 
     /** Sets/updates a patient's location on an existing token and recomputes distance + notify window from it. */
