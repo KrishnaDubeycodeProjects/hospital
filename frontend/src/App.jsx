@@ -2,7 +2,8 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
-import { RoleShell } from './components/Layout';
+import { RoleShell, HealthRecordsLayout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -35,14 +36,14 @@ import DoctorPatients from './pages/doctor/DoctorPatients';
 
 function AshaRedirect() {
   React.useEffect(() => {
-    window.location.replace('/asha-app/index.html');
+    window.location.replace('/asha/index.html');
   }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif', gap: '12px' }}>
-      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#004D40' }}>Opening Original ASHA Mobile App...</div>
+      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#004D40' }}>Opening ASHA Community Healthcare App...</div>
       <div style={{ fontSize: '14px', color: '#64748B' }}>Please wait, redirecting to the official React Native ASHA application.</div>
-      <a href="/asha-app/index.html" style={{ marginTop: '10px', color: '#0284c7', fontWeight: 'bold' }}>Click here if not redirected automatically</a>
+      <a href="/asha/index.html" style={{ marginTop: '10px', color: '#0284c7', fontWeight: 'bold' }}>Click here if not redirected automatically</a>
     </div>
   );
 }
@@ -52,56 +53,70 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/book" element={<Book />} />
-            <Route path="/select-patient" element={<SelectPatient />} />
-            <Route path="/find-hospital" element={<FindHospital />} />
-            <Route path="/track" element={<Track />} />
-            <Route path="/track/:phone" element={<Track />} />
-            <Route path="/token/:id" element={<TokenDetail />} />
-            <Route path="/login/:role" element={<Login />} />
-            <Route path="/records-select" element={<HealthRecordsScreen />} />
-            <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/book" element={<Book />} />
+              <Route path="/select-patient" element={<SelectPatient />} />
+              <Route path="/find-hospital" element={<FindHospital />} />
+              <Route path="/hospitals" element={<FindHospital />} />
+              <Route path="/hospital" element={<FindHospital />} />
+              <Route path="/hospital-view" element={<FindHospital />} />
+              <Route path="/hospital/view" element={<FindHospital />} />
+              <Route path="/track" element={<Track />} />
+              <Route path="/track/:phone" element={<Track />} />
+              <Route path="/token/:id" element={<TokenDetail />} />
+              <Route path="/login/:role" element={<Login />} />
+              <Route path="/records-select" element={<HealthRecordsScreen />} />
+              <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
 
-            {/* Dedicated ASHA & CHO Supervisor Hub */}
-            <Route path="/asha" element={<AshaAdminDashboard />} />
-            <Route path="/asha/mobile" element={<AshaRedirect />} />
+              {/* Dedicated ASHA Mobile Module App */}
+              <Route path="/asha" element={<AshaRedirect />} />
+              <Route path="/asha/*" element={<AshaRedirect />} />
+              <Route path="/asha-app" element={<AshaRedirect />} />
+              <Route path="/asha/mobile" element={<AshaRedirect />} />
+              <Route path="/asha-dashboard" element={<AshaAdminDashboard />} />
 
-            {/* Hospital Admin & Counter Staff Console */}
-            <Route path="/admin" element={<RoleShell role="admin" />}>
-              <Route index element={<AdminQueue />} />
-              <Route path="counters" element={<AdminCounters />} />
-              <Route path="missed" element={<AdminMissed />} />
-              <Route path="history" element={<AdminHistory />} />
-              <Route path="hospitals" element={<AdminHospitals />} />
-              <Route path="asha" element={<AshaAdminDashboard />} />
-            </Route>
+              {/* Hospital Admin & Counter Staff Console */}
+              <Route path="/admin" element={<RoleShell role="admin" />}>
+                <Route index element={<AdminQueue />} />
+                <Route path="counters" element={<AdminCounters />} />
+                <Route path="missed" element={<AdminMissed />} />
+                <Route path="history" element={<AdminHistory />} />
+                <Route path="hospitals" element={<AdminHospitals />} />
+                <Route path="asha" element={<AshaAdminDashboard />} />
+              </Route>
 
-            <Route path="/patient" element={<RoleShell role="patient" />}>
-              <Route index element={<PatientQueue />} />
-              <Route path="family" element={<PatientFamily />} />
-              <Route path="records" element={<PatientRecordsHub />} />
-              <Route path="courses" element={<Navigate to="/patient/records?tab=courses" replace />} />
-              <Route path="referrals" element={<Navigate to="/patient/records?tab=referrals" replace />} />
-              <Route path="history" element={<Navigate to="/patient/records?tab=history" replace />} />
-              <Route path="documents" element={<Navigate to="/patient/records?tab=documents" replace />} />
-              <Route path="access" element={<PatientAccess />} />
-            </Route>
+              {/* Ayushman Patient Portal Console (the old layout, kept as it is) */}
+              <Route path="/patient" element={<RoleShell role="patient" />}>
+                <Route index element={<PatientQueue />} />
+                <Route path="family" element={<PatientFamily />} />
+                <Route path="access" element={<PatientAccess />} />
+              </Route>
 
-            <Route path="/doctor" element={<RoleShell role="doctor" />}>
-              <Route index element={<DoctorProfile />} />
-              <Route path="consultation" element={<DoctorConsultation />} />
-              <Route path="serve" element={<DoctorServeEncounter />} />
-              <Route path="serve/:tokenId" element={<DoctorServeEncounter />} />
-              <Route path="courses" element={<DoctorCourses />} />
-              <Route path="referrals" element={<DoctorReferrals />} />
-              <Route path="access" element={<DoctorAccess />} />
-              <Route path="patients" element={<DoctorPatients />} />
-            </Route>
+              {/* Dedicated Layout for Health and Records (prevents page inside page) */}
+              <Route element={<HealthRecordsLayout />}>
+                <Route path="/patient/records" element={<PatientRecordsHub />} />
+                <Route path="/patient/courses" element={<Navigate to="/patient/records?tab=courses" replace />} />
+                <Route path="/patient/referrals" element={<Navigate to="/patient/records?tab=referrals" replace />} />
+                <Route path="/patient/history" element={<Navigate to="/patient/records?tab=history" replace />} />
+                <Route path="/patient/documents" element={<Navigate to="/patient/records?tab=documents" replace />} />
+              </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              <Route path="/doctor" element={<RoleShell role="doctor" />}>
+                <Route index element={<DoctorProfile />} />
+                <Route path="consultation" element={<DoctorConsultation />} />
+                <Route path="serve" element={<DoctorServeEncounter />} />
+                <Route path="serve/:tokenId" element={<DoctorServeEncounter />} />
+                <Route path="courses" element={<DoctorCourses />} />
+                <Route path="referrals" element={<DoctorReferrals />} />
+                <Route path="access" element={<DoctorAccess />} />
+                <Route path="patients" element={<DoctorPatients />} />
+              </Route>
+
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
       </ToastProvider>
     </AuthProvider>

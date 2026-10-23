@@ -61,7 +61,7 @@ export default function App() {
                 type="text" 
                 id="phone" 
                 name="phone" 
-                placeholder="e.g. 918850934544" 
+                placeholder="e.g. 919876543210" 
                 required 
               />
               <button type="submit" className="btn btn-success">

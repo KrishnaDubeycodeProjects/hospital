@@ -55,15 +55,42 @@ public class SyncService {
         if (request.getFamilies() != null) {
             for (Map<String, Object> fam : request.getFamilies()) {
                 try {
-                    String sql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, asha_worker_phone, created_at, updated_at) " +
-                            "VALUES (:phone, :headName, :villageName, :houseNumber, :sequentialNumber, :ashaPhone, NOW(), NOW())";
-                    jdbcTemplate.update(sql, new MapSqlParameterSource()
-                            .addValue("phone", fam.get("primaryPhone"))
-                            .addValue("headName", fam.get("headName"))
-                            .addValue("villageName", fam.get("villageName"))
-                            .addValue("houseNumber", fam.get("houseNumber"))
-                            .addValue("sequentialNumber", parseSafeId(fam.get("sequentialNumber")))
-                            .addValue("ashaPhone", ashaPhone));
+                    Integer seq = parseSafeId(fam.get("sequentialNumber"));
+                    Integer interval = parseSafeId(fam.get("visitIntervalDays"));
+                    Object nextDate = fam.get("nextVisitDate");
+                    String nextDateStr = nextDate != null ? nextDate.toString() : "";
+                    boolean isValidDate = nextDateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*");
+
+                    int updated = 0;
+                    if (seq != null) {
+                        String updateSql = "UPDATE clinicqueue.family_units SET " +
+                                "visit_interval_days = COALESCE(:interval, visit_interval_days), " +
+                                (isValidDate ? "next_visit_date = :nextDate::date, " : "") +
+                                "last_visited_at = NOW(), " +
+                                "updated_at = NOW() " +
+                                "WHERE asha_worker_phone = :ashaPhone AND sequential_number = :seq";
+                        MapSqlParameterSource updateParams = new MapSqlParameterSource()
+                                .addValue("interval", interval)
+                                .addValue("ashaPhone", ashaPhone)
+                                .addValue("seq", seq);
+                        if (isValidDate) {
+                            updateParams.addValue("nextDate", nextDateStr.substring(0, 10));
+                        }
+                        updated = jdbcTemplate.update(updateSql, updateParams);
+                    }
+
+                    if (updated == 0) {
+                        String sql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, visit_interval_days, asha_worker_phone, created_at, updated_at) " +
+                                "VALUES (:phone, :headName, :villageName, :houseNumber, :sequentialNumber, :interval, :ashaPhone, NOW(), NOW())";
+                        jdbcTemplate.update(sql, new MapSqlParameterSource()
+                                .addValue("phone", fam.get("primaryPhone"))
+                                .addValue("headName", fam.get("headName"))
+                                .addValue("villageName", fam.get("villageName"))
+                                .addValue("houseNumber", fam.get("houseNumber"))
+                                .addValue("sequentialNumber", seq)
+                                .addValue("interval", interval)
+                                .addValue("ashaPhone", ashaPhone));
+                    }
                     accepted++;
                 } catch (Exception e) {
                     log.error("Failed to sync family", e);

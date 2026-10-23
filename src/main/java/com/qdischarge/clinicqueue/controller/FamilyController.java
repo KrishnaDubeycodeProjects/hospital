@@ -66,6 +66,19 @@ public class FamilyController {
         return ResponseEntity.ok(ok(updated));
     }
 
+        @DeleteMapping("/members/{memberId}")
+    public ResponseEntity<Map<String, Object>> deleteMember(@PathVariable int memberId) {
+        String phone = currentUser.requirePatientPhone();
+        try {
+            familyUnitService.deleteMember(phone, memberId);
+            return ResponseEntity.ok(ok(Map.of("deleted", true, "memberId", memberId)));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(msg(e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        }
+    }
+
     @PostMapping("/members/{memberId}/link-abha")
     public ResponseEntity<Map<String, Object>> linkAbha(
             @PathVariable int memberId,

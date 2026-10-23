@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { familyApi, setToken } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 
@@ -44,10 +45,11 @@ export default function SelectPatient() {
     if (token) setToken('PATIENT', token);
   }, [token]);
 
+  const { patient } = useAuth();
   // Primary phone number
-  const rawPhone = params.get('phone') || '8850934544';
-  const cleanPhoneStr = rawPhone.replace(/\D/g, '') || '8850934544';
-  const phoneNumber = '+91 ' + cleanPhoneStr.slice(-10);
+  const rawPhone = params.get('phone') || patient?.subject || '';
+  const cleanPhoneStr = rawPhone ? rawPhone.replace(/\D/g, '') : '';
+  const phoneNumber = cleanPhoneStr ? ('+91 ' + cleanPhoneStr.slice(-10)) : '+91 98765 43210';
 
   // Family members loaded from real Database
   const [members, setMembers] = useState([]);
@@ -58,7 +60,7 @@ export default function SelectPatient() {
     let isMounted = true;
     setLoading(true);
 
-    familyApi.listPublicMembers(cleanPhoneStr)
+    familyApi.listPublicMembers(cleanPhoneStr || '9876543210')
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res) ? res : res?.data || [];
@@ -115,9 +117,13 @@ export default function SelectPatient() {
     searchParams.set('age', String(selectedMember.age));
     searchParams.set('gender', selectedMember.gender);
     searchParams.set('relationship', selectedMember.relationship);
-    searchParams.set('phone', '8850934544');
+    if (cleanPhoneStr) searchParams.set('phone', cleanPhoneStr);
 
-    navigate(`/book?${searchParams.toString()}`);
+    if (hospitalId) {
+      navigate(`/book?${searchParams.toString()}`);
+    } else {
+      navigate(`/find-hospital?${searchParams.toString()}`);
+    }
   }
 
   return (
@@ -478,7 +484,7 @@ export default function SelectPatient() {
               transition: 'all 0.15s ease',
             }}
           >
-            <span>Continue</span>
+            <span>{hospitalId ? 'Continue to Booking' : 'Continue to Select Hospital'}</span>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />

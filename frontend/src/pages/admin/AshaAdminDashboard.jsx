@@ -294,7 +294,7 @@ export default function AshaAdminDashboard() {
             </div>
 
             <a
-              href="/asha-app/index.html"
+              href="/asha/index.html"
               target="_blank"
               rel="noopener noreferrer"
               style={{

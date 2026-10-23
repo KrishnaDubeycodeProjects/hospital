@@ -103,6 +103,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             String codeHash = passwordEncoder.encode("123456");
             String[] testPhones = {
                     doctorPhone, doctorPhone2, doctorPhone2Alt,
+                    "+919876543210", "9876543210",
                     "+919100000001", "+919100000002", "+919100000003", "+919100000004", "+919100000005",
                     "+919100000006", "+919100000007", "+919100000008", "+919100000009", "+919100000010",
                     "+919100000011", "+919100000012"
@@ -145,14 +146,14 @@ public class DemoDataSeeder implements ApplicationRunner {
                 seedToken(mainHospitalId, "General Medicine", 10, "Rohan Mehta (Delayed Patient)", 42, "male", "+919100000012", "waiting", null, null, 2, 1.2, 5.0, null);
             }
 
-            // 6. Seed Family Unit & Members for +91 88509 34544
+            // 6. Seed Family Unit & Members for +91 98765 43210
             List<Integer> existingUnits = jdbc.query(
-                    "SELECT id FROM family_units WHERE REPLACE(REPLACE(REPLACE(primary_phone, '+', ''), ' ', ''), '-', '') LIKE '%8850934544' LIMIT 1",
+                    "SELECT id FROM family_units WHERE REPLACE(REPLACE(REPLACE(primary_phone, '+', ''), ' ', ''), '-', '') LIKE '%9876543210' LIMIT 1",
                     Map.of(), (rs, rowNum) -> rs.getInt("id"));
             int ahujaUnitId;
             if (existingUnits.isEmpty()) {
                 ahujaUnitId = jdbc.queryForObject(
-                        "INSERT INTO family_units (primary_phone, head_name) VALUES ('8850934544', 'Kavish Ahuja') RETURNING id",
+                        "INSERT INTO family_units (primary_phone, head_name) VALUES ('9876543210', 'Kavish Ahuja') RETURNING id",
                         Map.of(), Integer.class);
             } else {
                 ahujaUnitId = existingUnits.get(0);
@@ -166,19 +167,19 @@ public class DemoDataSeeder implements ApplicationRunner {
                 jdbc.update(
                         """
                         INSERT INTO family_members (family_unit_id, name, age, gender, relationship, phone, abha_number, abha_address, is_abha_linked) VALUES
-                        (:uId, 'Kavish Ahuja', 20, 'male', 'Self', '8850934544', '91-8850-9345-4421', 'kavishahuja@abdm', TRUE),
+                        (:uId, 'Kavish Ahuja', 20, 'male', 'Self', '9876543210', '91-9876-5432-1021', 'kavishahuja@abdm', TRUE),
                         (:uId, 'Sonia Ahuja', 48, 'female', 'Mother', null, null, null, FALSE),
                         (:uId, 'Subhash Ahuja', 52, 'male', 'Father', null, null, null, FALSE),
                         (:uId, 'Ayush Ahuja', 16, 'male', 'Brother', null, null, null, FALSE)
                         """,
                         Map.of("uId", ahujaUnitId));
-                log.info("✅ Seeded 4 family members with linked ABHA in DB for Ahuja family (8850934544)");
+                log.info("✅ Seeded 4 family members with linked ABHA in DB for Ahuja family (9876543210)");
             } else {
                 // Ensure Kavish Ahuja has active ABHA details
                 jdbc.update(
                         """
                         UPDATE family_members
-                        SET abha_number = '91-8850-9345-4421', abha_address = 'kavishahuja@abdm', is_abha_linked = TRUE
+                        SET abha_number = '91-9876-5432-1021', abha_address = 'kavishahuja@abdm', is_abha_linked = TRUE
                         WHERE family_unit_id = :uId AND relationship = 'Self' AND (abha_number IS NULL OR abha_address IS NULL)
                         """,
                         Map.of("uId", ahujaUnitId));
@@ -190,25 +191,25 @@ public class DemoDataSeeder implements ApplicationRunner {
                     Map.of("uId", ahujaUnitId), (rs, rowNum) -> rs.getInt("id"));
             Integer kavishMemberId = selfMemberIds.isEmpty() ? null : selfMemberIds.get(0);
 
-            // 7. Seed Visit History (token_history) for 8850934544
+            // 7. Seed Visit History (token_history) for 9876543210
             Integer historyCount = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM token_history WHERE phone = '8850934544'",
+                    "SELECT COUNT(*) FROM token_history WHERE phone = '9876543210'",
                     Map.of(), Integer.class);
             if (historyCount == null || historyCount == 0) {
                 jdbc.update(
                         """
                         INSERT INTO token_history (token_id, phone, name, age, gender, category, hospital_id, counter_id, created_at, served_at, completed_at, archived_at) VALUES
-                        (101, '8850934544', 'Kavish Ahuja', 20, 'male', 'General Medicine', :hId, 1, NOW() - INTERVAL '14 days', NOW() - INTERVAL '14 days' + INTERVAL '15 minutes', NOW() - INTERVAL '14 days' + INTERVAL '30 minutes', NOW() - INTERVAL '14 days'),
-                        (102, '8850934544', 'Kavish Ahuja', 20, 'male', 'Cardiology', :hId, 2, NOW() - INTERVAL '35 days', NOW() - INTERVAL '35 days' + INTERVAL '20 minutes', NOW() - INTERVAL '35 days' + INTERVAL '45 minutes', NOW() - INTERVAL '35 days'),
-                        (103, '8850934544', 'Kavish Ahuja', 20, 'male', 'General Medicine', :hId, 1, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '10 minutes', NOW() - INTERVAL '60 days' + INTERVAL '25 minutes', NOW() - INTERVAL '60 days')
+                        (101, '9876543210', 'Kavish Ahuja', 20, 'male', 'General Medicine', :hId, 1, NOW() - INTERVAL '14 days', NOW() - INTERVAL '14 days' + INTERVAL '15 minutes', NOW() - INTERVAL '14 days' + INTERVAL '30 minutes', NOW() - INTERVAL '14 days'),
+                        (102, '9876543210', 'Kavish Ahuja', 20, 'male', 'Cardiology', :hId, 2, NOW() - INTERVAL '35 days', NOW() - INTERVAL '35 days' + INTERVAL '20 minutes', NOW() - INTERVAL '35 days' + INTERVAL '45 minutes', NOW() - INTERVAL '35 days'),
+                        (103, '9876543210', 'Kavish Ahuja', 20, 'male', 'General Medicine', :hId, 1, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '10 minutes', NOW() - INTERVAL '60 days' + INTERVAL '25 minutes', NOW() - INTERVAL '60 days')
                         """,
                         Map.of("hId", mainHospitalId));
-                log.info("✅ Seeded 3 completed OPD visits in token_history for 8850934544");
+                log.info("✅ Seeded 3 completed OPD visits in token_history for 9876543210");
             }
 
-            // 8. Seed Clinical Care Courses (Episode of Care), Encounters, Prescriptions & Referrals for 8850934544
+            // 8. Seed Clinical Care Courses (Episode of Care), Encounters, Prescriptions & Referrals for 9876543210
             Integer courseCount = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM courses WHERE patient_phone = '8850934544'",
+                    "SELECT COUNT(*) FROM courses WHERE patient_phone = '9876543210'",
                     Map.of(), Integer.class);
             if (courseCount == null || courseCount == 0) {
                 // Fetch a doctor id
@@ -221,7 +222,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 Integer c1Id = jdbc.queryForObject(
                         """
                         INSERT INTO courses (patient_phone, patient_name, family_member_id, course_type, title, diagnosis, icd10_code, status, started_by_doctor_id, started_at_hospital_id, current_summary, created_at, updated_at)
-                        VALUES ('8850934544', 'Kavish Ahuja', :mId, 'hypertension', 'Hypertension & Cardiovascular Monitoring', 'Essential (primary) hypertension', 'I10', 'active', :docId, :hId, 'Stage 2 hypertension managed with dual therapy. BP stabilized to 128/82 mmHg.', NOW() - INTERVAL '30 days', NOW() - INTERVAL '2 days')
+                        VALUES ('9876543210', 'Kavish Ahuja', :mId, 'hypertension', 'Hypertension & Cardiovascular Monitoring', 'Essential (primary) hypertension', 'I10', 'active', :docId, :hId, 'Stage 2 hypertension managed with dual therapy. BP stabilized to 128/82 mmHg.', NOW() - INTERVAL '30 days', NOW() - INTERVAL '2 days')
                         RETURNING id
                         """,
                         Map.of("mId", kavishMemberId != null ? kavishMemberId : 1, "docId", docId, "hId", mainHospitalId),
@@ -260,7 +261,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 Integer c2Id = jdbc.queryForObject(
                         """
                         INSERT INTO courses (patient_phone, patient_name, family_member_id, course_type, title, diagnosis, icd10_code, status, started_by_doctor_id, started_at_hospital_id, current_summary, created_at, updated_at)
-                        VALUES ('8850934544', 'Kavish Ahuja', :mId, 'diabetes', 'Type 2 Diabetes Mellitus Continuous Care', 'Type 2 diabetes mellitus without complications', 'E11.9', 'active', :docId, :hId, 'Fasting blood sugar 118 mg/dL, HbA1c 6.8%. Well controlled on Metformin.', NOW() - INTERVAL '60 days', NOW() - INTERVAL '10 days')
+                        VALUES ('9876543210', 'Kavish Ahuja', :mId, 'diabetes', 'Type 2 Diabetes Mellitus Continuous Care', 'Type 2 diabetes mellitus without complications', 'E11.9', 'active', :docId, :hId, 'Fasting blood sugar 118 mg/dL, HbA1c 6.8%. Well controlled on Metformin.', NOW() - INTERVAL '60 days', NOW() - INTERVAL '10 days')
                         RETURNING id
                         """,
                         Map.of("mId", kavishMemberId != null ? kavishMemberId : 1, "docId", docId, "hId", mainHospitalId),
@@ -284,12 +285,12 @@ public class DemoDataSeeder implements ApplicationRunner {
                             Map.of("cId", c2Id, "encId", enc2Id, "docId", docId));
                 }
 
-                log.info("✅ Seeded 2 Clinical Care Courses, Encounters, Prescriptions & Referrals for 8850934544");
+                log.info("✅ Seeded 2 Clinical Care Courses, Encounters, Prescriptions & Referrals for 9876543210");
             }
 
-            // 9. Seed Patient Documents (Prescriptions & Lab Reports) for all family members under 8850934544 / +918850934544
+            // 9. Seed Patient Documents (Prescriptions & Lab Reports) for all family members under 9876543210 / +919876543210
             Integer docCount = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM patient_documents WHERE patient_phone IN ('8850934544', '+918850934544') AND file_name LIKE '%.pdf'",
+                    "SELECT COUNT(*) FROM patient_documents WHERE patient_phone IN ('9876543210', '+919876543210') AND file_name LIKE '%.pdf'",
                     Map.of(), Integer.class);
             if (docCount == null || docCount < 4) {
                 byte[] mockPdfData = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000060 00000 n\n00000000118 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n215\n%%EOF".getBytes(StandardCharsets.UTF_8);
@@ -298,47 +299,47 @@ public class DemoDataSeeder implements ApplicationRunner {
                         """
                         INSERT INTO patient_documents (patient_phone, patient_name, patient_age, doc_type, hospital_id, file_name, content_type, file_size, file_data, created_at)
                         VALUES
-                        ('+918850934544', 'Kavish Ahuja', 24, 'prescription', :hId, 'Rx_Kavish_Augmentin_AIIMS.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '2 days'),
-                        ('+918850934544', 'Kavish Ahuja', 24, 'prescription', :hId, 'Rx_Kavish_Dolo650_Safdarjung.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '10 days'),
-                        ('+918850934544', 'Kavish Ahuja', 24, 'report', :hId, 'CBC_Report_Kavish.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '8 days'),
-                        ('+918850934544', 'Sonia Ahuja', 52, 'prescription', :hId, 'Rx_Sonia_TelmaAM_Fortis.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '6 days'),
-                        ('+918850934544', 'Sonia Ahuja', 52, 'prescription', :hId, 'Rx_Sonia_Rozavel_Fortis.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '6 days'),
-                        ('+918850934544', 'Sonia Ahuja', 52, 'report', :hId, 'Lipid_LFT_Sonia_Ahuja.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '8 days'),
-                        ('+918850934544', 'Subhash Ahuja', 58, 'prescription', :hId, 'Rx_Subhash_Glycomet_RML.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '1 day'),
-                        ('+918850934544', 'Subhash Ahuja', 58, 'report', :hId, 'HbA1c_Subhash_Report.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '3 days'),
-                        ('+918850934544', 'Ayushman Ahuja', 19, 'prescription', :hId, 'Rx_Ayushman_Azithral_Apollo.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '12 days'),
-                        ('+918850934544', 'Ayushman Ahuja', 19, 'report', :hId, 'Throat_Culture_Ayushman.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '12 days')
+                        ('+919876543210', 'Kavish Ahuja', 24, 'prescription', :hId, 'Rx_Kavish_Augmentin_AIIMS.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '2 days'),
+                        ('+919876543210', 'Kavish Ahuja', 24, 'prescription', :hId, 'Rx_Kavish_Dolo650_Safdarjung.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '10 days'),
+                        ('+919876543210', 'Kavish Ahuja', 24, 'report', :hId, 'CBC_Report_Kavish.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '8 days'),
+                        ('+919876543210', 'Sonia Ahuja', 52, 'prescription', :hId, 'Rx_Sonia_TelmaAM_Fortis.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '6 days'),
+                        ('+919876543210', 'Sonia Ahuja', 52, 'prescription', :hId, 'Rx_Sonia_Rozavel_Fortis.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '6 days'),
+                        ('+919876543210', 'Sonia Ahuja', 52, 'report', :hId, 'Lipid_LFT_Sonia_Ahuja.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '8 days'),
+                        ('+919876543210', 'Subhash Ahuja', 58, 'prescription', :hId, 'Rx_Subhash_Glycomet_RML.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '1 day'),
+                        ('+919876543210', 'Subhash Ahuja', 58, 'report', :hId, 'HbA1c_Subhash_Report.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '3 days'),
+                        ('+919876543210', 'Ayushman Ahuja', 19, 'prescription', :hId, 'Rx_Ayushman_Azithral_Apollo.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '12 days'),
+                        ('+919876543210', 'Ayushman Ahuja', 19, 'report', :hId, 'Throat_Culture_Ayushman.pdf', 'application/pdf', :size, :data, NOW() - INTERVAL '12 days')
                         ON CONFLICT DO NOTHING
                         """,
                         Map.of("hId", mainHospitalId, "size", mockPdfData.length, "data", mockPdfData));
-                log.info("✅ Seeded clinical documents for all family members under +918850934544");
+                log.info("✅ Seeded clinical documents for all family members under +919876543210");
             }
 
-            // 10. Seed live serving Consultation Room token for patient 8850934544 (Kavish Ahuja)
+            // 10. Seed live serving Consultation Room token for patient 9876543210 (Kavish Ahuja)
             Integer activeTokenCount = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM tokens WHERE phone IN ('8850934544', '+918850934544') AND status IN ('serving', 'waiting')",
+                    "SELECT COUNT(*) FROM tokens WHERE phone IN ('9876543210', '+919876543210') AND status IN ('serving', 'waiting')",
                     Map.of(), Integer.class);
             if (activeTokenCount == null || activeTokenCount == 0) {
                 List<Integer> courseIds = jdbc.query(
-                        "SELECT id FROM courses WHERE patient_phone = '8850934544' LIMIT 1",
+                        "SELECT id FROM courses WHERE patient_phone = '9876543210' LIMIT 1",
                         Map.of(), (rs, rowNum) -> rs.getInt("id"));
                 Integer activeCourseId = courseIds.isEmpty() ? null : courseIds.get(0);
                 jdbc.update(
                         """
                         INSERT INTO tokens (hospital_id, category, daily_number, name, age, gender, phone, status, session_step, counter_id, distance_km, travel_minutes, is_verified, course_id, created_at, served_at)
-                        VALUES (:hId, 'General Medicine', 1, 'Kavish Ahuja', 24, 'male', '8850934544', 'serving', 'consulting', 1, 1.2, 5.0, TRUE, :cId, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        VALUES (:hId, 'General Medicine', 1, 'Kavish Ahuja', 24, 'male', '9876543210', 'serving', 'consulting', 1, 1.2, 5.0, TRUE, :cId, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                         Map.of("hId", mainHospitalId, "cId", activeCourseId != null ? activeCourseId : 1));
-                log.info("✅ Seeded live serving consultation token for patient 8850934544 (Kavish Ahuja)");
+                log.info("✅ Seeded live serving consultation token for patient 9876543210 (Kavish Ahuja)");
             }
 
-            // 11. Ensure Access Grants for Doctor 8850934544 / +918850934544 to view patient records
+            // 11. Ensure Access Grants for Doctor 8850934544 / +918850934544 to view patient records (9876543210)
             try {
                 List<Integer> doc2Ids = jdbc.query(
                         "SELECT id FROM doctors WHERE phone IN ('8850934544', '+918850934544')",
                         Map.of(), (rs, rowNum) -> rs.getInt("id"));
                 for (int dId : doc2Ids) {
-                    for (String pPhone : List.of("8850934544", "+918850934544")) {
+                    for (String pPhone : List.of("9876543210", "+919876543210")) {
                         Integer agCount = jdbc.queryForObject(
                                 "SELECT COUNT(*) FROM access_grants WHERE doctor_id = :dId AND patient_phone = :phone AND revoked_at IS NULL",
                                 Map.of("dId", dId, "phone", pPhone), Integer.class);

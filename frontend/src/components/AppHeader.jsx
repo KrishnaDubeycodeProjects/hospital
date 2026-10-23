@@ -558,7 +558,7 @@ export default function AppHeader({
               }}
             >
               <Users size={18} style={{ color: '#15803D' }} />
-              <span>🌿 ASHA Community Worker App</span>
+              <span>ASHA Community Worker App</span>
             </Link>
           </div>
 

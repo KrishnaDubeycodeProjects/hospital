@@ -1,17 +1,20 @@
 import { OfflineStorageService } from '../storage/OfflineStorageService';
 import { OutboxItem } from '../types/storage';
 
-const isRunningOnFrontendDevServer =
-  typeof window !== 'undefined' &&
-  (window.location?.port === '8081' || window.location?.port === '19006');
+const CLOUD_API_URL = 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
 
-const BACKEND_BASE_URL =
-  typeof window !== 'undefined' &&
-  window.location?.origin &&
-  window.location.origin.startsWith('http') &&
-  !isRunningOnFrontendDevServer
-    ? window.location.origin
-    : 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
+const getBackendBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = window.location.origin;
+    const port = window.location.port;
+    if (port === '8088' || port === '8080') {
+      return origin;
+    }
+  }
+  return CLOUD_API_URL;
+};
+
+const BACKEND_BASE_URL = getBackendBaseUrl();
 
 // Required for ngrok free tier to skip the browser warning interstitial page
 const NGROK_HEADERS: Record<string, string> = {
@@ -29,12 +32,12 @@ export interface SyncResult {
 
 export class SyncApi {
   /**
-   * Check if backend server on port 8089 is reachable (internet connectivity check)
+   * Check if backend cloud server is reachable (internet connectivity check)
    */
   static async pingServer(): Promise<boolean> {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(`${BACKEND_BASE_URL}/api/asha/me`, {
         method: 'GET',
         headers: { 'X-ASHA-Phone': '9876543210', ...NGROK_HEADERS },
@@ -69,25 +72,133 @@ export class SyncApi {
     try {
       const pendingItems = await OfflineStorageService.getPendingOutbox();
 
-      // 1. UPLOAD PENDING LOCAL CHANGES
+      // 1. UPLOAD ALL PENDING LOCAL CHANGES TO CLOUD
       if (pendingItems.length > 0) {
         const families: any[] = [];
         const members: any[] = [];
         const surveys: any[] = [];
         const followUps: any[] = [];
+        const anmSends: any[] = [];
 
         for (const item of pendingItems) {
           if (item.action === 'CREATE_FAMILY' || item.action === 'UPDATE_FAMILY') {
-            families.push(item.payload);
+            const p = item.payload || {};
+            // Format nextVisitDate as YYYY-MM-DD for PostgreSQL date parsing
+            let formattedNextVisit = p.nextVisitDate;
+            if (
+              !formattedNextVisit ||
+              typeof formattedNextVisit !== 'string' ||
+              !formattedNextVisit.match(/^\d{4}-\d{2}-\d{2}/)
+            ) {
+              const days =
+                p.visitIntervalDays ||
+                (p.status === '7days' ? 7 : p.status === '15days' ? 15 : 30);
+              formattedNextVisit = new Date(Date.now() + days * 86400000)
+                .toISOString()
+                .split('T')[0];
+            }
+            families.push({
+              primaryPhone: p.primaryPhone || '+91 98765 00000',
+              headName: p.headName || 'Household Head',
+              villageName: p.villageName || 'Chandpur Village',
+              houseNumber: p.houseNumber != null ? p.houseNumber.toString() : '1',
+              sequentialNumber: p.sequentialNumber || 1,
+              visitIntervalDays: p.visitIntervalDays || 15,
+              nextVisitDate: formattedNextVisit,
+            });
           } else if (item.action === 'ADD_MEMBER') {
-            members.push(item.payload);
+            const m = item.payload || {};
+            // Format dob to valid date YYYY-MM-DD or derive from age to avoid SQL error
+            let formattedDob = m.dob;
+            if (!formattedDob || typeof formattedDob !== 'string' || !formattedDob.match(/^\d{4}-\d{2}-\d{2}/)) {
+              if (formattedDob && typeof formattedDob === 'string' && formattedDob.includes('/')) {
+                const parts = formattedDob.split('/');
+                if (parts.length === 3) {
+                  formattedDob = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                }
+              } else {
+                const currentYear = new Date().getFullYear();
+                const approxBirthYear = currentYear - (Number(m.age) || 25);
+                formattedDob = `${approxBirthYear}-01-01`;
+              }
+            }
+            members.push({
+              familyUnitId: m.familyUnitId || 1,
+              name: m.name || 'Family Member',
+              dob: formattedDob,
+              age: m.age || 25,
+              gender: m.gender || 'Female',
+              relationship: m.relationship || 'Member',
+              phone: m.phone || '',
+            });
           } else if (item.action === 'SUBMIT_SURVEY') {
-            surveys.push(item.payload);
+            const s = item.payload || {};
+            const code = s.categoryCode || 'GENERAL';
+            const tmplId =
+              code === 'PREGNANCY' ? 1 : code === 'CHILD' ? 2 : code === 'DISEASE' ? 3 : 4;
+            surveys.push({
+              offlineId: s.id || item.id,
+              familyUnitId: s.familyUnitId || 1,
+              familyMemberId: s.familyMemberId || 1,
+              templateId: tmplId,
+              categoryCode: code,
+              answers: s.answers || {},
+            });
           } else if (item.action === 'COMPLETE_FOLLOWUP') {
-            followUps.push(item.payload);
+            const f = item.payload || {};
+            followUps.push({
+              offlineId: f.offlineId || f.taskId || item.id,
+              familyUnitId: f.familyUnitId || 1,
+              familyMemberId: f.familyMemberId || 1,
+              taskType: f.taskType || 'FOLLOW_UP',
+              title: f.title || f.taskType || 'Follow-up Task',
+              description: f.isCompleted
+                ? `Completed at ${f.completedAt || new Date().toISOString()}`
+                : 'Pending Task',
+              dueDate: new Date().toISOString().split('T')[0],
+              status: f.isCompleted ? 'COMPLETED' : 'PENDING',
+            });
+          } else if (item.action === 'UPDATE_CHILD_VACCINE') {
+            const v = item.payload || {};
+            surveys.push({
+              offlineId: item.id,
+              familyUnitId: 1,
+              familyMemberId: v.childMemberId || 1,
+              templateId: 2,
+              categoryCode: 'CHILD',
+              answers: {
+                recordType: 'VACCINE_UPDATE',
+                vaccineName: v.vaccineName,
+                status: v.status,
+                updatedAt: new Date().toISOString(),
+              },
+            });
+          } else if (item.action === 'SAVE_MEETING') {
+            const mtg = item.payload || {};
+            surveys.push({
+              offlineId: mtg.id || item.id,
+              familyUnitId: 1,
+              familyMemberId: 1,
+              templateId: 1,
+              categoryCode: 'GENERAL',
+              answers: {
+                recordType: 'ASHA_MEETING',
+                meetingDate: mtg.meetingDate || new Date().toISOString().split('T')[0],
+                venue: mtg.venue || 'Anganwadi Center',
+                meetingType: mtg.meetingType || 'VHSNC',
+                attendeesCount: mtg.attendeesCount || 10,
+                materialsAvailable: mtg.materialsAvailable || '',
+                discussionPoints: mtg.discussionPoints || '',
+                decisionsTaken: mtg.decisionsTaken || '',
+                createdAt: mtg.createdAt || new Date().toISOString(),
+              },
+            });
+          } else if (item.action === 'SEND_TO_ANM') {
+            anmSends.push(item);
           }
         }
 
+        // Upload batch changes to backend
         const uploadRes = await fetch(`${BACKEND_BASE_URL}/api/sync/upload`, {
           method: 'POST',
           headers: {
@@ -102,6 +213,26 @@ export class SyncApi {
             followUps,
           }),
         });
+
+        // Trigger remote ANM dispatch if any SEND_TO_ANM tasks queued
+        for (const anmItem of anmSends) {
+          try {
+            await fetch(`${BACKEND_BASE_URL}/api/sync/send-to-anm`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-ASHA-Phone': ashaPhone,
+                ...NGROK_HEADERS,
+              },
+              body: JSON.stringify({
+                section: anmItem.payload?.sectionFilter || 'ALL',
+                anmIdentifier: anmItem.payload?.anmPhoneOrCode || 'ANM-CHANDPUR-01',
+              }),
+            });
+          } catch (anmErr) {
+            console.warn('ANM remote sync note:', anmErr);
+          }
+        }
 
         if (uploadRes.ok) {
           const itemIds = pendingItems.map((i) => i.id);

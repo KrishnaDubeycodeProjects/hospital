@@ -1,13 +1,32 @@
-import React, { useState } from 'react';
-import { courseApi, fetchAsObjectUrl } from '../../api/client';
+import React, { useEffect, useState } from 'react';
+import { abdmApi, courseApi, fetchAsObjectUrl } from '../../api/client';
 import { Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table, Textarea, fmtDateTime } from '../../components/ui';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function DoctorCourses() {
-  const [courseIdInput, setCourseIdInput] = useState('');
+  const { doctor } = useAuth();
+  const currentDoctorId = doctor?.doctorId;
+  const toast = useToast();
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [patientList, setPatientList] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [patientCourses, setPatientCourses] = useState([]);
+
+  // Active selected course
+  const [activeCourseId, setActiveCourseId] = useState(null);
   const [activeCourse, setActiveCourse] = useState(null);
   const [timeline, setTimeline] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingCourse, setLoadingCourse] = useState(false);
+
+  // FHIR R4 Bundle Modal
+  const [fhirModal, setFhirModal] = useState(false);
+  const [fhirBundle, setFhirBundle] = useState(null);
+  const [loadingFhir, setLoadingFhir] = useState(false);
+  const [fhirTitle, setFhirTitle] = useState('');
 
   // Document upload modal
   const [uploadModal, setUploadModal] = useState(false);
@@ -26,11 +45,87 @@ export default function DoctorCourses() {
   });
   const [savingEncounter, setSavingEncounter] = useState(false);
 
-  const toast = useToast();
+  // Document Seen tracking (persisted in localStorage per doctor)
+  const seenStorageKey = `doctor_seen_docs_${currentDoctorId || 'default'}`;
+  const [seenDocs, setSeenDocs] = useState(() => {
+    try {
+      const saved = localStorage.getItem(seenStorageKey);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  function markDocAsSeen(docId) {
+    const updated = { ...seenDocs, [docId]: new Date().toISOString() };
+    setSeenDocs(updated);
+    try {
+      localStorage.setItem(seenStorageKey, JSON.stringify(updated));
+    } catch {
+      // storage unavailable
+    }
+  }
+
+  // Load all recent courses on initial mount to group by patient
+  async function loadInitialCourses(query = '') {
+    setSearching(true);
+    try {
+      const results = await courseApi.search(query);
+      const courses = Array.isArray(results) ? results : [];
+
+      // Group courses by patient (phone + name)
+      const patientMap = new Map();
+      courses.forEach((c) => {
+        const key = c.patientPhone || `patient-${c.id}`;
+        if (!patientMap.has(key)) {
+          patientMap.set(key, {
+            phone: c.patientPhone,
+            name: c.patientName || 'Anonymous Patient',
+            courses: [],
+          });
+        }
+        patientMap.get(key).courses.push(c);
+      });
+
+      const grouped = Array.from(patientMap.values());
+      setPatientList(grouped);
+
+      // If user searched and we found exact matches, select first patient
+      if (query.trim() && grouped.length === 1) {
+        selectPatient(grouped[0]);
+      }
+    } catch (err) {
+      console.warn('Course search fallback:', err);
+      toast.error('Unable to load care episodes');
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  useEffect(() => {
+    loadInitialCourses('');
+  }, []);
+
+  function handleSearchSubmit(e) {
+    e.preventDefault();
+    loadInitialCourses(searchQuery);
+  }
+
+  function selectPatient(pt) {
+    setSelectedPatient(pt);
+    setPatientCourses(pt.courses || []);
+    if (pt.courses && pt.courses.length > 0) {
+      loadCourse(pt.courses[0].id);
+    } else {
+      setActiveCourse(null);
+      setTimeline(null);
+    }
+  }
 
   async function loadCourse(id) {
     if (!id) return;
-    setLoading(true);
+    setActiveCourseId(id);
+    setLoadingCourse(true);
     try {
       const c = await courseApi.get(id, 'DOCTOR');
       setActiveCourse(c);
@@ -41,26 +136,31 @@ export default function DoctorCourses() {
       setActiveCourse(null);
       setTimeline(null);
     } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleSearch(e) {
-    e.preventDefault();
-    if (courseIdInput.trim()) {
-      loadCourse(courseIdInput.trim());
+      setLoadingCourse(false);
     }
   }
 
   async function downloadDoc(docId, fileName) {
+    markDocAsSeen(docId);
     try {
       const url = await fetchAsObjectUrl(courseApi.documentDownloadUrl(activeCourse.id, docId), 'DOCTOR');
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName || `document-${docId}`;
       a.click();
+      toast.success('Document downloaded successfully');
     } catch (err) {
       toast.error(err.message || 'Failed downloading document.');
+    }
+  }
+
+  async function viewDocInTab(docId) {
+    markDocAsSeen(docId);
+    try {
+      const url = await fetchAsObjectUrl(courseApi.documentDownloadUrl(activeCourse.id, docId), 'DOCTOR');
+      window.open(url, '_blank', 'noopener');
+    } catch (err) {
+      toast.error(err.message || 'Failed opening document');
     }
   }
 
@@ -77,7 +177,7 @@ export default function DoctorCourses() {
       fd.append('docType', docType);
       if (docNotes) fd.append('notes', docNotes);
       await courseApi.uploadDocument(activeCourse.id, fd);
-      toast.success('Document uploaded with Apache Tika inspection & SHA-256 fingerprint.');
+      toast.success('Document uploaded with SHA-256 fingerprint.');
       setUploadModal(false);
       setFile(null);
       setDocNotes('');
@@ -115,212 +215,477 @@ export default function DoctorCourses() {
     }
   }
 
+  // FHIR R4 Bundle Direct Access
+  async function openFhirBundle(courseId, encounterId = null, title = 'Course FHIR R4 Bundle') {
+    setLoadingFhir(true);
+    setFhirTitle(title);
+    setFhirModal(true);
+    try {
+      let bundle;
+      if (encounterId) {
+        bundle = await abdmApi.getEncounterFhir(courseId, encounterId);
+      } else {
+        bundle = await abdmApi.getCourseFhir(courseId);
+      }
+      setFhirBundle(bundle);
+    } catch (err) {
+      console.warn('FHIR bundle load error:', err);
+      toast.error('Could not load live FHIR bundle, showing structured export');
+      // Structured fallback NRCES bundle
+      setFhirBundle({
+        resourceType: 'Bundle',
+        id: `bundle-course-${courseId}`,
+        type: 'document',
+        meta: { profile: ['https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle'] },
+        timestamp: new Date().toISOString(),
+        courseId: courseId,
+        patientName: activeCourse?.patientName,
+        encountersCount: timeline?.encounters?.length || 0,
+        documentsCount: timeline?.documents?.length || 0,
+      });
+    } finally {
+      setLoadingFhir(false);
+    }
+  }
+
+  function copyFhirJson() {
+    if (!fhirBundle) return;
+    navigator.clipboard?.writeText(JSON.stringify(fhirBundle, null, 2));
+    toast.success('FHIR R4 JSON copied to clipboard');
+  }
+
+  function downloadFhirJson() {
+    if (!fhirBundle) return;
+    const blob = new Blob([JSON.stringify(fhirBundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fhir-r4-bundle-course-${activeCourse?.id || 'export'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('FHIR Bundle JSON downloaded');
+  }
+
   return (
     <div className="stack-lg">
-      {/* Explanatory Banner: What is a Care Episode? */}
-      <div
-        style={{
-          backgroundColor: '#F0FDF4',
-          border: '1.5px solid #86EFAC',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '20px' }}>📋</span>
-          <strong style={{ fontSize: '15px', color: '#166534' }}>
-            What is a Care Episode (Longitudinal Care Course)?
-          </strong>
-        </div>
-        <p style={{ fontSize: '13px', color: '#15803D', margin: 0, lineHeight: 1.5 }}>
-          A <strong>Care Episode</strong> connects multiple hospital OPD visits, clinical encounters, lab tests, prescriptions, and follow-ups under a unified longitudinal treatment plan (such as <em>Hypertension Management</em>, <em>Antenatal Care</em>, or <em>Post-op Recovery</em>). Rather than treating every OPD token in isolation, it allows doctors across departments to view the complete chronological timeline and patient progress.
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-          <span style={{ fontSize: '12px', fontWeight: '700', color: '#166534' }}>Quick Test Seeded Courses:</span>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-            <button
-              key={num}
-              type="button"
-              onClick={() => {
-                setCourseIdInput(String(num));
-                loadCourse(String(num));
-              }}
-              style={{
-                backgroundColor: '#DCFCE7',
-                border: '1px solid #BBF7D0',
-                color: '#166534',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                fontSize: '11.5px',
-                fontWeight: '700',
-                cursor: 'pointer',
-              }}
-            >
-              Course #{num}
-            </button>
-          ))}
+      {/* Header */}
+      <div className="card-head">
+        <div>
+          <h1>Care Episodes & Patient Longitudinal Courses</h1>
+          <p className="muted-text">
+            Search a patient to view their complete list of care courses, unified clinical timeline, diagnostic documents, and direct FHIR R4 bundles.
+          </p>
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Patient Search Bar */}
       <Card>
-        <form onSubmit={handleSearch} className="row-gap">
-          <Field label="Lookup Care Episode by Course ID">
-            <Input
-              type="number"
-              placeholder="e.g. 1"
-              value={courseIdInput}
-              onChange={(e) => setCourseIdInput(e.target.value)}
-              required
-            />
-          </Field>
-          <Button type="submit" variant="primary" style={{ alignSelf: 'flex-end', minHeight: '48px' }}>
-            Fetch Course Timeline
+        <form onSubmit={handleSearchSubmit} className="row-gap" style={{ alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: '280px' }}>
+            <Field label="Search Patient (Name, Phone Number, Course Title, or Diagnosis)">
+              <Input
+                placeholder="e.g. Ramesh, 9876543210, Hypertension, or Orthopedics"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Button type="submit" variant="primary" loading={searching} style={{ minHeight: '44px' }}>
+            Search Patient
           </Button>
+          {searchQuery && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setSearchQuery('');
+                loadInitialCourses('');
+              }}
+              style={{ minHeight: '44px' }}
+            >
+              Clear
+            </Button>
+          )}
         </form>
       </Card>
 
-      {loading && <Spinner label="Loading course records and timeline..." />}
+      {/* Patient Results Grid / Course Selector */}
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '20px', alignItems: 'start' }}>
+        {/* Left Column: Matched Patients & Courses List */}
+        <div className="stack-md">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>
+              Patients ({patientList.length})
+            </span>
+            <span style={{ fontSize: '12px', color: '#64748B' }}>
+              Select patient to open courses
+            </span>
+          </div>
 
-      {!loading && !activeCourse && (
-        <EmptyState
-          title="No Course Selected"
-          hint="Enter a valid Course ID above to view the patient's care timeline, documents, and referrals."
-        />
-      )}
-
-      {!loading && activeCourse && (
-        <div className="stack-lg">
-          {/* Header Card */}
-          <Card
-            title={`Course #${activeCourse.id} — ${activeCourse.title}`}
-            actions={
-              <div className="row-gap">
-                <Button size="sm" variant="secondary" onClick={() => setEncounterModal(true)}>
-                  + Add Clinical Encounter
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => setUploadModal(true)}>
-                  📁 Attach Document
-                </Button>
-              </div>
-            }
-          >
-            <dl className="detail-list">
-              <div className="detail-row">
-                <dt>Patient</dt>
-                <dd>{activeCourse.patientName} ({activeCourse.patientPhone})</dd>
-              </div>
-              <div className="detail-row">
-                <dt>Department & Type</dt>
-                <dd>{activeCourse.targetDepartment} &bull; <span className="badge badge-blue">{activeCourse.courseType}</span></dd>
-              </div>
-              <div className="detail-row">
-                <dt>Primary Diagnosis</dt>
-                <dd>{activeCourse.primaryDiagnosis || 'Under Investigation'}</dd>
-              </div>
-              <div className="detail-row">
-                <dt>Status</dt>
-                <dd>
-                  <span className={`badge ${activeCourse.status === 'active' ? 'badge-green' : 'badge-gray'}`}>
-                    {activeCourse.status}
-                  </span>
-                </dd>
-              </div>
-            </dl>
-          </Card>
-
-          {/* Longitudinal Timeline */}
-          <Card title="Longitudinal Care Timeline">
-            {!timeline?.encounters || timeline.encounters.length === 0 ? (
-              <EmptyState title="No encounters recorded yet." />
-            ) : (
-              <div className="stack-md">
-                {timeline.encounters.map((enc, idx) => (
+          {searching ? (
+            <Spinner label="Searching patient courses..." />
+          ) : patientList.length === 0 ? (
+            <Card>
+              <EmptyState title="No patients found" hint="Try searching by a different name, phone, or diagnosis." />
+            </Card>
+          ) : (
+            <div className="stack-sm" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+              {patientList.map((pt) => {
+                const isSelected = selectedPatient?.phone === pt.phone;
+                return (
                   <div
-                    key={enc.id || idx}
+                    key={pt.phone}
+                    onClick={() => selectPatient(pt)}
                     style={{
-                      borderLeft: '3px solid var(--primary)',
-                      paddingLeft: '16px',
-                      marginLeft: '8px',
-                      position: 'relative',
+                      backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                      border: `1.5px solid ${isSelected ? '#3B82F6' : '#E2E8F0'}`,
+                      borderRadius: '10px',
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
-                        Encounter #{enc.id}: {enc.chiefComplaint}
-                      </h4>
-                      <span className="muted-text" style={{ fontSize: '12px' }}>
-                        {fmtDateTime(enc.createdAt)}
+                      <strong style={{ fontSize: '14px', color: '#0F172A' }}>{pt.name}</strong>
+                      <span className="badge badge-blue" style={{ fontSize: '11px' }}>
+                        {pt.courses.length} {pt.courses.length === 1 ? 'Course' : 'Courses'}
                       </span>
                     </div>
-
-                    {enc.clinicalNotes && (
-                      <p style={{ margin: '6px 0 2px', fontSize: '13px' }}>
-                        <strong>Notes:</strong> {enc.clinicalNotes}
-                      </p>
-                    )}
-                    {enc.examinationFindings && (
-                      <p style={{ margin: '2px 0', fontSize: '13px' }}>
-                        <strong>Exam:</strong> {enc.examinationFindings}
-                      </p>
-                    )}
-                    {enc.plan && (
-                      <p style={{ margin: '2px 0 8px', fontSize: '13px', color: 'var(--primary)' }}>
-                        <strong>Plan:</strong> {enc.plan}
-                      </p>
-                    )}
-
-                    {/* Prescriptions */}
-                    {enc.prescriptions && enc.prescriptions.length > 0 && (
-                      <div style={{ background: 'var(--surface-sunken)', padding: '10px 14px', borderRadius: '8px', marginTop: '8px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                          PRESCRIPTIONS (Rx)
-                        </div>
-                        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px' }}>
-                          {enc.prescriptions.map((rx, rIdx) => (
-                            <li key={rIdx}>
-                              <strong>{rx.drugName}</strong> {rx.dosage} &bull; {rx.frequency} for {rx.durationDays} days ({rx.instructions || 'as advised'})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '4px' }}>
+                      {pt.phone}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>
+                      Latest: <em>{pt.courses[0]?.title || 'Care Episode'}</em>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </Card>
+                );
+              })}
+            </div>
+          )}
 
-          {/* Documents Vault */}
-          <Card title="Diagnostic Documents & Imaging Vault">
-            {!timeline?.documents || timeline.documents.length === 0 ? (
-              <EmptyState title="No documents attached to this care course." />
-            ) : (
-              <Table
-                columns={[
-                  { key: 'fileName', header: 'File Name' },
-                  { key: 'docType', header: 'Type', render: (d) => <span className="badge badge-blue">{d.docType}</span> },
-                  { key: 'fileHash', header: 'SHA-256 Fingerprint', render: (d) => <code style={{ fontSize: '11px' }}>{d.fileHash ? d.fileHash.slice(0, 16) + '...' : '—'}</code> },
-                  { key: 'fileSize', header: 'Size', render: (d) => `${Math.round((d.fileSize || 0) / 1024)} KB` },
-                  { key: 'createdAt', header: 'Uploaded', render: (d) => fmtDateTime(d.createdAt) },
-                  {
-                    key: 'actions',
-                    header: '',
-                    render: (d) => (
-                      <Button size="sm" variant="secondary" onClick={() => downloadDoc(d.id, d.fileName)}>
-                        Download
-                      </Button>
-                    ),
-                  },
-                ]}
-                rows={timeline.documents}
-              />
-            )}
-          </Card>
+          {/* If patient selected, show their full list of courses */}
+          {selectedPatient && (
+            <div className="stack-sm" style={{ marginTop: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>
+                Courses for {selectedPatient.name}
+              </span>
+              <div className="stack-xs">
+                {patientCourses.map((c) => {
+                  const isCourseActive = activeCourseId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => loadCourse(c.id)}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: `1px solid ${isCourseActive ? '#2563EB' : '#CBD5E1'}`,
+                        backgroundColor: isCourseActive ? '#DBEAFE' : '#F8FAFC',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '13px', color: '#1E293B' }}>
+                          Course #{c.id}: {c.title}
+                        </strong>
+                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: '10px' }}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '3px' }}>
+                        {c.targetDepartment} &bull; {c.primaryDiagnosis || 'Clinical Episode'}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Right Column: Longitudinal Timeline & Detail of Selected Course */}
+        <div>
+          {loadingCourse && <Spinner label="Loading course longitudinal timeline..." />}
+
+          {!loadingCourse && !activeCourse && (
+            <Card>
+              <EmptyState
+                title="No Course Selected"
+                hint="Select a patient and course from the left panel to review longitudinal care timeline, encounters, prescriptions, and diagnostic documents."
+              />
+            </Card>
+          )}
+
+          {!loadingCourse && activeCourse && (
+            <div className="stack-lg">
+              {/* Course Detail Card */}
+              <Card
+                title={`Course #${activeCourse.id} — ${activeCourse.title}`}
+                actions={
+                  <div className="row-gap">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => openFhirBundle(activeCourse.id, null, `Course #${activeCourse.id} FHIR R4 Bundle`)}
+                    >
+                      Direct FHIR R4 Bundle
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setEncounterModal(true)}>
+                      Add Encounter
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setUploadModal(true)}>
+                      Attach Document
+                    </Button>
+                  </div>
+                }
+              >
+                <dl className="detail-list">
+                  <div className="detail-row">
+                    <dt>Patient</dt>
+                    <dd>{activeCourse.patientName} ({activeCourse.patientPhone})</dd>
+                  </div>
+                  <div className="detail-row">
+                    <dt>Department & Course Type</dt>
+                    <dd>{activeCourse.targetDepartment} &bull; <span className="badge badge-blue">{activeCourse.courseType}</span></dd>
+                  </div>
+                  <div className="detail-row">
+                    <dt>Primary Diagnosis</dt>
+                    <dd>{activeCourse.primaryDiagnosis || 'Under Active Clinical Evaluation'}</dd>
+                  </div>
+                  <div className="detail-row">
+                    <dt>Course Status</dt>
+                    <dd>
+                      <span className={`badge ${activeCourse.status === 'active' ? 'badge-green' : 'badge-gray'}`}>
+                        {activeCourse.status}
+                      </span>
+                    </dd>
+                  </div>
+                  {activeCourse.startedByDoctorName && (
+                    <div className="detail-row">
+                      <dt>Initiating Doctor</dt>
+                      <dd>{activeCourse.startedByDoctorName}</dd>
+                    </div>
+                  )}
+                  {activeCourse.startedAtHospitalName && (
+                    <div className="detail-row">
+                      <dt>Hospital Facility</dt>
+                      <dd>{activeCourse.startedAtHospitalName}</dd>
+                    </div>
+                  )}
+                </dl>
+              </Card>
+
+              {/* Longitudinal Care Timeline */}
+              <Card
+                title="Longitudinal Care Timeline"
+                extra={
+                  <span className="badge badge-green">
+                    {timeline?.encounters?.length || 0} Encounters Recorded
+                  </span>
+                }
+              >
+                {!timeline?.encounters || timeline.encounters.length === 0 ? (
+                  <EmptyState title="No encounters recorded yet." hint="Use 'Add Encounter' above to log a clinical follow-up or OPD note." />
+                ) : (
+                  <div className="stack-md">
+                    {timeline.encounters.map((enc, idx) => (
+                      <div
+                        key={enc.id || idx}
+                        style={{
+                          borderLeft: '3px solid var(--primary)',
+                          paddingLeft: '16px',
+                          marginLeft: '8px',
+                          position: 'relative',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
+                            Encounter #{enc.id}: {enc.chiefComplaint}
+                          </h4>
+                          <div className="row-gap" style={{ alignItems: 'center' }}>
+                            <span className="muted-text" style={{ fontSize: '12px' }}>
+                              {fmtDateTime(enc.createdAt || enc.visitDate)}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => openFhirBundle(activeCourse.id, enc.id, `Encounter #${enc.id} FHIR R4 Bundle`)}
+                              style={{ fontSize: '11px', padding: '2px 8px' }}
+                            >
+                              FHIR R4 Bundle
+                            </Button>
+                          </div>
+                        </div>
+
+                        {enc.doctorName && (
+                          <div style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 6px' }}>
+                            Attending Doctor: <strong>{enc.doctorName}</strong> {enc.hospitalName ? `(${enc.hospitalName})` : ''}
+                          </div>
+                        )}
+
+                        {enc.clinicalNotes && (
+                          <p style={{ margin: '6px 0 2px', fontSize: '13px' }}>
+                            <strong>Clinical Notes:</strong> {enc.clinicalNotes}
+                          </p>
+                        )}
+                        {enc.examinationFindings && (
+                          <p style={{ margin: '2px 0', fontSize: '13px' }}>
+                            <strong>Exam Findings:</strong> {enc.examinationFindings}
+                          </p>
+                        )}
+                        {enc.plan && (
+                          <p style={{ margin: '2px 0 8px', fontSize: '13px', color: 'var(--primary)' }}>
+                            <strong>Management Plan:</strong> {enc.plan}
+                          </p>
+                        )}
+
+                        {/* Prescriptions */}
+                        {enc.prescriptions && enc.prescriptions.length > 0 && (
+                          <div style={{ background: 'var(--surface-sunken)', padding: '10px 14px', borderRadius: '8px', marginTop: '8px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                              PRESCRIPTIONS (Rx)
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px' }}>
+                              {enc.prescriptions.map((rx, rIdx) => (
+                                <li key={rIdx}>
+                                  <strong>{rx.drugName || rx.medicineName}</strong> {rx.dosage} &bull; {rx.frequency} for {rx.durationDays} days ({rx.instructions || 'as advised'})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Diagnostic Documents & Imaging Vault */}
+              <Card
+                title="Diagnostic Documents & Case Records"
+                extra={
+                  <span className="badge badge-blue">
+                    {timeline?.documents?.length || 0} Documents Attached
+                  </span>
+                }
+              >
+                {!timeline?.documents || timeline.documents.length === 0 ? (
+                  <EmptyState title="No documents attached to this care course." hint="Use 'Attach Document' above to upload lab reports, discharge summaries, or imaging files." />
+                ) : (
+                  <Table
+                    columns={[
+                      { key: 'fileName', header: 'File Name' },
+                      { key: 'docType', header: 'Classification', render: (d) => <span className="badge badge-blue">{d.docType}</span> },
+                      {
+                        key: 'uploader',
+                        header: 'Uploaded By',
+                        render: (d) => {
+                          const isUploadedByMe = currentDoctorId && d.uploadedByDoctorId === currentDoctorId;
+                          if (isUploadedByMe) {
+                            return <span className="badge badge-green" style={{ fontSize: '11px' }}>Uploaded by You</span>;
+                          }
+                          if (d.uploadedByDoctorName) {
+                            return <span style={{ fontSize: '12px', color: '#475569' }}>Dr. {d.uploadedByDoctorName}</span>;
+                          }
+                          if (d.uploadedByDoctorId) {
+                            return <span style={{ fontSize: '12px', color: '#475569' }}>Doctor #{d.uploadedByDoctorId}</span>;
+                          }
+                          return <span className="badge badge-gray" style={{ fontSize: '11px' }}>Uploaded by Patient</span>;
+                        },
+                      },
+                      {
+                        key: 'seenStatus',
+                        header: 'Seen Status',
+                        render: (d) => {
+                          const seenTimestamp = seenDocs[d.id];
+                          if (seenTimestamp) {
+                            return (
+                              <span className="badge badge-green" style={{ fontSize: '11px' }}>
+                                Seen by You ({fmtDateTime(seenTimestamp)})
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="badge badge-amber" style={{ fontSize: '11px' }}>
+                              Unseen / New
+                            </span>
+                          );
+                        },
+                      },
+                      { key: 'fileSize', header: 'Size', render: (d) => `${Math.round((d.fileSize || 0) / 1024)} KB` },
+                      { key: 'createdAt', header: 'Uploaded Date', render: (d) => fmtDateTime(d.createdAt) },
+                      {
+                        key: 'actions',
+                        header: 'Actions',
+                        render: (d) => (
+                          <div className="row-gap">
+                            <Button size="sm" variant="secondary" onClick={() => viewDocInTab(d.id)}>
+                              View File
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => downloadDoc(d.id, d.fileName)}>
+                              Download
+                            </Button>
+                          </div>
+                        ),
+                      },
+                    ]}
+                    rows={timeline.documents}
+                  />
+                )}
+              </Card>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Direct FHIR R4 Bundle Modal */}
+      {fhirModal && (
+        <Modal title={fhirTitle || 'Official ABDM FHIR R4 Document Bundle'} onClose={() => setFhirModal(false)}>
+          <div className="stack-md">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: '#475569' }}>
+                NRCES Profile: <code>DocumentBundle (OPConsultRecord)</code>
+              </span>
+              <div className="row-gap">
+                <Button size="sm" variant="secondary" onClick={copyFhirJson}>
+                  Copy JSON
+                </Button>
+                <Button size="sm" variant="primary" onClick={downloadFhirJson}>
+                  Download Bundle (.json)
+                </Button>
+              </div>
+            </div>
+
+            {loadingFhir ? (
+              <Spinner label="Generating official FHIR R4 JSON bundle..." />
+            ) : (
+              <pre
+                style={{
+                  backgroundColor: '#0F172A',
+                  color: '#F8FAFC',
+                  padding: '16px',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  maxHeight: '450px',
+                  overflowY: 'auto',
+                  fontFamily: 'Consolas, monospace',
+                }}
+              >
+                {JSON.stringify(fhirBundle, null, 2)}
+              </pre>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <Button type="button" variant="ghost" onClick={() => setFhirModal(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Upload Document Modal */}

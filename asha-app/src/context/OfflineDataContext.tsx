@@ -108,25 +108,79 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [refreshData]);
 
-  // Periodic network check: when internet connects, automatically synchronize with hospital
+  // Helper to immediately push changes to the cloud if internet connectivity is available
+  const syncIfOnline = useCallback(async () => {
+    try {
+      const online = await SyncApi.pingServer();
+      setIsOnline(online);
+      if (online) {
+        await triggerSync();
+      }
+    } catch (e) {
+      console.warn('Sync check failed:', e);
+    }
+  }, [triggerSync]);
+
+  // Network connectivity listener and auto-synchronization:
+  // Immediately synchronizes queued operations as soon as the device/browser reconnects to the internet!
   useEffect(() => {
     refreshData();
 
-    const checkConnectivity = async () => {
-      const online = await SyncApi.pingServer();
-      setIsOnline(online);
+    let isChecking = false;
 
-      // Transition from offline -> online: auto-sync missed referrals from hospital!
-      if (online && !prevOnlineRef.current) {
-        console.log('🌐 Internet connection detected! Auto-synchronizing hospital referrals...');
-        await triggerSync();
+    const performConnectivityCheck = async () => {
+      if (isChecking) return;
+      isChecking = true;
+      try {
+        const online = await SyncApi.pingServer();
+        setIsOnline(online);
+
+        // When transition from offline -> online OR when online with pending outbox records
+        const pendingItems = await OfflineStorageService.getPendingOutbox();
+        const hasPending = pendingItems.length > 0;
+
+        if (online && (!prevOnlineRef.current || hasPending)) {
+          console.log(`🌐 Online connection active (${pendingItems.length} pending records). Auto-synchronizing with cloud...`);
+          await triggerSync();
+        }
+        prevOnlineRef.current = online;
+      } catch (err) {
+        setIsOnline(false);
+      } finally {
+        isChecking = false;
       }
-      prevOnlineRef.current = online;
     };
 
-    checkConnectivity();
-    const interval = setInterval(checkConnectivity, 12000);
-    return () => clearInterval(interval);
+    performConnectivityCheck();
+
+    // Fast instantaneous detection on modern browsers / webview
+    const handleOnlineEvent = () => {
+      console.log('⚡ Browser network ONLINE event! Triggering immediate cloud sync...');
+      setIsOnline(true);
+      performConnectivityCheck();
+    };
+
+    const handleOfflineEvent = () => {
+      console.log('📴 Browser network OFFLINE event. Safe local storage active.');
+      setIsOnline(false);
+      prevOnlineRef.current = false;
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', handleOnlineEvent);
+      window.addEventListener('offline', handleOfflineEvent);
+    }
+
+    // Active heartbeat check every 5 seconds to ensure changes sync quickly even without window events
+    const interval = setInterval(performConnectivityCheck, 5000);
+
+    return () => {
+      clearInterval(interval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', handleOnlineEvent);
+        window.removeEventListener('offline', handleOfflineEvent);
+      }
+    };
   }, [refreshData, triggerSync]);
 
   const addFamily = async (
@@ -134,6 +188,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<FamilyUnit> => {
     const created = await OfflineStorageService.saveFamily(family);
     await refreshData();
+    syncIfOnline().catch(() => {});
     return created;
   };
 
@@ -142,6 +197,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<FamilyMember> => {
     const created = await OfflineStorageService.saveMember(member);
     await refreshData();
+    syncIfOnline().catch(() => {});
     return created;
   };
 
@@ -150,12 +206,14 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<SurveyResponse> => {
     const created = await OfflineStorageService.saveSurveyResponse(survey);
     await refreshData();
+    syncIfOnline().catch(() => {});
     return created;
   };
 
   const toggleFollowUp = async (id: string) => {
     await OfflineStorageService.toggleFollowUp(id);
     await refreshData();
+    syncIfOnline().catch(() => {});
   };
 
   const simulateMissedReferral = async (
@@ -186,6 +244,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   ) => {
     await OfflineStorageService.updateVaccineStatus(childMemberId, vaccineName, status);
     await refreshData();
+    syncIfOnline().catch(() => {});
   };
 
   const saveMeeting = async (
@@ -193,6 +252,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<AshaMeetingRecord> => {
     const created = await OfflineStorageService.saveMeeting(meeting);
     await refreshData();
+    syncIfOnline().catch(() => {});
     return created;
   };
 
@@ -220,18 +280,20 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const intervalDays = priority === '7days' ? 7 : priority === '15days' ? 15 : 30;
     const priorityLabel = priority === '7days' ? 'गंभीर (Severe)' : priority === '15days' ? 'मध्यम (Medium)' : 'सामान्य (Normal)';
+    const nextDateFormatted = new Date(Date.now() + intervalDays * 86400000).toISOString().split('T')[0];
 
     const updated: FamilyUnit = {
       ...existingFamily,
       status: 'visited',
       visitIntervalDays: intervalDays,
-      nextVisitDate: priorityLabel,
+      nextVisitDate: nextDateFormatted,
       lastVisitedAt: 'आज (Today)',
       updatedAt: new Date().toISOString(),
     };
 
     await OfflineStorageService.saveFamily(updated);
     await refreshData();
+    syncIfOnline().catch(() => {});
   };
 
   const resetToDefaults = async () => {

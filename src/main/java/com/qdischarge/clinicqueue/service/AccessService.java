@@ -114,6 +114,19 @@ public class AccessService {
                 Map.of("doctorId", doctorId), (rs, i) -> rs.getString("patient_phone"));
     }
 
+    /** All patient phone numbers this doctor ever had access to (for history views). */
+    public List<String> listAllPatientPhonesForDoctor(int doctorId) {
+        return jdbc.query(
+                "SELECT DISTINCT patient_phone FROM access_grants WHERE doctor_id = :doctorId",
+                Map.of("doctorId", doctorId), (rs, i) -> rs.getString("patient_phone"));
+    }
+
+    /** All access grants issued to this doctor (active and past). */
+    public List<AccessGrantDto> listGrantsForDoctor(int doctorId) {
+        return jdbc.query(JOINED_GRANT_SELECT + " WHERE g.doctor_id = :doctorId ORDER BY g.granted_at DESC",
+                Map.of("doctorId", doctorId), AccessService::mapGrant);
+    }
+
     private AccessGrantDto getGrant(int id) {
         List<AccessGrantDto> rows = jdbc.query(JOINED_GRANT_SELECT + " WHERE g.id = :id", Map.of("id", id), AccessService::mapGrant);
         return rows.isEmpty() ? null : rows.get(0);

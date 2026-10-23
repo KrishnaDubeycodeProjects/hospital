@@ -818,7 +818,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   surveyGridItem: {
-    width: '48%',
+    flexBasis: '47%',
+    flexGrow: 1,
+    minWidth: 130,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
@@ -932,6 +934,7 @@ const styles = StyleSheet.create({
   },
   memberInfo: {
     flex: 1,
+    minWidth: 0,
   },
   nameRow: {
     flexDirection: 'row',

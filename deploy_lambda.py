@@ -87,7 +87,7 @@ def get_or_create_execution_role(iam_client):
 
 def build_package() -> Path:
     target_dir = WORKSPACE_DIR / "target"
-    jars = [p for p in target_dir.glob("*.jar") if not p.name.endswith("-sources.jar")]
+    jars = sorted([p for p in target_dir.glob("*.jar") if not p.name.endswith("-sources.jar") and not p.name.startswith("original")], key=lambda p: p.stat().st_size, reverse=True)
     if ("--skip-build" in sys.argv or os.environ.get("SKIP_BUILD") == "1") and jars:
         print(f"\n📦 Skipping Maven build (--skip-build). Using existing artifact: {jars[0].name}")
         return jars[0]
@@ -101,7 +101,7 @@ def build_package() -> Path:
         print(result.stderr[-1500:])
         sys.exit(1)
     
-    jars = [p for p in target_dir.glob("*.jar") if not p.name.endswith("-sources.jar")]
+    jars = sorted([p for p in target_dir.glob("*.jar") if not p.name.endswith("-sources.jar") and not p.name.startswith("original")], key=lambda p: p.stat().st_size, reverse=True)
     if not jars:
         print("❌ No jar file found in target directory!")
         sys.exit(1)

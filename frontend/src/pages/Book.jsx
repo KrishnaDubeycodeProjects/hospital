@@ -45,6 +45,11 @@ export default function Book() {
   const distParam = params.get('dist') || '';
   const imgParam = params.get('img') || '';
   const tokenParam = params.get('token') || '';
+  const patientIdParam = params.get('patientId') ? Number(params.get('patientId')) : null;
+  const patientNameParam = params.get('name') || '';
+  const patientAgeParam = params.get('age') || '';
+  const patientGenderParam = params.get('gender') || '';
+  const patientRelParam = params.get('relationship') || '';
 
   const navigate = useNavigate();
   const toast = useToast();
@@ -57,7 +62,11 @@ export default function Book() {
   }, [tokenParam]);
 
   // Flow State: 1. 'department' -> 2. 'family' -> 3. 'confirm'
-  const [step, setStep] = useState(() => (params.get('category') && hospitalIdParam ? 'family' : 'department'));
+  const [step, setStep] = useState(() => {
+    if (params.get('category') && hospitalIdParam) return 'confirm';
+    if (patientIdParam || patientNameParam) return 'department';
+    return params.get('category') && hospitalIdParam ? 'family' : 'department';
+  });
 
   // Hospital state
   const [hospitalId, setHospitalId] = useState(hospitalIdParam);
@@ -81,13 +90,15 @@ export default function Book() {
   const [selectedDept, setSelectedDept] = useState(params.get('category') || '');
 
   // Real Database Family Members state
-  const primaryPhone = '+91 88509 34544';
+  const activeUserPhone = params.get('phone') || patient?.subject || '';
+  const cleanPhoneStr = activeUserPhone ? activeUserPhone.replace(/\D/g, '') : '';
+  const primaryPhone = cleanPhoneStr ? `+91 ${cleanPhoneStr.slice(-10)}` : '+91 98765 43210';
   const [familyMembers, setFamilyMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
-  const [selectedMemberId, setSelectedMemberId] = useState(null);
+  const [selectedMemberId, setSelectedMemberId] = useState(patientIdParam);
 
   // Form / Patient details
-  const [phone, setPhone] = useState(params.get('phone') || patient?.subject || '8850934544');
+  const [phone, setPhone] = useState(cleanPhoneStr || '');
 
   // OTP state
   const [otpStage, setOtpStage] = useState('verified'); // Auto-verified for primary linked account
@@ -247,13 +258,22 @@ export default function Book() {
     let isMounted = true;
     setLoadingMembers(true);
 
-    familyApi.listPublicMembers('8850934544')
+    const targetQueryPhone = cleanPhone(phone) || cleanPhoneStr || '9876543210';
+    familyApi.listPublicMembers(targetQueryPhone)
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res) ? res : res?.data || [];
         if (list.length > 0) {
           setFamilyMembers(list);
-          setSelectedMemberId(list[0].id);
+          if (patientIdParam && list.some((m) => m.id === patientIdParam)) {
+            setSelectedMemberId(patientIdParam);
+          } else if (patientNameParam) {
+            const found = list.find((m) => m.name.toLowerCase() === patientNameParam.toLowerCase());
+            if (found) setSelectedMemberId(found.id);
+            else setSelectedMemberId(list[0].id);
+          } else {
+            setSelectedMemberId((prev) => prev || list[0].id);
+          }
         } else {
           // Fallback if backend returned empty before seeding
           const fallbackAhuja = [
@@ -262,8 +282,17 @@ export default function Book() {
             { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male' },
             { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male' },
           ];
+          if (patientNameParam && !fallbackAhuja.some((m) => m.name.toLowerCase() === patientNameParam.toLowerCase())) {
+            fallbackAhuja.unshift({
+              id: patientIdParam || 99,
+              name: patientNameParam,
+              relationship: patientRelParam || 'Member',
+              age: patientAgeParam ? Number(patientAgeParam) : 25,
+              gender: patientGenderParam || 'Male',
+            });
+          }
           setFamilyMembers(fallbackAhuja);
-          setSelectedMemberId(1);
+          setSelectedMemberId(patientIdParam || fallbackAhuja[0].id);
         }
       })
       .catch((err) => {
@@ -400,7 +429,7 @@ export default function Book() {
         age: parseInt(selectedMember.age, 10) || 20,
         gender: selectedMember.gender || 'Male',
         category: selectedDept,
-        phone: cleanPhone(phone) || '8850934544',
+        phone: cleanPhone(phone) || cleanPhoneStr || '9876543210',
         latitude: location?.latitude || 19.1895,
         longitude: location?.longitude || 72.9640,
       };

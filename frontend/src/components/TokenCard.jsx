@@ -119,12 +119,12 @@ export default function TokenCard({ token, onRefresh }) {
       {!terminal && (
         <div className="token-position">
           {token.position ? `Position ${token.position} in queue` : 'Position updating…'}
-          {typeof token.peopleAhead === 'number' && <span> · {token.peopleAhead} ahead of you</span>}
+          <span> · Current running: {token.currentServingTokenCode || (token.currentServing ? `#${token.currentServing}` : 'None')}</span>
         </div>
       )}
 
       <dl className="detail-list">
-        {typeof token.currentServing === 'number' && <Row label="Now serving" value={`#${token.currentServing}`} />}
+        <Row label="Current Token Running" value={token.currentServingTokenCode || (token.currentServing ? `#${token.currentServing}` : 'None (Queue Waiting)')} />
         {token.anomalyControlUntil && <Row label="Please arrive by" value={fmtDateTime(token.anomalyControlUntil)} />}
         <Row label="Checked in" value={fmtDateTime(token.createdAt)} />
       </dl>

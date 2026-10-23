@@ -1,5 +1,12 @@
 {
   "rewrites": [
+    { "source": "/asha", "destination": "/asha/index.html" },
+    { "source": "/asha/", "destination": "/asha/index.html" },
+    { "source": "/asha/(.*)", "destination": "/asha/$1" },
+    { "source": "/asha-app", "destination": "/asha-app/index.html" },
+    { "source": "/asha-app/", "destination": "/asha-app/index.html" },
+    { "source": "/asha-app/(.*)", "destination": "/asha-app/$1" },
+    { "source": "/_expo/(.*)", "destination": "/_expo/$1" },
     { "source": "/wa/(.*)", "destination": "/wa/$1" },
     { "source": "/api/(.*)", "destination": "https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com/api/$1" },
     { "source": "/actuator/(.*)", "destination": "https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com/actuator/$1" },

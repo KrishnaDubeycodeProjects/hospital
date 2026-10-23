@@ -235,6 +235,12 @@ public class CourseController {
         return ResponseEntity.ok(ok(closed));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<Map<String, Object>> searchCourses(@RequestParam(required = false) String query) {
+        List<CourseDto> courses = courseService.searchCourses(query);
+        return ResponseEntity.ok(ok(courses));
+    }
+
     @GetMapping("/patient")
     public ResponseEntity<Map<String, Object>> listPatientCourses() {
         String phone = currentUser.requirePatientPhone();

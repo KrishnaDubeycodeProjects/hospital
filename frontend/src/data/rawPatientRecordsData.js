@@ -6,7 +6,7 @@ export const RAW_FAMILY_MEMBERS = [
     relation: 'Self',
     age: 24,
     gender: 'Male',
-    phone: '+918850934544',
+    phone: '+919876543210',
     abhaNumber: '91-2808-1122-3344',
     abhaAddress: 'kavish@abdm',
     avatarColor: '#059669',

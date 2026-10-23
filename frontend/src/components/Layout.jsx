@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AyushmanFooter from './AyushmanFooter';
 
@@ -10,7 +11,7 @@ const NAV = {
     { to: '/admin/missed', label: 'Missed Queue', icon: '❌' },
     { to: '/admin/history', label: 'Visit History', icon: '📜' },
     { to: '/admin/hospitals', label: 'Hospitals', icon: '🏛️' },
-    { to: '/admin/asha', label: 'ASHA & CHO Hub', icon: '🌿' },
+    { to: '/admin/asha', label: 'ASHA & CHO Hub', icon: '👥' },
   ],
   patient: [
     { to: '/patient', label: 'My Queue', icon: '🎟️', end: true },
@@ -19,13 +20,13 @@ const NAV = {
     { to: '/patient/access', label: 'Doctor Access', icon: '🔑' },
   ],
   doctor: [
-    { to: '/doctor', label: 'Profile', icon: '👤', end: true },
-    { to: '/doctor/consultation', label: 'Queue Room', icon: '📊' },
-    { to: '/doctor/serve', label: 'Serving Console', icon: '🪑' },
-    { to: '/doctor/courses', label: 'Care Episodes', icon: '📋' },
-    { to: '/doctor/referrals', label: 'Referrals & Triage', icon: '🔄' },
-    { to: '/doctor/patients', label: 'My Patients', icon: '👥' },
-    { to: '/doctor/access', label: 'Request Access', icon: '🔑' },
+    { to: '/doctor', label: 'Profile', end: true },
+    { to: '/doctor/consultation', label: 'Queue Room' },
+    { to: '/doctor/serve', label: 'Serving Console' },
+    { to: '/doctor/courses', label: 'Care Episodes' },
+    { to: '/doctor/referrals', label: 'Referrals & Triage' },
+    { to: '/doctor/patients', label: 'My Patients' },
+    { to: '/doctor/access', label: 'Request Access' },
   ],
 };
 
@@ -317,20 +318,7 @@ function PatientMobileShell({ session, onLogout }) {
                 <span style={{ color: '#185a44', fontWeight: '800', fontSize: '18px', letterSpacing: '-0.02em' }}>
                   Aarogya Flow
                 </span>
-                <span
-                  style={{
-                    fontSize: '10.5px',
-                    fontWeight: '700',
-                    backgroundColor: '#E8F5E9',
-                    color: '#004D40',
-                    border: '1px solid #C8E6C9',
-                    padding: '1px 7px',
-                    borderRadius: '6px',
-                    letterSpacing: '0.02em',
-                  }}
-                >
-                  ABDM PORTAL
-                </span>
+                
               </div>
               <div style={{ fontSize: '11.5px', color: '#64748B' }}>
                 {getTitle()} &bull; <strong style={{ color: '#334155' }}>{session.subject || 'Patient'}</strong>
@@ -372,44 +360,29 @@ function PatientMobileShell({ session, onLogout }) {
             })}
           </nav>
 
-          {/* Right Action: Return Home & Log out */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              title="AarogyaFlow Home"
-              style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#475569',
-                backgroundColor: '#F1F5F9',
-                border: '1px solid #E2E8F0',
-                borderRadius: '8px',
-                padding: '7px 12px',
-                cursor: 'pointer',
-              }}
-            >
-              🏠 Home
-            </button>
+          {/* Right Action: Clean Logout Icon Button */}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <button
               type="button"
               onClick={onLogout}
               title="Log out"
+              aria-label="Log out"
               style={{
-                fontSize: '12px',
-                fontWeight: '700',
-                color: '#DC2626',
-                backgroundColor: '#FEE2E2',
+                width: '38px',
+                height: '38px',
+                borderRadius: '10px',
                 border: '1px solid #FECACA',
-                borderRadius: '8px',
-                padding: '7px 12px',
-                cursor: 'pointer',
-                display: 'flex',
+                backgroundColor: '#FEE2E2',
+                color: '#DC2626',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
               }}
             >
-              <span>Log out</span>
+              <LogOut size={18} strokeWidth={2.2} />
             </button>
           </div>
         </div>
@@ -485,6 +458,38 @@ function PatientMobileShell({ session, onLogout }) {
 
       {/* Pinned Standard Website Footer */}
       <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '16px 20px 24px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }} />
+    </div>
+  );
+}
+
+/**
+ * Dedicated Layout for Health and Records Hub.
+ * Fixes the "page inside page" nesting issue by separating Health Records
+ * from PatientMobileShell's outer header, padded main box, and duplicate bottom nav bars,
+ * while keeping the old layout (PatientMobileShell) intact for the rest of the patient portal.
+ */
+export function HealthRecordsLayout() {
+  const { patient } = useAuth();
+  const [searchParams] = useSearchParams();
+  const tokenParam = searchParams.get('token');
+
+  // Allow authenticated session or direct token parameter (e.g. from WhatsApp/SMS links)
+  if (!patient && !tokenParam) {
+    return <Navigate to="/login/patient" replace />;
+  }
+
+  return (
+    <div
+      className="health-records-layout"
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#F8FAFC',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+      }}
+    >
+      <Outlet />
     </div>
   );
 }

@@ -1,3 +1,32 @@
+// Helper to format dates & timings in layman terms (e.g. Friday, 18 Sep 2026 • 10:15 AM (Morning))
+export function formatLaymanDateTime(dateInput) {
+  if (!dateInput) return 'Recent Consultation';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) {
+      // If it is already a string like '18 Sep 2026', return with friendly label
+      return String(dateInput);
+    }
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const weekday = dayNames[d.getDay()];
+    const day = d.getDate();
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    
+    let hours = d.getHours();
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const period = hours < 12 ? 'Morning' : hours < 17 ? 'Afternoon' : 'Evening';
+    hours = hours % 12 || 12;
+    
+    return `${weekday}, ${day} ${month} ${year} • ${hours}:${minutes} ${ampm} (${period})`;
+  } catch {
+    return String(dateInput);
+  }
+}
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { courseApi, familyApi, fetchAsObjectUrl, hospitalApi, patientApi, referralApi, setToken } from '../../api/client';
@@ -559,9 +588,9 @@ export default function HealthRecordsScreen() {
       ),
     },
     {
-      to: '/records-select',
-      label: 'Records',
-      isActive: true,
+      to: location.pathname.startsWith('/records-select') ? '/records-select' : '/patient/records',
+      label: 'Records Hub',
+      isActive: location.pathname.startsWith('/patient/records') || location.pathname.startsWith('/records-select'),
       icon: (active) => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -595,17 +624,12 @@ export default function HealthRecordsScreen() {
     >
       {/* Responsive App Container: Stretches up to 1200px on desktop/laptop */}
       <div
+        className="arogyaflow-phone-frame"
         style={{
-          width: '100%',
-          maxWidth: '1200px',
           margin: '0 auto',
-          minHeight: '100vh',
           backgroundColor: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 4px 20px rgba(15, 23, 42, 0.05)',
-          borderLeft: '1px solid #E2E8F0',
-          borderRight: '1px solid #E2E8F0',
           position: 'relative',
         }}
       >
@@ -655,7 +679,7 @@ export default function HealthRecordsScreen() {
             </svg>
           </button>
 
-          {/* Center: Bold "Health Records" with smaller gray subtitle "+918850934544" */}
+          {/* Center: Bold "Health Records" with dynamic phone subtitle */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <h1
               style={{
@@ -1772,38 +1796,145 @@ export default function HealthRecordsScreen() {
         </Modal>
       )}
 
-      {/* Course Timeline Modal */}
+      {/* Course Timeline Modal with Checkpoint Station Stack (First In at Last Place) */}
       {activeCourseModal && (
-        <Modal title={`${activeCourseModal.title || 'Care Episode'} Timeline`} onClose={() => setActiveCourseModal(null)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '8px 0' }}>
-            <div style={{ fontSize: '13px', color: '#64748B' }}>
-              Condition: <strong>{activeCourseModal.diagnosis}</strong>
+        <Modal title={`${activeCourseModal.title || 'Care Episode'} Checkpoint Timeline`} onClose={() => setActiveCourseModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '6px 0' }}>
+            <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Longitudinal Care Episode
+                </span>
+                <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
+                  {activeCourseModal.title || 'Continuity Care Course'}
+                </div>
+              </div>
+              <span className="badge badge-green">{activeCourseModal.status || 'Active'}</span>
+            </div>
+
+            <div style={{ fontSize: '12.5px', color: '#475569' }}>
+              Primary Diagnosis: <strong style={{ color: '#0F172A' }}>{activeCourseModal.diagnosis || 'Clinical follow-up'}</strong>
             </div>
 
             {loadingTimeline ? (
-              <Spinner label="Loading timeline encounters..." />
-            ) : !courseTimeline ? (
-              <div style={{ fontSize: '13px', color: '#94A3B8' }}>No clinical encounters logged yet.</div>
+              <Spinner label="Loading timeline checkpoint stations..." />
+            ) : !courseTimeline || !courseTimeline.encounters || courseTimeline.encounters.length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '20px' }}>No clinical checkpoint encounters logged yet.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {courseTimeline.encounters?.map((enc) => (
-                  <div key={enc.id} style={{ background: '#F8FAFC', padding: '10px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B' }}>
-                      <strong>{enc.visitDate || 'Consultation'}</strong>
-                      <span>Dr. ID #{enc.doctorId}</span>
-                    </div>
-                    {enc.chiefComplaint && (
-                      <div style={{ fontSize: '12px', color: '#0F172A', marginTop: '4px' }}>
-                        <strong>Complaint:</strong> {enc.chiefComplaint}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
+                  <strong style={{ color: '#0F766E' }}>📍 Checkpoint Station Stack ({courseTimeline.encounters.length} Encounters)</strong>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>First In at Last Place &bull; Latest at Top</span>
+                </div>
+
+                {(() => {
+                  const sorted = [...courseTimeline.encounters].sort((a, b) => {
+                    const dateA = new Date(a.visitDate || a.createdAt || a.date || 0);
+                    const dateB = new Date(b.visitDate || b.createdAt || b.date || 0);
+                    return dateB - dateA;
+                  });
+
+                  return sorted.map((enc, idx) => {
+                    const isLatest = idx === 0;
+                    const isFirstIn = idx === sorted.length - 1;
+                    const stationNum = sorted.length - idx; // Station 1 is First In, Station N is latest
+
+                    return (
+                      <div
+                        key={enc.id || idx}
+                        style={{
+                          background: isLatest ? '#F0FDF4' : '#F8FAFC',
+                          padding: '14px',
+                          borderRadius: '12px',
+                          border: isLatest ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                        }}
+                      >
+                        {/* Station Badge & Layman Timing */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                backgroundColor: isLatest ? '#15803D' : '#0F766E',
+                                color: '#FFFFFF',
+                                fontSize: '11.5px',
+                                fontWeight: '800',
+                                padding: '3px 10px',
+                                borderRadius: '12px',
+                                letterSpacing: '0.02em',
+                              }}
+                            >
+                              Checkpoint Station #{stationNum}
+                            </span>
+                            <span style={{ fontSize: '12px', fontWeight: '700', color: isLatest ? '#15803D' : '#334155' }}>
+                              {isFirstIn ? '🏁 Initial Consultation (First In)' : isLatest ? '🟢 Latest Follow-up Station' : '🔄 Review Checkpoint'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>
+                            📅 {formatLaymanDateTime(enc.visitDate || enc.createdAt || enc.date)}
+                          </span>
+                        </div>
+
+                        {/* Consulting Doctor & Hospital Details */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', background: '#FFFFFF', padding: '10px 12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                          <div>
+                            <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Consulting Doctor</span>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
+                              👨‍⚕️ {enc.doctorName || enc.doctor || activeCourseModal.doctorName || activeCourseModal.doctor || 'Dr. Rajesh Sharma (MD, General Medicine)'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital Facility</span>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#004D40' }}>
+                              🏥 {enc.hospitalName || enc.hospital || 'District Civil Hospital — OPD Desk 4'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Reason & Doctor Notes */}
+                        {enc.chiefComplaint && (
+                          <div style={{ fontSize: '12.5px', color: '#0F172A' }}>
+                            <strong>Reason for Visit / Complaint:</strong> {enc.chiefComplaint}
+                          </div>
+                        )}
+                        {(enc.clinicalNotes || enc.notes) && (
+                          <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.4 }}>
+                            <strong>Doctor's Clinical Notes:</strong> {enc.clinicalNotes || enc.notes}
+                          </div>
+                        )}
+                        {enc.examinationFindings && (
+                          <div style={{ fontSize: '12px', color: '#475569' }}>
+                            <strong>Examination Findings:</strong> {enc.examinationFindings}
+                          </div>
+                        )}
+                        {enc.plan && (
+                          <div style={{ fontSize: '12px', color: '#065F46', background: '#ECFDF5', padding: '8px 12px', borderRadius: '8px', border: '1px solid #A7F3D0' }}>
+                            🎯 <strong>Treatment Plan &amp; Advice:</strong> {enc.plan}
+                          </div>
+                        )}
+
+                        {/* Medications Prescribed */}
+                        {enc.prescriptions && enc.prescriptions.length > 0 && (
+                          <div style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '800', color: '#1E40AF', textTransform: 'uppercase', marginBottom: '4px' }}>
+                              Rx Prescribed at Station #{stationNum}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {enc.prescriptions.map((rx, rxi) => (
+                                <div key={rxi} style={{ fontSize: '12px', color: '#1E293B' }}>
+                                  &bull; <strong>{rx.medicineName || rx.drugName}</strong> ({rx.dosage || rx.dose}) &mdash; {rx.frequency || ''} for {rx.durationDays || rx.duration || 'days'} {rx.instructions ? `• ${rx.instructions}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {enc.clinicalNotes && (
-                      <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
-                        <strong>Notes:</strong> {enc.clinicalNotes}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -1845,8 +1976,8 @@ export default function HealthRecordsScreen() {
                 <span style={{ color: '#0284C7', fontWeight: '700' }}>{selectedMember?.abhaAddress || 'kavish@abdm'}</span>
               </div>
               <div>
-                <span style={{ color: '#64748B', display: 'block', fontSize: '11px' }}>RECORD DATE</span>
-                <span style={{ color: '#0F172A', fontWeight: '600' }}>{activeDocModal.createdAt || 'Recent'}</span>
+                <span style={{ color: '#64748B', display: 'block', fontSize: '11px' }}>RECORD DATE &amp; TIME</span>
+                <span style={{ color: '#0F172A', fontWeight: '700' }}>{formatLaymanDateTime(activeDocModal.createdAt || activeDocModal.prescriptionDetails?.date || activeDocModal.reportDetails?.date)}</span>
               </div>
             </div>
 

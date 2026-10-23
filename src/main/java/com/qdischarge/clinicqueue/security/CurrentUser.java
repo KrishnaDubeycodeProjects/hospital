@@ -65,4 +65,17 @@ public class CurrentUser {
         }
         return decoded.doctorId();
     }
+
+    public String getAshaPhone() {
+        JwtService.DecodedToken decoded = get();
+        return decoded != null ? decoded.subject() : null;
+    }
+
+    public String requireAshaPhone() {
+        JwtService.DecodedToken decoded = get();
+        if (decoded == null || decoded.subject() == null || decoded.subject().isBlank()) {
+            throw new IllegalStateException("No authenticated ASHA/ANM caller on this request.");
+        }
+        return decoded.subject();
+    }
 }

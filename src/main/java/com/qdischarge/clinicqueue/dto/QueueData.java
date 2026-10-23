@@ -9,13 +9,18 @@ public record QueueData(
     Stats stats,
     List<TokenDto> reserved,
     List<TokenDto> missed,
-    List<TokenDto> frozen
+    List<TokenDto> frozen,
+    String currentServingTokenCode
 ) {
     public QueueData(List<TokenDto> tokens, Integer currentServing, Stats stats) {
-        this(tokens, currentServing, stats, List.of(), List.of(), List.of());
+        this(tokens, currentServing, stats, List.of(), List.of(), List.of(), null);
     }
 
     public QueueData(List<TokenDto> tokens, Integer currentServing, Stats stats, List<TokenDto> reserved, List<TokenDto> missed) {
-        this(tokens, currentServing, stats, reserved, missed, List.of());
+        this(tokens, currentServing, stats, reserved, missed, List.of(), null);
+    }
+
+    public QueueData(List<TokenDto> tokens, Integer currentServing, Stats stats, List<TokenDto> reserved, List<TokenDto> missed, List<TokenDto> frozen) {
+        this(tokens, currentServing, stats, reserved, missed, frozen, null);
     }
 }

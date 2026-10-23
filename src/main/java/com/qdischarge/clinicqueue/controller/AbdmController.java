@@ -34,6 +34,12 @@ public class AbdmController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping("/courses/{courseId}/fhir")
+    public ResponseEntity<Map<String, Object>> getCourseFhirBundle(@PathVariable int courseId) {
+        Map<String, Object> bundle = fhirBundleService.createCourseBundle(courseId);
+        return ResponseEntity.ok(bundle);
+    }
+
     @GetMapping("/courses/{courseId}/encounters/{encounterId}/fhir")
     public ResponseEntity<Map<String, Object>> getEncounterFhirBundle(
             @PathVariable int courseId,

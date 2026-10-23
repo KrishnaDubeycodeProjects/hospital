@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { abdmApi, familyApi, fetchAsObjectUrl, setToken } from '../../api/client';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table } from '../../components/ui';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function PatientFamily() {
@@ -14,6 +15,7 @@ export default function PatientFamily() {
     }
   }, [tokenParam]);
 
+  const { patient } = useAuth();
   const [familyUnit, setFamilyUnit] = useState(null);
   const [members, setMembers] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -91,11 +93,12 @@ export default function PatientFamily() {
         unit = await familyApi.getUnit();
         list = await familyApi.listMembers();
       } catch (authErr) {
-        console.warn('Authenticated family fetch failed, falling back to public family query:', authErr);
-        list = await familyApi.listPublicMembers('8850934544').catch(() => []);
+        const fallbackPhone = patient?.subject ? patient.subject.replace(/\D/g, '') : '9876543210';
+        list = await familyApi.listPublicMembers(fallbackPhone).catch(() => []);
       }
 
-      setFamilyUnit(unit || { headPhone: '8850934544', headName: 'Kavish Ahuja' });
+      const activePhone = patient?.subject ? patient.subject.replace(/\D/g, '') : '9876543210';
+      setFamilyUnit(unit || { headPhone: activePhone, headName: 'Kavish Ahuja' });
       
       if (!list || list.length === 0) {
         list = [
@@ -351,6 +354,17 @@ export default function PatientFamily() {
     }
   }
 
+
+  async function handleDeleteMember(member) {
+    if (!window.confirm(`Are you sure you want to remove ${member.name} from your family unit?`)) return;
+    try {
+      await familyApi.deleteMember(member.id);
+      toast.success(`${member.name} removed from family.`);
+      loadFamily();
+    } catch (err) {
+      toast.error('Failed to remove member: ' + err.message);
+    }
+  }
 
   async function handleAddMember(e) {
     e.preventDefault();
@@ -773,7 +787,7 @@ export default function PatientFamily() {
                             cursor: 'pointer',
                           }}
                         >
-                          🆕 Register ABHA
+                          Register ABHA
                         </button>
                         <button
                           type="button"
@@ -789,8 +803,27 @@ export default function PatientFamily() {
                             cursor: 'pointer',
                           }}
                         >
-                          🔗 Link
+                          Link
                         </button>
+                        {m.relationship?.toLowerCase() !== 'self' && m.relationship?.toLowerCase() !== 'head' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMember(m)}
+                            title="Remove member"
+                            style={{
+                              backgroundColor: '#FEE2E2',
+                              color: '#DC2626',
+                              border: '1px solid #FECACA',
+                              borderRadius: '8px',
+                              padding: '4px 8px',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -896,7 +929,7 @@ export default function PatientFamily() {
                         textAlign: 'center',
                       }}
                     >
-                      🆕 Register ABHA
+                      Register ABHA
                     </button>
                     <button
                       type="button"
@@ -913,7 +946,7 @@ export default function PatientFamily() {
                         textAlign: 'center',
                       }}
                     >
-                      🆔 14-Digit ABHA
+                      14-Digit ABHA
                     </button>
                     <button
                       type="button"
@@ -930,7 +963,7 @@ export default function PatientFamily() {
                         textAlign: 'center',
                       }}
                     >
-                      📝 Direct Info
+                      Direct Info
                     </button>
                   </div>
                 </div>
@@ -1104,7 +1137,7 @@ export default function PatientFamily() {
                           opacity: sendingOtp || !kycIdentifier.trim() || (kycMethod === 'enroll' && !preferredAbhaHandle.trim()) ? 0.7 : 1,
                         }}
                       >
-                        {sendingOtp ? 'Sending OTP...' : (kycMethod === 'enroll' ? '🚀 Send Aadhaar Registration OTP' : '📩 Send ABDM OTP')}
+                        {sendingOtp ? 'Sending OTP...' : 'Send OTP'}
                       </button>
                     </div>
                   </form>
@@ -1365,8 +1398,8 @@ export default function PatientFamily() {
               </div>
 
               {/* Card Body */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
-                <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                   <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '0.5px' }}>
                     {cardMember.name}
                   </div>
@@ -1378,7 +1411,7 @@ export default function PatientFamily() {
                     <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.75, fontWeight: 700, letterSpacing: '0.5px' }}>
                       ABHA Address
                     </div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#a7f3d0' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#a7f3d0', wordBreak: 'break-all' }}>
                       {cardMember.abhaAddress || `${cardMember.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@abdm`}
                     </div>
                   </div>
@@ -1387,52 +1420,52 @@ export default function PatientFamily() {
                     <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.75, fontWeight: 700, letterSpacing: '0.5px' }}>
                       ABHA Number
                     </div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '1.5px', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '1.5px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
                       {cardMember.abhaNumber || '91-8845-2319-7890'}
                     </div>
                   </div>
                 </div>
 
-                {/* Real ABDM ZXing QR Code */}
-                <div style={{ background: '#ffffff', padding: '10px', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.15)' }}>
+                {/* High-Resolution ABDM QR Code for all devices & printing */}
+                <div style={{ background: '#ffffff', padding: '12px', borderRadius: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 4px 14px rgba(0,0,0,0.2)', border: '1.5px solid rgba(255,255,255,0.6)', margin: '0 auto' }}>
                   {loadingQr ? (
-                    <div style={{ width: '92px', height: '92px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '130px', height: '130px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Spinner />
                     </div>
                   ) : cardQrUrl ? (
                     <img
                       src={cardQrUrl}
                       alt="Official ABHA QR"
-                      style={{ width: '92px', height: '92px', objectFit: 'contain', borderRadius: '4px' }}
+                      style={{ width: '130px', height: '130px', objectFit: 'contain', borderRadius: '6px', imageRendering: 'pixelated' }}
                     />
                   ) : (
-                    <div style={{ width: '92px', height: '92px', background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '2px', padding: '4px', borderRadius: '4px' }}>
+                    <div style={{ width: '130px', height: '130px', background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '3px', padding: '6px', borderRadius: '6px' }}>
                       {Array.from({ length: 25 }).map((_, i) => (
-                        <div key={i} style={{ background: (i % 2 === 0 || i % 3 === 0) ? '#ffffff' : '#0f172a', borderRadius: '1px' }} />
+                        <div key={i} style={{ background: (i % 2 === 0 || i % 3 === 0) ? '#ffffff' : '#0f172a', borderRadius: '2px' }} />
                       ))}
                     </div>
                   )}
-                  <span style={{ fontSize: '9.5px', color: '#0F172A', fontWeight: 700, marginTop: '6px' }}>
-                    Scan &amp; Share
+                  <span style={{ fontSize: '11px', color: '#064E3B', fontWeight: '800', marginTop: '8px', letterSpacing: '0.04em' }}>
+                    Scan &amp; Share at OPD
                   </span>
                 </div>
               </div>
 
               {/* Card Footer */}
-              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', opacity: 0.8 }}>
+              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', opacity: 0.8, flexWrap: 'wrap', gap: '6px' }}>
                 <span>Ayushman Bharat Digital Mission</span>
                 <span>Powered by Eka Care ABDM Gateway</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
-              <Button variant="secondary" onClick={handleDownloadCard}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+              <Button variant="secondary" onClick={handleDownloadCard} style={{ flex: '1 1 auto', minWidth: '130px' }}>
                 📥 Download PNG Card
               </Button>
-              <Button variant="ghost" onClick={() => window.print()}>
-                Print
+              <Button variant="secondary" onClick={handlePrintCard} style={{ flex: '0 1 auto', minWidth: '90px' }}>
+                🖨️ Print Card
               </Button>
-              <Button variant="primary" onClick={closeCardModal}>
+              <Button variant="primary" onClick={closeCardModal} style={{ flex: '1 1 auto', minWidth: '80px' }}>
                 Done
               </Button>
             </div>

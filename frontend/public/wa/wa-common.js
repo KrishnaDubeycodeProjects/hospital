@@ -26,7 +26,7 @@
   };
 
   const urlParams = new URLSearchParams(window.location.search);
-  const rawPhone = urlParams.get('phone') || '+918850934544';
+  const rawPhone = urlParams.get('phone') || '+919876543210';
   const cleanPhone = rawPhone.replace(/\D/g, '');
   const token = urlParams.get('token') || '';
   const lang = (urlParams.get('lang') || 'en').toLowerCase();

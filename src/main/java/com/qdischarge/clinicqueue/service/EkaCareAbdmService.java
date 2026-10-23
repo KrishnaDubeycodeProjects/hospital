@@ -228,13 +228,13 @@ public class EkaCareAbdmService {
             log.info("ℹ️ Verifying mock ABDM OTP for txnId: {}", txnId);
             Map<String, Object> mockData = new LinkedHashMap<>();
             mockData.put("verified", true);
-            mockData.put("name", "Krishna Santosh Dubey");
+            mockData.put("name", "Kavish Ahuja");
             mockData.put("gender", "MALE");
             mockData.put("age", 24);
             mockData.put("dob", "2000-01-01");
-            mockData.put("abhaNumber", "91-8850-9345-4421");
-            mockData.put("abhaAddress", "krishnasantoshdube@abdm");
-            mockData.put("mobile", "+918850934544");
+            mockData.put("abhaNumber", "91-1234-5678-9012");
+            mockData.put("abhaAddress", "kavishahuja@abdm");
+            mockData.put("mobile", "+919876543210");
             return new AbdmResult(true, 200, mockData, null);
         }
         Map<String, String> body = Map.of("txn_id", txnId, "otp", otp);
@@ -253,13 +253,13 @@ public class EkaCareAbdmService {
                         rawRes.status(), err);
                 Map<String, Object> fallbackData = new LinkedHashMap<>();
                 fallbackData.put("verified", true);
-                fallbackData.put("name", "Krishna Santosh Dubey");
+                fallbackData.put("name", "Kavish Ahuja");
                 fallbackData.put("gender", "MALE");
                 fallbackData.put("age", 24);
                 fallbackData.put("dob", "2000-01-01");
-                fallbackData.put("abhaNumber", "91-8850-9345-4421");
-                fallbackData.put("abhaAddress", "krishnasantoshdube@abdm");
-                fallbackData.put("mobile", "+918850934544");
+                fallbackData.put("abhaNumber", "91-1234-5678-9012");
+                fallbackData.put("abhaAddress", "kavishahuja@abdm");
+                fallbackData.put("mobile", "+919876543210");
                 return new AbdmResult(true, 200, fallbackData, null);
             }
             return rawRes;

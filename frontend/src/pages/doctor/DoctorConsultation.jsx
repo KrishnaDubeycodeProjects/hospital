@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { courseApi, doctorApi, drugApi, hospitalApi, queueApi } from '../../api/client';
-import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea } from '../../components/ui';
+import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea, fmtDateTime, fmtMinutes } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
 function DrugInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {

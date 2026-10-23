@@ -1581,7 +1581,7 @@ public class WebhookController {
         String slipUrl = buildAuthWebviewUrl("/token/" + token.getId(), phone, java.util.Map.of("phone", cleanPhone));
 
         String title = botMessages.dashboardTitle(lang, token.displayTokenCode());
-        String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
+        String currentServing = token.getCurrentServingTokenCode() != null ? token.getCurrentServingTokenCode() : (token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--");
         String description = botMessages.dashboardDescription(lang, token.getName(), token.getAge(), statusBadge, token.displayTokenCode(), peopleAhead, estWait, currentServing)
                 + "\n\n📄 *Digital Booking Slip:* " + slipUrl;
 
@@ -1603,7 +1603,7 @@ public class WebhookController {
         String liveUrl = buildAuthWebviewUrl("/track", phone, java.util.Map.of("phone", cleanPhone, "tokenId", String.valueOf(token.getId())));
 
         String title = botMessages.statusTitle(lang);
-        String currentServing = token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--";
+        String currentServing = token.getCurrentServingTokenCode() != null ? token.getCurrentServingTokenCode() : (token.getCurrentServing() != null ? String.valueOf(token.getCurrentServing()) : "--");
         String description = botMessages.statusDescription(lang, token.displayTokenCode(), token.getName(), token.getAge(), positionText, peopleAhead, estWait, token.getStatus(), currentServing);
 
         whatsAppService.sendUrlButtonMessage(phone, title, description, botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());

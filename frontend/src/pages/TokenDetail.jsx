@@ -125,6 +125,12 @@ export default function TokenDetail() {
     : 'Male';
   const age = token.age || 20;
 
+  // Current token running in this hospital/department
+  const isMyTokenServing = token.status === 'serving';
+  const currentRunningToken = isMyTokenServing
+    ? tokenCode
+    : (token.currentServingTokenCode || (token.currentServing ? `#${token.currentServing}` : null));
+
   // Status mapping
   const statusConfig = {
     waiting: {
@@ -331,7 +337,7 @@ export default function TokenDetail() {
             backgroundColor: '#ffffff',
           }}
         >
-          {/* 2. Top Metrics Section: Hero metric is 'Ahead of You', Token code in right card */}
+          {/* 2. Top Metrics Section: Hero metric is 'Current Token Running', Token code in right card */}
           <div
             style={{
               display: 'flex',
@@ -340,7 +346,7 @@ export default function TokenDetail() {
               padding: '4px 0 8px',
             }}
           >
-            {/* Left Column: Hero Spotlight Metric: Ahead of You */}
+            {/* Left Column: Hero Spotlight Metric: Current Token Running */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span
                 style={{
@@ -351,19 +357,19 @@ export default function TokenDetail() {
                   letterSpacing: '0.04em',
                 }}
               >
-                {token.status === 'serving' ? 'Current Turn' : 'Ahead of You'}
+                Current Token Running
               </span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', margin: '2px 0 6px' }}>
                 <span
                   style={{
-                    fontSize: token.status === 'serving' ? '44px' : '56px',
+                    fontSize: currentRunningToken ? (currentRunningToken.length > 5 ? '38px' : '48px') : '36px',
                     fontWeight: '900',
                     color: '#004D40',
                     lineHeight: 1.05,
                     letterSpacing: '-0.03em',
                   }}
                 >
-                  {token.status === 'serving' ? 'NOW' : aheadCount}
+                  {currentRunningToken || 'None'}
                 </span>
                 <span
                   style={{
@@ -372,7 +378,7 @@ export default function TokenDetail() {
                     color: '#065F46',
                   }}
                 >
-                  {token.status === 'serving' ? 'Serving' : (aheadCount === 1 ? 'patient' : 'patients')}
+                  {isMyTokenServing ? 'Your Turn (NOW)' : (currentRunningToken ? 'Now Serving' : 'Queue Waiting')}
                 </span>
               </div>
               <div
@@ -393,7 +399,12 @@ export default function TokenDetail() {
                   marginTop: '1px',
                 }}
               >
-                {departmentName}
+                <span>{departmentName}</span>
+                {aheadCount > 0 && !isMyTokenServing && (
+                  <span style={{ marginLeft: '6px', color: '#047857', fontWeight: '600' }}>
+                    • {aheadCount} {aheadCount === 1 ? 'patient' : 'patients'} ahead
+                  </span>
+                )}
               </div>
             </div>
 
@@ -685,8 +696,22 @@ export default function TokenDetail() {
               {/* Modal Content: strictly name, age, gender, hospital, department, phone */}
               <div style={{ padding: '20px 20px 28px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
-                  <span style={{ color: '#64748b' }}>Token Code</span>
+                  <span style={{ color: '#64748b' }}>Your Token Code</span>
                   <strong style={{ color: '#004D40', fontSize: '16px', fontWeight: '800' }}>{tokenCode}</strong>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+                  <span style={{ color: '#64748b' }}>Current Token Running</span>
+                  <strong style={{ color: currentRunningToken ? '#047857' : '#64748b', fontSize: '15px', fontWeight: '800' }}>
+                    {currentRunningToken || 'None (Queue Waiting)'}
+                  </strong>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
+                  <span style={{ color: '#64748b' }}>Queue Position</span>
+                  <strong style={{ color: '#0f172a', fontSize: '14px' }}>
+                    {isMyTokenServing ? '0 (Now Serving)' : `${aheadCount} waiting ahead`}
+                  </strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
@@ -725,7 +750,7 @@ export default function TokenDetail() {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
                   <span style={{ color: '#64748b' }}>Phone</span>
-                  <strong style={{ color: '#0f172a', fontSize: '15px' }}>{token.phone || '+918850934544'}</strong>
+                  <strong style={{ color: '#0f172a', fontSize: '15px' }}>{token.phone || '—'}</strong>
                 </div>
               </div>
             </div>

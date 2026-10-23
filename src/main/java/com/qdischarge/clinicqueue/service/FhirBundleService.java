@@ -27,6 +27,18 @@ public class FhirBundleService {
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
 
     /**
+     * Creates an official FHIR R4 Document Bundle for a full course / care episode.
+     */
+    public Map<String, Object> createCourseBundle(int courseId) {
+        CourseTimelineDto timeline = courseService.getCourseTimeline(courseId);
+        if (timeline == null || timeline.getCourse() == null) {
+            throw new IllegalArgumentException("Course not found: " + courseId);
+        }
+        int encId = (!timeline.getEncounters().isEmpty()) ? timeline.getEncounters().get(0).getId() : 0;
+        return createEncounterBundle(courseId, encId);
+    }
+
+    /**
      * Creates an official FHIR R4 Document Bundle for a consultation encounter.
      */
     public Map<String, Object> createEncounterBundle(int courseId, int encounterId) {
@@ -42,7 +54,19 @@ public class FhirBundleService {
                 .orElse(timeline.getEncounters().isEmpty() ? null : timeline.getEncounters().get(0));
 
         if (encounter == null) {
-            throw new IllegalArgumentException("Encounter not found: " + encounterId);
+            encounter = CourseEncounterDto.builder()
+                    .id(0)
+                    .courseId(courseId)
+                    .visitDate(course.getCreatedAt() != null ? course.getCreatedAt() : java.time.LocalDateTime.now())
+                    .chiefComplaint(course.getTitle())
+                    .clinicalNotes(course.getCurrentSummary() != null ? course.getCurrentSummary() : "Longitudinal care episode initiated.")
+                    .hospitalId(course.getStartedAtHospitalId() != null ? course.getStartedAtHospitalId() : 1)
+                    .hospitalName(course.getStartedAtHospitalName() != null ? course.getStartedAtHospitalName() : "Hospital")
+                    .doctorId(course.getStartedByDoctorId() != null ? course.getStartedByDoctorId() : 1)
+                    .doctorName(course.getStartedByDoctorName() != null ? course.getStartedByDoctorName() : "Consulting Physician")
+                    .prescriptions(new ArrayList<>())
+                    .documents(timeline.getStandaloneDocuments() != null ? timeline.getStandaloneDocuments() : new ArrayList<>())
+                    .build();
         }
 
         // Fetch hospital & doctor details

@@ -36,7 +36,7 @@ export default function Track() {
     }
   }, [tokenIdParam, navigate]);
 
-  const savedPhone = localStorage.getItem('last_tracked_phone') || '8850934544';
+  const savedPhone = localStorage.getItem('last_tracked_phone') || '';
   const initialRaw = params.phone || queryPhone || patient?.subject || savedPhone;
 
   const [phoneDigits, setPhoneDigits] = useState(() => extract10Digits(initialRaw));

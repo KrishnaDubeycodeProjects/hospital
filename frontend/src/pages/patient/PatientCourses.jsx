@@ -1,3 +1,32 @@
+// Helper to format dates & timings in layman terms (e.g. Friday, 18 Sep 2026 • 10:15 AM (Morning))
+export function formatLaymanDateTime(dateInput) {
+  if (!dateInput) return 'Recent Consultation';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) {
+      // If it is already a string like '18 Sep 2026', return with friendly label
+      return String(dateInput);
+    }
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const weekday = dayNames[d.getDay()];
+    const day = d.getDate();
+    const month = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    
+    let hours = d.getHours();
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const period = hours < 12 ? 'Morning' : hours < 17 ? 'Afternoon' : 'Evening';
+    hours = hours % 12 || 12;
+    
+    return `${weekday}, ${day} ${month} ${year} • ${hours}:${minutes} ${ampm} (${period})`;
+  } catch {
+    return String(dateInput);
+  }
+}
+
 import React, { useEffect, useState } from 'react';
 import { courseApi, fetchAsObjectUrl } from '../../api/client';
 import { Button, Card, EmptyState, Spinner, Table, fmtDateTime } from '../../components/ui';
@@ -123,60 +152,111 @@ export default function PatientCourses() {
                   </dl>
                 </Card>
 
-                {/* Timeline */}
-                <Card title="Consultation History & Prescriptions">
+                {/* Checkpoint Station Stack */}
+                <Card title="Checkpoint Station Stack & Follow-ups">
                   {!timeline?.encounters || timeline.encounters.length === 0 ? (
                     <EmptyState title="No encounters recorded yet." />
                   ) : (
                     <div className="stack-md">
-                      {timeline.encounters.map((enc) => (
-                        <div
-                          key={enc.id}
-                          style={{
-                            borderLeft: '3px solid var(--primary)',
-                            paddingLeft: '16px',
-                            marginLeft: '4px',
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong style={{ fontSize: '15px' }}>{enc.chiefComplaint}</strong>
-                            <span className="muted-text" style={{ fontSize: '12px' }}>
-                              {fmtDateTime(enc.createdAt)}
-                            </span>
-                          </div>
+                      <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
+                        <strong style={{ color: '#0F766E' }}>📍 Checkpoint Stations ({timeline.encounters.length})</strong>
+                        <span>First In at Last Place &bull; Latest on Top</span>
+                      </div>
+                      {(() => {
+                        const sorted = [...timeline.encounters].sort((a, b) => {
+                          const dateA = new Date(a.visitDate || a.createdAt || 0);
+                          const dateB = new Date(b.visitDate || b.createdAt || 0);
+                          return dateB - dateA;
+                        });
 
-                          {enc.clinicalNotes && (
-                            <p style={{ margin: '6px 0 2px', fontSize: '13px' }}>
-                              <strong>Doctor's Notes:</strong> {enc.clinicalNotes}
-                            </p>
-                          )}
-                          {enc.plan && (
-                            <p style={{ margin: '2px 0 8px', fontSize: '13px', color: 'var(--primary)' }}>
-                              <strong>Plan:</strong> {enc.plan}
-                            </p>
-                          )}
+                        return sorted.map((enc, idx) => {
+                          const isLatest = idx === 0;
+                          const isFirstIn = idx === sorted.length - 1;
+                          const stationNum = sorted.length - idx;
 
-                          {enc.prescriptions && enc.prescriptions.length > 0 && (
-                            <div style={{ background: 'var(--surface-sunken)', padding: '10px 14px', borderRadius: '8px', marginTop: '8px' }}>
-                              <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                                Medications (Rx)
+                          return (
+                            <div
+                              key={enc.id || idx}
+                              style={{
+                                background: isLatest ? '#F0FDF4' : '#F8FAFC',
+                                border: isLatest ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
+                                borderRadius: '12px',
+                                padding: '16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ backgroundColor: isLatest ? '#15803D' : '#0F766E', color: '#fff', fontSize: '11px', fontWeight: '800', padding: '3px 9px', borderRadius: '10px' }}>
+                                    Station #{stationNum}
+                                  </span>
+                                  <strong style={{ fontSize: '14px', color: isLatest ? '#15803D' : '#0F172A' }}>
+                                    {isFirstIn ? 'Initial Consultation (First In)' : isLatest ? 'Latest Follow-up Station' : 'Care Review Checkpoint'}
+                                  </strong>
+                                </div>
+                                <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>
+                                  📅 {formatLaymanDateTime(enc.visitDate || enc.createdAt)}
+                                </span>
                               </div>
-                              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px' }}>
-                                {enc.prescriptions.map((p, idx) => (
-                                  <li key={idx}>
-                                    <strong>{p.drugName}</strong> ({p.dosage}) &bull; {p.frequency} for {p.durationDays} days {p.instructions ? `- ${p.instructions}` : ''}
-                                  </li>
-                                ))}
-                              </ul>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', background: '#FFFFFF', padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                                <div>
+                                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Doctor</span>
+                                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
+                                    👨‍⚕️ {enc.doctorName || enc.doctor || 'Dr. Rajesh Sharma'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital Facility</span>
+                                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#004D40' }}>
+                                    🏥 {enc.hospitalName || enc.hospital || 'District Civil Hospital'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {enc.chiefComplaint && (
+                                <div style={{ fontSize: '13px', color: '#0F172A' }}>
+                                  <strong>Reason for Encounter:</strong> {enc.chiefComplaint}
+                                </div>
+                              )}
+
+                              {enc.clinicalNotes && (
+                                <div style={{ fontSize: '12.5px', color: '#334155', lineHeight: 1.4 }}>
+                                  <strong>Doctor's Notes:</strong> {enc.clinicalNotes}
+                                </div>
+                              )}
+
+                              {enc.plan && (
+                                <div style={{ fontSize: '12px', color: '#065F46', background: '#ECFDF5', padding: '8px 12px', borderRadius: '8px', border: '1px solid #A7F3D0' }}>
+                                  🎯 <strong>Plan:</strong> {enc.plan}
+                                </div>
+                              )}
+
+                              {enc.prescriptions && enc.prescriptions.length > 0 && (
+                                <div style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#1E40AF', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                    Rx Prescribed at Station #{stationNum}
+                                  </div>
+                                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px' }}>
+                                    {enc.prescriptions.map((p, pIdx) => (
+                                      <li key={pIdx}>
+                                        <strong>{p.medicineName || p.drugName}</strong> ({p.dosage}) &bull; {p.frequency} for {p.durationDays} days {p.instructions ? `- ${p.instructions}` : ''}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </Card>
 
-                {/* Documents */}
+                {/* Documents */}}
                 <Card title="Diagnostic Documents & Reports">
                   {!timeline?.documents || timeline.documents.length === 0 ? (
                     <EmptyState title="No documents attached to this episode." />

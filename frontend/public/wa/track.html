@@ -82,7 +82,7 @@
         <!-- Token & Queue Metrics: Hero metric is 'Patients Ahead', Token code in details card -->
         <section class="mt-6 mb-7 flex items-start justify-between" data-purpose="token-and-queue-count">
           <div class="flex flex-col">
-            <span class="text-[13px] font-bold uppercase tracking-wider text-emerald-800" id="heroBadgeLabel">Ahead of You</span>
+            <span class="text-[13px] font-bold uppercase tracking-wider text-emerald-800" id="heroBadgeLabel">Current Token Running</span>
             <div class="flex items-baseline gap-1 my-0.5">
               <span class="text-[52px] font-black text-[#005a40] leading-none tracking-tight" id="patientsAheadDisplay">0</span>
               <span class="text-[18px] font-bold text-[#014534]" id="patientsAheadUnit">patients</span>
@@ -197,7 +197,7 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const tokenParam = urlParams.get('token');
-    const phoneParam = urlParams.get('phone') || '+918850934544';
+    const phoneParam = urlParams.get('phone') || '+919876543210';
     const tokenIdParam = urlParams.get('id');
     let botPhoneNumber = '919120123877';
 
@@ -293,11 +293,12 @@
         if (data.status === 'serving') {
           aheadEl.textContent = 'NOW';
           if (unitEl) unitEl.textContent = 'Serving';
-          if (heroLabelEl) heroLabelEl.textContent = 'Current Turn';
+          if (heroLabelEl) heroLabelEl.textContent = 'Current Token Running';
         } else {
-          aheadEl.textContent = ahead;
-          if (unitEl) unitEl.textContent = ahead === 1 ? 'patient' : 'patients';
-          if (heroLabelEl) heroLabelEl.textContent = 'Ahead of You';
+          const running = data.currentServingTokenCode || (data.currentServing ? '#' + data.currentServing : null);
+          aheadEl.textContent = running || 'None';
+          if (unitEl) unitEl.textContent = running ? 'Now Serving' : 'Queue Waiting';
+          if (heroLabelEl) heroLabelEl.textContent = 'Current Token Running';
         }
       }
 

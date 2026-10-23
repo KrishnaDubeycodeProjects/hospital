@@ -15,6 +15,8 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -53,12 +55,28 @@ public class TwilioStudioCallService {
         return caller != null && !caller.isBlank();
     }
 
+    /**
+     * Places the "your token is about to be called, head to the hospital now" voice call
+     * with clean natural spoken prompt (without raw emojis or markdown).
+     */
+    @Async("callExecutor")
+    public void triggerHeadToHospitalCall(String toPhone, String patientName, String tokenCode,
+                                          String department, String hospital, int peopleAhead, Lang lang) {
+        String spokenMessage = buildSpokenMessage(patientName, tokenCode, department, hospital, peopleAhead, lang);
+        triggerHeadToHospitalCall(toPhone, spokenMessage, lang);
+    }
+
     /** Fire-and-forget: never blocks or fails the caller's request thread on a slow/unreachable Twilio. */
-    @Async("whatsappExecutor")
+    @Async("callExecutor")
     public void triggerHeadToHospitalCall(String toPhone, String message, Lang lang) {
         if (!isConfigured()) {
             log.info("📵 Twilio call skipped for {} (calling disabled or caller number not configured).",
-                    formatPhone(toPhone));
+                    formatE164Phone(toPhone));
+            return;
+        }
+        String e164ToPhone = formatE164Phone(toPhone);
+        if (e164ToPhone.isEmpty()) {
+            log.warn("⚠️ Cannot place Twilio call: invalid phone number: {}", toPhone);
             return;
         }
         try {
@@ -66,21 +84,46 @@ public class TwilioStudioCallService {
                     .formatted(appProperties.getTwilioAccountSid());
 
             MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("To", toPhone);
+            body.add("To", e164ToPhone);
             body.add("From", appProperties.getTwilioCallerNumber());
-            body.add("Twiml", buildTwiml(message, lang));
+            String twiml = buildTwiml(message, lang);
+            String twimletUrl = "https://twimlets.com/echo?Twiml=" + URLEncoder.encode(twiml, StandardCharsets.UTF_8);
+            body.add("Url", twimletUrl);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             headers.setBasicAuth(appProperties.getTwilioAccountSid(), appProperties.getTwilioAuthToken());
 
             restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-            log.info("📞 Twilio call triggered for {}", formatPhone(toPhone));
+            log.info("📞 Twilio voice call successfully placed to {}", e164ToPhone);
         } catch (RestClientException e) {
-            log.error("❌ Twilio Call error for {}: {}", formatPhone(toPhone), extractError(e));
+            log.error("❌ Twilio Call error for {}: {}", e164ToPhone, extractError(e));
         } catch (Exception e) {
-            log.error("❌ Could not trigger Twilio call for {}: {}", formatPhone(toPhone), e.getMessage());
+            log.error("❌ Could not trigger Twilio call for {}: {}", e164ToPhone, e.getMessage());
         }
+    }
+
+    /**
+     * Generates a clean, human-friendly spoken text for text-to-speech.
+     */
+    public String buildSpokenMessage(String patientName, String tokenCode, String department, String hospital, int peopleAhead, Lang lang) {
+        String pName = (patientName != null && !patientName.isBlank() && !"Patient".equalsIgnoreCase(patientName))
+                ? patientName : "Patient";
+        String dept = (department != null && !department.isBlank()) ? department : "OPD";
+        String hosp = (hospital != null && !hospital.isBlank()) ? hospital : "Hospital";
+        String code = (tokenCode != null && !tokenCode.isBlank()) ? tokenCode.replace("AF-", "") : "";
+
+        return switch (lang != null ? lang : Lang.EN) {
+            case HI -> String.format(
+                    "नमस्ते %s। आरोग्यफ़्लो से सूचना। %s के %s विभाग में आपका टोकन नंबर %s जल्द ही बुलाया जाने वाला है। आपके आगे %d मरीज़ हैं। कृपया तुरंत अस्पताल के लिए प्रस्थान करें। धन्यवाद।",
+                    pName, hosp, dept, code, peopleAhead);
+            case MR -> String.format(
+                    "नमस्कार %s. आरोग्यफ्लो कडून सूचना. %s च्या %s विभागामध्ये तुमचा टोकन क्रमांक %s लवकरच पुकारला जाईल. तुमच्या पुढे %d रुग्ण आहेत. कृपया त्वरित रुग्णालयासाठी निघा. धन्यवाद.",
+                    pName, hosp, dept, code, peopleAhead);
+            case EN -> String.format(
+                    "Hello %s. This is an automated update from AarogyaFlow. Your token number %s for %s at %s is ready soon. There are %d patients ahead of you. Please head to the hospital now. Thank you.",
+                    pName, code, dept, hosp, peopleAhead);
+        };
     }
 
     /** Twilio TTS locale for <Say>; Marathi has no dedicated classic voice, so it falls back to Hindi. */
@@ -92,17 +135,32 @@ public class TwilioStudioCallService {
     }
 
     private String buildTwiml(String message, Lang lang) {
-        String escaped = message == null ? "" : message
+        // Strip markdown asterisks, hashes, and non-spoken characters
+        String cleanMessage = message == null ? "" : message
+                .replaceAll("[*#_~`]", "")
+                .replaceAll("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+", "") // strip emojis
+                .trim();
+
+        String escaped = cleanMessage
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&apos;");
-        return "<Response><Say language=\"%s\">%s</Say></Response>".formatted(sayLanguage(lang), escaped);
+
+        String language = sayLanguage(lang);
+        return String.format(
+                "<Response><Pause length=\"1\"/><Say language=\"%s\">%s</Say><Pause length=\"2\"/><Say language=\"%s\">%s</Say></Response>",
+                language, escaped, language, escaped);
     }
 
-    private String formatPhone(String phone) {
-        return phone == null ? "" : phone.replaceAll("[^0-9+]", "");
+    private String formatE164Phone(String phone) {
+        if (phone == null) return "";
+        String clean = phone.replaceAll("[^0-9+]", "");
+        if (clean.startsWith("+")) return clean;
+        if (clean.length() == 10) return "+91" + clean;
+        if (clean.length() == 12 && clean.startsWith("91")) return "+" + clean;
+        return "+" + clean;
     }
 
     private String extractError(RestClientException e) {
@@ -112,3 +170,4 @@ public class TwilioStudioCallService {
         return e.getMessage();
     }
 }
+

@@ -253,6 +253,13 @@ class OfflineStorageServiceImpl {
     await AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(tasks));
     await this.addToOutbox('COMPLETE_FOLLOWUP', {
       taskId,
+      offlineId: task.id,
+      familyUnitId: task.familyUnitId,
+      familyMemberId: task.familyMemberId,
+      taskType: task.taskType,
+      title: task.name ? `${task.name} - ${task.taskType}` : task.taskType,
+      dueDate: task.dueDate,
+      status: willBeCompleted ? 'COMPLETED' : 'PENDING',
       isCompleted: willBeCompleted,
       completedAt: task.completedAt,
     });

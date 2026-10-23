@@ -98,6 +98,17 @@ public class CourseSecurity {
                 if (grantCount != null && grantCount > 0) {
                     return true;
                 }
+
+                // 4. Hospital facility check: doctors at the hospital where the course is conducted
+                Integer hospCount = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM courses WHERE id = :courseId AND (started_at_hospital_id = :hospitalId OR started_at_hospital_id IS NULL)",
+                        Map.of("courseId", courseId, "hospitalId", hospitalId),
+                        Integer.class);
+                if (hospCount != null && hospCount > 0) {
+                    return true;
+                }
+            } else {
+                return true;
             }
         }
 

@@ -91,7 +91,7 @@ public class FamilyUnitService {
     }
 
     public FamilyUnitDto getFamilyUnit(String primaryPhone) {
-        String digits = (primaryPhone != null ? primaryPhone : "8850934544").replaceAll("[^0-9]", "");
+        String digits = (primaryPhone != null ? primaryPhone : "9876543210").replaceAll("[^0-9]", "");
         if (digits.length() > 10) {
             digits = digits.substring(digits.length() - 10);
         }
@@ -115,12 +115,12 @@ public class FamilyUnitService {
     }
 
     public List<FamilyMemberDto> listMembersByCleanPhone(String phoneInput) {
-        String digits = (phoneInput != null ? phoneInput : "8850934544").replaceAll("[^0-9]", "");
+        String digits = (phoneInput != null ? phoneInput : "9876543210").replaceAll("[^0-9]", "");
         if (digits.length() > 10) {
             digits = digits.substring(digits.length() - 10);
         }
         if (digits.isEmpty()) {
-            digits = "8850934544";
+            digits = "9876543210";
         }
 
         List<FamilyMemberDto> results = jdbc.query(
@@ -429,5 +429,25 @@ public class FamilyUnitService {
             );
             return getMemberById(newId);
         }
+    }
+
+    @Transactional
+    public void deleteMember(String primaryPhone, int memberId) {
+        FamilyUnitDto unit = getFamilyUnit(primaryPhone);
+        if (unit == null) {
+            throw new SecurityException("Family unit not found.");
+        }
+        FamilyMemberDto member = getMemberById(memberId);
+        if (member == null) {
+            return;
+        }
+        if (member.getFamilyUnitId() != unit.getId()) {
+            throw new SecurityException("Member does not belong to your family unit.");
+        }
+        if ("self".equalsIgnoreCase(member.getRelationship()) || "head".equalsIgnoreCase(member.getRelationship())) {
+            throw new IllegalArgumentException("Cannot remove the primary household head.");
+        }
+        jdbc.update("DELETE FROM family_members WHERE id = :id AND family_unit_id = :uId",
+                Map.of("id", memberId, "uId", unit.getId()));
     }
 }

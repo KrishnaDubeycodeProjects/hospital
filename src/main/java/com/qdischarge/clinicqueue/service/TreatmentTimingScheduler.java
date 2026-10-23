@@ -43,7 +43,7 @@ public class TreatmentTimingScheduler {
         ready.set(true);
     }
 
-    @Scheduled(fixedDelayString = "${app.timing-poll-interval-ms:15000}")
+    @Scheduled(fixedDelayString = "${app.timing-poll-interval-ms:5000}")
     public void tick() {
         if (!ready.get()) {
             return;

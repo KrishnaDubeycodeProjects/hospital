@@ -83,8 +83,8 @@ export default function Landing() {
     },
     {
       id: 'asha',
-      title: 'Community Health Hub',
-      subtitle: 'ASHA worker survey tools, maternal health tracking & village sync',
+      title: 'ASHA Worker App',
+      subtitle: 'Village household surveys, maternal care tracking & offline field visits',
       icon: Users,
       color: '#DCFCE7',
       border: '#BBF7D0',
@@ -446,7 +446,7 @@ export default function Landing() {
                 <div style={{ marginBottom: '12px', width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Users size={22} style={{ color: '#15803D' }} />
                 </div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#15803D' }}>ASHA &amp; Community Health</h3>
+                <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#15803D' }}>ASHA Field Worker App</h3>
                 <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5, flex: 1 }}>
                   Conduct village household surveys, monitor maternal health status, and sync offline field data.
                 </p>
@@ -455,7 +455,7 @@ export default function Landing() {
                   onClick={() => navigate('/asha')}
                   style={{ width: '100%', padding: '9px', backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
-                  Launch ASHA Hub &rarr;
+                  Launch ASHA App &rarr;
                 </button>
               </div>
             </div>

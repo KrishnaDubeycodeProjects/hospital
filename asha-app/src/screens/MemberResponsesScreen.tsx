@@ -276,42 +276,84 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
 
             {showDetailedForm && (
               <View style={styles.detailedCard}>
-                {clinicalSummary.detailedEntries.map((entry, idx) => (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.detailedRow,
-                      idx === clinicalSummary.detailedEntries.length - 1 && {
-                        borderBottomWidth: 0,
-                      },
-                    ]}
-                  >
-                    <View style={styles.questionNumBadge}>
-                      <Text style={styles.questionNumText}>{entry.questionNumber}</Text>
-                    </View>
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={styles.questionTitle}>{entry.questionText}</Text>
-                      {entry.note ? (
-                        <Text style={styles.questionNote}>{entry.note}</Text>
-                      ) : null}
-                    </View>
-                    <View
-                      style={[
-                        styles.answerBadge,
-                        !entry.isNormal && styles.answerBadgeAlert,
-                      ]}
-                    >
-                      <Text
+                {clinicalSummary.detailedEntries.map((entry, idx) => {
+                  const isLongAnswer = Boolean(entry.answerText && entry.answerText.length > 20);
+                  const isLast = idx === clinicalSummary.detailedEntries.length - 1;
+
+                  if (isLongAnswer) {
+                    return (
+                      <View
+                        key={idx}
                         style={[
-                          styles.answerText,
-                          !entry.isNormal && styles.answerTextAlert,
+                          styles.detailedStackedRow,
+                          isLast && { borderBottomWidth: 0, marginBottom: 0, paddingBottom: 0 },
                         ]}
                       >
-                        {entry.answerText}
-                      </Text>
+                        <View style={styles.stackedQuestionHeader}>
+                          <View style={styles.questionNumBadge}>
+                            <Text style={styles.questionNumText}>{entry.questionNumber}</Text>
+                          </View>
+                          <View style={styles.questionContent}>
+                            <Text style={styles.questionTitle}>{entry.questionText}</Text>
+                            {entry.note ? (
+                              <Text style={styles.questionNote}>{entry.note}</Text>
+                            ) : null}
+                          </View>
+                        </View>
+                        <View
+                          style={[
+                            styles.longAnswerCard,
+                            !entry.isNormal && styles.longAnswerCardAlert,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.longAnswerText,
+                              !entry.isNormal && styles.longAnswerTextAlert,
+                            ]}
+                          >
+                            {entry.answerText}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.detailedRow,
+                        isLast && { borderBottomWidth: 0 },
+                      ]}
+                    >
+                      <View style={styles.questionNumBadge}>
+                        <Text style={styles.questionNumText}>{entry.questionNumber}</Text>
+                      </View>
+                      <View style={styles.questionContent}>
+                        <Text style={styles.questionTitle}>{entry.questionText}</Text>
+                        {entry.note ? (
+                          <Text style={styles.questionNote}>{entry.note}</Text>
+                        ) : null}
+                      </View>
+                      <View
+                        style={[
+                          styles.answerBadge,
+                          !entry.isNormal && styles.answerBadgeAlert,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.answerText,
+                            !entry.isNormal && styles.answerTextAlert,
+                          ]}
+                        >
+                          {entry.answerText}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
@@ -638,10 +680,49 @@ const styles = StyleSheet.create({
   },
   detailedRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  detailedStackedRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  stackedQuestionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  questionContent: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  longAnswerCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginLeft: 32,
+    marginTop: 2,
+  },
+  longAnswerCardAlert: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  longAnswerText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#15803D',
+    lineHeight: 18,
+  },
+  longAnswerTextAlert: {
+    color: '#B91C1C',
   },
   questionNumBadge: {
     width: 22,

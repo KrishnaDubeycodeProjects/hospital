@@ -204,6 +204,8 @@ export const doctorApi = {
   createAccessRequest: () => postD('/api/doctors/access-requests', {}, authFor('DOCTOR')),
   accessRequestQrUrl: (code) => `${API_URL}/api/doctors/access-requests/${encodeURIComponent(code)}/qr`,
   patients: () => getD('/api/doctors/patients', authFor('DOCTOR')),
+  patientHistory: () => getD('/api/doctors/patients/history', authFor('DOCTOR')),
+  patientGrants: () => getD('/api/doctors/patients/grants', authFor('DOCTOR')),
   patientDocumentFileUrl: (docId) => `${API_URL}/api/doctors/patients/documents/${docId}/file`,
   uploadPatientDocument: (formData) =>
     postD('/api/doctors/patients/documents/upload', formData, {
@@ -235,6 +237,7 @@ export const patientApi = {
 
 export const courseApi = {
   create: (payload) => postD('/api/courses', payload, authFor('DOCTOR')),
+  search: (query) => getD('/api/courses/search', { params: { query }, ...authFor('DOCTOR') }),
   get: (id, role = 'DOCTOR') => getD(`/api/courses/${id}`, authFor(role)),
   timeline: (id, role = 'DOCTOR') => getD(`/api/courses/${id}/timeline`, authFor(role)),
   consentBundle: (id) => getD(`/api/courses/${id}/consent-bundle`, authFor('DOCTOR')),
@@ -270,11 +273,12 @@ export const referralApi = {
 export const familyApi = {
   getUnit: () => getD('/api/family', authFor('PATIENT')),
   listMembers: () => getD('/api/family/members', authFor('PATIENT')),
-  listPublicMembers: (phone = '8850934544') => getD('/api/family/public/members', { params: { phone } }),
+  listPublicMembers: (phone = '9876543210') => getD('/api/family/public/members', { params: { phone } }),
   addMember: (payload) => postD('/api/family/members', payload, authFor('PATIENT')),
   updateMember: (memberId, payload) => putD(`/api/family/members/${memberId}`, payload, authFor('PATIENT')),
   linkAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/link-abha`, payload, authFor('PATIENT')),
   enrollAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/enroll-abha`, payload, authFor('PATIENT')),
+  deleteMember: (memberId) => delD(`/api/family/members/${memberId}`, authFor('PATIENT')),
   abhaQrUrl: (memberId) => `${API_URL}/api/family/members/${memberId}/abha-qr`,
 };
 
@@ -307,6 +311,7 @@ export const abdmApi = {
   enrollAadhaarVerify: (payload) => postD('/api/abdm/enroll/aadhaar/verify', payload, defaultAuth()),
   linkCareContext: (payload) => postD('/api/abdm/care-context/link', payload, defaultAuth()),
   getEncounterFhir: (courseId, encounterId) => getD(`/api/abdm/courses/${courseId}/encounters/${encounterId}/fhir`, defaultAuth()),
+  getCourseFhir: (courseId) => getD(`/api/abdm/courses/${courseId}/fhir`, defaultAuth()),
   initConsent: (payload) => postD('/api/abdm/consent/init', payload, defaultAuth()),
   getConsentStatus: (id) => getD(`/api/abdm/consent/${id}/status`, defaultAuth()),
   testApproveConsent: (id) => postD(`/api/abdm/consent/${id}/test-approve`, {}, defaultAuth()),

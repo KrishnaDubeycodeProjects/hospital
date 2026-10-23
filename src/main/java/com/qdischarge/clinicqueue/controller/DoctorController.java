@@ -3,6 +3,7 @@ package com.qdischarge.clinicqueue.controller;
 import com.qdischarge.clinicqueue.dto.AccessRequestDto;
 import com.qdischarge.clinicqueue.dto.DoctorDto;
 import com.qdischarge.clinicqueue.dto.DoctorLoginRequest;
+import com.qdischarge.clinicqueue.dto.DoctorPatientGroupDto;
 import com.qdischarge.clinicqueue.dto.JoinHospitalRequest;
 import com.qdischarge.clinicqueue.dto.PatientDocumentDto;
 import com.qdischarge.clinicqueue.dto.RegisterDoctorRequest;
@@ -126,6 +127,22 @@ public class DoctorController {
     public ResponseEntity<Map<String, Object>> patients() {
         List<String> phones = accessService.listActivePatientPhonesForDoctor(currentUser.requireDoctorId());
         return ResponseEntity.ok(ok(patientDocumentService.groupByIdentity(phones)));
+    }
+
+    /** Historical patients who ever granted access to this doctor. */
+    @GetMapping("/patients/history")
+    public ResponseEntity<Map<String, Object>> patientHistory() {
+        int doctorId = currentUser.requireDoctorId();
+        List<String> phones = accessService.listAllPatientPhonesForDoctor(doctorId);
+        List<DoctorPatientGroupDto> groups = patientDocumentService.groupByIdentity(phones);
+        return ResponseEntity.ok(ok(groups));
+    }
+
+    /** All access grants issued to this doctor with grant dates and status. */
+    @GetMapping("/patients/grants")
+    public ResponseEntity<Map<String, Object>> patientGrants() {
+        int doctorId = currentUser.requireDoctorId();
+        return ResponseEntity.ok(ok(accessService.listGrantsForDoctor(doctorId)));
     }
 
     /** Download one document's image -- only if this doctor currently has active access to that patient's phone. */

@@ -48,6 +48,7 @@ public class TokenDto {
     private Integer position;
     private Integer peopleAhead;
     private Integer currentServing;
+    private String currentServingTokenCode;
 
     // --- Geo / real-ETA treatment timing (see geo/TomTomRoutingService,
     // service/TreatmentTimingScheduler) ---

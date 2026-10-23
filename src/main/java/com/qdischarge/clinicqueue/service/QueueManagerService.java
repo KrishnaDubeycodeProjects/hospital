@@ -118,18 +118,24 @@ public class QueueManagerService {
         long completed = tokens.stream().filter(t -> "completed".equals(t.getStatus())).count();
         long missed = tokens.stream().filter(t -> "missed".equals(t.getStatus())).count();
 
-        Integer currentServing = tokens.stream()
+        TokenDto servingToken = tokens.stream()
                 .filter(t -> "serving".equals(t.getStatus()))
-                .map(TokenDto::getId)
                 .findFirst()
                 .orElse(null);
+
+        Integer currentServing = servingToken != null
+                ? (servingToken.getDailyNumber() != null ? servingToken.getDailyNumber() : servingToken.getId())
+                : null;
+        String currentServingTokenCode = servingToken != null
+                ? servingToken.getTokenCode()
+                : null;
 
         List<TokenDto> reserved = tokens.stream().filter(t -> "reserved".equals(t.getStatus())).toList();
         List<TokenDto> missedList = tokens.stream().filter(t -> "missed".equals(t.getStatus())).toList();
         List<TokenDto> frozenList = tokens.stream().filter(t -> "frozen".equals(t.getStatus())).toList();
 
         Stats stats = new Stats(total, (int) waiting, (int) serving, (int) completed, (int) missed);
-        return new QueueData(tokens, currentServing, stats, reserved, missedList, frozenList);
+        return new QueueData(tokens, currentServing, stats, reserved, missedList, frozenList, currentServingTokenCode);
     }
 
     private void appendScope(StringBuilder sql, Map<String, Object> params, Integer hospitalId, String category) {
@@ -156,11 +162,13 @@ public class QueueManagerService {
             return null;
         }
         TokenDto t = rows.get(0);
-        return TokenDto.builder()
+        return withGeoFields(TokenDto.builder()
                 .id(t.getId()).name(t.getName()).phone(t.getPhone()).status(t.getStatus())
                 .sessionStep(t.getSessionStep()).createdAt(t.getCreatedAt()).servedAt(t.getServedAt())
                 .counterId(t.getCounterId())
-                .build();
+                .currentServing(t.getDailyNumber() != null ? t.getDailyNumber() : t.getId())
+                .currentServingTokenCode(t.getTokenCode())
+                .build(), t);
     }
 
     public TokenDto getPatientPosition(String phone) {
@@ -183,7 +191,8 @@ public class QueueManagerService {
             return withGeoFields(TokenDto.builder()
                     .id(token.getId()).name(token.getName()).phone(token.getPhone()).status(token.getStatus())
                     .sessionStep(token.getSessionStep()).position(0).peopleAhead(0)
-                    .currentServing(queueData.currentServing())
+                    .currentServing(token.getDailyNumber() != null ? token.getDailyNumber() : token.getId())
+                    .currentServingTokenCode(token.getTokenCode())
                     .isVerified(token.getIsVerified()).verifiedAt(token.getVerifiedAt())
                     .build(), token);
         }
@@ -194,6 +203,7 @@ public class QueueManagerService {
                 .id(token.getId()).name(token.getName()).phone(token.getPhone()).status(token.getStatus())
                 .sessionStep(token.getSessionStep()).position(peopleAhead + 1).peopleAhead(peopleAhead)
                 .currentServing(queueData.currentServing())
+                .currentServingTokenCode(queueData.currentServingTokenCode())
                 .isVerified(token.getIsVerified()).verifiedAt(token.getVerifiedAt())
                 .build(), token);
     }
@@ -209,10 +219,18 @@ public class QueueManagerService {
         QueueData queueData = getQueue(token.getHospitalId(), token.getCategory());
 
         if (!"waiting".equals(token.getStatus())) {
+            Integer curServing = "serving".equals(token.getStatus())
+                    ? (token.getDailyNumber() != null ? token.getDailyNumber() : token.getId())
+                    : queueData.currentServing();
+            String curServingCode = "serving".equals(token.getStatus())
+                    ? token.getTokenCode()
+                    : queueData.currentServingTokenCode();
+
             return withGeoFields(TokenDto.builder()
                     .id(token.getId()).name(token.getName()).phone(token.getPhone()).status(token.getStatus())
                     .sessionStep(token.getSessionStep()).position(0).peopleAhead(0)
-                    .currentServing(queueData.currentServing())
+                    .currentServing(curServing)
+                    .currentServingTokenCode(curServingCode)
                     .isVerified(token.getIsVerified()).verifiedAt(token.getVerifiedAt())
                     .missedAt(token.getMissedAt()).rejectedAt(token.getRejectedAt())
                     .build(), token);
@@ -224,6 +242,7 @@ public class QueueManagerService {
                 .id(token.getId()).name(token.getName()).phone(token.getPhone()).status(token.getStatus())
                 .sessionStep(token.getSessionStep()).position(peopleAhead + 1).peopleAhead(peopleAhead)
                 .currentServing(queueData.currentServing())
+                .currentServingTokenCode(queueData.currentServingTokenCode())
                 .isVerified(token.getIsVerified()).verifiedAt(token.getVerifiedAt())
                 .build(), token);
     }
@@ -253,6 +272,12 @@ public class QueueManagerService {
         target.setCounterId(raw.getCounterId());
         target.setTokenCode(raw.getTokenCode());
         target.setQueuePosition(raw.getQueuePosition());
+        if (target.getCurrentServing() == null && raw.getCurrentServing() != null) {
+            target.setCurrentServing(raw.getCurrentServing());
+        }
+        if (target.getCurrentServingTokenCode() == null && raw.getCurrentServingTokenCode() != null) {
+            target.setCurrentServingTokenCode(raw.getCurrentServingTokenCode());
+        }
         return target;
     }
 
@@ -636,6 +661,7 @@ public class QueueManagerService {
         } else {
             renumberQueuePositions(hospital.getId(), draft.getCategory());
             unfreezeEligibleTokens(hospital.getId(), draft.getCategory());
+            evaluateNotifyTriggers();
         }
 
         return getTokenDetails(String.valueOf(tokenId));
@@ -783,6 +809,7 @@ public class QueueManagerService {
         } else if (resolvedHospitalId != null) {
             renumberQueuePositions(resolvedHospitalId, canonicalCategory);
             unfreezeEligibleTokens(resolvedHospitalId, canonicalCategory);
+            evaluateNotifyTriggers();
         }
 
         return new CreateTokenResult(false, getTokenDetails(String.valueOf(newId)));
@@ -1209,11 +1236,17 @@ public class QueueManagerService {
 
         Lang lang = resolveLang(token.getPhone());
         int peopleAhead = countGenuinelyAheadForEta(token);
+
+        // 1. Immediately place high-priority voice call concurrently / non-blocking via callExecutor
+        twilioStudioCallService.triggerHeadToHospitalCall(
+                token.getPhone(), token.getName(), token.displayTokenCode(), token.getCategory(), hospital.getName(), peopleAhead, lang);
+        log.info("Heading-to-hospital voice call triggered immediately for Token #{}.", token.displayTokenCode());
+
+        // 2. Dispatch WhatsApp notification
         String message = botMessages.headingToHospitalNotification(
                 lang, token.getName(), token.displayTokenCode(), token.getCategory(), hospital.getName(), peopleAhead);
         whatsAppService.sendWhatsAppMessage(token.getPhone(), message);
         log.info("Heading-to-hospital trigger for Token #{}. WhatsApp notification sent.", token.displayTokenCode());
-        twilioStudioCallService.triggerHeadToHospitalCall(token.getPhone(), message, lang);
     }
 
     /** This phone's chosen WhatsApp bot language (see WaSessionService), defaulting to English if it's never messaged the bot. */

@@ -139,6 +139,54 @@ public class CourseService {
                 });
     }
 
+    public List<CourseDto> searchCourses(String query) {
+        String filter = (query == null) ? "" : query.trim();
+        String sql;
+        Map<String, Object> params = new HashMap<>();
+        if (filter.isEmpty()) {
+            sql = """
+                    SELECT c.*, d.name AS started_by_doctor_name, h.name AS started_at_hospital_name,
+                           (SELECT COUNT(*) FROM course_documents WHERE course_id = c.id)::int AS doc_count,
+                           (SELECT COUNT(*) FROM course_prescriptions WHERE course_id = c.id)::int AS rx_count,
+                           (SELECT COUNT(*) FROM course_referrals WHERE course_id = c.id)::int AS ref_count
+                    FROM courses c
+                    LEFT JOIN doctors d ON c.started_by_doctor_id = d.id
+                    LEFT JOIN hospitals h ON c.started_at_hospital_id = h.id
+                    ORDER BY c.status = 'active' DESC, c.updated_at DESC
+                    LIMIT 60
+                    """;
+        } else {
+            sql = """
+                    SELECT c.*, d.name AS started_by_doctor_name, h.name AS started_at_hospital_name,
+                           (SELECT COUNT(*) FROM course_documents WHERE course_id = c.id)::int AS doc_count,
+                           (SELECT COUNT(*) FROM course_prescriptions WHERE course_id = c.id)::int AS rx_count,
+                           (SELECT COUNT(*) FROM course_referrals WHERE course_id = c.id)::int AS ref_count
+                    FROM courses c
+                    LEFT JOIN doctors d ON c.started_by_doctor_id = d.id
+                    LEFT JOIN hospitals h ON c.started_at_hospital_id = h.id
+                    WHERE LOWER(c.patient_name) LIKE LOWER(:q)
+                       OR c.patient_phone LIKE :q
+                       OR LOWER(c.title) LIKE LOWER(:q)
+                       OR LOWER(c.target_department) LIKE LOWER(:q)
+                       OR LOWER(COALESCE(c.primary_diagnosis, '')) LIKE LOWER(:q)
+                    ORDER BY c.status = 'active' DESC, c.updated_at DESC
+                    LIMIT 60
+                    """;
+            params.put("q", "%" + filter + "%");
+        }
+        return jdbc.query(sql, params, (rs, rowNum) -> {
+            CourseDto dto = COURSE_MAPPER.mapRow(rs, rowNum);
+            if (dto != null) {
+                dto.setStartedByDoctorName(rs.getString("started_by_doctor_name"));
+                dto.setStartedAtHospitalName(rs.getString("started_at_hospital_name"));
+                dto.setDocumentCount(rs.getInt("doc_count"));
+                dto.setPrescriptionCount(rs.getInt("rx_count"));
+                dto.setReferralCount(rs.getInt("ref_count"));
+            }
+            return dto;
+        });
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public CourseEncounterDto addEncounter(AddEncounterRequest req, int doctorId, int hospitalId) {
         Map<String, Object> params = new HashMap<>();

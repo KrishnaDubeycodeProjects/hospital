@@ -46,7 +46,7 @@ class AbhaAuthControllerTest {
     void testVerifyLogin_WithRelationshipMother_Success() {
         PatientAbhaProfileDto profile = PatientAbhaProfileDto.builder()
                 .name("Sonia Ahuja")
-                .phone("+918850934544")
+                .phone("+919876543210")
                 .abhaNumber("91-4455-6677-8899")
                 .abhaAddress("sonia@abdm")
                 .gender("FEMALE")
@@ -68,7 +68,7 @@ class AbhaAuthControllerTest {
                 .build();
 
         when(familyUnitService.provisionOrUpdateAbhaMember(
-                eq("+918850934544"),
+                eq("+919876543210"),
                 eq("Sonia Ahuja"),
                 eq("MOTHER"),
                 eq("FEMALE"),
@@ -78,7 +78,7 @@ class AbhaAuthControllerTest {
                 eq("sonia@abdm")
         )).thenReturn(mockMember);
 
-        when(jwtService.generatePatientToken("+918850934544"))
+        when(jwtService.generatePatientToken("+919876543210"))
                 .thenReturn("mock_jwt_token_for_patient");
 
         AbhaLoginVerifyRequest req = new AbhaLoginVerifyRequest("txn-12345", "123456", "MOTHER");
@@ -97,7 +97,7 @@ class AbhaAuthControllerTest {
     void testVerifyLogin_SelfDefault_Success() {
         PatientAbhaProfileDto profile = PatientAbhaProfileDto.builder()
                 .name("Kavish Ahuja")
-                .phone("+918850934544")
+                .phone("+919876543210")
                 .abhaNumber("91-1122-3344-5566")
                 .abhaAddress("kavish@abdm")
                 .gender("MALE")
@@ -117,7 +117,7 @@ class AbhaAuthControllerTest {
                 .build();
 
         when(familyUnitService.provisionOrUpdateAbhaMember(
-                eq("+918850934544"),
+                eq("+919876543210"),
                 eq("Kavish Ahuja"),
                 eq("SELF"),
                 eq("MALE"),
@@ -127,7 +127,7 @@ class AbhaAuthControllerTest {
                 eq("kavish@abdm")
         )).thenReturn(mockMember);
 
-        when(jwtService.generatePatientToken("+918850934544"))
+        when(jwtService.generatePatientToken("+919876543210"))
                 .thenReturn("jwt_for_kavish");
 
         AbhaLoginVerifyRequest req = new AbhaLoginVerifyRequest("txn-self", "654321", null);
