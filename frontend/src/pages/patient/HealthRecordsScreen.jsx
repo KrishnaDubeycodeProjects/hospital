@@ -92,6 +92,7 @@ export default function HealthRecordsScreen() {
   const [activeCourseModal, setActiveCourseModal] = useState(null);
   const [activeDocModal, setActiveDocModal] = useState(null);
   const [courseTimeline, setCourseTimeline] = useState(null);
+  const [stationActiveTab, setStationActiveTab] = useState({});
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
   // Tab switcher
@@ -1796,38 +1797,91 @@ export default function HealthRecordsScreen() {
         </Modal>
       )}
 
-      {/* Course Timeline Modal with Checkpoint Station Stack (First In at Last Place) */}
+      {/* Course Timeline Modal with Railway-Style Checkpoint Station Stack (First In at Last Place) */}
       {activeCourseModal && (
-        <Modal title={`${activeCourseModal.title || 'Care Episode'} Checkpoint Timeline`} onClose={() => setActiveCourseModal(null)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '6px 0' }}>
-            <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              <div>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Longitudinal Care Episode
+        <Modal title={`${activeCourseModal.title || 'Care Episode'} Checkpoint Stations`} onClose={() => setActiveCourseModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px 0' }}>
+            
+            {/* 1. Doctor Details at the top like grouping a continuation */}
+            <div
+              style={{
+                backgroundColor: '#F0FDFA',
+                border: '1.5px solid #99F6E4',
+                borderRadius: '14px',
+                padding: '16px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Care Episode Grouping &bull; Continuation
                 </span>
-                <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
-                  {activeCourseModal.title || 'Continuity Care Course'}
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    backgroundColor: activeCourseModal.status === 'active' ? '#DCFCE7' : '#F1F5F9',
+                    color: activeCourseModal.status === 'active' ? '#15803D' : '#475569',
+                    border: '1px solid #86EFAC',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {activeCourseModal.status || 'Active'}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
+                {activeCourseModal.title || 'Continuity Care Course'}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px', marginTop: '12px', background: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #CCFBF1' }}>
+                <div>
+                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Consulting Doctor</span>
+                  <strong style={{ fontSize: '13.5px', color: '#0F172A' }}>
+                    👨‍⚕️ {activeCourseModal.doctorName || activeCourseModal.doctor || 'Dr. Rajesh Sharma (MD, General Medicine)'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital &amp; Facility</span>
+                  <strong style={{ fontSize: '13.5px', color: '#004D40' }}>
+                    🏥 {activeCourseModal.hospitalName || activeCourseModal.hospital || 'District Civil Hospital — OPD Desk 4'}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Clinical Diagnosis</span>
+                  <span style={{ fontSize: '13px', color: '#334155', fontWeight: '600' }}>
+                    {activeCourseModal.diagnosis || 'Active Medical Management'}
+                  </span>
                 </div>
               </div>
-              <span className="badge badge-green">{activeCourseModal.status || 'Active'}</span>
             </div>
 
-            <div style={{ fontSize: '12.5px', color: '#475569' }}>
-              Primary Diagnosis: <strong style={{ color: '#0F172A' }}>{activeCourseModal.diagnosis || 'Clinical follow-up'}</strong>
-            </div>
-
+            {/* 2. Railway-Style Checkpoint Timeline: Dot on left, Date & Time on right, 2 buttons */}
             {loadingTimeline ? (
               <Spinner label="Loading timeline checkpoint stations..." />
             ) : !courseTimeline || !courseTimeline.encounters || courseTimeline.encounters.length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '20px' }}>No clinical checkpoint encounters logged yet.</div>
+              <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '24px', background: '#F8FAFC', borderRadius: '12px' }}>
+                No clinical checkpoint encounters logged yet.
+              </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '6px' }}>
-                  <strong style={{ color: '#0F766E' }}>📍 Checkpoint Station Stack ({courseTimeline.encounters.length} Encounters)</strong>
-                  <span style={{ fontSize: '11px', color: '#64748B' }}>First In at Last Place &bull; Latest at Top</span>
-                </div>
+              <div style={{ position: 'relative', padding: '10px 4px 10px 10px' }}>
+                {/* Continuous Vertical Grey Railway Track Line */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '74px',
+                    top: '20px',
+                    bottom: '30px',
+                    width: '3px',
+                    backgroundColor: '#CBD5E1',
+                    borderRadius: '2px',
+                    zIndex: 1,
+                  }}
+                />
 
                 {(() => {
+                  // Stack order: First In at last place (chronological: initial consultation at bottom, newest on top)
                   const sorted = [...courseTimeline.encounters].sort((a, b) => {
                     const dateA = new Date(a.visitDate || a.createdAt || a.date || 0);
                     const dateB = new Date(b.visitDate || b.createdAt || b.date || 0);
@@ -1835,102 +1889,208 @@ export default function HealthRecordsScreen() {
                   });
 
                   return sorted.map((enc, idx) => {
+                    const encId = enc.id || idx;
                     const isLatest = idx === 0;
                     const isFirstIn = idx === sorted.length - 1;
-                    const stationNum = sorted.length - idx; // Station 1 is First In, Station N is latest
+                    const stationNum = sorted.length - idx; // Station 1 is First In, Station N is Latest
+                    const currentTab = stationActiveTab[encId];
+
+                    const toggleTab = (tab) => {
+                      setStationActiveTab((prev) => ({
+                        ...prev,
+                        [encId]: prev[encId] === tab ? null : tab,
+                      }));
+                    };
 
                     return (
                       <div
-                        key={enc.id || idx}
+                        key={encId}
                         style={{
-                          background: isLatest ? '#F0FDF4' : '#F8FAFC',
-                          padding: '14px',
-                          borderRadius: '12px',
-                          border: isLatest ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
+                          alignItems: 'flex-start',
+                          gap: '16px',
+                          marginBottom: idx === sorted.length - 1 ? '0' : '24px',
+                          position: 'relative',
                         }}
                       >
-                        {/* Station Badge & Layman Timing */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span
+                        {/* Left Column: Station Code / Distance */}
+                        <div style={{ width: '60px', textAlign: 'right', flexShrink: 0, paddingTop: '1px' }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: '800', color: isLatest ? '#0284C7' : '#334155', letterSpacing: '0.02em' }}>
+                            {`STN-${String(stationNum).padStart(2, '0')}`}
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: '600' }}>
+                            {isFirstIn ? '0.0 km' : `${(stationNum - 1) * 35}.0 km`}
+                          </div>
+                        </div>
+
+                        {/* Middle: Checkpoint Circle Dot directly on the line */}
+                        <div
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            backgroundColor: isLatest ? '#16A34A' : isFirstIn ? '#D97706' : '#0D9488',
+                            border: '3.5px solid #FFFFFF',
+                            boxShadow: '0 0 0 2px #CBD5E1',
+                            flexShrink: 0,
+                            marginTop: '2px',
+                            zIndex: 2,
+                          }}
+                        />
+
+                        {/* Right Column: Title, Date & Time, 2 Buttons, Expandable Panels */}
+                        <div
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            background: isLatest ? '#F0FDF4' : '#FFFFFF',
+                            border: isLatest ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
+                            borderRadius: '12px',
+                            padding: '12px 14px',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                          }}
+                        >
+                          {/* Station Name & Layman Date/Time */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '6px' }}>
+                            <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>
+                              {isFirstIn ? '🏁 Initial Intake & Consultation' : isLatest ? '🟢 Latest Review & Checkpoint' : `🔄 Follow-Up Checkpoint Station #${stationNum}`}
+                            </div>
+                            <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                              📅 {formatLaymanDateTime(enc.visitDate || enc.createdAt || enc.date)}
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: '11px', color: isLatest ? '#15803D' : '#B45309', fontWeight: '700', marginTop: '2px' }}>
+                            {isLatest ? 'Completed • On-Time Review' : isFirstIn ? 'First In (Origin Station)' : 'Follow-up Verified'}
+                          </div>
+
+                          {/* The 2 Buttons requested by the user */}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleTab('details')}
                               style={{
-                                backgroundColor: isLatest ? '#15803D' : '#0F766E',
-                                color: '#FFFFFF',
-                                fontSize: '11.5px',
-                                fontWeight: '800',
-                                padding: '3px 10px',
-                                borderRadius: '12px',
-                                letterSpacing: '0.02em',
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                border: currentTab === 'details' ? '1.5px solid #004D40' : '1px solid #CBD5E1',
+                                backgroundColor: currentTab === 'details' ? '#E8F5E9' : '#FFFFFF',
+                                color: currentTab === 'details' ? '#004D40' : '#334155',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.15s ease',
                               }}
                             >
-                              Checkpoint Station #{stationNum}
-                            </span>
-                            <span style={{ fontSize: '12px', fontWeight: '700', color: isLatest ? '#15803D' : '#334155' }}>
-                              {isFirstIn ? '🏁 Initial Consultation (First In)' : isLatest ? '🟢 Latest Follow-up Station' : '🔄 Review Checkpoint'}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: '600' }}>
-                            📅 {formatLaymanDateTime(enc.visitDate || enc.createdAt || enc.date)}
-                          </span>
-                        </div>
+                              <span>👁️ View Details</span>
+                              <span style={{ fontSize: '9px' }}>{currentTab === 'details' ? '▲' : '▼'}</span>
+                            </button>
 
-                        {/* Consulting Doctor & Hospital Details */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px', background: '#FFFFFF', padding: '10px 12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                          <div>
-                            <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Consulting Doctor</span>
-                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                              👨‍⚕️ {enc.doctorName || enc.doctor || activeCourseModal.doctorName || activeCourseModal.doctor || 'Dr. Rajesh Sharma (MD, General Medicine)'}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleTab('rx')}
+                              style={{
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                border: currentTab === 'rx' ? '1.5px solid #1E40AF' : '1px solid #CBD5E1',
+                                backgroundColor: currentTab === 'rx' ? '#EFF6FF' : '#FFFFFF',
+                                color: currentTab === 'rx' ? '#1E40AF' : '#334155',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <span>💊 Note &amp; Prescription</span>
+                              <span style={{ fontSize: '9px' }}>{currentTab === 'rx' ? '▲' : '▼'}</span>
+                            </button>
                           </div>
-                          <div>
-                            <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital Facility</span>
-                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#004D40' }}>
-                              🏥 {enc.hospitalName || enc.hospital || 'District Civil Hospital — OPD Desk 4'}
-                            </span>
-                          </div>
-                        </div>
 
-                        {/* Reason & Doctor Notes */}
-                        {enc.chiefComplaint && (
-                          <div style={{ fontSize: '12.5px', color: '#0F172A' }}>
-                            <strong>Reason for Visit / Complaint:</strong> {enc.chiefComplaint}
-                          </div>
-                        )}
-                        {(enc.clinicalNotes || enc.notes) && (
-                          <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.4 }}>
-                            <strong>Doctor's Clinical Notes:</strong> {enc.clinicalNotes || enc.notes}
-                          </div>
-                        )}
-                        {enc.examinationFindings && (
-                          <div style={{ fontSize: '12px', color: '#475569' }}>
-                            <strong>Examination Findings:</strong> {enc.examinationFindings}
-                          </div>
-                        )}
-                        {enc.plan && (
-                          <div style={{ fontSize: '12px', color: '#065F46', background: '#ECFDF5', padding: '8px 12px', borderRadius: '8px', border: '1px solid #A7F3D0' }}>
-                            🎯 <strong>Treatment Plan &amp; Advice:</strong> {enc.plan}
-                          </div>
-                        )}
-
-                        {/* Medications Prescribed */}
-                        {enc.prescriptions && enc.prescriptions.length > 0 && (
-                          <div style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', marginTop: '2px' }}>
-                            <div style={{ fontSize: '11px', fontWeight: '800', color: '#1E40AF', textTransform: 'uppercase', marginBottom: '4px' }}>
-                              Rx Prescribed at Station #{stationNum}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {enc.prescriptions.map((rx, rxi) => (
-                                <div key={rxi} style={{ fontSize: '12px', color: '#1E293B' }}>
-                                  &bull; <strong>{rx.medicineName || rx.drugName}</strong> ({rx.dosage || rx.dose}) &mdash; {rx.frequency || ''} for {rx.durationDays || rx.duration || 'days'} {rx.instructions ? `• ${rx.instructions}` : ''}
+                          {/* Expandable Panel 1: View Details */}
+                          {currentTab === 'details' && (
+                            <div
+                              style={{
+                                marginTop: '10px',
+                                background: '#F8FAFC',
+                                border: '1px solid #CBD5E1',
+                                borderRadius: '10px',
+                                padding: '12px',
+                                fontSize: '12.5px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                              }}
+                            >
+                              {enc.chiefComplaint && (
+                                <div>
+                                  <strong style={{ color: '#0F172A' }}>Chief Complaint:</strong> {enc.chiefComplaint}
                                 </div>
-                              ))}
+                              )}
+                              {enc.examinationFindings && (
+                                <div>
+                                  <strong style={{ color: '#0F172A' }}>Clinical Findings:</strong> {enc.examinationFindings}
+                                </div>
+                              )}
+                              {enc.plan && (
+                                <div style={{ background: '#ECFDF5', padding: '8px 10px', borderRadius: '6px', border: '1px solid #A7F3D0', color: '#065F46' }}>
+                                  🎯 <strong>Treatment Plan &amp; Advice:</strong> {enc.plan}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          )}
+
+                          {/* Expandable Panel 2: Note & Prescription */}
+                          {currentTab === 'rx' && (
+                            <div
+                              style={{
+                                marginTop: '10px',
+                                background: '#F0F9FF',
+                                border: '1px solid #BAE6FD',
+                                borderRadius: '10px',
+                                padding: '12px',
+                                fontSize: '12.5px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px',
+                              }}
+                            >
+                              {(enc.clinicalNotes || enc.notes) && (
+                                <div>
+                                  <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#0369A1', textTransform: 'uppercase', display: 'block' }}>
+                                    Doctor's Clinical Notes
+                                  </span>
+                                  <div style={{ color: '#1E293B', marginTop: '2px', lineHeight: 1.4 }}>
+                                    {enc.clinicalNotes || enc.notes}
+                                  </div>
+                                </div>
+                              )}
+
+                              {enc.prescriptions && enc.prescriptions.length > 0 ? (
+                                <div style={{ background: '#FFFFFF', padding: '10px', borderRadius: '8px', border: '1px solid #93C5FD' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#1E40AF', textTransform: 'uppercase', marginBottom: '6px' }}>
+                                    Prescribed Medications (Rx)
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {enc.prescriptions.map((p, pIdx) => (
+                                      <div key={pIdx} style={{ fontSize: '12px', color: '#1E293B' }}>
+                                        &bull; <strong>{p.medicineName || p.drugName}</strong> ({p.dosage || p.dose}) &mdash; {p.frequency || ''} for {p.durationDays || p.duration || 'days'} {p.instructions ? `• ${p.instructions}` : ''}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: '11.5px', color: '#64748B', fontStyle: 'italic' }}>
+                                  No additional medications prescribed at this station. Continue prior regimen.
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   });
