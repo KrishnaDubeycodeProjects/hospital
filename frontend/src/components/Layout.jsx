@@ -39,10 +39,14 @@ const ROLE_TITLE = {
 export function RoleShell({ role }) {
   const { admin, patient, doctor, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const session = { admin, patient, doctor }[role];
-  if (!session) return <Navigate to={`/login/${role}`} replace />;
+  if (!session) {
+    const redirectUrl = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login/${role}?redirect=${redirectUrl}`} replace />;
+  }
 
   if (role === 'patient') {
     return <PatientMobileShell session={session} onLogout={() => { logout('PATIENT'); navigate('/'); }} />;

@@ -5,6 +5,7 @@ import {
   SurveyResponse,
   ChildVaccinationRecord,
   AshaMeetingRecord,
+  AnmSessionFolder,
 } from '../types/storage';
 
 /**
@@ -2795,5 +2796,41 @@ export const SEED_FOLLOWUPS: FollowUpTask[] = [
     referredToCho: true,
     choStatus: 'APPROVED_CHO',
     choAdvice: 'ASHA to verify daily oral hygiene and escort patient for Cycle 3 on Monday.',
+  },
+];
+
+export const SEED_ANM_SESSIONS: AnmSessionFolder[] = [
+  {
+    id: 'sess-01',
+    title: 'विशेष बाल टीकाकरण सत्र (VHND Drive)',
+    category: 'CHILD_VAX',
+    date: '22/10/2026',
+    qrCodeValue: 'ANM-QR-CHILD-VAX-CHANDPUR',
+    recordsCount: 4,
+    studyType: 'VHND Child Immunization Drive',
+    notes: 'विशेष बाल टीकाकरण एवं पोषण सर्वेक्षण',
+    location: 'Chandpur Anganwadi Centre 1',
+  },
+  {
+    id: 'sess-02',
+    title: 'मातृ स्वास्थ्य एवं प्रसव पूर्व जांच (ANC Clinic)',
+    category: 'ANC',
+    date: '20/10/2026',
+    qrCodeValue: 'ANM-QR-ANC-CHANDPUR',
+    recordsCount: 3,
+    studyType: 'ANC Maternal Health Field Study',
+    notes: 'मातृ स्वास्थ्य एवं उच्च जोखिम गर्भावस्था (HRP) जांच',
+    location: 'Chandpur Sub-Centre',
+  },
+  {
+    id: 'sess-03',
+    title: 'एनसीडी एवं मुख कैंसर जांच सत्र (NCD Camp)',
+    category: 'NCD',
+    date: '18/10/2026',
+    qrCodeValue: 'ANM-QR-NCD-CHANDPUR',
+    recordsCount: 5,
+    studyType: 'NCD & Oral Cancer Field Study',
+    notes: 'मधुमेह, उच्च रक्तचाप एवं मुख कैंसर स्क्रीनिंग',
+    location: 'Chandpur Panchayat Bhawan',
   },
 ];

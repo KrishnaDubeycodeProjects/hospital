@@ -325,8 +325,8 @@ export default function AdminQueue() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '18px' }}>🔵</span>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e40af' }}>Active Queue (FIFO)</h3>
-                    <span style={{ fontSize: '11px', color: '#2563eb' }}>Pos #1 must be verified to call</span>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e40af' }}>Waiting Queue (Next in Turn)</h3>
+                    <span style={{ fontSize: '11px', color: '#2563eb' }}>Next patient must be verified before calling</span>
                   </div>
                 </div>
                 <span style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 800, fontSize: '12px', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bfdbfe' }}>

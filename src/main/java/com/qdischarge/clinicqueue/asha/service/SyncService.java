@@ -47,10 +47,43 @@ public class SyncService {
         }
     }
 
-    @Transactional
+    private Integer resolveFamilyUnitId(Integer givenId, Object houseNoObj, String ashaPhone, String rawPhone) {
+        if (givenId != null) {
+            List<Integer> ids = jdbcTemplate.query(
+                "SELECT id FROM clinicqueue.family_units WHERE id = :id",
+                new MapSqlParameterSource("id", givenId),
+                (rs, rn) -> rs.getInt("id")
+            );
+            if (!ids.isEmpty()) return ids.get(0);
+
+            List<Integer> seqIds = jdbcTemplate.query(
+                "SELECT id FROM clinicqueue.family_units WHERE sequential_number = :seq LIMIT 1",
+                new MapSqlParameterSource("seq", givenId),
+                (rs, rn) -> rs.getInt("id")
+            );
+            if (!seqIds.isEmpty()) return seqIds.get(0);
+        }
+        if (houseNoObj != null) {
+            List<Integer> houseIds = jdbcTemplate.query(
+                "SELECT id FROM clinicqueue.family_units WHERE house_number = :h LIMIT 1",
+                new MapSqlParameterSource("h", houseNoObj.toString().trim()),
+                (rs, rn) -> rs.getInt("id")
+            );
+            if (!houseIds.isEmpty()) return houseIds.get(0);
+        }
+        List<Integer> defaultIds = jdbcTemplate.query(
+            "SELECT id FROM clinicqueue.family_units ORDER BY id ASC LIMIT 1",
+            new MapSqlParameterSource(),
+            (rs, rn) -> rs.getInt("id")
+        );
+        if (!defaultIds.isEmpty()) return defaultIds.get(0);
+        return null;
+    }
+
     public Map<String, Object> upload(String ashaPhone, SyncUploadRequest request) {
         int accepted = 0;
         int rejected = 0;
+        String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
         
         if (request.getFamilies() != null) {
             for (Map<String, Object> fam : request.getFamilies()) {
@@ -72,6 +105,7 @@ public class SyncService {
                         MapSqlParameterSource updateParams = new MapSqlParameterSource()
                                 .addValue("interval", interval)
                                 .addValue("ashaPhone", ashaPhone)
+                                .addValue("rawPhone", rawPhone)
                                 .addValue("seq", seq);
                         if (isValidDate) {
                             updateParams.addValue("nextDate", nextDateStr.substring(0, 10));
@@ -102,10 +136,18 @@ public class SyncService {
         if (request.getMembers() != null) {
             for (Map<String, Object> mem : request.getMembers()) {
                 try {
+                    Integer famId = resolveFamilyUnitId(parseSafeId(mem.get("familyUnitId")), mem.get("houseNumber"), ashaPhone, rawPhone);
+                    if (famId == null) {
+                        // Create a default family unit if none exists
+                        String createFamSql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, visit_interval_days, asha_worker_phone, created_at, updated_at) " +
+                                "VALUES ('+919876500000', 'Village Family', 'Chandpur', '1', 1, 15, :ashaPhone, NOW(), NOW()) RETURNING id";
+                        famId = jdbcTemplate.queryForObject(createFamSql, new MapSqlParameterSource("ashaPhone", ashaPhone), Integer.class);
+                    }
+
                     String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, created_at, updated_at) " +
                             "VALUES (:familyId, :name, :dob::date, :age, :gender, :relationship, :phone, NOW(), NOW())";
                     jdbcTemplate.update(sql, new MapSqlParameterSource()
-                            .addValue("familyId", parseSafeId(mem.get("familyUnitId")))
+                            .addValue("familyId", famId)
                             .addValue("name", mem.get("name"))
                             .addValue("dob", mem.get("dob"))
                             .addValue("age", parseSafeId(mem.get("age")))
@@ -123,9 +165,10 @@ public class SyncService {
         if (request.getSurveys() != null) {
             for (Map<String, Object> sur : request.getSurveys()) {
                 try {
+                    Integer famId = resolveFamilyUnitId(parseSafeId(sur.get("familyUnitId")), null, ashaPhone, rawPhone);
                     String offlineId = sur.get("offlineId") != null ? sur.get("offlineId").toString() : UUID.randomUUID().toString();
                     SurveyResponseDto dto = new SurveyResponseDto();
-                    dto.setFamilyUnitId(parseSafeId(sur.get("familyUnitId")));
+                    dto.setFamilyUnitId(famId != null ? famId : 1);
                     dto.setFamilyMemberId(parseSafeId(sur.get("familyMemberId")));
                     dto.setTemplateId(parseSafeId(sur.get("templateId")));
                     dto.setCategoryCode((String) sur.get("categoryCode"));
@@ -145,12 +188,13 @@ public class SyncService {
         if (request.getFollowUps() != null) {
             for (Map<String, Object> fol : request.getFollowUps()) {
                 try {
+                    Integer famId = resolveFamilyUnitId(parseSafeId(fol.get("familyUnitId")), null, ashaPhone, rawPhone);
                     String offlineId = fol.get("offlineId") != null ? fol.get("offlineId").toString() : UUID.randomUUID().toString();
                     String sql = "INSERT INTO clinicqueue.follow_up_tasks (family_unit_id, family_member_id, asha_worker_phone, task_type, title, description, due_date, status, offline_id, created_at) " +
                             "VALUES (:familyUnitId, :memberId, :ashaPhone, :taskType, :title, :description, :dueDate::date, :status, :offlineId, NOW()) " +
                             "ON CONFLICT (offline_id) DO NOTHING";
                     jdbcTemplate.update(sql, new MapSqlParameterSource()
-                            .addValue("familyUnitId", parseSafeId(fol.get("familyUnitId")))
+                            .addValue("familyUnitId", famId != null ? famId : 1)
                             .addValue("memberId", parseSafeId(fol.get("familyMemberId")))
                             .addValue("ashaPhone", ashaPhone)
                             .addValue("taskType", fol.get("taskType"))

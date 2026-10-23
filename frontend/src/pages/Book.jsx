@@ -1233,7 +1233,7 @@ export default function Book() {
 
                 {loadingMembers ? (
                   <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b', fontSize: '13px' }}>
-                    Loading family members from database…
+                    Loading saved family members...
                   </div>
                 ) : (
                   familyMembers.map((member, idx) => {

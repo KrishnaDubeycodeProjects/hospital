@@ -11,6 +11,7 @@ import com.qdischarge.clinicqueue.dto.TokenDto;
 import com.qdischarge.clinicqueue.dto.TravelRangeDto;
 import com.qdischarge.clinicqueue.geo.GeoDistanceService;
 import com.qdischarge.clinicqueue.geo.MapMyIndiaRoutingService;
+import com.qdischarge.clinicqueue.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +40,7 @@ class QueueEdgeCasesCriticalTest {
     private BotMessages botMessages;
     private WaSessionService waSessionService;
     private WhatsAppService whatsAppService;
+    private JwtService jwtService;
 
     private QueueManagerService queueManagerService;
     private CounterAssignmentService counterAssignmentService;
@@ -56,6 +58,7 @@ class QueueEdgeCasesCriticalTest {
         botMessages = new BotMessages();
         waSessionService = mock(WaSessionService.class);
         whatsAppService = mock(WhatsAppService.class);
+        jwtService = mock(JwtService.class);
 
         HospitalDto mockHospital = HospitalDto.builder()
                 .id(1)
@@ -70,7 +73,7 @@ class QueueEdgeCasesCriticalTest {
         queueManagerService = new QueueManagerService(
                 jdbc, appProperties, hospitalService, hospitalDepartmentService,
                 geoDistanceService, otpService, mapMyIndiaRoutingService,
-                twilioStudioCallService, botMessages, waSessionService, whatsAppService);
+                twilioStudioCallService, botMessages, waSessionService, whatsAppService, jwtService);
 
         counterAssignmentService = new CounterAssignmentService(
                 jdbc, queueManagerService, hospitalDepartmentService,

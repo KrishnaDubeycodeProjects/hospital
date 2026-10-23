@@ -6,6 +6,7 @@ import {
   FollowUpTask,
   ChildVaccinationRecord,
   AshaMeetingRecord,
+  AnmSessionFolder,
   OutboxItem,
 } from '../types/storage';
 import { OfflineStorageService } from '../storage/OfflineStorageService';
@@ -18,6 +19,7 @@ interface OfflineDataContextType {
   surveys: SurveyResponse[];
   childVaccinations: ChildVaccinationRecord[];
   meetings: AshaMeetingRecord[];
+  anmSessions: AnmSessionFolder[];
   outbox: OutboxItem[];
   pendingSyncCount: number;
   isLoading: boolean;
@@ -38,6 +40,17 @@ interface OfflineDataContextType {
   saveMeeting: (
     meeting: Omit<AshaMeetingRecord, 'id' | 'createdAt'>
   ) => Promise<AshaMeetingRecord>;
+  createAnmSession: (data: {
+    title: string;
+    category: 'CHILD_VAX' | 'ANC' | 'NCD';
+    notes?: string;
+    studyType?: string;
+    location?: string;
+    date?: string;
+    qrCodeValue?: string;
+  }) => Promise<AnmSessionFolder>;
+  receiveRecordsInAnmSession: (sessionIdentifier: string, count: number) => Promise<void>;
+  deleteAnmSession: (id: string) => Promise<void>;
   toggleFollowUp: (id: string) => Promise<void>;
   triggerSync: () => Promise<SyncResult>;
   simulateMissedReferral: (
@@ -77,6 +90,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
   const [childVaccinations, setChildVaccinations] = useState<ChildVaccinationRecord[]>([]);
   const [meetings, setMeetings] = useState<AshaMeetingRecord[]>([]);
+  const [anmSessions, setAnmSessions] = useState<AnmSessionFolder[]>([]);
   const [outbox, setOutbox] = useState<OutboxItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -88,13 +102,14 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const refreshData = useCallback(async () => {
     try {
       await OfflineStorageService.initialize();
-      const [fams, mems, flws, srvs, vaxs, mtgs, obox] = await Promise.all([
+      const [fams, mems, flws, srvs, vaxs, mtgs, anmSess, obox] = await Promise.all([
         OfflineStorageService.getFamilies(),
         OfflineStorageService.getMembers(),
         OfflineStorageService.getFollowUps(),
         OfflineStorageService.getSurveys(),
         OfflineStorageService.getChildVaccinations(),
         OfflineStorageService.getMeetings(),
+        OfflineStorageService.getAnmSessions(),
         OfflineStorageService.getOutbox(),
       ]);
       setFamilies(fams);
@@ -103,6 +118,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       setSurveys(srvs);
       setChildVaccinations(vaxs);
       setMeetings(mtgs);
+      setAnmSessions(anmSess);
       setOutbox(obox);
     } catch (e) {
       console.error('Error refreshing offline data:', e);
@@ -338,6 +354,46 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     return updated;
   };
 
+  const createAnmSession = async (data: {
+    title: string;
+    category: 'CHILD_VAX' | 'ANC' | 'NCD';
+    notes?: string;
+    studyType?: string;
+    location?: string;
+    date?: string;
+    qrCodeValue?: string;
+  }): Promise<AnmSessionFolder> => {
+    const codeSuffix =
+      data.category === 'CHILD_VAX' ? 'VAX' : data.category === 'ANC' ? 'ANC' : 'NCD';
+    const newSession: AnmSessionFolder = {
+      id: `sess-${Date.now()}`,
+      title: data.title.trim(),
+      category: data.category,
+      date: data.date || new Date().toLocaleDateString('en-GB'),
+      qrCodeValue:
+        data.qrCodeValue || `ANM-QR-${codeSuffix}-${Math.floor(1000 + Math.random() * 9000)}`,
+      recordsCount: 0,
+      studyType: data.studyType || `${data.category} Field Study`,
+      notes: data.notes || '',
+      location: data.location || 'Chandpur Health Centre',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const saved = await OfflineStorageService.saveAnmSession(newSession);
+    await refreshData();
+    return saved;
+  };
+
+  const receiveRecordsInAnmSession = async (sessionIdentifier: string, count: number) => {
+    await OfflineStorageService.updateAnmSessionRecords(sessionIdentifier, count);
+    await refreshData();
+  };
+
+  const deleteAnmSession = async (id: string) => {
+    await OfflineStorageService.deleteAnmSession(id);
+    await refreshData();
+  };
+
   const resetToDefaults = async () => {
     setIsLoading(true);
     await OfflineStorageService.clearAllData();
@@ -355,6 +411,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         surveys,
         childVaccinations,
         meetings,
+        anmSessions,
         outbox,
         pendingSyncCount,
         isLoading,
@@ -367,6 +424,9 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         submitSurvey,
         updateChildVaccine,
         saveMeeting,
+        createAnmSession,
+        receiveRecordsInAnmSession,
+        deleteAnmSession,
         toggleFollowUp,
         triggerSync,
         simulateMissedReferral,

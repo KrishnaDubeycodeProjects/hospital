@@ -340,7 +340,11 @@ export default function DoctorConsultation() {
       const data = await resp.json();
       if (data.success) {
         const displayLabel = data.data?.tokenCode || (data.data?.dailyNumber ? `Token #${data.data.dailyNumber}` : 'Buffer Token');
-        toast.success(`Patient ${displayLabel} (${testPatientName}) injected into queue as ${targetStatus.toUpperCase()}!`);
+        toast.success(`Patient ${displayLabel} (${testPatientName}) added to queue as ${targetStatus.toUpperCase()}!`);
+        if (data.data?.id) {
+          setTestSelectedTokenId(String(data.data.id));
+        }
+        setShowQueueBoard(true);
         await loadData();
       } else {
         toast.error(data.message || 'Failed to inject test patient');
@@ -673,33 +677,42 @@ export default function DoctorConsultation() {
                   <option value="serving">🪑 Initial State: In Consultation</option>
                   <option value="missed">🔴 Initial State: Missed Turn</option>
                 </Select>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '4px' }}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={testCreating}
+                  onClick={() => handleAddTestPatient(testTargetStatus)}
+                  style={{ width: '100%', fontWeight: 700, fontSize: '12px', marginTop: '2px' }}
+                >
+                  ➕ Add to Queue ({testTargetStatus.toUpperCase()})
+                </Button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '2px' }}>
                   <Button
                     size="sm"
-                    variant="primary"
+                    variant="ghost"
                     loading={testCreating}
                     onClick={() => handleAddTestPatient('waiting')}
-                    style={{ fontSize: '11px', fontWeight: 700 }}
+                    style={{ fontSize: '11px', fontWeight: 700, border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', color: '#1e40af' }}
                   >
-                    ? Waiting
+                    🔵 Waiting
                   </Button>
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="ghost"
                     loading={testCreating}
                     onClick={() => handleAddTestPatient('frozen')}
-                    style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#CCFBF1', color: '#0F766E' }}
+                    style={{ fontSize: '11px', fontWeight: 700, border: '1px solid #99f6e4', backgroundColor: '#f0fdfa', color: '#0f766e' }}
                   >
-                    ?? Frozen
+                    ❄️ Frozen
                   </Button>
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="ghost"
                     loading={testCreating}
                     onClick={() => handleAddTestPatient('reserved')}
-                    style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FEF3C7', color: '#92400E' }}
+                    style={{ fontSize: '11px', fontWeight: 700, border: '1px solid #fde68a', backgroundColor: '#fffbeb', color: '#92400e' }}
                   >
-                    ?? Reserved
+                    🟡 Reserved
                   </Button>
                 </div>
               </div>
@@ -719,22 +732,22 @@ export default function DoctorConsultation() {
                   <option value="">-- Choose Token from Any Queue --</option>
                   {(currentQueue?.frozen || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      ?? {formatTokenLabel(t, idx)} - {t.name} (Frozen Buffer - {t.distanceKm ? t.distanceKm + 'km' : 'Far'})
+                      ❄️ {formatTokenLabel(t, idx)} - {t.name} (Frozen Buffer - {t.distanceKm ? t.distanceKm + 'km' : 'Far'})
                     </option>
                   ))}
                   {(currentQueue?.tokens?.filter((t) => t.status === 'waiting') || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      ?? {formatTokenLabel(t, idx)} - {t.name} (Waiting FIFO - Pos #{t.queuePosition || idx + 1})
+                      🔵 {formatTokenLabel(t, idx)} - {t.name} (Waiting FIFO - Pos #{t.queuePosition || idx + 1})
                     </option>
                   ))}
                   {(currentQueue?.reserved || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      ?? {formatTokenLabel(t, idx)} - {t.name} (Reserved Buffer)
+                      🟡 {formatTokenLabel(t, idx)} - {t.name} (Reserved Buffer)
                     </option>
                   ))}
                   {(currentQueue?.missed || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      ?? {formatTokenLabel(t, idx)} - {t.name} (Missed Queue)
+                      🔴 {formatTokenLabel(t, idx)} - {t.name} (Missed Queue)
                     </option>
                   ))}
                 </Select>
@@ -747,7 +760,7 @@ export default function DoctorConsultation() {
                     onClick={() => handleDirectCheckIn(testSelectedTokenId)}
                     style={{ fontSize: '12px', fontWeight: 700 }}
                   >
-                    ? 1-Click Check-In
+                    ✅ 1-Click Check-In
                   </Button>
                   <Button
                     size="sm"
@@ -756,7 +769,7 @@ export default function DoctorConsultation() {
                     onClick={() => handleUnfreeze(testSelectedTokenId)}
                     style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#E0F2FE', color: '#0369A1' }}
                   >
-                    ?? Ready for Consultation
+                    ⚡ Move to Waiting
                   </Button>
                 </div>
 
@@ -767,7 +780,7 @@ export default function DoctorConsultation() {
                   onClick={() => handleCallPatient(testSelectedTokenId)}
                   style={{ width: '100%', fontSize: '12.5px', fontWeight: 700 }}
                 >
-                  ?? Call Selected Patient
+                  📞 Call Selected Patient to Chair
                 </Button>
               </div>
             </div>

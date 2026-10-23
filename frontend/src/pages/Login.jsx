@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { doctorApi, otpApi, queueApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -31,6 +31,8 @@ const ROLES = [
 export default function Login() {
   const { role = 'patient' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTarget = searchParams.get('redirect') ? decodeURIComponent(searchParams.get('redirect')) : null;
 
   return (
     <div className="pro-auth-container">
@@ -90,7 +92,7 @@ export default function Login() {
                     key={t.key}
                     type="button"
                     className={`pro-role-tab ${isActive ? 'active' : ''} ${t.key === 'asha' ? 'asha' : ''}`}
-                    onClick={() => navigate(`/login/${t.key}`)}
+                    onClick={() => navigate(redirectTarget ? `/login/${t.key}?redirect=${encodeURIComponent(redirectTarget)}` : `/login/${t.key}`)}
                     title={t.label}
                   >
                     <IconComp size={15} />
@@ -262,7 +264,7 @@ function OtpAuthForm({ kind }) {
       if (kind === 'patient') {
         login('PATIENT', res.token);
         toast.success('Authenticated successfully! Welcome to AarogyaFlow.');
-        navigate('/patient');
+        navigate(redirectTarget || '/patient');
         return;
       }
 
@@ -450,7 +452,7 @@ function OtpAuthForm({ kind }) {
             className={`pro-primary-btn ${kind === 'doctor' ? '' : 'emerald'}`}
           >
             {verifying ? (
-              <span>Verifying Code with Backend...</span>
+              <span>Verifying code...</span>
             ) : (
               <>
                 <CheckCircle2 size={18} />
@@ -489,7 +491,7 @@ function OtpAuthForm({ kind }) {
           {sandboxOtp && (
             <div className="pro-sandbox-pill">
               <div>
-                <span>Backend OTP: </span>
+                <span>Demo OTP: </span>
                 <span className="pro-sandbox-code">{sandboxOtp}</span>
               </div>
               <button
@@ -750,7 +752,7 @@ function DemoCredentialsQuickBar() {
       const res = await otpApi.verify('+919100000099', '123456');
       login('PATIENT', res.token);
       toast.success('Signed in as Ramesh Kumar (Demo)');
-      navigate('/patient');
+      navigate(redirectTarget || '/patient');
     } catch (e) {
       toast.error(e.message || 'Error signing in demo patient');
     }

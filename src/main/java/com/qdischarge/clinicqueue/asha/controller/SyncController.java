@@ -25,10 +25,10 @@ public class SyncController {
     private final CurrentUser currentUser;
 
     @PostMapping("/upload")
-    public ResponseEntity<Void> upload(@RequestBody SyncUploadRequest body) {
+    public ResponseEntity<Map<String, Object>> upload(@RequestBody SyncUploadRequest body) {
         String phone = currentUser.requireAshaPhone();
-        syncService.upload(phone, body);
-        return ResponseEntity.ok().build();
+        Map<String, Object> result = syncService.upload(phone, body);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/download")

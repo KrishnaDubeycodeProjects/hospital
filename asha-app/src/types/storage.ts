@@ -71,6 +71,20 @@ export interface ChildVaccinationRecord {
   updatedAt: string;
 }
 
+export interface AnmSessionFolder {
+  id: string;
+  title: string;
+  category: 'CHILD_VAX' | 'ANC' | 'NCD';
+  date: string;
+  qrCodeValue: string;
+  recordsCount: number;
+  studyType?: string;
+  notes?: string;
+  location?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface AshaMeetingRecord {
   id: string;
   meetingDate: string;

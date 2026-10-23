@@ -2,6 +2,7 @@ package com.qdischarge.clinicqueue.controller;
 
 import com.qdischarge.clinicqueue.dto.AbhaMedicalRecordDto;
 import com.qdischarge.clinicqueue.dto.AccessGrantDto;
+import com.qdischarge.clinicqueue.dto.AccessRequestDto;
 import com.qdischarge.clinicqueue.dto.FamilyMemberDto;
 import com.qdischarge.clinicqueue.dto.PatientDocumentDto;
 import com.qdischarge.clinicqueue.security.CurrentUser;
@@ -119,6 +120,37 @@ public class PatientController {
                 .contentType(MediaType.parseMediaType(file.contentType()))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.fileName() + "\"")
                 .body(file.data());
+    }
+
+    /** Public detail endpoint for resolving a doctor's QR access-request code. */
+    @GetMapping("/public/access/{code}")
+    public ResponseEntity<Map<String, Object>> publicAccessDetail(@PathVariable String code) {
+        AccessRequestDto req = accessService.getByCode(code.trim().toUpperCase());
+        if (req == null) {
+            return ResponseEntity.status(404).body(msg("Access request not found or expired."));
+        }
+        return ResponseEntity.ok(ok(req));
+    }
+
+    /** Direct public claim endpoint for QR scanning when unauthenticated; accepts patient phone number and dispatches WhatsApp notice. */
+    @PostMapping("/public/access/{code}/claim")
+    public ResponseEntity<Map<String, Object>> publicClaimAccess(
+            @PathVariable String code,
+            @RequestBody Map<String, String> body) {
+        String phone = body != null ? body.get("phone") : null;
+        if (phone == null || phone.trim().isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Patient phone number is required."));
+        }
+        try {
+            AccessGrantDto grant = accessService.claim(code.trim().toUpperCase(), phone.trim());
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "grant", grant,
+                    "message", "Access successfully granted! WhatsApp confirmation notice dispatched."
+            ));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(msg(e.getMessage()));
+        }
     }
 
     /** Claims a doctor's access-request code (from their QR) -- grants that doctor access and fires the WhatsApp notice. */

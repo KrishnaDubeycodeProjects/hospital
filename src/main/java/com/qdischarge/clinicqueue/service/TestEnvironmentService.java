@@ -301,14 +301,24 @@ public class TestEnvironmentService {
         tokenParams.put("travelMins", travelMinutes != null ? travelMinutes : (Object) java.sql.Types.NULL);
         tokenParams.put("tokenCode", tokenCode);
 
+        boolean isVerified = "waiting".equals(st) || "serving".equals(st);
+        tokenParams.put("isVerified", isVerified);
+
         Integer id = jdbc.queryForObject(
                 """
                 INSERT INTO tokens (name, age, gender, category, phone, hospital_id, status, daily_number,
-                                   distance_km, travel_minutes, selected_travel_minutes, target_arrival_time, token_code, created_at)
+                                   distance_km, travel_minutes, selected_travel_minutes, target_arrival_time, token_code,
+                                   is_verified, verified_at, served_at, missed_at, completed_at, session_step, created_at)
                 VALUES (:name, :age, :gender, :cat, :phone, :hId, :status, :dailyNumber,
                         :dist, :travelMins, :travelMins,
                         CASE WHEN :travelMins IS NOT NULL THEN NOW() + (:travelMins || ' minutes')::INTERVAL ELSE NULL END,
                         :tokenCode,
+                        :isVerified,
+                        CASE WHEN :isVerified THEN NOW() ELSE NULL END,
+                        CASE WHEN :status = 'serving' THEN NOW() WHEN :status = 'completed' THEN NOW() - INTERVAL '15 minutes' ELSE NULL END,
+                        CASE WHEN :status = 'missed' THEN NOW() ELSE NULL END,
+                        CASE WHEN :status = 'completed' THEN NOW() ELSE NULL END,
+                        'confirmed',
                         NOW())
                 RETURNING id
                 """,
@@ -316,7 +326,7 @@ public class TestEnvironmentService {
                 Integer.class
         );
 
-        log.info("?? Injected test token #{} with status '{}', distance {} km, travel {} mins, code {}", id, st, distanceKm, travelMinutes, tokenCode);
+        log.info("🧪 Injected test token #{} with status '{}', distance {} km, travel {} mins, code {}", id, st, distanceKm, travelMinutes, tokenCode);
         Map<String, Object> res = new LinkedHashMap<>();
         res.put("id", id);
         res.put("tokenId", id);

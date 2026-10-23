@@ -8,9 +8,30 @@ export default function PatientAccess() {
   const [active, setActive] = useState(null);
   const [history, setHistory] = useState(null);
   const [code, setCode] = useState('');
+  const [requestDetails, setRequestDetails] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    const cleanCode = (code || '').trim().toUpperCase();
+    if (!cleanCode || cleanCode.length < 4) {
+      setRequestDetails(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/patients/public/access/${encodeURIComponent(cleanCode)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!cancelled && json) {
+          setRequestDetails(json.data || json);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
 
   async function load() {
     try {
@@ -55,11 +76,35 @@ export default function PatientAccess() {
     setClaiming(true);
     try {
       await patientApi.acceptAccess(cleanCode);
-      toast.success('Access granted successfully! A confirmation WhatsApp message has been dispatched to your phone.');
+      toast.success('Access granted successfully! Confirmation WhatsApp message dispatched to your registered phone.');
       setCode('');
+      setRequestDetails(null);
       setScanOpen(false);
       load();
     } catch (err) {
+      try {
+        const phone = prompt('To complete authorization and receive your WhatsApp notification, please enter your mobile number (+91 or 10 digits):');
+        if (phone && phone.trim()) {
+          const res = await fetch(`/api/patients/public/access/${encodeURIComponent(cleanCode)}/claim`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: phone.trim() }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            toast.success(`Access granted! WhatsApp notification dispatched to ${phone.trim()}.`);
+            setCode('');
+            setRequestDetails(null);
+            setScanOpen(false);
+            load();
+            return;
+          } else {
+            toast.error(data.message || 'Failed to authorize access');
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('Fallback claim error:', fallbackErr);
+      }
       toast.error(err.message || 'Invalid or expired access code');
     } finally {
       setClaiming(false);
@@ -126,6 +171,55 @@ export default function PatientAccess() {
             📷 Scan QR
           </button>
         </div>
+
+        {requestDetails && (
+          <div
+            style={{
+              backgroundColor: '#F0FDF4',
+              border: '1.5px solid #86EFAC',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '800', color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                🛡️ ABDM Doctor Authorization Request
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '6px', border: '1px solid #86EFAC' }}>
+                Code: {code}
+              </span>
+            </div>
+            <div style={{ fontSize: '12.5px', color: '#166534', lineHeight: 1.5 }}>
+              Doctor <strong>{requestDetails.doctorName || 'Consulting Physician'}</strong> at <strong>{requestDetails.hospitalName || 'Aarogya Flow General Hospital'}</strong> is requesting access to your medical records for your consultation.
+            </div>
+            <button
+              type="button"
+              disabled={claiming}
+              onClick={() => accept(code)}
+              style={{
+                backgroundColor: '#16A34A',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '9px 14px',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                marginTop: '4px',
+              }}
+            >
+              {claiming ? 'Authorizing...' : '✅ Authorize & Send WhatsApp Notification'}
+            </button>
+          </div>
+        )}
 
         <form
           onSubmit={(e) => {

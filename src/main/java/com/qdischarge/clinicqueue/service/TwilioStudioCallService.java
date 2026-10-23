@@ -2,12 +2,12 @@ package com.qdischarge.clinicqueue.service;
 
 import com.qdischarge.clinicqueue.bot.Lang;
 import com.qdischarge.clinicqueue.config.AppProperties;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -18,34 +18,33 @@ import org.springframework.web.client.RestTemplate;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
- * Places the "your token is about to be called, head to the hospital now"
- * voice call, via Twilio's plain Voice Calls API
- * (https://api.twilio.com/2010-04-01/Accounts/{AccountSid}/Calls.json) with
- * inline TwiML (a "Twiml" param, not a Url/Studio Flow) -- plain REST
- * (RestTemplate + Basic Auth), same pattern as OtpService's Twilio Verify/
- * Messages calls, rather than pulling in the Twilio Java SDK for one
- * endpoint. No Studio Flow or public callback URL needed: the TwiML
- * (a <Say> of the message text) is handed to Twilio directly in the
- * request, so Account SID + Auth Token + caller number is enough.
+ * Places automated voice calls via Twilio Voice API.
+ * - triggerBookingConfirmationCall: Spoken confirmation immediately at appointment booking
+ *   (with special immediate prompt if patient is #1 in line / 0 people ahead).
+ * - triggerHeadToHospitalCall: Spoken "head to the hospital now" prompt when patient's turn is near.
  *
- * Fired alongside the WhatsApp notification from
- * QueueManagerService#runTreatmentTimingTick -- both channels, same
- * trigger, same moment.
- *
- * No-ops (logs and returns) rather than dialing anyone when calling is
- * disabled or the caller number isn't configured -- mirrors OtpService's
- * "fails cleanly on dummy credentials" default, so a fresh checkout never
- * places a real phone call.
+ * In serverless environments like AWS Lambda, background threads are frozen when the HTTP handler
+ * returns, so calls are executed synchronously before Lambda pauses the container.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class TwilioStudioCallService {
 
     private final AppProperties appProperties;
     private final RestTemplate restTemplate;
+    private final Executor callExecutor;
+
+    public TwilioStudioCallService(
+            AppProperties appProperties,
+            RestTemplate restTemplate,
+            @Qualifier("callExecutor") Executor callExecutor) {
+        this.appProperties = appProperties;
+        this.restTemplate = restTemplate;
+        this.callExecutor = callExecutor;
+    }
 
     private boolean isConfigured() {
         if (!appProperties.isTwilioCallEnabled()) {
@@ -56,24 +55,54 @@ public class TwilioStudioCallService {
     }
 
     /**
+     * Places the booking confirmation voice call notifying the patient that their appointment has been booked.
+     * If peopleAhead == 0 (first in line), instructs them to head to hospital immediately!
+     */
+    public void triggerBookingConfirmationCall(String toPhone, String patientName, String tokenCode,
+                                               String department, String hospital, int peopleAhead, Lang lang) {
+        String spokenMessage = buildBookingSpokenMessage(patientName, tokenCode, department, hospital, peopleAhead, lang);
+        triggerCall(toPhone, spokenMessage, lang);
+    }
+
+    public void triggerBookingConfirmationCall(String toPhone, String patientName, String tokenCode,
+                                               String department, String hospital, Lang lang) {
+        triggerBookingConfirmationCall(toPhone, patientName, tokenCode, department, hospital, 0, lang);
+    }
+
+    /**
      * Places the "your token is about to be called, head to the hospital now" voice call
      * with clean natural spoken prompt (without raw emojis or markdown).
      */
-    @Async("callExecutor")
     public void triggerHeadToHospitalCall(String toPhone, String patientName, String tokenCode,
                                           String department, String hospital, int peopleAhead, Lang lang) {
-        String spokenMessage = buildSpokenMessage(patientName, tokenCode, department, hospital, peopleAhead, lang);
-        triggerHeadToHospitalCall(toPhone, spokenMessage, lang);
+        String spokenMessage = buildHeadToHospitalSpokenMessage(patientName, tokenCode, department, hospital, peopleAhead, lang);
+        triggerCall(toPhone, spokenMessage, lang);
     }
 
-    /** Fire-and-forget: never blocks or fails the caller's request thread on a slow/unreachable Twilio. */
-    @Async("callExecutor")
     public void triggerHeadToHospitalCall(String toPhone, String message, Lang lang) {
+        triggerCall(toPhone, message, lang);
+    }
+
+    /**
+     * Dispatches the call. In serverless AWS Lambda, background thread pools are frozen
+     * when the handler returns, so outbound API calls are run synchronously before container pause.
+     */
+    public void triggerCall(String toPhone, String message, Lang lang) {
         if (!isConfigured()) {
             log.info("📵 Twilio call skipped for {} (calling disabled or caller number not configured).",
                     formatE164Phone(toPhone));
             return;
         }
+
+        if (System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null) {
+            doPlaceCall(toPhone, message, lang);
+            return;
+        }
+
+        callExecutor.execute(() -> doPlaceCall(toPhone, message, lang));
+    }
+
+    private void doPlaceCall(String toPhone, String message, Lang lang) {
         String e164ToPhone = formatE164Phone(toPhone);
         if (e164ToPhone.isEmpty()) {
             log.warn("⚠️ Cannot place Twilio call: invalid phone number: {}", toPhone);
@@ -94,8 +123,9 @@ public class TwilioStudioCallService {
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             headers.setBasicAuth(appProperties.getTwilioAccountSid(), appProperties.getTwilioAuthToken());
 
-            restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
-            log.info("📞 Twilio voice call successfully placed to {}", e164ToPhone);
+            ResponseEntity<Map> resp = restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
+            log.info("📞 Twilio voice call placed successfully to {} (status: {}, sid: {})",
+                    e164ToPhone, resp.getStatusCode(), resp.getBody() != null ? resp.getBody().get("sid") : "n/a");
         } catch (RestClientException e) {
             log.error("❌ Twilio Call error for {}: {}", e164ToPhone, extractError(e));
         } catch (Exception e) {
@@ -104,9 +134,51 @@ public class TwilioStudioCallService {
     }
 
     /**
-     * Generates a clean, human-friendly spoken text for text-to-speech.
+     * Generates a clean, human-friendly spoken text for booking confirmation.
+     * Specially tailored if peopleAhead <= 0 (Number 1 / first in line).
      */
-    public String buildSpokenMessage(String patientName, String tokenCode, String department, String hospital, int peopleAhead, Lang lang) {
+    public String buildBookingSpokenMessage(String patientName, String tokenCode, String department, String hospital, int peopleAhead, Lang lang) {
+        String pName = (patientName != null && !patientName.isBlank() && !"Patient".equalsIgnoreCase(patientName))
+                ? patientName : "Patient";
+        String dept = (department != null && !department.isBlank()) ? department : "OPD";
+        String hosp = (hospital != null && !hospital.isBlank()) ? hospital : "Hospital";
+        String code = (tokenCode != null && !tokenCode.isBlank()) ? tokenCode.replace("AF-", "") : "";
+
+        if (peopleAhead <= 0) {
+            return switch (lang != null ? lang : Lang.EN) {
+                case HI -> String.format(
+                        "नमस्ते %s। आरोग्यफ़्लो से सूचना। %s के %s विभाग में आपकी अपॉइंटमेंट की पुष्टि हो गई है। आपका टोकन नंबर %s है, और आप कतार में पहले स्थान पर हैं! कृपया तुरंत अस्पताल के लिए प्रस्थान करें। धन्यवाद।",
+                        pName, hosp, dept, code);
+                case MR -> String.format(
+                        "नमस्कार %s. आरोग्यफ्लो कडून सूचना. %s च्या %s विभागासाठी तुमची अपॉइंटमेंट निश्चित झाली आहे. तुमचा टोकन क्रमांक %s आहे, आणि तुम्ही रांगेत पहिल्या क्रमांकावर आहात! कृपया त्वरित रुग्णालयासाठी निघा. धन्यवाद.",
+                        pName, hosp, dept, code);
+                case EN -> String.format(
+                        "Hello %s. Your appointment at %s for %s has been confirmed. Your token number is %s, and you are first in line! Please head to the hospital now. Thank you.",
+                        pName, hosp, dept, code);
+            };
+        }
+
+        return switch (lang != null ? lang : Lang.EN) {
+            case HI -> String.format(
+                    "नमस्ते %s। आरोग्यफ़्लो से सूचना। %s के %s विभाग में आपकी अपॉइंटमेंट की पुष्टि हो गई है। आपका टोकन नंबर %s है। आपके आगे %d मरीज़ हैं। धन्यवाद।",
+                    pName, hosp, dept, code, peopleAhead);
+            case MR -> String.format(
+                    "नमस्कार %s. आरोग्यफ्लो कडून सूचना. %s च्या %s विभागासाठी तुमची अपॉइंटमेंट निश्चित झाली आहे. तुमचा टोकन क्रमांक %s आहे. तुमच्या पुढे %d रुग्ण आहेत. धन्यवाद.",
+                    pName, hosp, dept, code, peopleAhead);
+            case EN -> String.format(
+                    "Hello %s. This is an automated update from AarogyaFlow. Your appointment at %s for %s has been confirmed. Your token number is %s. There are %d patients ahead of you. Thank you.",
+                    pName, hosp, dept, code, peopleAhead);
+        };
+    }
+
+    public String buildBookingSpokenMessage(String patientName, String tokenCode, String department, String hospital, Lang lang) {
+        return buildBookingSpokenMessage(patientName, tokenCode, department, hospital, 0, lang);
+    }
+
+    /**
+     * Generates a clean, human-friendly spoken text for text-to-speech when heading to hospital.
+     */
+    public String buildHeadToHospitalSpokenMessage(String patientName, String tokenCode, String department, String hospital, int peopleAhead, Lang lang) {
         String pName = (patientName != null && !patientName.isBlank() && !"Patient".equalsIgnoreCase(patientName))
                 ? patientName : "Patient";
         String dept = (department != null && !department.isBlank()) ? department : "OPD";
@@ -124,6 +196,11 @@ public class TwilioStudioCallService {
                     "Hello %s. This is an automated update from AarogyaFlow. Your token number %s for %s at %s is ready soon. There are %d patients ahead of you. Please head to the hospital now. Thank you.",
                     pName, code, dept, hosp, peopleAhead);
         };
+    }
+
+    /** Backwards-compatible alias for buildHeadToHospitalSpokenMessage */
+    public String buildSpokenMessage(String patientName, String tokenCode, String department, String hospital, int peopleAhead, Lang lang) {
+        return buildHeadToHospitalSpokenMessage(patientName, tokenCode, department, hospital, peopleAhead, lang);
     }
 
     /** Twilio TTS locale for <Say>; Marathi has no dedicated classic voice, so it falls back to Hindi. */
@@ -154,7 +231,7 @@ public class TwilioStudioCallService {
                 language, escaped, language, escaped);
     }
 
-    private String formatE164Phone(String phone) {
+    public String formatE164Phone(String phone) {
         if (phone == null) return "";
         String clean = phone.replaceAll("[^0-9+]", "");
         if (clean.startsWith("+")) return clean;
@@ -170,4 +247,3 @@ public class TwilioStudioCallService {
         return e.getMessage();
     }
 }
-

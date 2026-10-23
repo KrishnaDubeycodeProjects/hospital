@@ -58,43 +58,67 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [allRegisterFilter, setAllRegisterFilter] = useState<'all' | 'pregnancy' | 'child' | 'other'>('all');
 
   // Map local storage families to HouseholdDot items for the Suchi Grid
-  const dots: HouseholdDot[] = families.map((fam) => {
-    const famMembers = members.filter((m) => m.familyUnitId === fam.id);
-    const hasPreg = famMembers.some((m) => m.gender === 'Female' && m.isPregnant && (!m.age || m.age >= 12)) || (fam.hasPregnancy && famMembers.some(m => m.gender === 'Female'));
-    const hasChild = famMembers.some((m) => m.isChild || (m.age && m.age <= 5)) || fam.hasChild;
-    const hasDisease = famMembers.some((m) => m.hasChronicCondition || m.isNcdPatient) || fam.hasDisease;
+  // Strictly constrain to the official 24-village houses (01 to 24)
+  const dots: HouseholdDot[] = families
+    .filter((fam) => {
+      const num = Number(fam.houseNumber) || fam.sequentialNumber;
+      return num >= 1 && num <= 24;
+    })
+    .sort((a, b) => (Number(a.houseNumber) || a.sequentialNumber) - (Number(b.houseNumber) || b.sequentialNumber))
+    .map((fam) => {
+      const famMembers = members.filter((m) => m.familyUnitId === fam.id);
+      const hasPreg = famMembers.some((m) => m.gender === 'Female' && m.isPregnant && (!m.age || m.age >= 12)) || (fam.hasPregnancy && famMembers.some(m => m.gender === 'Female'));
+      const hasChild = famMembers.some((m) => m.isChild || (m.age && m.age <= 5)) || fam.hasChild;
+      const hasDisease = famMembers.some((m) => m.hasChronicCondition || m.isNcdPatient) || fam.hasDisease;
 
-    let status: HouseholdDot['status'] = (fam.status as HouseholdDot['status']) || 'noData';
-    if (fam.visitIntervalDays === 7) status = '7days';
-    else if (fam.visitIntervalDays === 15) status = '15days';
-    else if (fam.visitIntervalDays === 30) status = '30days';
-    else if (fam.status === '7days') status = '7days';
-    else if (fam.status === '15days') status = '15days';
-    else if (fam.status === '30days') status = '30days';
-    else if (fam.status === 'visited') status = 'visited';
-    else if (fam.status === 'noData') status = 'noData';
+      let status: HouseholdDot['status'] = (fam.status as HouseholdDot['status']) || 'noData';
+      if (fam.visitIntervalDays === 7) status = '7days';
+      else if (fam.visitIntervalDays === 15) status = '15days';
+      else if (fam.visitIntervalDays === 30) status = '30days';
+      else if (fam.status === '7days') status = '7days';
+      else if (fam.status === '15days') status = '15days';
+      else if (fam.status === '30days') status = '30days';
+      else if (fam.status === 'visited') status = 'visited';
+      else if (fam.status === 'noData') status = 'noData';
 
-    // Check if family has beneficiaries matching active activity switch
-    let matchesSection = true;
-    if (activeSection === 'Pregnancy') matchesSection = Boolean(hasPreg);
-    else if (activeSection === 'Child') matchesSection = Boolean(hasChild);
-    else if (activeSection === 'OtherServices') matchesSection = Boolean(hasDisease || famMembers.length > 0);
+      // Check if family has beneficiaries matching active activity switch
+      let matchesSection = true;
+      if (activeSection === 'Pregnancy') matchesSection = Boolean(hasPreg);
+      else if (activeSection === 'Child') matchesSection = Boolean(hasChild);
+      else if (activeSection === 'OtherServices') matchesSection = Boolean(hasDisease || famMembers.length > 0);
 
-    return {
-      id: Number(fam.houseNumber) || fam.sequentialNumber || 1,
-      houseNo: Number(fam.houseNumber) || fam.sequentialNumber || 1,
-      familyName: fam.headName,
-      totalMembers: famMembers.length || fam.totalMembers || 4,
-      lastVisited: fam.lastVisitedAt || '5 दिन पूर्व',
-      nextVisit: fam.nextVisitDate || '2 दिन शेष',
-      status: matchesSection ? status : 'noData',
-      sectionData: {
-        pregnancy: Boolean(hasPreg),
-        child: Boolean(hasChild),
-        disease: Boolean(hasDisease),
-      },
-    };
-  });
+      return {
+        id: Number(fam.houseNumber) || fam.sequentialNumber || 1,
+        houseNo: Number(fam.houseNumber) || fam.sequentialNumber || 1,
+        familyName: fam.headName,
+        totalMembers: famMembers.length || fam.totalMembers || 4,
+        lastVisited: fam.lastVisitedAt || '5 दिन पूर्व',
+        nextVisit: fam.nextVisitDate || '2 दिन शेष',
+        status: matchesSection ? status : 'noData',
+        sectionData: {
+          pregnancy: Boolean(hasPreg),
+          child: Boolean(hasChild),
+          disease: Boolean(hasDisease),
+        },
+        familyUnitId: fam.id,
+        primaryPhone: fam.primaryPhone || '+91 98765 00000',
+        villageName: fam.villageName || 'चाँदपुर गाँव',
+        membersList: famMembers.map((m) => ({
+          id: m.id,
+          name: m.name,
+          age: m.age,
+          gender: m.gender,
+          isPregnant: m.isPregnant,
+          isChild: m.isChild || (m.age && m.age <= 5),
+          hasDisease: m.hasChronicCondition || m.isNcdPatient,
+          condition: m.isPregnant
+            ? 'गर्भवती (ANC)'
+            : m.isChild
+            ? 'शिशु (बाल स्वास्थ्य)'
+            : m.chronicConditionType || m.ncdDiagnosis || 'सामान्य',
+        })),
+      };
+    });
 
   // Filter pregnant women (Strictly Female and reproductive age)
   const pregnantWomen = members.filter((m) => {

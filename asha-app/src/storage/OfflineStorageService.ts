@@ -6,6 +6,7 @@ import {
   FollowUpTask,
   ChildVaccinationRecord,
   AshaMeetingRecord,
+  AnmSessionFolder,
   OutboxItem,
   OutboxAction,
 } from '../types/storage';
@@ -16,6 +17,7 @@ import {
   SEED_SURVEYS,
   SEED_CHILD_VACCINATIONS,
   SEED_MEETINGS,
+  SEED_ANM_SESSIONS,
 } from './seedData';
 import { generateUUID } from './uuid';
 
@@ -26,6 +28,7 @@ const STORAGE_KEYS = {
   FOLLOWUPS: '@asha_followups_v5',
   VACCINATIONS: '@asha_vaccinations_v5',
   MEETINGS: '@asha_meetings_v5',
+  ANM_SESSIONS: '@asha_anm_sessions_v5',
   OUTBOX: '@asha_outbox_v5',
   INITIALIZED: '@asha_initialized_v5',
 };
@@ -49,9 +52,16 @@ class OfflineStorageServiceImpl {
           AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(SEED_FOLLOWUPS)),
           AsyncStorage.setItem(STORAGE_KEYS.VACCINATIONS, JSON.stringify(SEED_CHILD_VACCINATIONS)),
           AsyncStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(SEED_MEETINGS)),
+          AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS)),
           AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify([])),
           AsyncStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true'),
         ]);
+      } else {
+        // Ensure ANM sessions are initialized even if other keys exist
+        const existingSessions = await AsyncStorage.getItem(STORAGE_KEYS.ANM_SESSIONS);
+        if (!existingSessions) {
+          await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS));
+        }
       }
       this.isInitialized = true;
     } catch (error) {
@@ -67,10 +77,17 @@ class OfflineStorageServiceImpl {
     await this.initialize();
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.FAMILIES);
-      const parsed: FamilyUnit[] = raw ? JSON.parse(raw) : [];
+      let parsed: FamilyUnit[] = raw ? JSON.parse(raw) : [];
       if (parsed.length < 24) {
         await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(SEED_FAMILIES));
         return SEED_FAMILIES;
+      }
+      // Ensure only valid village houses 1 to 24 are included; remove any rogue/orphaned house numbers (e.g. 29)
+      if (parsed.some((f) => Number(f.houseNumber) > 24 || f.sequentialNumber > 24 || Number(f.houseNumber) === 29)) {
+        parsed = parsed.filter(
+          (f) => Number(f.houseNumber) >= 1 && Number(f.houseNumber) <= 24 && f.sequentialNumber <= 24
+        );
+        await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(parsed));
       }
       return parsed;
     } catch (e) {
@@ -634,6 +651,7 @@ class OfflineStorageServiceImpl {
       AsyncStorage.removeItem(STORAGE_KEYS.FOLLOWUPS),
       AsyncStorage.removeItem(STORAGE_KEYS.VACCINATIONS),
       AsyncStorage.removeItem(STORAGE_KEYS.MEETINGS),
+      AsyncStorage.removeItem(STORAGE_KEYS.ANM_SESSIONS),
       AsyncStorage.removeItem(STORAGE_KEYS.OUTBOX),
       AsyncStorage.removeItem(STORAGE_KEYS.INITIALIZED),
     ]);
@@ -699,6 +717,66 @@ class OfflineStorageServiceImpl {
         cond: m.chronicConditionType || m.ncdDiagnosis || 'BP/Sugar',
       })),
     });
+  }
+
+  // ----------------------------------------------------
+  // ANM SESSIONS / FIELD STUDIES CRUD
+  // ----------------------------------------------------
+
+  async getAnmSessions(): Promise<AnmSessionFolder[]> {
+    await this.initialize();
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEYS.ANM_SESSIONS);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+      return SEED_ANM_SESSIONS;
+    } catch (e) {
+      console.error('Error reading ANM sessions from storage:', e);
+      return SEED_ANM_SESSIONS;
+    }
+  }
+
+  async saveAnmSession(
+    session: Omit<AnmSessionFolder, 'id'> & { id?: string }
+  ): Promise<AnmSessionFolder> {
+    await this.initialize();
+    const sessions = await this.getAnmSessions();
+    const id = session.id || `sess-${Date.now()}`;
+    const newSession: AnmSessionFolder = {
+      ...session,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const index = sessions.findIndex((s) => s.id === id);
+    if (index >= 0) {
+      sessions[index] = newSession;
+    } else {
+      sessions.unshift(newSession); // Add at the front
+    }
+
+    await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(sessions));
+    return newSession;
+  }
+
+  async updateAnmSessionRecords(sessionIdentifier: string, delta: number): Promise<void> {
+    await this.initialize();
+    const sessions = await this.getAnmSessions();
+    const updated = sessions.map((s) => {
+      if (s.id === sessionIdentifier || s.category === sessionIdentifier || s.qrCodeValue === sessionIdentifier) {
+        return { ...s, recordsCount: Math.max(0, s.recordsCount + delta), updatedAt: new Date().toISOString() };
+      }
+      return s;
+    });
+    await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(updated));
+  }
+
+  async deleteAnmSession(id: string): Promise<void> {
+    await this.initialize();
+    const sessions = await this.getAnmSessions();
+    const filtered = sessions.filter((s) => s.id !== id);
+    await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(filtered));
   }
 
   /**

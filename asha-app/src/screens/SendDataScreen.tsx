@@ -59,6 +59,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
     members,
     followUps,
     outbox,
+    anmSessions,
     pendingSyncCount,
     isSyncing,
     triggerSync,
@@ -595,47 +596,87 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
             <View style={styles.testSection}>
               <View style={styles.testHeaderRow}>
                 <FlaskConical size={14} color={Colors.primary} style={{ marginRight: 5 }} />
-                <Text style={styles.testSectionTitle}>सक्रिय एएनएम सत्र कोड (ANM Session Codes):</Text>
+                <Text style={styles.testSectionTitle}>सक्रिय एएनएम सत्र एवं फील्ड स्टडी कोड (Active ANM Sessions):</Text>
               </View>
               <View style={styles.testPillRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.testPill,
-                    manualCode === 'ANM-QR-CHILD-VAX-CHANDPUR' && styles.testPillActive,
-                  ]}
-                  onPress={() => setTestCode('ANM-QR-CHILD-VAX-CHANDPUR', 'CHILD_VAX')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.testPillText, manualCode === 'ANM-QR-CHILD-VAX-CHANDPUR' && styles.testPillTextActive]}>
-                    ANM-QR-CHILD-VAX-CHANDPUR
-                  </Text>
-                </TouchableOpacity>
+                {anmSessions && anmSessions.length > 0 ? (
+                  anmSessions.map((s) => (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[
+                        styles.testPill,
+                        manualCode === s.qrCodeValue && styles.testPillActive,
+                      ]}
+                      onPress={() => setTestCode(s.qrCodeValue, s.category)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.testPillText,
+                          manualCode === s.qrCodeValue && styles.testPillTextActive,
+                        ]}
+                      >
+                        {s.qrCodeValue} ({s.title.length > 22 ? s.title.slice(0, 20) + '...' : s.title})
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[
+                        styles.testPill,
+                        manualCode === 'ANM-QR-CHILD-VAX-CHANDPUR' && styles.testPillActive,
+                      ]}
+                      onPress={() => setTestCode('ANM-QR-CHILD-VAX-CHANDPUR', 'CHILD_VAX')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.testPillText,
+                          manualCode === 'ANM-QR-CHILD-VAX-CHANDPUR' && styles.testPillTextActive,
+                        ]}
+                      >
+                        ANM-QR-CHILD-VAX-CHANDPUR
+                      </Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.testPill,
-                    manualCode === 'ANM-QR-ANC-CHANDPUR' && styles.testPillActive,
-                  ]}
-                  onPress={() => setTestCode('ANM-QR-ANC-CHANDPUR', 'ANC')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.testPillText, manualCode === 'ANM-QR-ANC-CHANDPUR' && styles.testPillTextActive]}>
-                    ANM-QR-ANC-CHANDPUR
-                  </Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.testPill,
+                        manualCode === 'ANM-QR-ANC-CHANDPUR' && styles.testPillActive,
+                      ]}
+                      onPress={() => setTestCode('ANM-QR-ANC-CHANDPUR', 'ANC')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.testPillText,
+                          manualCode === 'ANM-QR-ANC-CHANDPUR' && styles.testPillTextActive,
+                        ]}
+                      >
+                        ANM-QR-ANC-CHANDPUR
+                      </Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.testPill,
-                    manualCode === 'ANM-QR-NCD-CHANDPUR' && styles.testPillActive,
-                  ]}
-                  onPress={() => setTestCode('ANM-QR-NCD-CHANDPUR', 'NCD')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.testPillText, manualCode === 'ANM-QR-NCD-CHANDPUR' && styles.testPillTextActive]}>
-                    ANM-QR-NCD-CHANDPUR
-                  </Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.testPill,
+                        manualCode === 'ANM-QR-NCD-CHANDPUR' && styles.testPillActive,
+                      ]}
+                      onPress={() => setTestCode('ANM-QR-NCD-CHANDPUR', 'NCD')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.testPillText,
+                          manualCode === 'ANM-QR-NCD-CHANDPUR' && styles.testPillTextActive,
+                        ]}
+                      >
+                        ANM-QR-NCD-CHANDPUR
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
 
                 <TouchableOpacity
                   style={[
@@ -648,6 +689,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                   <Text style={[styles.testPillText, manualCode === 'ANM-QR-9876543211' && styles.testPillTextActive]}>
                     ANM-QR-9876543211 (रेखा शर्मा)
                   </Text>
+                </TouchableOpacity>
                 </TouchableOpacity>
               </View>
             </View>

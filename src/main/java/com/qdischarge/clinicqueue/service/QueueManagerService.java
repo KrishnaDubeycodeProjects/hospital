@@ -16,6 +16,7 @@ import com.qdischarge.clinicqueue.dto.TravelRangeDto;
 import com.qdischarge.clinicqueue.dto.UpdateStatusResult;
 import com.qdischarge.clinicqueue.geo.GeoDistanceService;
 import com.qdischarge.clinicqueue.geo.MapMyIndiaRoutingService;
+import com.qdischarge.clinicqueue.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
@@ -68,6 +69,7 @@ public class QueueManagerService {
     /** Per-phone language preference (see resolveLang) -- same source the WhatsApp bot itself uses. */
     private final WaSessionService waSessionService;
     private final WhatsAppService whatsAppService;
+    private final JwtService jwtService;
 
     private static final RowMapper<TokenDto> TOKEN_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenDto.class);
     private static final RowMapper<TokenHistoryDto> TOKEN_HISTORY_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenHistoryDto.class);
@@ -645,11 +647,15 @@ public class QueueManagerService {
         Integer dailyNumber = null;
         if (targetArrivalTime != null) {
             double vacancyMinutes = computeDepartmentVacancyMinutes(hospital.getId(), draft.getCategory());
-            java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
-            if (projectedVacancyTime.isBefore(targetArrivalTime)) {
-                isFrozen = true;
-                log.info("Far patient #{} registered via WhatsApp with {} min travel ETA. Hospital vacant in {} min. Status: FROZEN.",
-                        tokenId, selectedTravelMinutes, String.format("%.1f", vacancyMinutes));
+            int activeAhead = countActiveDepartmentPatients(hospital.getId(), draft.getCategory());
+            // Patient #1 (0 active ahead) is ready immediately, so NEVER freeze!
+            if (activeAhead > 0) {
+                java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
+                if (projectedVacancyTime.isBefore(targetArrivalTime)) {
+                    isFrozen = true;
+                    log.info("Far patient #{} registered via WhatsApp with {} min travel ETA. Hospital vacant in {} min. Status: FROZEN.",
+                            tokenId, selectedTravelMinutes, String.format("%.1f", vacancyMinutes));
+                }
             }
         }
 
@@ -684,7 +690,9 @@ public class QueueManagerService {
             evaluateNotifyTriggers();
         }
 
-        return getTokenDetails(String.valueOf(tokenId));
+        TokenDto booked = getTokenDetails(String.valueOf(tokenId));
+        triggerBookingCall(booked, hospital);
+        return booked;
     }
 
     // -----------------------------------------------------------------
@@ -780,11 +788,15 @@ public class QueueManagerService {
         Integer dailyNumber = null;
         if (targetArrivalTime != null && resolvedHospitalId != null) {
             double vacancyMinutes = computeDepartmentVacancyMinutes(resolvedHospitalId, canonicalCategory);
-            java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
-            if (projectedVacancyTime.isBefore(targetArrivalTime)) {
-                isFrozen = true;
-                log.info("Far patient registered with {} min travel ETA. Hospital vacant in {} min. Placing token in FROZEN state.",
-                        finalSelectedTravelMinutes, String.format("%.1f", vacancyMinutes));
+            int activeAhead = countActiveDepartmentPatients(resolvedHospitalId, canonicalCategory);
+            // Patient #1 (0 active ahead) is ready immediately, so NEVER freeze!
+            if (activeAhead > 0) {
+                java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
+                if (projectedVacancyTime.isBefore(targetArrivalTime)) {
+                    isFrozen = true;
+                    log.info("Far patient registered with {} min travel ETA. Hospital vacant in {} min. Placing token in FROZEN state.",
+                            finalSelectedTravelMinutes, String.format("%.1f", vacancyMinutes));
+                }
             }
         }
 
@@ -821,18 +833,26 @@ public class QueueManagerService {
                 """,
                 insertParams, Integer.class);
 
+        TokenDto createdToken = getTokenDetails(String.valueOf(newId));
+
         if (isFrozen) {
-            TokenDto createdDraft = getRaw(newId);
             if (hospital != null) {
-                sendFrozenBookedNotification(createdDraft, hospital, finalSelectedTravelMinutes, targetArrivalTime);
+                sendFrozenBookedNotification(createdToken, hospital, finalSelectedTravelMinutes, targetArrivalTime);
             }
         } else if (resolvedHospitalId != null) {
             renumberQueuePositions(resolvedHospitalId, canonicalCategory);
             unfreezeEligibleTokens(resolvedHospitalId, canonicalCategory);
             evaluateNotifyTriggers();
+            if (hospital != null) {
+                sendWaitingBookedNotification(createdToken, hospital);
+            }
         }
 
-        return new CreateTokenResult(false, getTokenDetails(String.valueOf(newId)));
+        if (hospital != null) {
+            triggerBookingCall(createdToken, hospital);
+        }
+
+        return new CreateTokenResult(false, createdToken);
     }
 
     /**
@@ -1193,13 +1213,13 @@ public class QueueManagerService {
         List<Map<String, Object>> candidates = jdbc.queryForList(
                 """
                 SELECT id FROM tokens
-                WHERE status = 'waiting' AND travel_minutes IS NOT NULL AND notified_ready_at IS NULL
+                WHERE status = 'waiting' AND notified_ready_at IS NULL
                   AND is_verified IS NOT TRUE
                 """, Collections.emptyMap());
 
         for (Map<String, Object> row : candidates) {
             TokenDto token = getRaw((Integer) row.get("id"));
-            if (token == null || token.getHospitalId() == null || token.getCategory() == null || token.getTravelMinutes() == null) {
+            if (token == null || token.getHospitalId() == null || token.getCategory() == null) {
                 continue;
             }
             HospitalDto hospital = hospitalService.getById(token.getHospitalId());
@@ -1211,9 +1231,11 @@ public class QueueManagerService {
             jdbc.update("UPDATE tokens SET treatment_remaining_minutes = :v WHERE id = :id",
                     Map.of("v", treatmentRemaining, "id", token.getId()));
 
-            double travelMinutes = token.getTravelMinutes();
+            double travelMinutes = token.getTravelMinutes() != null ? token.getTravelMinutes() : 15.0;
             double buffer = appProperties.getNotifyBufferMinutes();
-            if (treatmentRemaining <= travelMinutes + buffer) {
+            int peopleAhead = countGenuinelyAheadForEta(token);
+            // If patient is #1 in line (0 people ahead), or within their travel ETA window:
+            if (peopleAhead == 0 || treatmentRemaining <= travelMinutes + buffer) {
                 fireHeadToHospitalTrigger(token, hospital, travelMinutes, treatmentRemaining);
             }
         }
@@ -2033,6 +2055,82 @@ public class QueueManagerService {
         renumberQueuePositions(hospitalId, category);
     }
 
+    public int countActiveDepartmentPatients(Integer hospitalId, String category) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("hospitalId", hospitalId);
+        params.put("category", category);
+        Integer count = jdbc.queryForObject(
+                """
+                SELECT COUNT(*)::int FROM tokens
+                WHERE hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND status IN ('serving', 'waiting', 'reserved')
+                """,
+                params, Integer.class);
+        return count != null ? count : 0;
+    }
+
+    private void triggerBookingCall(TokenDto token, HospitalDto hospital) {
+        if (token == null || token.getPhone() == null || token.getPhone().isBlank()) {
+            return;
+        }
+        try {
+            Lang lang = resolveLang(token.getPhone());
+            String hospName = hospital != null ? hospital.getName() : "Hospital";
+            int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : countGenuinelyAheadForEta(token);
+            twilioStudioCallService.triggerBookingConfirmationCall(
+                    token.getPhone(), token.getName(), token.displayTokenCode(), token.getCategory(), hospName, peopleAhead, lang);
+            log.info("📞 Booking confirmation voice call placed for token #{} ({}, peopleAhead: {})",
+                    token.displayTokenCode(), token.getPhone(), peopleAhead);
+        } catch (Exception e) {
+            log.warn("Failed triggering booking confirmation voice call: {}", e.getMessage());
+        }
+    }
+
+    private void sendWaitingBookedNotification(TokenDto token, HospitalDto hospital) {
+        if (token == null || token.getPhone() == null || token.getPhone().isBlank()) return;
+        try {
+            Lang lang = resolveLang(token.getPhone());
+            String hospName = hospital != null ? hospital.getName() : "Hospital";
+            int peopleAhead = token.getPeopleAhead() != null ? token.getPeopleAhead() : 0;
+            String today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM yyyy"));
+
+            String cleanPhone = token.getPhone().replaceAll("[^0-9]", "");
+            String liveUrl = buildWebviewUrl("/track", token.getPhone(), Map.of("phone", cleanPhone, "tokenId", String.valueOf(token.getId())));
+            String slipUrl = buildWebviewUrl("/token/" + token.getId(), token.getPhone(), Map.of("phone", cleanPhone));
+
+            String div = "━━━━━━━━━━━━━━━━━━━━━━";
+            String card = div + "\n" +
+                    (lang == Lang.HI ? "🎫  *अपॉइंटमेंट पुष्ट हुआ!*\n" :
+                     lang == Lang.MR ? "🎫  *अपॉइंटमेंट निश्चित!*\n" :
+                     "🎫  *APPOINTMENT CONFIRMED!*\n") +
+                    div + "\n\n" +
+                    (lang == Lang.HI ? "👥  *आगे मरीज़:*      " + peopleAhead + " लोग आगे हैं\n" :
+                     lang == Lang.MR ? "👥  *पुढे रुग्ण:*        " + peopleAhead + " जण पुढे आहेत\n" :
+                     "👥  *Patients Ahead:* " + peopleAhead + " ahead of you\n") +
+                    "⏳  *Status:*         " + (lang == Lang.HI ? "🔵 कतार में प्रतीक्षारत" : lang == Lang.MR ? "🔵 रांगेत प्रतीक्षेत" : "🔵 Waiting in Queue") + "\n" +
+                    "🎟️  *Token Code:*     #" + token.displayTokenCode() + "\n" +
+                    "👤  *Patient:*        " + token.getName() + "\n" +
+                    "🏥  *Hospital:*       " + hospName + "\n" +
+                    "🩺  *Department:*     " + (token.getCategory() != null ? token.getCategory() : "General OPD") + "\n" +
+                    "🗓️  *Date:*           " + today + "\n\n" +
+                    div;
+
+            whatsAppService.sendWhatsAppMessage(token.getPhone(), card + "\n\n" +
+                    (lang == Lang.HI ? "📄 *बुकिंग पर्ची:* " + slipUrl :
+                     lang == Lang.MR ? "📄 *बुकिंग स्लिप:* " + slipUrl :
+                     "📄 *Booking Slip:* " + slipUrl));
+
+            whatsAppService.sendUrlButtonMessage(token.getPhone(),
+                    lang == Lang.HI ? "📊 लाइव कतार ट्रैकर" : lang == Lang.MR ? "📊 थेट रांग ट्रॅकर" : "📊 Live Queue Tracker",
+                    lang == Lang.HI ? "अपनी लाइव कतार स्थिति देखने के लिए टैप करें:" : lang == Lang.MR ? "तुमची थेट रांग स्थिती पाहण्यासाठी टॅप करा:" : "Tap to watch your live queue position in real-time:",
+                    botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
+
+            log.info("Sent waiting token booking confirmation via WhatsApp to patient {}", token.getPhone());
+        } catch (Exception e) {
+            log.warn("Failed sending waiting token booking notification: {}", e.getMessage());
+        }
+    }
+
     private void sendFrozenBookedNotification(TokenDto token, HospitalDto hospital, Integer travelMinutes, java.time.LocalDateTime targetArrival) {
         if (token == null || token.getPhone() == null) return;
         try {
@@ -2040,11 +2138,42 @@ public class QueueManagerService {
             int mins = travelMinutes != null ? travelMinutes : (token.getSelectedTravelMinutes() != null ? token.getSelectedTravelMinutes() : 30);
             String timeStr = targetArrival != null ? targetArrival.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a")) : "Soon";
             String msg = botMessages.frozenTokenBookedNotification(lang, token.getName(), token.getCategory(), hospital.getName(), mins, timeStr);
-            whatsAppService.sendWhatsAppMessage(token.getPhone(), msg);
+            
+            String cleanPhone = token.getPhone().replaceAll("[^0-9]", "");
+            String liveUrl = buildWebviewUrl("/track", token.getPhone(), Map.of("phone", cleanPhone, "tokenId", String.valueOf(token.getId())));
+            String slipUrl = buildWebviewUrl("/token/" + token.getId(), token.getPhone(), Map.of("phone", cleanPhone));
+
+            whatsAppService.sendWhatsAppMessage(token.getPhone(), msg + "\n\n" +
+                    (lang == Lang.HI ? "📄 *बुकिंग पर्ची:* " + slipUrl :
+                     lang == Lang.MR ? "📄 *बुकिंग स्लिप:* " + slipUrl :
+                     "📄 *Booking Slip:* " + slipUrl));
+
+            whatsAppService.sendUrlButtonMessage(token.getPhone(),
+                    lang == Lang.HI ? "📊 लाइव कतार ट्रैकर" : lang == Lang.MR ? "📊 थेट रांग ट्रॅकर" : "📊 Live Queue Tracker",
+                    lang == Lang.HI ? "अपनी लाइव कतार स्थिति देखने के लिए टैप करें:" : lang == Lang.MR ? "तुमची थेट रांग स्थिती पाहण्यासाठी टॅप करा:" : "Tap to watch your live queue position in real-time:",
+                    botMessages.liveTrackerButtonText(lang), liveUrl, appProperties.getClinicName());
+
             log.info("Sent frozen token booking confirmation via WhatsApp to patient {}", token.getPhone());
         } catch (Exception e) {
             log.warn("Failed sending frozen token booking notification: {}", e.getMessage());
         }
+    }
+
+    private String buildWebviewUrl(String relativePath, String phone, Map<String, String> extraParams) {
+        String token = jwtService.generatePatientToken(phone);
+        String base = appProperties.getFrontendUrl() + relativePath;
+        StringBuilder sb = new StringBuilder(base);
+        sb.append("?token=").append(java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8));
+        sb.append("&phone=").append(java.net.URLEncoder.encode(phone, java.nio.charset.StandardCharsets.UTF_8));
+        if (extraParams != null) {
+            for (Map.Entry<String, String> entry : extraParams.entrySet()) {
+                if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                    sb.append("&").append(java.net.URLEncoder.encode(entry.getKey(), java.nio.charset.StandardCharsets.UTF_8))
+                            .append("=").append(java.net.URLEncoder.encode(entry.getValue(), java.nio.charset.StandardCharsets.UTF_8));
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private void sendTokenUnfrozenNotification(TokenDto token) {

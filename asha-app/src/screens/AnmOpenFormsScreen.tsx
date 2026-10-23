@@ -24,6 +24,9 @@ import {
   Camera,
   Scan,
   Image as ImageIcon,
+  Trash2,
+  MapPin,
+  ClipboardList,
 } from 'lucide-react-native';
 import jsQR from 'jsqr';
 import { useOfflineData } from '../context/OfflineDataContext';
@@ -44,40 +47,24 @@ interface AnmOpenFormsScreenProps {
 }
 
 export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
-  const { childVaccinations, surveys } = useOfflineData();
+  const {
+    anmSessions,
+    createAnmSession,
+    receiveRecordsInAnmSession,
+    deleteAnmSession,
+    childVaccinations,
+    surveys,
+  } = useOfflineData();
 
-  // ANM Session Folders
-  const [sessions, setSessions] = useState<AnmSessionFolder[]>([
-    {
-      id: 'sess-01',
-      title: 'विशेष बाल टीकाकरण सत्र (VHND Drive)',
-      category: 'CHILD_VAX',
-      date: '22/10/2026',
-      qrCodeValue: 'ANM-QR-CHILD-VAX-CHANDPUR',
-      recordsCount: childVaccinations.length,
-    },
-    {
-      id: 'sess-02',
-      title: 'मातृ स्वास्थ्य एवं प्रसव पूर्व जांच (ANC Clinic)',
-      category: 'ANC',
-      date: '20/10/2026',
-      qrCodeValue: 'ANM-QR-ANC-CHANDPUR',
-      recordsCount: surveys.filter((s) => s.categoryCode === 'PREGNANCY').length,
-    },
-    {
-      id: 'sess-03',
-      title: 'एनसीडी एवं मुख कैंसर जांच सत्र (NCD Camp)',
-      category: 'NCD',
-      date: '18/10/2026',
-      qrCodeValue: 'ANM-QR-NCD-CHANDPUR',
-      recordsCount: surveys.filter((s) => s.categoryCode === 'DISEASE').length,
-    },
-  ]);
+  const sessions = anmSessions;
 
   // Modal States
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<'CHILD_VAX' | 'ANC' | 'NCD'>('CHILD_VAX');
+  const [newStudyType, setNewStudyType] = useState('');
+  const [newLocation, setNewLocation] = useState('चाँदपुर उपकेंद्र (Chandpur Sub-centre)');
+  const [newNotes, setNewNotes] = useState('');
 
   // Active Session QR Code Modal
   const [activeQrSession, setActiveQrSession] = useState<AnmSessionFolder | null>(null);
@@ -91,21 +78,14 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
   const [ashaPayloadInput, setAshaPayloadInput] = useState('');
   const anmFileInputRef = useRef<any>(null);
 
-  const handleProcessAshaPayload = (raw: string) => {
+  const handleProcessAshaPayload = async (raw: string) => {
     try {
       const data = JSON.parse(raw);
       const cat = data.c || data.cluster || 'CHILD_VAX';
       const cnt = data.cnt || data.count || (data.items ? data.items.length : 1);
       const worker = data.n || data.ashaName || 'सुनीता देवी';
 
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.category === cat) {
-            return { ...s, recordsCount: s.recordsCount + Number(cnt) };
-          }
-          return s;
-        })
-      );
+      await receiveRecordsInAnmSession(cat, Number(cnt));
 
       setAshaScanNotice(`✓ आशा कार्यकर्ता (${worker}) से ${cnt} नए रिकॉर्ड्स सफलतापूर्वक प्राप्त हुए!`);
       setTimeout(() => {
@@ -114,9 +94,7 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
         setAshaPayloadInput('');
       }, 1800);
     } catch {
-      setSessions((prev) =>
-        prev.map((s, idx) => (idx === 0 ? { ...s, recordsCount: s.recordsCount + 1 } : s))
-      );
+      await receiveRecordsInAnmSession('CHILD_VAX', 1);
       setAshaScanNotice(`✓ QR कोड पहचाना गया — 1 नया रिकॉर्ड प्राप्त हुआ!`);
       setTimeout(() => {
         setShowAshaScanModal(false);
@@ -164,26 +142,25 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleCreateSession = () => {
+  const handleCreateSession = async () => {
     if (!newTitle.trim()) return;
 
-    const codeSuffix =
-      newCategory === 'CHILD_VAX' ? 'VAX' : newCategory === 'ANC' ? 'ANC' : 'NCD';
-
-    const newFolder: AnmSessionFolder = {
-      id: `sess-${Date.now()}`,
+    const created = await createAnmSession({
       title: newTitle.trim(),
       category: newCategory,
-      date: new Date().toLocaleDateString('en-GB'),
-      qrCodeValue: `ANM-QR-${codeSuffix}-${Math.floor(1000 + Math.random() * 9000)}`,
-      recordsCount: 0,
-    };
+      studyType:
+        newStudyType.trim() ||
+        `${newCategory === 'CHILD_VAX' ? 'बाल टीकाकरण' : newCategory === 'ANC' ? 'मातृ स्वास्थ्य' : 'एनसीडी जांच'} फील्ड स्टडी`,
+      notes: newNotes.trim() || 'ANM फील्ड स्टडी / सत्र',
+      location: newLocation.trim() || 'चाँदपुर उपकेंद्र (Chandpur Sub-centre)',
+    });
 
-    setSessions([newFolder, ...sessions]);
     setNewTitle('');
+    setNewStudyType('');
+    setNewNotes('');
     setShowCreateModal(false);
     // Directly open QR code for ASHA to scan
-    setActiveQrSession(newFolder);
+    setActiveQrSession(created);
   };
 
   const getCategoryIcon = (category: AnmSessionFolder['category']) => {
@@ -241,7 +218,7 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
               activeOpacity={0.85}
             >
               <Plus size={14} color="#FFFFFF" style={{ marginRight: 3 }} />
-              <Text style={styles.addBtnText}>+ नया सत्र</Text>
+              <Text style={styles.addBtnText}>+ नया सत्र / फील्ड स्टडी</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -252,20 +229,46 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
             <View style={styles.sessionTopRow}>
               <View style={styles.iconCircle}>{getCategoryIcon(sess.category)}</View>
 
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, paddingRight: 6 }}>
                 <Text style={styles.sessionTitle}>{sess.title}</Text>
                 <Text style={styles.sessionDate}>दिनांक: {sess.date}</Text>
+                {sess.studyType && (
+                  <View style={styles.studyTypeTagRow}>
+                    <ClipboardList size={11} color="#0369A1" style={{ marginRight: 3 }} />
+                    <Text style={styles.studyTypeTagText}>{sess.studyType}</Text>
+                  </View>
+                )}
+                {sess.location && (
+                  <View style={styles.studyLocationRow}>
+                    <MapPin size={11} color="#6B7280" style={{ marginRight: 3 }} />
+                    <Text style={styles.studyLocationText}>{sess.location}</Text>
+                  </View>
+                )}
               </View>
 
-              {/* Show Session QR Code Button */}
-              <TouchableOpacity
-                style={styles.qrButton}
-                onPress={() => setActiveQrSession(sess)}
-                activeOpacity={0.8}
-              >
-                <QrCode size={18} color="#FFFFFF" style={{ marginRight: 4 }} />
-                <Text style={styles.qrButtonText}>QR कोड</Text>
-              </TouchableOpacity>
+              <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                {/* Show Session QR Code Button */}
+                <TouchableOpacity
+                  style={styles.qrButton}
+                  onPress={() => setActiveQrSession(sess)}
+                  activeOpacity={0.8}
+                >
+                  <QrCode size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <Text style={styles.qrButtonText}>QR कोड</Text>
+                </TouchableOpacity>
+
+                {/* Delete / Archive Session Button (for custom sessions) */}
+                {sess.id.startsWith('sess-') && Number(sess.id.replace('sess-', '')) > 1000 && (
+                  <TouchableOpacity
+                    style={styles.deleteSessionBtn}
+                    onPress={() => deleteAnmSession(sess.id)}
+                    activeOpacity={0.7}
+                    title="सत्र हटाएं"
+                  >
+                    <Trash2 size={13} color="#DC2626" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {/* Clustered Records Preview Bar */}
@@ -370,60 +373,90 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
         </View>
       </Modal>
 
-      {/* Modal 1: Create New Session Folder */}
+      {/* Modal 1: Create New Session Folder / Field Study */}
       <Modal visible={showCreateModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>नया सत्र फ़ोल्डर बनाएं</Text>
+              <View>
+                <Text style={styles.modalTitle}>नया सत्र / फील्ड स्टडी बनाएं</Text>
+                <Text style={styles.modalSub}>ANM Field Study / Session Folder Creation</Text>
+              </View>
               <TouchableOpacity onPress={() => setShowCreateModal(false)}>
                 <X size={20} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>सत्र की श्रेणी (Category)</Text>
-            <View style={styles.categoryRow}>
-              {(
-                [
-                  { key: 'CHILD_VAX', label: '💉 बाल टीकाकरण', desc: 'Child Vaccination' },
-                  { key: 'ANC', label: '🤰 प्रसव पूर्व जांच', desc: 'Antenatal Care' },
-                  { key: 'NCD', label: '🩺 एनसीडी / कैंसर', desc: 'NCD Screening' },
-                ] as const
-              ).map((cat) => (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[
-                    styles.catOption,
-                    newCategory === cat.key && styles.catOptionActive,
-                  ]}
-                  onPress={() => setNewCategory(cat.key)}
-                >
-                  <Text
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>सत्र की श्रेणी (Category)</Text>
+              <View style={styles.categoryRow}>
+                {(
+                  [
+                    { key: 'CHILD_VAX', label: '💉 बाल टीकाकरण', desc: 'Child Vaccination' },
+                    { key: 'ANC', label: '🤰 प्रसव पूर्व जांच', desc: 'Antenatal Care' },
+                    { key: 'NCD', label: '🩺 एनसीडी / कैंसर', desc: 'NCD Screening' },
+                  ] as const
+                ).map((cat) => (
+                  <TouchableOpacity
+                    key={cat.key}
                     style={[
-                      styles.catOptionText,
-                      newCategory === cat.key && styles.catOptionTextActive,
+                      styles.catOption,
+                      newCategory === cat.key && styles.catOptionActive,
                     ]}
+                    onPress={() => setNewCategory(cat.key)}
                   >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.catOptionText,
+                        newCategory === cat.key && styles.catOptionTextActive,
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            <Text style={styles.inputLabel}>सत्र का शीर्षक / नाम</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="उदा. प्राथमिक स्वास्थ्य केंद्र टीकाकरण दिवस (VHND)"
-              value={newTitle}
-              onChangeText={setNewTitle}
-            />
+              <Text style={styles.inputLabel}>सत्र / फील्ड स्टडी का शीर्षक *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="उदा. चाँदपुर पोषण एवं बाल स्वास्थ्य फील्ड स्टडी (VHND Drive)"
+                value={newTitle}
+                onChangeText={setNewTitle}
+              />
+
+              <Text style={styles.inputLabel}>फील्ड स्टडी का प्रकार / उद्देश्य (Study Focus)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="उदा. विशेष बाल टीकाकरण एवं वृद्धि निगरानी अध्ययन"
+                value={newStudyType}
+                onChangeText={setNewStudyType}
+              />
+
+              <Text style={styles.inputLabel}>सत्र स्थान / उपकेंद्र (Location)</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="उदा. चाँदपुर उपकेंद्र / प्राथमिक विद्यालय प्रांगण"
+                value={newLocation}
+                onChangeText={setNewLocation}
+              />
+
+              <Text style={styles.inputLabel}>अध्ययन टिप्पणी / निर्देश (Notes & Protocol)</Text>
+              <TextInput
+                style={[styles.modalInput, { height: 60 }]}
+                placeholder="उदा. आशा कार्यकर्ताओं से क्लस्टर्ड डेटा क्यूआर द्वारा प्राप्त कर सत्यापन करें।"
+                value={newNotes}
+                onChangeText={setNewNotes}
+                multiline
+              />
+            </ScrollView>
 
             <TouchableOpacity
               style={styles.createBtn}
               onPress={handleCreateSession}
               activeOpacity={0.85}
             >
-              <Text style={styles.createBtnText}>सत्र बनाएं एवं QR कोड उत्पन्न करें</Text>
+              <Text style={styles.createBtnText}>✓ स्टडी बनाएं एवं QR कोड उत्पन्न करें</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -658,6 +691,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  studyTypeTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  studyTypeTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  studyLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  studyLocationText: {
+    fontSize: 10,
+    color: '#6B7280',
+  },
+  deleteSessionBtn: {
+    padding: 5,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   qrButton: {
     flexDirection: 'row',

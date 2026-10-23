@@ -54,7 +54,14 @@ public class AccessService {
     /** Looks up a pending request by its code -- used to render the QR PNG without needing the numeric id. */
     public AccessRequestDto getByCode(String code) {
         List<AccessRequestDto> rows = jdbc.query(
-                "SELECT id, code, doctor_id, status, created_at, expires_at FROM access_requests WHERE code = :code",
+                """
+                SELECT r.id, r.code, r.doctor_id, r.status, r.created_at, r.expires_at,
+                       d.name AS doctor_name, h.name AS hospital_name
+                FROM access_requests r
+                JOIN doctors d ON d.id = r.doctor_id
+                LEFT JOIN hospitals h ON h.id = d.hospital_id
+                WHERE r.code = :code
+                """,
                 Map.of("code", code), AccessService::mapRequest);
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -77,12 +84,15 @@ public class AccessService {
             throw new IllegalStateException("This access code has expired or was already used.");
         }
 
+        String digits = patientPhone != null ? patientPhone.replaceAll("[^0-9]", "") : "";
+        String cleanPhone = digits.length() == 10 ? "+91" + digits : (patientPhone != null && patientPhone.startsWith("+") ? "+" + digits : "+" + digits);
+
         jdbc.update("UPDATE access_requests SET status = 'claimed', claimed_by_phone = :phone, claimed_at = NOW() WHERE id = :id",
-                Map.of("phone", patientPhone, "id", requestId));
+                Map.of("phone", cleanPhone, "id", requestId));
 
         Integer grantId = jdbc.queryForObject(
                 "INSERT INTO access_grants (doctor_id, patient_phone, source_request_id) VALUES (:doctorId, :phone, :requestId) RETURNING id",
-                Map.of("doctorId", doctorId, "phone", patientPhone, "requestId", requestId), Integer.class);
+                Map.of("doctorId", doctorId, "phone", cleanPhone, "requestId", requestId), Integer.class);
 
         AccessGrantDto grant = getGrant(grantId);
         notifyPatientOfNewAccess(grant);
@@ -220,6 +230,11 @@ public class AccessService {
     private static AccessRequestDto mapRequest(ResultSet rs, int rowNum) throws SQLException {
         Timestamp createdAt = rs.getTimestamp("created_at");
         Timestamp expiresAt = rs.getTimestamp("expires_at");
+        String docName = null;
+        String hospName = null;
+        try { docName = rs.getString("doctor_name"); } catch (Exception ignored) {}
+        try { hospName = rs.getString("hospital_name"); } catch (Exception ignored) {}
+
         return AccessRequestDto.builder()
                 .id(rs.getInt("id"))
                 .code(rs.getString("code"))
@@ -227,6 +242,8 @@ public class AccessService {
                 .status(rs.getString("status"))
                 .createdAt(createdAt != null ? createdAt.toLocalDateTime() : null)
                 .expiresAt(expiresAt != null ? expiresAt.toLocalDateTime() : null)
+                .doctorName(docName)
+                .hospitalName(hospName)
                 .build();
     }
 }

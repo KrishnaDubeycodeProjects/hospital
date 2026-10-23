@@ -22,4 +22,6 @@ public class AccessRequestDto {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+    private String doctorName;
+    private String hospitalName;
 }
