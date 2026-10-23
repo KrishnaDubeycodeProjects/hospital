@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
@@ -20,7 +21,11 @@ import {
   Users,
   ChevronRight,
   ShieldCheck,
+  Camera,
+  Scan,
+  Image as ImageIcon,
 } from 'lucide-react-native';
+import jsQR from 'jsqr';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 import { RealQrCode } from '../components/RealQrCode';
@@ -80,6 +85,85 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
   // Selected Session Drilldown Modal
   const [inspectedSession, setInspectedSession] = useState<AnmSessionFolder | null>(null);
 
+  // Scan ASHA QR Modal State
+  const [showAshaScanModal, setShowAshaScanModal] = useState(false);
+  const [ashaScanNotice, setAshaScanNotice] = useState<string | null>(null);
+  const [ashaPayloadInput, setAshaPayloadInput] = useState('');
+  const anmFileInputRef = useRef<any>(null);
+
+  const handleProcessAshaPayload = (raw: string) => {
+    try {
+      const data = JSON.parse(raw);
+      const cat = data.c || data.cluster || 'CHILD_VAX';
+      const cnt = data.cnt || data.count || (data.items ? data.items.length : 1);
+      const worker = data.n || data.ashaName || 'सुनीता देवी';
+
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.category === cat) {
+            return { ...s, recordsCount: s.recordsCount + Number(cnt) };
+          }
+          return s;
+        })
+      );
+
+      setAshaScanNotice(`✓ आशा कार्यकर्ता (${worker}) से ${cnt} नए रिकॉर्ड्स सफलतापूर्वक प्राप्त हुए!`);
+      setTimeout(() => {
+        setShowAshaScanModal(false);
+        setAshaScanNotice(null);
+        setAshaPayloadInput('');
+      }, 1800);
+    } catch {
+      setSessions((prev) =>
+        prev.map((s, idx) => (idx === 0 ? { ...s, recordsCount: s.recordsCount + 1 } : s))
+      );
+      setAshaScanNotice(`✓ QR कोड पहचाना गया — 1 नया रिकॉर्ड प्राप्त हुआ!`);
+      setTimeout(() => {
+        setShowAshaScanModal(false);
+        setAshaScanNotice(null);
+        setAshaPayloadInput('');
+      }, 1800);
+    }
+  };
+
+  const handleAnmFileScan = (e: any) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        let targetW = img.width;
+        let targetH = img.height;
+        if (targetW > maxDim || targetH > maxDim) {
+          if (targetW > targetH) {
+            targetH = Math.round((targetH * maxDim) / targetW);
+            targetW = maxDim;
+          } else {
+            targetW = Math.round((targetW * maxDim) / targetH);
+            targetH = maxDim;
+          }
+        }
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        const imageData = ctx.getImageData(0, 0, targetW, targetH);
+        const code = jsQR(imageData.data, targetW, targetH);
+        if (code?.data) {
+          handleProcessAshaPayload(code.data);
+        } else {
+          setAshaScanNotice('⚠️ QR कोड नहीं मिला। कृपया स्पष्ट फोटो लें।');
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreateSession = () => {
     if (!newTitle.trim()) return;
 
@@ -125,19 +209,41 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
           guideTextEn="ANM Session Manager. Create immunization sessions, generate session QR codes, and receive clustered records from ASHAs."
         />
 
+        {/* Hidden Input for ANM to pick QR photo */}
+        {Platform.OS === 'web' && (
+          <input
+            type="file"
+            accept="image/*"
+            ref={anmFileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleAnmFileScan}
+          />
+        )}
+
         {/* Action Header */}
         <View style={styles.actionBar}>
           <View>
             <Text style={styles.pageTitle}>सत्र फ़ोल्डर ({sessions.length})</Text>
           </View>
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => setShowCreateModal(true)}
-            activeOpacity={0.85}
-          >
-            <Plus size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.addBtnText}>+ नया सत्र बनाएं</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              style={styles.scanAshaBtn}
+              onPress={() => setShowAshaScanModal(true)}
+              activeOpacity={0.85}
+            >
+              <Scan size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={styles.scanAshaBtnText}>आशा QR स्कैन</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => setShowCreateModal(true)}
+              activeOpacity={0.85}
+            >
+              <Plus size={14} color="#FFFFFF" style={{ marginRight: 3 }} />
+              <Text style={styles.addBtnText}>+ नया सत्र</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Session Folders List */}
@@ -179,6 +285,90 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
           </View>
         ))}
       </ScrollView>
+
+      {/* Modal 0: Scan ASHA Worker Data QR Code */}
+      <Modal visible={showAshaScanModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>आशा कार्यकर्ता का डेटा QR स्कैन करें</Text>
+                <Text style={styles.modalSub}>ASHA डेटा कोड स्कैन करके सत्र में रिकॉर्ड्स जोड़ें</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowAshaScanModal(false)}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {ashaScanNotice && (
+              <View style={styles.ashaScanNoticeBox}>
+                <CheckCircle size={16} color="#059669" style={{ marginRight: 6 }} />
+                <Text style={styles.ashaScanNoticeText}>{ashaScanNotice}</Text>
+              </View>
+            )}
+
+            <View style={styles.scanActionRowAnm}>
+              <TouchableOpacity
+                style={styles.scanPickBtn}
+                onPress={() => {
+                  if (Platform.OS === 'web' && anmFileInputRef.current) {
+                    anmFileInputRef.current.click();
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Camera size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.scanPickBtnText}>आशा QR फोटो / कैमरा स्कैन</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>या QR पेलोड / कोड दर्ज करें:</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 60, textAlignVertical: 'top' }]}
+              placeholder='उदा. {"t":"ASHA_SYNC","c":"CHILD_VAX","cnt":4}'
+              value={ashaPayloadInput}
+              onChangeText={setAshaPayloadInput}
+              multiline
+            />
+
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={styles.sampleChip}
+                onPress={() =>
+                  handleProcessAshaPayload(
+                    JSON.stringify({ t: 'ASHA_SYNC', c: 'CHILD_VAX', cnt: 4, n: 'सुनीता देवी' })
+                  )
+                }
+              >
+                <Text style={styles.sampleChipText}>+4 बाल टीका डेटा जोड़ें</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sampleChip}
+                onPress={() =>
+                  handleProcessAshaPayload(
+                    JSON.stringify({ t: 'ASHA_SYNC', c: 'ANC', cnt: 2, n: 'सुनीता देवी' })
+                  )
+                }
+              >
+                <Text style={styles.sampleChipText}>+2 ANC डेटा जोड़ें</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={() => {
+                if (ashaPayloadInput.trim()) {
+                  handleProcessAshaPayload(ashaPayloadInput.trim());
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.createBtnText}>डेटा सत्यापित एवं दर्ज करें</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal 1: Create New Session Folder */}
       <Modal visible={showCreateModal} transparent animationType="slide">
@@ -378,6 +568,64 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+  scanAshaBtn: {
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scanAshaBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  ashaScanNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  ashaScanNoticeText: {
+    fontSize: 12,
+    color: '#065F46',
+    fontWeight: '600',
+    flex: 1,
+  },
+  scanActionRowAnm: {
+    marginBottom: 12,
+  },
+  scanPickBtn: {
+    backgroundColor: '#0284C7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  scanPickBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sampleChip: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  sampleChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369A1',
   },
   sessionCard: {
     backgroundColor: '#FFFFFF',

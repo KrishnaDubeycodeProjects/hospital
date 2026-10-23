@@ -288,6 +288,19 @@ public class TestEnvironmentService {
         }
         String tokenCode = String.format("%s%02d", deptPrefix.contains("-") ? deptPrefix : deptPrefix + "-", nextNum);
 
+        Map<String, Object> tokenParams = new HashMap<>();
+        tokenParams.put("name", (name != null && !name.isBlank()) ? name : "Ramesh Kumar (Demo)");
+        tokenParams.put("age", age != null ? age : 28);
+        tokenParams.put("gender", gender != null ? gender.toLowerCase() : "male");
+        tokenParams.put("cat", cat);
+        tokenParams.put("phone", cleanPhone);
+        tokenParams.put("hId", hId);
+        tokenParams.put("status", st);
+        tokenParams.put("dailyNumber", dailyNumber != null ? dailyNumber : (Object) java.sql.Types.NULL);
+        tokenParams.put("dist", distanceKm != null ? distanceKm : (Object) java.sql.Types.NULL);
+        tokenParams.put("travelMins", travelMinutes != null ? travelMinutes : (Object) java.sql.Types.NULL);
+        tokenParams.put("tokenCode", tokenCode);
+
         Integer id = jdbc.queryForObject(
                 """
                 INSERT INTO tokens (name, age, gender, category, phone, hospital_id, status, daily_number,
@@ -299,19 +312,7 @@ public class TestEnvironmentService {
                         NOW())
                 RETURNING id
                 """,
-                new HashMap<String, Object>() {{
-                    put("name", (name != null && !name.isBlank()) ? name : "Ramesh Kumar (Demo)");
-                    put("age", age != null ? age : 28);
-                    put("gender", gender != null ? gender.toLowerCase() : "male");
-                    put("cat", cat);
-                    put("phone", cleanPhone);
-                    put("hId", hId);
-                    put("status", st);
-                    put("dailyNumber", dailyNumber != null ? dailyNumber : (Object) java.sql.Types.NULL);
-                    put("dist", distanceKm != null ? distanceKm : (Object) java.sql.Types.NULL);
-                    put("travelMins", travelMinutes != null ? travelMinutes : (Object) java.sql.Types.NULL);
-                    put("tokenCode", tokenCode);
-                }},
+                tokenParams,
                 Integer.class
         );
 

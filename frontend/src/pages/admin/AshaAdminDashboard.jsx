@@ -397,10 +397,84 @@ export default function AshaAdminDashboard() {
 
         {/* SCROLLABLE MAIN BODY */}
         <main style={{ flex: 1, padding: '16px 16px 80px', overflowY: 'auto' }}>
-          {bottomNav === 'dashboard' ? (
-            currentRole === 'ASHA' ? (
-              <AshaFieldWorkerApp onSwitchRole={() => setCurrentRole('CHO')} />
-            ) : (
+          {bottomNav === 'profile' ? (
+            /* PROFILE SCREEN TAB */
+            <div style={{ padding: '8px 0' }}>
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  marginBottom: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    backgroundColor: '#004d40',
+                    color: '#ffffff',
+                    fontWeight: '800',
+                    fontSize: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 12px',
+                  }}
+                >
+                  CHO
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
+                  डॉ. अनीता वर्मा
+                </div>
+                <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
+                  कम्युनिटी हेल्थ ऑफिसर (CHO) • सेक्टर 4
+                </div>
+                <div style={{ fontSize: '12px', color: '#059669', fontWeight: '700', marginTop: '4px' }}>
+                  आयुष्मान आरोग्य मंदिर, चांदपुर
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ padding: '14px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>संपर्क मोबाइल</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>
+                    +91 98765 43200
+                  </div>
+                </div>
+
+                <div style={{ padding: '14px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>कार्यक्षेत्र एवं सेक्टर</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>
+                    चांदपुर, रामपुर, खेड़ा, बरखेड़ा
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  style={{
+                    marginTop: '20px',
+                    padding: '13px',
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                  }}
+                >
+                  लॉगआउट करें (Log Out)
+                </button>
+              </div>
+            </div>
+          ) : currentRole === 'ASHA' ? (
+            <AshaFieldWorkerApp onSwitchRole={() => setCurrentRole('CHO')} />
+          ) : (
               <>
                 {/* AYUSHMAN AROGYA MANDIR (HWC) BANNER CARD */}
                 <div
@@ -1030,81 +1104,6 @@ export default function AshaAdminDashboard() {
                 </div>
               )}
             </>
-          )) : (
-            /* PROFILE SCREEN TAB */
-            <div style={{ padding: '8px 0' }}>
-              <div
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: '1.5px solid #e2e8f0',
-                  borderRadius: '16px',
-                  padding: '20px',
-                  textAlign: 'center',
-                  marginBottom: '16px',
-                }}
-              >
-                <div
-                  style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    backgroundColor: '#004d40',
-                    color: '#ffffff',
-                    fontWeight: '800',
-                    fontSize: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 12px',
-                  }}
-                >
-                  CHO
-                </div>
-                <div style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>
-                  डॉ. अनीता वर्मा
-                </div>
-                <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>
-                  कम्युनिटी हेल्थ ऑफिसर (CHO) • सेक्टर 4
-                </div>
-                <div style={{ fontSize: '12px', color: '#059669', fontWeight: '700', marginTop: '4px' }}>
-                  आयुष्मान आरोग्य मंदिर, चांदपुर
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ padding: '14px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>संपर्क मोबाइल</div>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>
-                    +91 98765 43200
-                  </div>
-                </div>
-
-                <div style={{ padding: '14px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>कार्यक्षेत्र एवं सेक्टर</div>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', marginTop: '2px' }}>
-                    चांदपुर, रामपुर, खेड़ा, बरखेड़ा
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  style={{
-                    marginTop: '20px',
-                    padding: '13px',
-                    backgroundColor: '#fee2e2',
-                    color: '#dc2626',
-                    border: '1px solid #fecaca',
-                    borderRadius: '12px',
-                    fontSize: '14px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                  }}
-                >
-                  लॉगआउट करें (Log Out)
-                </button>
-              </div>
-            </div>
           )}
         </main>
 

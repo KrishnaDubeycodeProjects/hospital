@@ -54,7 +54,10 @@ export class SyncApi {
    * Uploads all pending local outbox records to backend, and downloads remote referral updates.
    * If offline or unreachable, ensures data remains safely persisted in outbox.
    */
-  static async syncOutbox(ashaPhone: string = '9876543210'): Promise<SyncResult> {
+  static async syncOutbox(
+    ashaPhone: string = '9876543210',
+    sectionFilter: string = 'CHILD_VAX'
+  ): Promise<SyncResult> {
     const isOnline = await this.pingServer();
 
     if (!isOnline) {
