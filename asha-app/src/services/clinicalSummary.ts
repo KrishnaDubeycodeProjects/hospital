@@ -58,7 +58,7 @@ export function generateClinicalSummary(
         {
           id: 'edd',
           label: isHi ? 'प्रसव संभावित तिथि' : isMr ? 'संभाव्य प्रसूती तारीख' : 'Expected Delivery',
-          value: member.expectedDeliveryDate || '15 Oct 2025',
+          value: member.expectedDeliveryDate || '15 Nov 2026',
           statusType: 'info',
         },
         {
@@ -151,7 +151,7 @@ export function generateClinicalSummary(
         memberId: member.id,
         memberName: member.name,
         categoryTitle: isHi ? 'दीर्घकालीन रोग जांच' : isMr ? 'दीर्घकालीन रोग तपासणी' : 'Non-Communicable Disease',
-        surveyDate: member.lastSurveyDate || '12 Aug 2025',
+        surveyDate: member.lastSurveyDate || '20 Oct 2026',
         highlights,
         spokenText,
         detailedEntries: [],

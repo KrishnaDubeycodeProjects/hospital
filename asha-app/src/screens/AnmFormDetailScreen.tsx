@@ -49,7 +49,7 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({
 
   const formEntries = [
     { label: '1. First Pregnancy', value: 'Yes', isNormal: true },
-    { label: '2. LMP', value: '12/06/2025', isNormal: true },
+    { label: '2. LMP', value: '12/06/2026', isNormal: true },
     { label: '3. Complications', value: 'None', isNormal: true },
     { label: '4. BP', value: 'Normal (118/76)', isNormal: true },
     { label: '5. Hemoglobin', value: '11.2 g/dL', isNormal: false, note: 'Mild Anemia' },

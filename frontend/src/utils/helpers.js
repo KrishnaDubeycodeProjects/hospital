@@ -21,7 +21,8 @@ export function isOpenNow(h) {
   if (!h) return true;
   const name = (h.name || h.hospital_name || '').toLowerCase();
   const slug = (h.uriSlug || h.slug || '').toLowerCase();
-  if (slug === 'main' || name.includes('aarogyaflow')) return true;
+  const cleanName = name.replace(/\s+/g, '');
+  if (slug === 'main' || name.includes('aarogya') || name.includes('arogya') || cleanName.includes('aarogyaflow') || cleanName.includes('arogyaflow')) return true;
   if (!h.openTime || !h.closeTime) return true;
   if (h.openTime === '00:00' && (h.closeTime === '23:59' || h.closeTime === '24:00')) return true;
 

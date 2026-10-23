@@ -45,7 +45,7 @@ export default function DoctorProfile() {
     }
   }
 
-  if (!me) return <Spinner label="Loading physician profile..." />;
+  if (!me) return <Spinner label="Loading doctor profile..." />;
 
   return (
     <div className="stack-lg">
@@ -56,13 +56,13 @@ export default function DoctorProfile() {
             Doctor Profile
           </h1>
           <p className="muted-text">
-            Verified Ayushman Bharat Health Professional (HPR ID Registered)
+            Registered Healthcare Professional
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ShieldCheck size={14} />
-            Verified Physician
+            Verified Doctor
           </span>
         </div>
       </div>
@@ -76,12 +76,12 @@ export default function DoctorProfile() {
               <Hash size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Physician ID</div>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Doctor ID</div>
               <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', fontFamily: 'monospace', marginTop: '2px' }}>
                 DOC-{me.id}
               </div>
               <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '2px' }}>
-                Share with reception for counter dispatch
+                Share with hospital reception to link your room
               </div>
             </div>
           </div>
@@ -106,7 +106,7 @@ export default function DoctorProfile() {
               <Building2 size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Current Facility</div>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Hospital / Clinic</div>
               <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
                 {me.hospitalName || 'Not Linked Yet'}
               </div>
@@ -120,26 +120,26 @@ export default function DoctorProfile() {
       </Card>
 
       {!me.hospitalId && (
-        <Card title="Join a Hospital Facility">
-          <p className="muted-text">Enter the 6-character hospital join code provided by your facility administrator.</p>
+        <Card title="Join a Hospital">
+          <p className="muted-text">Enter the hospital code provided by your hospital administrator.</p>
           <form onSubmit={joinHospital} className="row-gap">
             <Field label="Hospital Code">
               <Input value={hospitalCode} onChange={(e) => setHospitalCode(e.target.value.toUpperCase())} placeholder="e.g. AIIMS-01" required />
             </Field>
             <Button type="submit" loading={joining}>
-              Join Facility
+              Join Hospital
             </Button>
           </form>
         </Card>
       )}
 
-      <Card title="My OPD Duty Schedule">
+      <Card title="My Duty Schedule">
         {slots ? (
           <Table
             columns={[
               { key: 'slotDate', header: 'Duty Date' },
               { key: 'startTime', header: 'Reporting Time' },
-              { key: 'endTime', header: 'Shift Closes' },
+              { key: 'endTime', header: 'End Time' },
               { key: 'category', header: 'Department', render: (r) => r.category || 'General Medicine' },
             ]}
             rows={slots}

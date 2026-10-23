@@ -279,7 +279,6 @@ export const familyApi = {
   linkAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/link-abha`, payload, authFor('PATIENT')),
   enrollAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/enroll-abha`, payload, authFor('PATIENT')),
   deleteMember: (memberId) => delD(`/api/family/members/${memberId}`, authFor('PATIENT')),
-  abhaQrUrl: (memberId) => `${API_URL}/api/family/members/${memberId}/abha-qr`,
 };
 
 // --------------------------------------------------------------- Drugs ----

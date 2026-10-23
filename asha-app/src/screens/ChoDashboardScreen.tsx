@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
+  Linking,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
@@ -22,12 +23,17 @@ import {
   Calendar,
   Activity,
   ShieldAlert,
+  Phone,
+  Pill,
+  Clock,
+  ShieldCheck,
+  Send,
 } from 'lucide-react-native';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 
 export const ChoDashboardScreen: React.FC = () => {
-  const { families, members, followUps, surveys } = useOfflineData();
+  const { families, members, followUps, surveys, approveReferralByCho } = useOfflineData();
 
   // Active Tab: 'Overview' | 'Workers' | 'Referrals'
   const [activeTab, setActiveTab] = useState<'Overview' | 'Workers' | 'Referrals'>('Overview');
@@ -87,17 +93,23 @@ export const ChoDashboardScreen: React.FC = () => {
     },
   ];
 
-  const handleApproveReferral = (id: string) => {
+  const handleApproveReferral = async (id: string) => {
     setApprovedReferralIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
+    await approveReferralByCho(id);
   };
 
-  const handleSaveTeleconsultAdvice = () => {
+  const handleSaveTeleconsultAdvice = async () => {
     if (teleconsultPatient) {
-      handleApproveReferral(teleconsultPatient.id);
+      await approveReferralByCho(teleconsultPatient.id, doctorNotes);
+      setApprovedReferralIds((prev) => {
+        const next = new Set(prev);
+        next.add(teleconsultPatient.id);
+        return next;
+      });
       setShowNotesSuccess(true);
       setTimeout(() => {
         setShowNotesSuccess(false);
@@ -296,18 +308,96 @@ export const ChoDashboardScreen: React.FC = () => {
               </View>
             ) : (
               urgentTasks.map((task) => {
-                const isApproved = approvedReferralIds.has(task.id);
+                const isApproved = approvedReferralIds.has(task.id) || task.choStatus === 'APPROVED_CHO';
                 return (
                   <View key={task.id} style={styles.referralCard}>
                     <View style={styles.referralHeader}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.patientName}>{task.name}</Text>
-                        <Text style={styles.referralReason}>{task.taskType}</Text>
-                        <View style={styles.referralMetaRow}>
-                          <Calendar size={11} color={Colors.textSecondary} style={{ marginRight: 3 }} />
-                          <Text style={styles.referralDueDate}>{task.dueDate}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Text style={styles.patientName}>
+                            {task.name} {task.age ? `(${task.age} वर्ष${task.gender ? ` • ${task.gender}` : ''})` : ''}
+                          </Text>
+                          {task.houseNumber && (
+                            <Text style={styles.referralHousePill}>
+                              घर #{task.houseNumber} • {task.villageName || 'गाँव'}
+                            </Text>
+                          )}
                         </View>
+
+                        {/* Attached Contact Number & ABHA ID Number */}
+                        <View style={styles.patientNumbersRow}>
+                          {task.phone && (
+                            <TouchableOpacity
+                              style={styles.phoneBadgeBtn}
+                              onPress={() => Linking.openURL(`tel:${task.phone}`)}
+                              activeOpacity={0.7}
+                            >
+                              <Phone size={11} color="#0284C7" style={{ marginRight: 4 }} />
+                              <Text style={styles.phoneBadgeText}>{task.phone}</Text>
+                              <Text style={styles.callNowHint}>कॉल</Text>
+                            </TouchableOpacity>
+                          )}
+                          {task.abhaNumber && (
+                            <View style={styles.abhaBadgePill}>
+                              <ShieldCheck size={11} color="#059669" style={{ marginRight: 3 }} />
+                              <Text style={styles.abhaBadgeText}>ABHA: {task.abhaNumber}</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={styles.referralReason}>{task.taskType}</Text>
+
+                        {/* Clinical Condition & Vitals */}
+                        {(task.condition || task.vitals) && (
+                          <View style={styles.vitalsBox}>
+                            {task.condition && (
+                              <Text style={styles.vitalsConditionText}>निदान: {task.condition}</Text>
+                            )}
+                            {task.vitals && (
+                              <Text style={styles.vitalsReadingText}>जाँच: {task.vitals}</Text>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Doctor Prescriptions & Prescription Deadline */}
+                        {task.prescriptionDetails && (
+                          <View style={styles.rxDeadlineBox}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Pill size={11} color="#B45309" style={{ marginRight: 4 }} />
+                              <Text style={styles.rxLabel}>दवा सलाह:</Text>
+                            </View>
+                            <Text style={styles.rxDetails}>{task.prescriptionDetails}</Text>
+                            {task.prescriptionDeadline && (
+                              <View style={styles.deadlineRow}>
+                                <Clock size={11} color="#DC2626" style={{ marginRight: 4 }} />
+                                <Text style={styles.deadlineHighlight}>
+                                  समयसीमा: {task.prescriptionDeadline}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Referring Source & ASHA Details */}
+                        <View style={styles.referralMetaRow}>
+                          <Text style={styles.referralAshaSource}>
+                            रेफरल स्रोत: {task.doctorName ? `डॉक्टर ${task.doctorName}` : `आशा कार्यकर्ता (${task.ashaWorkerPhone})`}
+                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                            <Calendar size={11} color={Colors.textSecondary} style={{ marginRight: 3 }} />
+                            <Text style={styles.referralDueDate}>{task.dueDate}</Text>
+                          </View>
+                        </View>
+
+                        {/* Existing CHO Advice if recorded */}
+                        {task.choAdvice && (
+                          <View style={styles.existingAdviceBox}>
+                            <Text style={styles.existingAdviceLabel}>सीएचओ परामर्श टिप्पणी:</Text>
+                            <Text style={styles.existingAdviceText}>"{task.choAdvice}"</Text>
+                          </View>
+                        )}
                       </View>
+
                       <View
                         style={[
                           styles.urgencyBadge,
@@ -353,7 +443,7 @@ export const ChoDashboardScreen: React.FC = () => {
                         activeOpacity={0.8}
                       >
                         <PhoneCall size={14} color="#0369A1" style={{ marginRight: 4 }} />
-                        <Text style={styles.teleconsultBtnText}>टेली-परामर्श</Text>
+                        <Text style={styles.teleconsultBtnText}>टेली-परामर्श व दवा सलाह</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -708,9 +798,135 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   patientName: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '800',
     color: Colors.textPrimary,
+  },
+  referralHousePill: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#0284C7',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  patientNumbersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  phoneBadgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  phoneBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  callNowHint: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#2563EB',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+    marginLeft: 5,
+  },
+  abhaBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  abhaBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  vitalsBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    padding: 6,
+    marginVertical: 4,
+  },
+  vitalsConditionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  vitalsReadingText: {
+    fontSize: 10.5,
+    color: '#475569',
+    marginTop: 1,
+  },
+  rxDeadlineBox: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 4,
+  },
+  rxLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  rxDetails: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#78350F',
+    marginTop: 1,
+  },
+  deadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  deadlineHighlight: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  referralAshaSource: {
+    fontSize: 10.5,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  existingAdviceBox: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 6,
+    padding: 6,
+    marginTop: 4,
+  },
+  existingAdviceLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  existingAdviceText: {
+    fontSize: 10.5,
+    color: '#14532D',
+    fontStyle: 'italic',
   },
   referralReason: {
     fontSize: 12,

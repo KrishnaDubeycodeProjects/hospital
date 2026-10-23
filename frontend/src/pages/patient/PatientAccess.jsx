@@ -267,7 +267,7 @@ export default function PatientAccess() {
         }}
       >
         <div style={{ fontSize: '13px', fontWeight: '800', color: '#166534' }}>
-          🛡️ ABDM Privacy Guarantee
+          🛡️ Your Privacy Guarantee
         </div>
         <p style={{ fontSize: '12px', color: '#15803D', margin: 0, lineHeight: 1.4 }}>
           Access is limited only to your uploaded prescriptions and diagnostic reports. You retain 100% control and can revoke access anytime with one tap.

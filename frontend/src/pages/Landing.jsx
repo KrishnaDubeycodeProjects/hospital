@@ -397,7 +397,7 @@ export default function Landing() {
                 </div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '700', color: '#0F4C3A' }}>Patient &amp; Family</h3>
                 <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px', lineHeight: 1.5, flex: 1 }}>
-                  View live OPD tokens, digital prescription slips, lab results, and household member ABHA cards.
+                  View live OPD tokens, digital prescription slips, lab results, and linked family ABHA profiles.
                 </p>
                 <button
                   type="button"

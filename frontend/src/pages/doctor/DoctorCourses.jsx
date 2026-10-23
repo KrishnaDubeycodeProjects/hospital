@@ -22,7 +22,7 @@ export default function DoctorCourses() {
   const [timeline, setTimeline] = useState(null);
   const [loadingCourse, setLoadingCourse] = useState(false);
 
-  // FHIR R4 Bundle Modal
+  // View Data Modal
   const [fhirModal, setFhirModal] = useState(false);
   const [fhirBundle, setFhirBundle] = useState(null);
   const [loadingFhir, setLoadingFhir] = useState(false);
@@ -215,8 +215,8 @@ export default function DoctorCourses() {
     }
   }
 
-  // FHIR R4 Bundle Direct Access
-  async function openFhirBundle(courseId, encounterId = null, title = 'Course FHIR R4 Bundle') {
+  // View Data Direct Access
+  async function openFhirBundle(courseId, encounterId = null, title = 'Course View Data') {
     setLoadingFhir(true);
     setFhirTitle(title);
     setFhirModal(true);
@@ -271,9 +271,9 @@ export default function DoctorCourses() {
       {/* Header */}
       <div className="card-head">
         <div>
-          <h1>Care Episodes & Patient Longitudinal Courses</h1>
+          <h1>Patient Treatments & Visit History</h1>
           <p className="muted-text">
-            Search a patient to view their complete list of care courses, unified clinical timeline, diagnostic documents, and direct FHIR R4 bundles.
+            Search for a patient to view their past visits, medical notes, prescriptions, and test reports.
           </p>
         </div>
       </div>
@@ -409,13 +409,13 @@ export default function DoctorCourses() {
 
         {/* Right Column: Longitudinal Timeline & Detail of Selected Course */}
         <div>
-          {loadingCourse && <Spinner label="Loading course longitudinal timeline..." />}
+          {loadingCourse && <Spinner label="Loading visit history and records..." />}
 
           {!loadingCourse && !activeCourse && (
             <Card>
               <EmptyState
                 title="No Course Selected"
-                hint="Select a patient and course from the left panel to review longitudinal care timeline, encounters, prescriptions, and diagnostic documents."
+                hint="Select a patient from the left panel to see their visits, doctor notes, prescriptions, and test reports."
               />
             </Card>
           )}
@@ -430,15 +430,15 @@ export default function DoctorCourses() {
                     <Button
                       size="sm"
                       variant="primary"
-                      onClick={() => openFhirBundle(activeCourse.id, null, `Course #${activeCourse.id} FHIR R4 Bundle`)}
+                      onClick={() => openFhirBundle(activeCourse.id, null, `Course #${activeCourse.id} View Data`)}
                     >
-                      Direct FHIR R4 Bundle
+                      View Record Data
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => setEncounterModal(true)}>
-                      Add Encounter
+                      Add Visit Note
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => setUploadModal(true)}>
-                      Attach Document
+                      Upload Document
                     </Button>
                   </div>
                 }
@@ -479,17 +479,17 @@ export default function DoctorCourses() {
                 </dl>
               </Card>
 
-              {/* Longitudinal Care Timeline */}
+              {/* Visit & Treatment Timeline */}
               <Card
-                title="Longitudinal Care Timeline"
+                title="Visit & Treatment Timeline"
                 extra={
                   <span className="badge badge-green">
-                    {timeline?.encounters?.length || 0} Encounters Recorded
+                    {timeline?.encounters?.length || 0} Visits Recorded
                   </span>
                 }
               >
                 {!timeline?.encounters || timeline.encounters.length === 0 ? (
-                  <EmptyState title="No encounters recorded yet." hint="Use 'Add Encounter' above to log a clinical follow-up or OPD note." />
+                  <EmptyState title="No encounters recorded yet." hint="Use 'Add Visit Note' above to log a clinical follow-up or OPD note." />
                 ) : (
                   <div className="stack-md">
                     {timeline.encounters.map((enc, idx) => (
@@ -504,7 +504,7 @@ export default function DoctorCourses() {
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                           <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
-                            Encounter #{enc.id}: {enc.chiefComplaint}
+                            Visit #{enc.id}: {enc.chiefComplaint}
                           </h4>
                           <div className="row-gap" style={{ alignItems: 'center' }}>
                             <span className="muted-text" style={{ fontSize: '12px' }}>
@@ -513,10 +513,10 @@ export default function DoctorCourses() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => openFhirBundle(activeCourse.id, enc.id, `Encounter #${enc.id} FHIR R4 Bundle`)}
+                              onClick={() => openFhirBundle(activeCourse.id, enc.id, `Visit #${enc.id} View Data`)}
                               style={{ fontSize: '11px', padding: '2px 8px' }}
                             >
-                              FHIR R4 Bundle
+                              View Data
                             </Button>
                           </div>
                         </div>
@@ -574,28 +574,36 @@ export default function DoctorCourses() {
                 }
               >
                 {!timeline?.documents || timeline.documents.length === 0 ? (
-                  <EmptyState title="No documents attached to this care course." hint="Use 'Attach Document' above to upload lab reports, discharge summaries, or imaging files." />
+                  <EmptyState title="No documents attached to this care course." hint="Use 'Upload Document' above to upload lab reports, discharge summaries, or imaging files." />
                 ) : (
                   <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <Table
                     columns={[
-                      { key: 'fileName', header: 'File Name' },
-                      { key: 'docType', header: 'Classification', render: (d) => <span className="badge badge-blue">{d.docType}</span> },
+                      { 
+                        key: 'fileName', 
+                        header: 'File Name',
+                        render: (d) => (
+                          <span style={{ fontWeight: 600, color: '#0f172a', minWidth: '200px', display: 'inline-block' }}>
+                            {d.fileName}
+                          </span>
+                        )
+                      },
+                      { key: 'docType', header: 'Classification', render: (d) => <span className="badge badge-blue" style={{ whiteSpace: 'nowrap' }}>{d.docType}</span> },
                       {
                         key: 'uploader',
                         header: 'Uploaded By',
                         render: (d) => {
                           const isUploadedByMe = currentDoctorId && d.uploadedByDoctorId === currentDoctorId;
                           if (isUploadedByMe) {
-                            return <span className="badge badge-green" style={{ fontSize: '11px' }}>Uploaded by You</span>;
+                            return <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by You</span>;
                           }
                           if (d.uploadedByDoctorName) {
-                            return <span style={{ fontSize: '12px', color: '#475569' }}>Dr. {d.uploadedByDoctorName}</span>;
+                            return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Dr. {d.uploadedByDoctorName}</span>;
                           }
                           if (d.uploadedByDoctorId) {
-                            return <span style={{ fontSize: '12px', color: '#475569' }}>Doctor #{d.uploadedByDoctorId}</span>;
+                            return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Doctor #{d.uploadedByDoctorId}</span>;
                           }
-                          return <span className="badge badge-gray" style={{ fontSize: '11px' }}>Uploaded by Patient</span>;
+                          return <span className="badge badge-gray" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by Patient</span>;
                         },
                       },
                       {
@@ -605,25 +613,25 @@ export default function DoctorCourses() {
                           const seenTimestamp = seenDocs[d.id];
                           if (seenTimestamp) {
                             return (
-                              <span className="badge badge-green" style={{ fontSize: '11px' }}>
+                              <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                                 Seen by You ({fmtDateTime(seenTimestamp)})
                               </span>
                             );
                           }
                           return (
-                            <span className="badge badge-amber" style={{ fontSize: '11px' }}>
+                            <span className="badge badge-amber" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                               Unseen / New
                             </span>
                           );
                         },
                       },
-                      { key: 'fileSize', header: 'Size', render: (d) => `${Math.round((d.fileSize || 0) / 1024)} KB` },
-                      { key: 'createdAt', header: 'Uploaded Date', render: (d) => fmtDateTime(d.createdAt) },
+                      { key: 'fileSize', header: 'Size', render: (d) => <span style={{ whiteSpace: 'nowrap' }}>{`${Math.round((d.fileSize || 0) / 1024)} KB`}</span> },
+                      { key: 'createdAt', header: 'Uploaded Date', render: (d) => <span style={{ whiteSpace: 'nowrap', fontSize: '12px', color: '#475569' }}>{fmtDateTime(d.createdAt)}</span> },
                       {
                         key: 'actions',
                         header: 'Actions',
                         render: (d) => (
-                          <div className="row-gap">
+                          <div className="row-gap" style={{ whiteSpace: 'nowrap' }}>
                             <Button size="sm" variant="secondary" onClick={() => viewDocInTab(d.id)}>
                               View File
                             </Button>
@@ -644,7 +652,7 @@ export default function DoctorCourses() {
         </div>
       </div>
 
-      {/* Direct FHIR R4 Bundle Modal */}
+      {/* View Record Data Modal */}
       {fhirModal && (
         <Modal title={fhirTitle || 'Official ABDM FHIR R4 Document Bundle'} onClose={() => setFhirModal(false)}>
           <div className="stack-md">
@@ -712,7 +720,7 @@ export default function DoctorCourses() {
               />
             </Field>
 
-            <Field label="Select File (Magic-byte inspected, max 10MB)">
+            <Field label="Select File (PDF or Image, max 10MB)">
               <input
                 type="file"
                 className="input"
@@ -727,39 +735,39 @@ export default function DoctorCourses() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" loading={uploading}>
-                Upload & Verify Hash
+                Upload Document
               </Button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Add Encounter Modal */}
+      {/* Add Visit Note Modal */}
       {encounterModal && (
-        <Modal title="Record Follow-up Encounter" onClose={() => setEncounterModal(false)}>
+        <Modal title="Record Follow-up Visit" onClose={() => setEncounterModal(false)}>
           <form onSubmit={handleAddEncounter} className="stack-md">
-            <Field label="Chief Complaint *">
+            <Field label="Main Health Concern / Symptoms *">
               <Input
                 value={encounterForm.chiefComplaint}
                 onChange={(e) => setEncounterForm((f) => ({ ...f, chiefComplaint: e.target.value }))}
                 required
               />
             </Field>
-            <Field label="Clinical Notes">
+            <Field label="Doctor's Notes">
               <Textarea
                 rows={2}
                 value={encounterForm.clinicalNotes}
                 onChange={(e) => setEncounterForm((f) => ({ ...f, clinicalNotes: e.target.value }))}
               />
             </Field>
-            <Field label="Examination Findings">
+            <Field label="Physical Checkup Findings">
               <Textarea
                 rows={2}
                 value={encounterForm.examinationFindings}
                 onChange={(e) => setEncounterForm((f) => ({ ...f, examinationFindings: e.target.value }))}
               />
             </Field>
-            <Field label="Management Plan">
+            <Field label="Treatment Plan">
               <Input
                 value={encounterForm.plan}
                 onChange={(e) => setEncounterForm((f) => ({ ...f, plan: e.target.value }))}
@@ -770,7 +778,7 @@ export default function DoctorCourses() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" loading={savingEncounter}>
-                Save Encounter
+                Save Visit Note
               </Button>
             </div>
           </form>

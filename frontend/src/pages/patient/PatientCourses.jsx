@@ -94,7 +94,7 @@ export default function PatientCourses() {
         <div>
           <h1>My Care Episodes & Consultations</h1>
           <p className="muted-text">
-            Longitudinal health records across your visits, including doctor encounter notes, prescriptions, and lab documents.
+            Your health records across visits, including doctor notes, prescriptions, and lab reports.
           </p>
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function PatientCourses() {
                   </div>
 
                   {!timeline?.encounters || timeline.encounters.length === 0 ? (
-                    <EmptyState title="No encounters recorded yet." />
+                    <EmptyState title="No visits recorded yet." />
                   ) : (
                     <div style={{ position: 'relative', padding: '10px 4px 10px 10px' }}>
                       {/* Continuous Vertical Grey Track Line */}

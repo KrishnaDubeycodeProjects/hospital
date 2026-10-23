@@ -56,7 +56,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 mainHospitalId = jdbc.queryForObject(
                         """
                         INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time, avg_service_minutes, active_counters, doctor_join_code, categories)
-                        VALUES ('main', 'Main Hospital', '123 Health Ave, Mumbai', '3C3P39L8T4', 28.6139, 77.2090, '09:00', '17:00', 10, 3, 'DOC123', 'General Medicine,Cardiology,Pediatrics')
+                        VALUES ('main', 'AarogyaFlow Central Hospital', '123 Health Ave, Mumbai', '3C3P39L8T4', 28.6139, 77.2090, '00:00', '23:59', 10, 3, 'DOC123', 'General Medicine,Cardiology,Pediatrics')
                         RETURNING id
                         """,
                         Map.of(), Integer.class);

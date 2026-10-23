@@ -38,7 +38,7 @@ function DrugInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
   return (
     <div style={{ position: 'relative' }}>
       <Input
-        placeholder="Search Eka Care Registry (e.g. Paracetamol)"
+        placeholder="Search medicines (e.g. Paracetamol)"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -138,7 +138,7 @@ function LabInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
   return (
     <div style={{ position: 'relative' }}>
       <Input
-        placeholder="Search Eka Care Labs (e.g. CBC, HbA1c, LFT, Sputum AFB)"
+        placeholder="Search lab tests (e.g. Blood Test, CBC, Sugar, Urine)"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -204,6 +204,14 @@ function LabInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
   );
 }
 
+function formatTokenLabel(t, fallbackIndex = null) {
+  if (!t) return '-';
+  if (t.tokenCode && !t.tokenCode.includes('null')) return t.tokenCode;
+  if (t.dailyNumber) return `AF-${String(t.dailyNumber).padStart(2, '0')}`;
+  if (fallbackIndex != null) return `Buffer #${fallbackIndex + 1}`;
+  return 'Buffer Token';
+}
+
 export default function DoctorConsultation() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
@@ -256,14 +264,23 @@ export default function DoctorConsultation() {
 
   async function loadData() {
     try {
-      const me = await doctorApi.me();
-      setProfile(me);
-      if (me.hospitalId) {
-        const q = await queueApi.getQueue(me.hospitalId, me.category);
-        setCurrentQueue(q);
-        const cur = await queueApi.current(me.hospitalId, me.category);
-        setActiveToken(cur);
+      let me = null;
+      try {
+        me = await doctorApi.me();
+        if (me) setProfile(me);
+      } catch (e) {
+        console.warn('Doctor profile load note:', e);
       }
+      const effectiveHospId = me?.hospitalId || profile?.hospitalId || 1;
+      const effectiveCategory = me?.category || profile?.category || 'General Medicine';
+
+      const q = await queueApi.getQueue(effectiveHospId, effectiveCategory);
+      setCurrentQueue(q);
+      try {
+        const cur = await queueApi.current(effectiveHospId, effectiveCategory);
+        setActiveToken(cur);
+      } catch (e) {}
+
       const hospList = await hospitalApi.list();
       setHospitals(hospList || []);
     } catch (err) {
@@ -276,14 +293,14 @@ export default function DoctorConsultation() {
   useEffect(() => {
     loadData();
     const timer = setInterval(() => {
-      if (profile?.hospitalId) {
-        queueApi.getQueue(profile.hospitalId, profile.category).then(setCurrentQueue).catch(() => {});
-        queueApi.current(profile.hospitalId, profile.category).then(setActiveToken).catch(() => {});
-      }
-    }, 8000);
+      const effectiveHospId = profile?.hospitalId || 1;
+      const effectiveCategory = profile?.category || 'General Medicine';
+      queueApi.getQueue(effectiveHospId, effectiveCategory).then(setCurrentQueue).catch(() => {});
+      queueApi.current(effectiveHospId, effectiveCategory).then(setActiveToken).catch(() => {});
+    }, 3500);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.hospitalId]);
+  }, [profile?.hospitalId, profile?.category]);
 
   const [showQueueBoard, setShowQueueBoard] = useState(true);
 
@@ -300,7 +317,8 @@ export default function DoctorConsultation() {
   const [testCreating, setTestCreating] = useState(false);
 
   async function handleAddTestPatient(overrideStatus = null) {
-    if (!profile?.hospitalId) return;
+    const effectiveHospId = profile?.hospitalId || 1;
+    const effectiveCategory = profile?.category || 'General Medicine';
     setTestCreating(true);
     const targetStatus = overrideStatus || testTargetStatus || 'waiting';
     try {
@@ -312,17 +330,18 @@ export default function DoctorConsultation() {
           age: parseInt(testPatientAge) || 30,
           gender: testPatientGender || 'male',
           phone: testPatientPhone || '+919100000099',
-          category: profile.category || 'General Medicine',
-          hospitalId: profile.hospitalId,
+          category: effectiveCategory,
+          hospitalId: effectiveHospId,
           status: targetStatus,
-          distanceKm: testDistanceKm ? parseFloat(testDistanceKm) : null,
-          travelMinutes: testTravelMinutes ? parseInt(testTravelMinutes) : null,
+          distanceKm: testDistanceKm ? parseFloat(testDistanceKm) : (targetStatus === 'frozen' ? 18.5 : 2.5),
+          travelMinutes: testTravelMinutes ? parseInt(testTravelMinutes) : (targetStatus === 'frozen' ? 45 : 10),
         }),
       });
       const data = await resp.json();
       if (data.success) {
-        toast.success(`Patient #${data.data?.dailyNumber || data.data?.tokenId || ''} (${testPatientName}) injected into queue as ${targetStatus.toUpperCase()}!`);
-        loadData();
+        const displayLabel = data.data?.tokenCode || (data.data?.dailyNumber ? `Token #${data.data.dailyNumber}` : 'Buffer Token');
+        toast.success(`Patient ${displayLabel} (${testPatientName}) injected into queue as ${targetStatus.toUpperCase()}!`);
+        await loadData();
       } else {
         toast.error(data.message || 'Failed to inject test patient');
       }
@@ -339,9 +358,10 @@ export default function DoctorConsultation() {
       return;
     }
     try {
-      await queueApi.unfreeze(tokenId);
-      toast.success(`Token #${tokenId} unfrozen & placed into active FIFO queue!`);
-      loadData();
+      const res = await queueApi.unfreeze(tokenId);
+      const code = res?.data?.tokenCode || (res?.data?.dailyNumber ? `Token #${res.data.dailyNumber}` : `Token #${tokenId}`);
+      toast.success(`${code} unfrozen & moved to Active FIFO queue!`);
+      await loadData();
     } catch (err) {
       toast.error(err.message || 'Failed to unfreeze token');
     }
@@ -530,7 +550,7 @@ export default function DoctorConsultation() {
     <div className="stack-lg">
       <div className="card-head">
         <div>
-          <h1>Doctor Consultation Workbench</h1>
+          <h1>Doctor Consultation Room</h1>
           <p className="muted-text">
             {profile.hospitalName} &bull; Counter {profile.counterId || '1'} ({profile.category || 'General'})
           </p>
@@ -647,29 +667,39 @@ export default function DoctorConsultation() {
                   onChange={(e) => setTestTargetStatus(e.target.value)}
                   style={{ fontSize: '13px', fontWeight: 600 }}
                 >
-                  <option value="waiting">🔵 Initial State: Waiting (FIFO Queue)</option>
-                  <option value="frozen">❄️ Initial State: Frozen Buffer (&gt;15km Far)</option>
-                  <option value="serving">🪑 Initial State: Serving (Direct Chair)</option>
-                  <option value="missed">🔴 Initial State: Missed / Demoted</option>
+                  <option value="waiting">🔵 Initial State: Waiting in Clinic</option>
+                  <option value="frozen">❄️ Initial State: Distant Patient (Traveling)</option>
+                  <option value="reserved">🟡 Initial State: Arriving Soon</option>
+                  <option value="serving">🪑 Initial State: In Consultation</option>
+                  <option value="missed">🔴 Initial State: Missed Turn</option>
                 </Select>
-                <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '4px' }}>
                   <Button
                     size="sm"
                     variant="primary"
                     loading={testCreating}
-                    onClick={() => handleAddTestPatient()}
-                    style={{ flex: 1, fontSize: '12px', fontWeight: 700 }}
+                    onClick={() => handleAddTestPatient('waiting')}
+                    style={{ fontSize: '11px', fontWeight: 700 }}
                   >
-                    ➕ Inject Patient
+                    ? Waiting
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
                     loading={testCreating}
                     onClick={() => handleAddTestPatient('frozen')}
-                    style={{ flex: 1, fontSize: '12px', fontWeight: 700, backgroundColor: '#CCFBF1', color: '#0F766E' }}
+                    style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#CCFBF1', color: '#0F766E' }}
                   >
-                    ❄️ Inject as Frozen
+                    ?? Frozen
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={testCreating}
+                    onClick={() => handleAddTestPatient('reserved')}
+                    style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FEF3C7', color: '#92400E' }}
+                  >
+                    ?? Reserved
                   </Button>
                 </div>
               </div>
@@ -687,24 +717,24 @@ export default function DoctorConsultation() {
                   style={{ fontSize: '13px' }}
                 >
                   <option value="">-- Choose Token from Any Queue --</option>
-                  {(currentQueue?.frozen || []).map((t) => (
+                  {(currentQueue?.frozen || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      ❄️ #{t.dailyNumber || t.id} - {t.name} (Frozen Buffer - {t.distanceKm ? t.distanceKm + 'km' : 'Far'})
+                      ?? {formatTokenLabel(t, idx)} - {t.name} (Frozen Buffer - {t.distanceKm ? t.distanceKm + 'km' : 'Far'})
                     </option>
                   ))}
-                  {(currentQueue?.tokens?.filter((t) => t.status === 'waiting') || []).map((t) => (
+                  {(currentQueue?.tokens?.filter((t) => t.status === 'waiting') || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      🔵 #{t.dailyNumber || t.id} - {t.name} (Waiting FIFO)
+                      ?? {formatTokenLabel(t, idx)} - {t.name} (Waiting FIFO - Pos #{t.queuePosition || idx + 1})
                     </option>
                   ))}
-                  {(currentQueue?.reserved || []).map((t) => (
+                  {(currentQueue?.reserved || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      🟡 #{t.dailyNumber || t.id} - {t.name} (Reserved Buffer)
+                      ?? {formatTokenLabel(t, idx)} - {t.name} (Reserved Buffer)
                     </option>
                   ))}
-                  {(currentQueue?.missed || []).map((t) => (
+                  {(currentQueue?.missed || []).map((t, idx) => (
                     <option key={t.id} value={t.id}>
-                      🔴 #{t.dailyNumber || t.id} - {t.name} (Missed Queue)
+                      ?? {formatTokenLabel(t, idx)} - {t.name} (Missed Queue)
                     </option>
                   ))}
                 </Select>
@@ -717,7 +747,7 @@ export default function DoctorConsultation() {
                     onClick={() => handleDirectCheckIn(testSelectedTokenId)}
                     style={{ fontSize: '12px', fontWeight: 700 }}
                   >
-                    ✅ 1-Click Check-In
+                    ? 1-Click Check-In
                   </Button>
                   <Button
                     size="sm"
@@ -726,7 +756,7 @@ export default function DoctorConsultation() {
                     onClick={() => handleUnfreeze(testSelectedTokenId)}
                     style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#E0F2FE', color: '#0369A1' }}
                   >
-                    ☀️ 1-Click Unfreeze
+                    ?? Ready for Consultation
                   </Button>
                 </div>
 
@@ -737,7 +767,7 @@ export default function DoctorConsultation() {
                   onClick={() => handleCallPatient(testSelectedTokenId)}
                   style={{ width: '100%', fontSize: '12.5px', fontWeight: 700 }}
                 >
-                  🪑 Call Selected into Chair
+                  ?? Call Selected Patient
                 </Button>
               </div>
             </div>
@@ -831,7 +861,7 @@ export default function DoctorConsultation() {
             <span style={{ fontSize: '28px' }}>🪑</span>
             <div>
               <div style={{ fontWeight: 800, fontSize: '15px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>PATIENT CURRENTLY IN CHAIR: #{activeToken.dailyNumber || activeToken.queuePosition || 1} ({activeToken.name || 'Patient'})</span>
+                <span>PATIENT IN CONSULTATION: #{activeToken.dailyNumber || activeToken.queuePosition || 1} ({activeToken.name || 'Patient'})</span>
                 <span className="badge badge-green" style={{ fontSize: '11px', animation: 'pulse 1.5s infinite' }}>Serving Active</span>
               </div>
               <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
@@ -850,7 +880,7 @@ export default function DoctorConsultation() {
               boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
             }}
           >
-            Enter Serving Console (Prescription, Consent, Continuity) →
+            Open Consultation (Prescription & Records) →
           </Button>
         </div>
       )}
@@ -871,7 +901,7 @@ export default function DoctorConsultation() {
                 onClick={() => navigate(`/doctor/serve/${activeToken.id}`)}
                 style={{ width: '100%', fontWeight: 800, backgroundColor: '#0284c7', borderColor: '#0284c7' }}
               >
-                🪑 Open Serving Console
+                🩺 Open Consultation
               </Button>
             </div>
           )}
@@ -898,7 +928,7 @@ export default function DoctorConsultation() {
 
       {/* 4-Section Live Queue Dashboard for Doctor */}
       <Card
-        title="Live Department Queue (4-Section Buffer & FIFO Control)"
+        title="Live Patient Queue"
         actions={
           <div className="row-gap">
             <Button size="sm" variant="ghost" onClick={() => setShowQueueBoard(!showQueueBoard)}>
@@ -916,20 +946,20 @@ export default function DoctorConsultation() {
             {/* 1. ❄️ FROZEN / TRAVEL BUFFER QUEUE */}
             <div style={{ background: '#f0fdfa', borderRadius: '10px', border: '1.5px solid #99f6e4', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ccfbf1', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#0f766e' }}>❄️ Frozen (Travel Buffer)</span>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#0f766e' }}>❄️ Traveling Patients (Distant)</span>
                 <span style={{ background: '#ccfbf1', color: '#0f766e', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
                   {currentQueue?.frozen?.length ?? 0}
                 </span>
               </div>
               {(!currentQueue?.frozen || currentQueue.frozen.length === 0) ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: '#0d9488', fontSize: '12px' }}>
-                  No frozen buffer patients.
+                  No traveling patients waiting.
                 </div>
               ) : (
                 currentQueue.frozen.map((t) => (
                   <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #99f6e4', padding: '8px', fontSize: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#0f766e' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                      <strong style={{ color: '#0f766e' }}>{formatTokenLabel(t)}</strong>
                       <span style={{ fontSize: '10px', color: '#0f766e', background: '#ccfbf1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
                         ❄️ Frozen Buffer
                       </span>
@@ -945,7 +975,7 @@ export default function DoctorConsultation() {
                         Unfreeze
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
-                        Call Chair
+                        Call Patient
                       </Button>
                     </div>
                   </div>
@@ -956,7 +986,7 @@ export default function DoctorConsultation() {
             {/* 2. 🟡 RESERVED / BUFFER QUEUE */}
             <div style={{ background: '#fffbeb', borderRadius: '10px', border: '1.5px solid #fde68a', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fef3c7', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#92400e' }}>🟡 Reserved (En Route)</span>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#92400e' }}>🟡 Traveling / Arriving Soon</span>
                 <span style={{ background: '#fef3c7', color: '#92400e', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
                   {currentQueue?.reserved?.length ?? 0}
                 </span>
@@ -969,7 +999,7 @@ export default function DoctorConsultation() {
                 currentQueue.reserved.map((t) => (
                   <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #fde68a', padding: '8px', fontSize: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#004D40' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                      <strong style={{ color: '#004D40' }}>{formatTokenLabel(t)}</strong>
                       <span style={{ fontSize: '10px', color: '#92400e', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
                         Buffer Active
                       </span>
@@ -986,7 +1016,7 @@ export default function DoctorConsultation() {
             {/* 2. 🔵 ACTIVE FIFO QUEUE */}
             <div style={{ background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #dbeafe', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#1e40af' }}>🔵 Active Queue (FIFO)</span>
+                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#1e40af' }}>🔵 Waiting in Clinic</span>
                 <span style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
                   {currentQueue?.tokens?.filter((t) => t.status === 'waiting').length ?? 0}
                 </span>
@@ -1022,7 +1052,7 @@ export default function DoctorConsultation() {
                           }}>
                             Pos #{pos}
                           </span>
-                          <strong style={{ color: '#004D40' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                          <strong style={{ color: '#004D40' }}>{formatTokenLabel(t)}</strong>
                         </div>
                         {t.isVerified ? (
                           <span style={{ fontSize: '10px', color: '#15803d', background: '#dcfce7', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
@@ -1040,9 +1070,9 @@ export default function DoctorConsultation() {
 
                       <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                         <Button size="sm" variant={isPos1 ? 'primary' : 'secondary'} onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
-                          Call to Chair
+                          Call Patient
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleNoShow(t.id)} title="Exponential demote" style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
+                        <Button size="sm" variant="ghost" onClick={() => handleNoShow(t.id)} title="Move to later" style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
                           Not Come Yet
                         </Button>
                       </div>
@@ -1068,7 +1098,7 @@ export default function DoctorConsultation() {
                 currentQueue.missed.map((t) => (
                   <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #fecaca', padding: '8px', fontSize: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#991b1b' }}>{t.tokenCode || `AF-${t.dailyNumber || t.id}`}</strong>
+                      <strong style={{ color: '#991b1b' }}>{formatTokenLabel(t)}</strong>
                       <span style={{ fontSize: '10px', color: '#dc2626', background: '#fee2e2', padding: '1px 5px', borderRadius: '4px' }}>
                         Missed
                       </span>
@@ -1092,16 +1122,16 @@ export default function DoctorConsultation() {
       <Card title="Clinical Notes & Prescription">
         <form onSubmit={handleCompleteAndNext} className="stack-md">
           <div className="field-row">
-            <Field label="Active Token Reference" hint="Optional queue token ID to advance">
+            <Field label="Current Patient" hint="Patient in consultation">
               <Input
                 type="text"
                 placeholder="Token ID (Auto-populated)"
-                value={activeToken ? `Token #${activeToken.dailyNumber || activeToken.queuePosition || 1} - ${activeToken.name || 'Patient'}` : ''}
+                value={activeToken ? `${formatTokenLabel(activeToken)} - ${activeToken.name || 'Patient'}` : ''}
                 readOnly
               />
             </Field>
 
-            <Field label="Course ID (Optional)" hint="Leave blank to automatically create a new Care Episode">
+            <Field label="Visit ID (Optional)" hint="Leave blank to create a new visit record">
               <Input
                 type="number"
                 placeholder="Auto-generate or enter Course ID"
@@ -1111,17 +1141,17 @@ export default function DoctorConsultation() {
             </Field>
           </div>
 
-          <Field label="Chief Complaint *" hint="Core symptom or presenting issue">
+          <Field label="Main Health Concern / Symptoms *" hint="What the patient came in for">
             <Input
               value={chiefComplaint}
               onChange={(e) => setChiefComplaint(e.target.value)}
-              placeholder="e.g. Acute chest discomfort radiating to left arm for 2 hours"
+              placeholder="e.g. Fever, cough, headache, or body pain for 2 days"
               required
             />
           </Field>
 
           <div className="field-row">
-            <Field label="Clinical Notes / History">
+            <Field label="Doctor's Notes & Medical History">
               <Textarea
                 rows={2}
                 value={clinicalNotes}
@@ -1130,7 +1160,7 @@ export default function DoctorConsultation() {
               />
             </Field>
 
-            <Field label="Examination Findings">
+            <Field label="Physical Checkup Findings">
               <Textarea
                 rows={2}
                 value={examinationFindings}
@@ -1140,11 +1170,11 @@ export default function DoctorConsultation() {
             </Field>
           </div>
 
-          <Field label="Care & Management Plan">
+          <Field label="Doctor Advice & Treatment Plan">
             <Input
               value={plan}
               onChange={(e) => setPlan(e.target.value)}
-              placeholder="Immediate rest, ECG screening, hydration, 7-day follow-up"
+              placeholder="Rest, plenty of water, follow-up in 5 days"
             />
           </Field>
 
@@ -1152,7 +1182,7 @@ export default function DoctorConsultation() {
           <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Prescriptions (Rx)</h4>
+                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Prescriptions (Medicines)</h4>
                 <p className="muted-text" style={{ margin: '2px 0 0', fontSize: '12px' }}>
                   Standardized formulation, dosage, frequency, and instructions
                 </p>
@@ -1202,7 +1232,7 @@ export default function DoctorConsultation() {
                       onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
                     />
                     <Input
-                      placeholder="Freq (TDS / BD)"
+                      placeholder="How often (e.g. Twice daily)"
                       value={rx.frequency}
                       onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
                     />
@@ -1330,7 +1360,7 @@ export default function DoctorConsultation() {
                 checked={enableReferral}
                 onChange={(e) => setEnableReferral(e.target.checked)}
               />
-              Issue Priority Tiered Referral (Direct Quota Allocation)
+              Refer Patient to Another Hospital (Specialist Transfer)
             </label>
 
             {enableReferral && (
@@ -1364,7 +1394,7 @@ export default function DoctorConsultation() {
                     </Select>
                   </Field>
 
-                  <Field label="Priority Tier">
+                  <Field label="Urgency">
                     <Select value={priorityTier} onChange={(e) => setPriorityTier(e.target.value)}>
                       <option value="emergency_immediate">🚨 Emergency (Immediate 24h)</option>
                       <option value="urgent_7d">⚡ Urgent (Strict 7-Day Quota)</option>
@@ -1420,14 +1450,14 @@ export default function DoctorConsultation() {
             <div style={{ border: '1px solid #bae6fd', background: '#f0f9ff', borderRadius: '8px', padding: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, fontSize: '13px', color: '#0369a1' }}>
-                  🏛️ ABDM M2 Care Context: Registered
+                  📋 Digital Health Record Saved
                 </span>
                 <span style={{ fontSize: '10px', background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                  NRCES FHIR R4
+                  Ayushman Health Network
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#0c4a6e', marginTop: '4px' }}>
-                Official FHIR R4 Document Bundle generated (OPConsultRecord profile) for NHA Sandbox evaluation.
+                Consultation summary and prescriptions saved to the patient's Ayushman health record.
               </div>
               {completedResult.encounter && (
                 <div style={{ marginTop: '8px' }}>
@@ -1440,7 +1470,7 @@ export default function DoctorConsultation() {
                       window.open(`/api/abdm/courses/${cId}/encounters/${completedResult.encounter.id}/fhir`, '_blank');
                     }}
                   >
-                    🔍 Inspect Official FHIR R4 Bundle (JSON)
+                    📄 View Health Record Data (FHIR)
                   </Button>
                 </div>
               )}
@@ -1502,7 +1532,7 @@ export default function DoctorConsultation() {
               }}
               className="stack-md"
             >
-              <Field label="Chief Complaint *" hint="Primary medical complaint">
+              <Field label="Main Health Concern / Symptoms *" hint="What the patient came in for">
                 <Input
                   value={chiefComplaint}
                   onChange={(e) => setChiefComplaint(e.target.value)}
@@ -1512,7 +1542,7 @@ export default function DoctorConsultation() {
               </Field>
 
               <div className="field-row">
-                <Field label="Clinical Notes">
+                <Field label="Doctor's Notes">
                   <Textarea
                     rows={2}
                     value={clinicalNotes}
@@ -1521,7 +1551,7 @@ export default function DoctorConsultation() {
                   />
                 </Field>
 
-                <Field label="Examination Findings">
+                <Field label="Physical Checkup Findings">
                   <Textarea
                     rows={2}
                     value={examinationFindings}
@@ -1536,7 +1566,7 @@ export default function DoctorConsultation() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>Prescription (Rx)</h4>
                   <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionRow}>
-                    + Add Drug
+                    + Add Medicine
                   </Button>
                 </div>
 
@@ -1582,7 +1612,7 @@ export default function DoctorConsultation() {
                 ))}
               </div>
 
-              <Field label="Care Plan & Dietary Advice">
+              <Field label="Doctor Advice & Instructions">
                 <Input
                   value={plan}
                   onChange={(e) => setPlan(e.target.value)}

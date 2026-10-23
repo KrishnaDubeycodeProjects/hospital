@@ -195,14 +195,14 @@ export default function DoctorAccess() {
     <div className="stack-lg">
       <div className="card-head">
         <div>
-          <h1>Doctor Access & Patient Record Consent</h1>
+          <h1>Patient Access & Medical Records</h1>
           <p className="muted-text">
-            Generate a secure QR code or access key for patients to scan and authorize sharing of their medical history, lab reports, and prescriptions.
+            Generate a QR code or access code for patients to share their medical history, lab reports, and prescriptions.
           </p>
         </div>
         {activePatientsCount !== null && (
           <span className="badge badge-green" style={{ fontSize: '13px', padding: '6px 14px' }}>
-            {activePatientsCount} Active Consenting Patients
+            {activePatientsCount} Active Patients
           </span>
         )}
       </div>
@@ -218,7 +218,7 @@ export default function DoctorAccess() {
           }
         >
           {generating ? (
-            <Spinner label="Generating encrypted QR code..." />
+            <Spinner label="Generating QR code..." />
           ) : !request ? (
             <EmptyState
               title="Click above to generate a new QR Access Code."
@@ -275,7 +275,7 @@ export default function DoctorAccess() {
               </div>
 
               <div className="stack-sm">
-                <div className="muted-text" style={{ fontSize: '13px' }}>Direct 8-Character Access Code:</div>
+                <div className="muted-text" style={{ fontSize: '13px' }}>Patient Access Code:</div>
                 <div className="row-gap" style={{ justifyContent: 'center', alignItems: 'center' }}>
                   <code className="join-code" style={{ fontSize: '24px', letterSpacing: '0.15em', fontWeight: 800 }}>
                     {request.code}
@@ -285,7 +285,7 @@ export default function DoctorAccess() {
                   </Button>
                 </div>
                 <div className="muted-text" style={{ fontSize: '12.5px', marginTop: '4px' }}>
-                  Code expires: <strong>{fmtDateTime(request.expiresAt)}</strong> (30 min TTL)
+                  Code expires: <strong>{fmtDateTime(request.expiresAt)}</strong> (Valid for 30 minutes)
                 </div>
               </div>
             </div>
@@ -313,7 +313,7 @@ export default function DoctorAccess() {
             </form>
           </Card>
 
-          <Card title="How Patient Consent Protocol Works">
+          <Card title="How Patient Permission Works">
             <div className="stack-sm" style={{ fontSize: '13px', lineHeight: 1.5, color: '#334155' }}>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <span className="badge badge-blue" style={{ height: 'fit-content' }}>1</span>
@@ -330,7 +330,7 @@ export default function DoctorAccess() {
               <div style={{ display: 'flex', gap: '10px' }}>
                 <span className="badge badge-blue" style={{ height: 'fit-content' }}>3</span>
                 <div>
-                  <strong>Instant Record Synchronization:</strong> Patient documents, longitudinal care episodes, and prescriptions become accessible in your Doctor Portal.
+                  <strong>Instant Medical Records:</strong> Patient prescriptions, past visits, and lab reports become immediately viewable.
                 </div>
               </div>
             </div>
@@ -340,12 +340,12 @@ export default function DoctorAccess() {
 
       {/* ABDM External Records (HIU Consent Flow) */}
       <Card
-        title="ABDM External Health Records (HIU Consent Flow)"
-        extra={<span className="badge badge-blue">Milestone 3 (HIU)</span>}
+        title="Records from Other Hospitals"
+        extra={<span className="badge badge-blue">Connected Hospitals</span>}
       >
         <div className="stack-md">
           <p className="muted-text" style={{ margin: 0, fontSize: '13.5px' }}>
-            Request encrypted past medical history (OPD visits, prescriptions, lab reports) generated at other ABDM network hospitals.
+            Request past medical history, prescriptions, and lab reports from other connected hospitals using the patient's Ayushman Health Account (ABHA).
           </p>
 
           <form onSubmit={handleRequestConsent} className="row-gap" style={{ alignItems: 'flex-end' }}>
@@ -377,7 +377,7 @@ export default function DoctorAccess() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <div>
                   <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>
-                    Consent Request ID
+                    Request ID
                   </span>
                   <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', fontFamily: 'monospace' }}>
                     {consentRequest.consent_request_id || consentRequest.consentRequestId || 'CR-PENDING'}
@@ -406,7 +406,7 @@ export default function DoctorAccess() {
                         fontWeight: '700',
                       }}
                     >
-                      One-Click Test Approve (Demo Mode)
+                      One-Click Quick Approve (Demo)
                     </Button>
                   )}
                 </div>
@@ -419,11 +419,11 @@ export default function DoctorAccess() {
               ) : (
                 <div>
                   <div className="callout callout-ok" style={{ fontSize: '13px', marginBottom: '12px' }}>
-                    <strong>Consent Artefact Issued:</strong> <code>{consentRequest.consentArtefactId || consentRequest.artefactId || 'ARTEFACT-VERIFIED'}</code>. Clinical data decrypted and available.
+                    <strong>Permission Granted:</strong> <code>{consentRequest.consentArtefactId || consentRequest.artefactId || 'ARTEFACT-VERIFIED'}</code>. Medical records unlocked.
                   </div>
 
                   {loadingRecords ? (
-                    <Spinner label="Decrypting and fetching external clinical records from ABDM repository..." />
+                    <Spinner label="Loading past medical records..." />
                   ) : externalRecords.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '16px' }}>
                       <Button size="sm" onClick={() => loadExternalRecords(consentRequest.consentArtefactId || consentRequest.artefactId)}>

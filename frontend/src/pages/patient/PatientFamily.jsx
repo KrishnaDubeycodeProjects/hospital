@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { abdmApi, familyApi, fetchAsObjectUrl, setToken } from '../../api/client';
+import { abdmApi, familyApi, setToken } from '../../api/client';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -54,11 +54,6 @@ export default function PatientFamily() {
   });
   const [savingManual, setSavingManual] = useState(false);
 
-  // ABHA Digital Card Modal
-  const [cardModal, setCardModal] = useState(false);
-  const [cardMember, setCardMember] = useState(null);
-  const [cardQrUrl, setCardQrUrl] = useState(null);
-  const [loadingQr, setLoadingQr] = useState(false);
 
   // Eka Care ABDM Gateway Health Status
   const [gatewayStatus, setGatewayStatus] = useState(null);
@@ -171,30 +166,6 @@ export default function PatientFamily() {
     setAbhaModal(true);
   }
 
-  async function openCardModal(member) {
-    setCardMember(member);
-    setCardModal(true);
-    setLoadingQr(true);
-    setCardQrUrl(null);
-    try {
-      const url = await fetchAsObjectUrl(familyApi.abhaQrUrl(member.id), 'PATIENT');
-      setCardQrUrl(url);
-    } catch (err) {
-      console.error('Failed fetching ABDM QR code:', err);
-    } finally {
-      setLoadingQr(false);
-    }
-  }
-
-  function closeCardModal() {
-    if (cardQrUrl) {
-      try { URL.revokeObjectURL(cardQrUrl); } catch (_) {}
-    }
-    setCardQrUrl(null);
-    setCardModal(false);
-    setCardMember(null);
-  }
-
   async function handleSaveManualProfile(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (!manualProfile.name.trim()) {
@@ -220,137 +191,6 @@ export default function PatientFamily() {
       toast.error(err.message || 'Failed updating member profile.');
     } finally {
       setSavingManual(false);
-    }
-  }
-
-  function handleDownloadCard() {
-    if (!cardMember) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = 850;
-    canvas.height = 520;
-    const ctx = canvas.getContext('2d');
-
-    // Background Gradient
-    const grad = ctx.createLinearGradient(0, 0, 850, 520);
-    grad.addColorStop(0, '#042F2E');
-    grad.addColorStop(0.5, '#064E3B');
-    grad.addColorStop(1, '#065F46');
-    ctx.fillStyle = grad;
-    if (ctx.roundRect) ctx.roundRect(0, 0, 850, 520, 24);
-    else ctx.rect(0, 0, 850, 520);
-    ctx.fill();
-
-    // Card Border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Tricolor accent line at top
-    ctx.fillStyle = '#FF9933';
-    ctx.fillRect(40, 28, 770, 4);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(40, 32, 770, 4);
-    ctx.fillStyle = '#138808';
-    ctx.fillRect(40, 36, 770, 4);
-
-    // Header
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText('GOVERNMENT OF INDIA • AYUSHMAN BHARAT DIGITAL MISSION (ABDM)', 40, 68);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.fillText('ABHA DIGITAL HEALTH CARD', 40, 104);
-
-    // Badge
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    if (ctx.roundRect) ctx.roundRect(620, 75, 190, 32, 8);
-    else ctx.rect(620, 75, 190, 32);
-    ctx.fill();
-    ctx.fillStyle = '#A7F3D0';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText('EKA CARE VERIFIED', 655, 96);
-
-    // Horizontal rule
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(40, 125);
-    ctx.lineTo(810, 125);
-    ctx.stroke();
-
-    // Member Name
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 28px sans-serif';
-    ctx.fillText(cardMember.name || 'Citizen', 40, 175);
-
-    // Member Gender & Age
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = '16px sans-serif';
-    const demographics = `${cardMember.gender || 'Patient'} • ${cardMember.age ? `${cardMember.age} Years` : 'Family Member'}`;
-    ctx.fillText(demographics, 40, 206);
-
-    // ABHA Address
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText('ABHA ADDRESS', 40, 260);
-
-    const abhaAddress = cardMember.abhaAddress || `${cardMember.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@abdm`;
-    ctx.fillStyle = '#6EE7B7';
-    ctx.font = 'bold 19px sans-serif';
-    ctx.fillText(abhaAddress, 40, 288);
-
-    // ABHA Number
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillText('ABHA NUMBER (14-DIGIT)', 40, 345);
-
-    const abhaNum = cardMember.abhaNumber || '91-8850-9345-4421';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 22px monospace';
-    ctx.fillText(abhaNum, 40, 375);
-
-    const drawFooterAndDownload = () => {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.beginPath();
-      ctx.moveTo(40, 440);
-      ctx.lineTo(810, 440);
-      ctx.stroke();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-      ctx.font = '12px sans-serif';
-      ctx.fillText('National Health Authority (NHA) • Powered by Eka Care ABDM Gateway', 40, 475);
-      ctx.fillText('Scan & Share at OPD Counters', 610, 475);
-
-      const link = document.createElement('a');
-      link.download = `ABHA_Health_Card_${cardMember.name.replace(/\s+/g, '_')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      toast.success(`Health card for ${cardMember.name} downloaded!`);
-    };
-
-    if (cardQrUrl) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        ctx.fillStyle = '#FFFFFF';
-        if (ctx.roundRect) ctx.roundRect(620, 155, 190, 215, 12);
-        else ctx.rect(620, 155, 190, 215);
-        ctx.fill();
-        ctx.drawImage(img, 635, 170, 160, 160);
-
-        ctx.fillStyle = '#065F46';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillText('SCAN & SHARE', 670, 352);
-
-        drawFooterAndDownload();
-      };
-      img.onerror = () => {
-        drawFooterAndDownload();
-      };
-      img.src = cardQrUrl;
-    } else {
-      drawFooterAndDownload();
     }
   }
 
@@ -463,9 +303,6 @@ export default function PatientFamily() {
         setAbhaModal(false);
         setSelectedMember(null);
         await loadFamily();
-        if (updated) {
-          openCardModal(updated);
-        }
         return;
       }
 
@@ -604,7 +441,7 @@ export default function PatientFamily() {
             No household members yet
           </h3>
           <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px' }}>
-            Add your spouse, children, or parents to manage their records and link their digital ABHA cards.
+            Add your spouse, children, or parents to manage their records and link their ABHA address.
           </p>
           <button
             type="button"
@@ -740,36 +577,39 @@ export default function PatientFamily() {
                       <>
                         <button
                           type="button"
-                          onClick={() => openCardModal(m)}
-                          style={{
-                            backgroundColor: '#E8F5E9',
-                            color: '#004D40',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '4px 8px',
-                            fontSize: '11.5px',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          💳 Card
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openAbhaModal(m, 'abha-number')}
+                          onClick={() => openAbhaModal(m, 'manual')}
                           style={{
                             backgroundColor: '#F1F5F9',
-                            color: '#475569',
-                            border: 'none',
+                            color: '#004D40',
+                            border: '1px solid #CBD5E1',
                             borderRadius: '8px',
-                            padding: '4px 8px',
+                            padding: '5px 10px',
                             fontSize: '11.5px',
                             fontWeight: '700',
                             cursor: 'pointer',
                           }}
                         >
-                          Edit
+                          Edit ABHA
                         </button>
+                        {m.relationship?.toLowerCase() !== 'self' && m.relationship?.toLowerCase() !== 'head' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMember(m)}
+                            title="Remove member"
+                            style={{
+                              backgroundColor: '#FEE2E2',
+                              color: '#DC2626',
+                              border: '1px solid #FECACA',
+                              borderRadius: '8px',
+                              padding: '5px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
                       </>
                     ) : (
                       <>
@@ -781,7 +621,7 @@ export default function PatientFamily() {
                             color: '#15803D',
                             border: '1px solid #86EFAC',
                             borderRadius: '8px',
-                            padding: '4px 8px',
+                            padding: '5px 10px',
                             fontSize: '11.5px',
                             fontWeight: '700',
                             cursor: 'pointer',
@@ -795,15 +635,15 @@ export default function PatientFamily() {
                           style={{
                             backgroundColor: '#E0F2FE',
                             color: '#0284C7',
-                            border: 'none',
+                            border: '1px solid #BAE6FD',
                             borderRadius: '8px',
-                            padding: '4px 8px',
+                            padding: '5px 10px',
                             fontSize: '11.5px',
                             fontWeight: '700',
                             cursor: 'pointer',
                           }}
                         >
-                          Link
+                          Link ABHA
                         </button>
                         {m.relationship?.toLowerCase() !== 'self' && m.relationship?.toLowerCase() !== 'head' && (
                           <button
@@ -815,7 +655,7 @@ export default function PatientFamily() {
                               color: '#DC2626',
                               border: '1px solid #FECACA',
                               borderRadius: '8px',
-                              padding: '4px 8px',
+                              padding: '5px 10px',
                               fontSize: '11.5px',
                               fontWeight: '700',
                               cursor: 'pointer',
@@ -1356,122 +1196,6 @@ export default function PatientFamily() {
         </Modal>
       )}
 
-      {/* ABHA Digital Card Modal */}
-      {cardModal && cardMember && (
-        <Modal open={cardModal} title="Ayushman Bharat Digital Health Card" onClose={closeCardModal}>
-          <div className="stack-md">
-            <div
-              style={{
-                background: 'linear-gradient(135deg, #064e3b 0%, #065f46 45%, #047857 100%)',
-                borderRadius: '16px',
-                padding: '24px',
-                color: '#ffffff',
-                boxShadow: '0 10px 25px rgba(6, 78, 59, 0.25)',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              {/* Header */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  borderBottom: '1px solid rgba(255,255,255,0.2)',
-                  paddingBottom: '14px',
-                  marginBottom: '16px',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: '11px', letterSpacing: '1px', textTransform: 'uppercase', opacity: 0.9, fontWeight: 700 }}>
-                    Government of India &bull; ABDM
-                  </div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, marginTop: '2px' }}>
-                    ABHA Health Card
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                    EKA CARE VERIFIED
-                  </span>
-                </div>
-              </div>
-
-              {/* Card Body */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '0.5px' }}>
-                    {cardMember.name}
-                  </div>
-                  <div style={{ fontSize: '13px', opacity: 0.9, marginTop: '4px' }}>
-                    {cardMember.gender || 'Patient'} &bull; {cardMember.age ? `${cardMember.age} Years` : 'Family Member'}
-                  </div>
-
-                  <div style={{ marginTop: '16px' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.75, fontWeight: 700, letterSpacing: '0.5px' }}>
-                      ABHA Address
-                    </div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#a7f3d0', wordBreak: 'break-all' }}>
-                      {cardMember.abhaAddress || `${cardMember.name.toLowerCase().replace(/[^a-z0-9]/g, '')}@abdm`}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '8px' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.75, fontWeight: 700, letterSpacing: '0.5px' }}>
-                      ABHA Number
-                    </div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '1.5px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                      {cardMember.abhaNumber || '91-8845-2319-7890'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* High-Resolution ABDM QR Code for all devices & printing */}
-                <div style={{ background: '#ffffff', padding: '12px', borderRadius: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 4px 14px rgba(0,0,0,0.2)', border: '1.5px solid rgba(255,255,255,0.6)', margin: '0 auto' }}>
-                  {loadingQr ? (
-                    <div style={{ width: '130px', height: '130px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Spinner />
-                    </div>
-                  ) : cardQrUrl ? (
-                    <img
-                      src={cardQrUrl}
-                      alt="Official ABHA QR"
-                      style={{ width: '130px', height: '130px', objectFit: 'contain', borderRadius: '6px', imageRendering: 'pixelated' }}
-                    />
-                  ) : (
-                    <div style={{ width: '130px', height: '130px', background: '#0f172a', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '3px', padding: '6px', borderRadius: '6px' }}>
-                      {Array.from({ length: 25 }).map((_, i) => (
-                        <div key={i} style={{ background: (i % 2 === 0 || i % 3 === 0) ? '#ffffff' : '#0f172a', borderRadius: '2px' }} />
-                      ))}
-                    </div>
-                  )}
-                  <span style={{ fontSize: '11px', color: '#064E3B', fontWeight: '800', marginTop: '8px', letterSpacing: '0.04em' }}>
-                    Scan &amp; Share at OPD
-                  </span>
-                </div>
-              </div>
-
-              {/* Card Footer */}
-              <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', opacity: 0.8, flexWrap: 'wrap', gap: '6px' }}>
-                <span>Ayushman Bharat Digital Mission</span>
-                <span>Powered by Eka Care ABDM Gateway</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-              <Button variant="secondary" onClick={handleDownloadCard} style={{ flex: '1 1 auto', minWidth: '130px' }}>
-                📥 Download PNG Card
-              </Button>
-              <Button variant="secondary" onClick={handlePrintCard} style={{ flex: '0 1 auto', minWidth: '90px' }}>
-                🖨️ Print Card
-              </Button>
-              <Button variant="primary" onClick={closeCardModal} style={{ flex: '1 1 auto', minWidth: '80px' }}>
-                Done
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

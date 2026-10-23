@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
@@ -249,46 +251,77 @@ public class TestEnvironmentService {
         String cat = (category != null && !category.isBlank()) ? category : "General Medicine";
         int hId = (hospitalId != null && hospitalId > 0) ? hospitalId : 1;
         String st = (status != null && !status.isBlank()) ? status.toLowerCase() : "waiting";
-        if (!List.of("waiting", "serving", "frozen", "missed", "completed").contains(st)) {
+        if (!List.of("waiting", "serving", "frozen", "reserved", "missed", "completed").contains(st)) {
             st = "waiting";
+        }
+
+        if ("frozen".equals(st)) {
+            if (travelMinutes == null || travelMinutes <= 0) {
+                travelMinutes = 45;
+            }
+            if (distanceKm == null || distanceKm <= 0) {
+                distanceKm = 18.5;
+            }
         }
 
         Integer activeMax = jdbc.queryForObject(
                 """
                 SELECT COALESCE(MAX(daily_number), 0) FROM tokens
-                WHERE hospital_id = :hId AND category = :cat AND status IN ('serving', 'waiting', 'reserved')
+                WHERE hospital_id = :hId AND LOWER(TRIM(category)) = LOWER(TRIM(:cat))
                   AND created_at::date = CURRENT_DATE
                 """,
                 Map.of("hId", hId, "cat", cat), Integer.class);
-        Integer dailyNumber = "frozen".equals(st) ? null :
-                ((activeMax != null && activeMax > 0) ? (activeMax + 1) : 1);
+        int nextNum = (activeMax != null && activeMax > 0) ? (activeMax + 1) : 1;
+        Integer dailyNumber = "frozen".equals(st) ? null : nextNum;
+
+        String deptPrefix = "AF";
+        if (cat != null && !cat.isBlank()) {
+            String clean = cat.replaceAll("[^a-zA-Z]", " ").trim();
+            String[] parts = clean.split("\\s+");
+            if (parts.length >= 2) {
+                deptPrefix = "AF-" + ("" + parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+            } else if (parts.length == 1 && parts[0].length() >= 2) {
+                deptPrefix = "AF-" + parts[0].substring(0, 2).toUpperCase();
+            } else if (parts.length == 1 && parts[0].length() == 1) {
+                deptPrefix = "AF-" + parts[0].toUpperCase();
+            }
+        }
+        String tokenCode = String.format("%s%02d", deptPrefix.contains("-") ? deptPrefix : deptPrefix + "-", nextNum);
 
         Integer id = jdbc.queryForObject(
                 """
                 INSERT INTO tokens (name, age, gender, category, phone, hospital_id, status, daily_number,
-                                   distance_km, travel_minutes, selected_travel_minutes, target_arrival_time, created_at)
+                                   distance_km, travel_minutes, selected_travel_minutes, target_arrival_time, token_code, created_at)
                 VALUES (:name, :age, :gender, :cat, :phone, :hId, :status, :dailyNumber,
                         :dist, :travelMins, :travelMins,
                         CASE WHEN :travelMins IS NOT NULL THEN NOW() + (:travelMins || ' minutes')::INTERVAL ELSE NULL END,
+                        :tokenCode,
                         NOW())
                 RETURNING id
                 """,
-                Map.of(
-                        "name", (name != null && !name.isBlank()) ? name : "Ramesh Kumar (Demo)",
-                        "age", age != null ? age : 28,
-                        "gender", gender != null ? gender.toLowerCase() : "male",
-                        "cat", cat,
-                        "phone", cleanPhone,
-                        "hId", hId,
-                        "status", st,
-                        "dailyNumber", dailyNumber != null ? dailyNumber : (Object) java.sql.Types.NULL,
-                        "dist", distanceKm != null ? distanceKm : (Object) java.sql.Types.NULL,
-                        "travelMins", travelMinutes != null ? travelMinutes : (Object) java.sql.Types.NULL
-                ),
+                new HashMap<String, Object>() {{
+                    put("name", (name != null && !name.isBlank()) ? name : "Ramesh Kumar (Demo)");
+                    put("age", age != null ? age : 28);
+                    put("gender", gender != null ? gender.toLowerCase() : "male");
+                    put("cat", cat);
+                    put("phone", cleanPhone);
+                    put("hId", hId);
+                    put("status", st);
+                    put("dailyNumber", dailyNumber != null ? dailyNumber : (Object) java.sql.Types.NULL);
+                    put("dist", distanceKm != null ? distanceKm : (Object) java.sql.Types.NULL);
+                    put("travelMins", travelMinutes != null ? travelMinutes : (Object) java.sql.Types.NULL);
+                    put("tokenCode", tokenCode);
+                }},
                 Integer.class
         );
 
-        log.info("🧪 Injected test token #{} with status '{}', distance {} km, travel {} mins", id, st, distanceKm, travelMinutes);
-        return Map.of("id", id, "status", st, "dailyNumber", dailyNumber != null ? dailyNumber : 0);
+        log.info("?? Injected test token #{} with status '{}', distance {} km, travel {} mins, code {}", id, st, distanceKm, travelMinutes, tokenCode);
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("id", id);
+        res.put("tokenId", id);
+        res.put("status", st);
+        res.put("dailyNumber", dailyNumber != null ? dailyNumber : nextNum);
+        res.put("tokenCode", tokenCode);
+        return res;
     }
 }

@@ -1332,7 +1332,7 @@ export default function HealthRecordsScreen() {
                             marginTop: '4px',
                           }}
                         >
-                          {uploading ? 'Uploading to Database...' : 'Save to ABDM Health Locker'}
+                          {uploading ? 'Uploading to Database...' : 'Save to Health Records'}
                         </button>
                       </form>
                     </div>
@@ -1859,10 +1859,10 @@ export default function HealthRecordsScreen() {
 
             {/* 2. Railway-Style Checkpoint Timeline: Dot on left, Date & Time on right, 2 buttons */}
             {loadingTimeline ? (
-              <Spinner label="Loading timeline checkpoint stations..." />
+              <Spinner label="Loading visit timeline..." />
             ) : !courseTimeline || !courseTimeline.encounters || courseTimeline.encounters.length === 0 ? (
               <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '24px', background: '#F8FAFC', borderRadius: '12px' }}>
-                No clinical checkpoint encounters logged yet.
+                No doctor visits recorded yet.
               </div>
             ) : (
               <div style={{ position: 'relative', padding: '10px 4px 10px 10px' }}>
@@ -2207,7 +2207,7 @@ export default function HealthRecordsScreen() {
                 </div>
                 <div style={{ padding: '14px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '12.5px', color: '#334155' }}>
                   <div style={{ fontWeight: '700', marginBottom: '4px', color: '#0F172A' }}>Status: Verified Diagnostic Record</div>
-                  All hematological / diagnostic parameters conform to National ABDM diagnostic laboratory standards.
+                  All lab test results conform to national laboratory standards.
                 </div>
               </div>
             ) : (

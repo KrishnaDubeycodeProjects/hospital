@@ -104,7 +104,7 @@ export default function AshaAdminDashboard() {
   ];
 
   // Critical Referrals List
-  const criticalReferrals = [
+  const [criticalReferrals, setCriticalReferrals] = useState([
     {
       id: 'ref-1',
       name: 'Sita Bai',
@@ -112,12 +112,18 @@ export default function AshaAdminDashboard() {
       gender: 'महिला',
       houseNo: 14,
       village: 'Chandpur',
+      phone: '+91 98765 00014',
+      abhaId: '91-6234-8890-1452',
       workerName: 'Sunita Devi',
+      doctorName: 'Dr. Ananya Roy (District Hospital)',
+      prescriptions: 'Tab IFA 100mg BID, Inj Iron Sucrose 200mg (2 doses)',
+      prescriptionDeadline: '28 Oct 2026 (5 दिन शेष)',
       reason: 'गंभीर एनीमिया (Hb 6.8 g/dL) - उच्च जोखिम गर्भावस्था (HRP)',
       tier: 'urgent_7d',
       daysLeft: 2,
       condition: 'Severe Anaemia in 3rd Trimester',
       vitals: 'BP 108/68 · Hb 6.8 g/dL · FHR 142 bpm',
+      referralSource: 'ASHA Field Referral',
     },
     {
       id: 'ref-2',
@@ -126,12 +132,18 @@ export default function AshaAdminDashboard() {
       gender: 'पुरुष',
       houseNo: 22,
       village: 'Rampur',
+      phone: '+91 98765 00022',
+      abhaId: '14-8872-3341-9920',
       workerName: 'Meera Kumari',
+      doctorName: 'Dr. Rajesh Sharma (BHU Apex Cardiology)',
+      prescriptions: 'Tab Amlodipine 5mg OD, Tab Telmisartan 40mg OD',
+      prescriptionDeadline: '26 Oct 2026 (3 दिन शेष)',
       reason: 'अनियंत्रित उच्च रक्तचाप (BP 185/110 mmHg) - स्ट्रोक जोखिम',
       tier: 'urgent_7d',
       daysLeft: 1,
       condition: 'Severe Hypertension Stage 2',
       vitals: 'BP 185/110 mmHg · Pulse 88 · RBS 164 mg/dL',
+      referralSource: 'Hospital Doctor Referral',
     },
     {
       id: 'ref-3',
@@ -140,12 +152,18 @@ export default function AshaAdminDashboard() {
       gender: 'महिला',
       houseNo: 9,
       village: 'Kheda',
+      phone: '+91 98765 00009',
+      abhaId: '91-7711-2094-8831',
       workerName: 'Lalita Bai',
+      doctorName: 'Dr. S. K. Gupta (Endocrinology)',
+      prescriptions: 'Inj Insulin Regular 6U TID before meals',
+      prescriptionDeadline: '30 Oct 2026 (7 दिन शेष)',
       reason: 'गर्भावधि मधुमेह (Gestational Diabetes) - RBS 218 mg/dL',
       tier: 'semi_urgent_14d',
       daysLeft: 5,
       condition: 'Gestational Diabetes Mellitus',
       vitals: 'RBS 218 mg/dL · Urine Albumin Nil · BP 122/80',
+      referralSource: 'CHC Specialist Referral',
     },
     {
       id: 'ref-4',
@@ -154,14 +172,20 @@ export default function AshaAdminDashboard() {
       gender: 'बालक',
       houseNo: 17,
       village: 'Barkheda',
+      phone: '+91 98765 00017',
+      abhaId: '91-3329-8710-4491',
       workerName: 'Pooja Sharma',
+      doctorName: 'CHO Dr. Arvind Pathak (Arogya Mandir)',
+      prescriptions: 'Therapeutic Nutrition F-75, Zinc Syrup 20mg OD',
+      prescriptionDeadline: '27 Oct 2026 (4 दिन शेष)',
       reason: 'गंभीर तीव्र कुपोषण (SAM) - MUAC < 11.5 सेमी',
       tier: 'urgent_7d',
       daysLeft: 3,
       condition: 'Severe Acute Malnutrition',
       vitals: 'Weight 9.2 kg · MUAC 11.2 cm · Bilateral Edema+',
+      referralSource: 'ASHA Field Screening',
     },
-  ];
+  ]);
 
   const handleApproveReferral = (id) => {
     setApprovedReferralIds((prev) => {
@@ -819,7 +843,52 @@ export default function AshaAdminDashboard() {
                                 </span>
                               </div>
                               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                                घर सं.: {ref.houseNo} • {ref.village} (आशा: {ref.workerName})
+                                घर सं.: {ref.houseNo} • {ref.village} • आशा: {ref.workerName}
+                              </div>
+
+                              {/* Attached Phone Number & ABHA ID Number */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                {ref.phone && (
+                                  <a
+                                    href={`tel:${ref.phone}`}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      backgroundColor: '#eff6ff',
+                                      color: '#1d4ed8',
+                                      border: '1px solid #bfdbfe',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: '700',
+                                      textDecoration: 'none',
+                                    }}
+                                  >
+                                    <PhoneCall size={11} color="#1d4ed8" />
+                                    <span>{ref.phone}</span>
+                                    <span style={{ fontSize: '9px', backgroundColor: '#dbeafe', padding: '1px 4px', borderRadius: '3px' }}>कॉल करें</span>
+                                  </a>
+                                )}
+                                {ref.abhaId && (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      backgroundColor: '#ecfdf5',
+                                      color: '#047857',
+                                      border: '1px solid #a7f3d0',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
+                                      fontWeight: '700',
+                                    }}
+                                  >
+                                    <span>ABHA:</span>
+                                    <span>{ref.abhaId}</span>
+                                  </span>
+                                )}
                               </div>
                             </div>
 
@@ -829,11 +898,12 @@ export default function AshaAdminDashboard() {
                                 fontWeight: '700',
                                 color: isApproved ? '#059669' : '#dc2626',
                                 backgroundColor: isApproved ? '#d1fae5' : '#fee2e2',
-                                padding: '3px 8px',
+                                padding: '4px 9px',
                                 borderRadius: '12px',
+                                border: isApproved ? '1px solid #a7f3d0' : '1px solid #fecaca',
                               }}
                             >
-                              {isApproved ? '✓ स्वीकृत' : `⚠️ ${ref.daysLeft} दिन शेष`}
+                              {isApproved ? '✓ स्वीकृत (Approved)' : `⚠️ ${ref.daysLeft} दिन शेष`}
                             </span>
                           </div>
 
@@ -842,7 +912,7 @@ export default function AshaAdminDashboard() {
                               backgroundColor: '#fff1f2',
                               padding: '10px 12px',
                               borderRadius: '10px',
-                              marginBottom: '10px',
+                              marginBottom: '8px',
                             }}
                           >
                             <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#9f1239' }}>
@@ -853,8 +923,57 @@ export default function AshaAdminDashboard() {
                             </div>
                           </div>
 
+                          {/* Prescriptions & Prescription Deadline */}
+                          {ref.prescriptions && (
+                            <div
+                              style={{
+                                backgroundColor: '#fffbeb',
+                                border: '1px solid #fde68a',
+                                borderRadius: '10px',
+                                padding: '8px 10px',
+                                marginBottom: '10px',
+                              }}
+                            >
+                              <div style={{ fontSize: '11px', fontWeight: '800', color: '#92400e' }}>
+                                💊 दवा सलाह (Doctor Prescriptions):
+                              </div>
+                              <div style={{ fontSize: '11.5px', fontWeight: '600', color: '#78350f', marginTop: '2px' }}>
+                                {ref.prescriptions}
+                              </div>
+                              {ref.prescriptionDeadline && (
+                                <div style={{ fontSize: '10.5px', fontWeight: '700', color: '#dc2626', marginTop: '3px' }}>
+                                  ⏰ प्रिस्क्रिप्शन समयसीमा: {ref.prescriptionDeadline}
+                                </div>
+                              )}
+                              {ref.doctorName && (
+                                <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                                  सलाहकार: {ref.doctorName}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Action Buttons */}
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <a
+                              href={`tel:${ref.phone}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                backgroundColor: '#f0f9ff',
+                                color: '#0369a1',
+                                border: '1px solid #bae6fd',
+                                borderRadius: '10px',
+                                padding: '8px 12px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                textDecoration: 'none',
+                              }}
+                            >
+                              <PhoneCall size={14} color="#0369a1" />
+                              <span>मरीज को कॉल करें</span>
+                            </a>
                             <button
                               type="button"
                               onClick={() => {

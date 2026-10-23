@@ -59,7 +59,7 @@ export class SyncApi {
 
     if (!isOnline) {
       const pendingItems = await OfflineStorageService.getPendingOutbox();
-      const qrPayload = await OfflineStorageService.exportLocalDataJson();
+      const qrPayload = await OfflineStorageService.exportClusterDataJson(sectionFilter);
       return {
         success: true,
         mode: 'OFFLINE_QUEUED',
@@ -370,7 +370,7 @@ export class SyncApi {
           }
         );
         if (res.ok) {
-          const sentCount = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode);
+          const sentCount = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode, sectionFilter);
           return {
             success: true,
             mode: 'ONLINE_SYNCED',
@@ -384,14 +384,14 @@ export class SyncApi {
     }
 
     // Offline direct send (marks local surveys synced)
-    const count = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode);
+    const count = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode, sectionFilter);
     await OfflineStorageService.addToOutbox('SEND_TO_ANM', {
       sectionFilter,
       anmPhoneOrCode,
       timestamp: new Date().toISOString(),
     });
 
-    const qrPayload = await OfflineStorageService.exportLocalDataJson();
+    const qrPayload = await OfflineStorageService.exportClusterDataJson(sectionFilter);
 
     return {
       success: true,

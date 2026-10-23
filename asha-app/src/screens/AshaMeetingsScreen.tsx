@@ -33,7 +33,7 @@ export const AshaMeetingsScreen: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [meetingType, setMeetingType] = useState<AshaMeetingRecord['meetingType']>('VHSNC');
-  const [meetingDate, setMeetingDate] = useState('18/08/2025');
+  const [meetingDate, setMeetingDate] = useState('22/10/2026');
   const [venue, setVenue] = useState('आंगनवाड़ी केंद्र, चाँदपुर');
   const [attendeesCount, setAttendeesCount] = useState('16');
   const [materialsAvailable, setMaterialsAvailable] = useState('Hb meter, IFA, ORS, Chhaya, Nirodh');

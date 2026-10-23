@@ -171,9 +171,9 @@ export default function DoctorPatients() {
       {/* Header */}
       <div className="card-head">
         <div>
-          <h1>My Patients & Clinical Document Records</h1>
+          <h1>My Patients & Medical Records</h1>
           <p className="muted-text">
-            Review authorized patient medical records, active consent grants, diagnostic documents, and historical patient consultations.
+            View your patients, their medical reports, prescriptions, and past consultations.
           </p>
         </div>
       </div>
@@ -199,7 +199,7 @@ export default function DoctorPatients() {
             transition: 'all 0.15s ease',
           }}
         >
-          Currently Granted Patients ({activeGroups?.length || 0})
+          Active Patients ({activeGroups?.length || 0})
         </button>
 
         <button
@@ -221,7 +221,7 @@ export default function DoctorPatients() {
             transition: 'all 0.15s ease',
           }}
         >
-          All Patients History ({historyGroups?.length || 0})
+          Past Patients ({historyGroups?.length || 0})
         </button>
       </div>
 
@@ -243,7 +243,7 @@ export default function DoctorPatients() {
         </div>
       </Card>
 
-      {loading && <Spinner label="Loading patient records and consent grants..." />}
+      {loading && <Spinner label="Loading patient records..." />}
 
       {!loading && filteredPatients.length === 0 && (
         <Card>
@@ -391,12 +391,20 @@ export default function DoctorPatients() {
                     <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     <Table
                       columns={[
-                        { key: 'fileName', header: 'Document Title' },
+                        { 
+                          key: 'fileName', 
+                          header: 'Document Title',
+                          render: (d) => (
+                            <span style={{ fontWeight: 600, color: '#0f172a', minWidth: '220px', display: 'inline-block' }}>
+                              {d.fileName}
+                            </span>
+                          )
+                        },
                         {
                           key: 'docType',
                           header: 'Type',
                           render: (d) => (
-                            <span className={`badge ${d.docType === 'prescription' ? 'badge-blue' : 'badge-green'}`}>
+                            <span className={`badge ${d.docType === 'prescription' ? 'badge-blue' : 'badge-green'}`} style={{ whiteSpace: 'nowrap' }}>
                               {d.docType === 'prescription' ? 'Rx Prescription' : 'Diagnostic Report'}
                             </span>
                           ),
@@ -407,12 +415,12 @@ export default function DoctorPatients() {
                           render: (d) => {
                             const isUploadedByMe = currentDoctorId && d.uploadedByDoctorId === currentDoctorId;
                             if (isUploadedByMe) {
-                              return <span className="badge badge-green" style={{ fontSize: '11px' }}>Uploaded by You</span>;
+                              return <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by You</span>;
                             }
                             if (d.uploadedByDoctorId) {
-                              return <span style={{ fontSize: '12px', color: '#475569' }}>Doctor #{d.uploadedByDoctorId}</span>;
+                              return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Doctor #{d.uploadedByDoctorId}</span>;
                             }
-                            return <span className="badge badge-gray" style={{ fontSize: '11px' }}>Uploaded by Patient</span>;
+                            return <span className="badge badge-gray" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by Patient</span>;
                           },
                         },
                         {
@@ -422,24 +430,28 @@ export default function DoctorPatients() {
                             const seenTimestamp = seenDocs[d.id];
                             if (seenTimestamp) {
                               return (
-                                <span className="badge badge-green" style={{ fontSize: '11px' }}>
+                                <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                                   Seen by You ({fmtDateTime(seenTimestamp)})
                                 </span>
                               );
                             }
                             return (
-                              <span className="badge badge-amber" style={{ fontSize: '11px' }}>
+                              <span className="badge badge-amber" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
                                 Unseen / New
                               </span>
                             );
                           },
                         },
-                        { key: 'createdAt', header: 'Date', render: (d) => fmtDateTime(d.createdAt) },
+                        { 
+                          key: 'createdAt', 
+                          header: 'Date', 
+                          render: (d) => <span style={{ whiteSpace: 'nowrap', fontSize: '12px', color: '#475569' }}>{fmtDateTime(d.createdAt)}</span> 
+                        },
                         {
                           key: 'actions',
                           header: 'Actions',
                           render: (d) => (
-                            <div className="row-gap">
+                            <div className="row-gap" style={{ whiteSpace: 'nowrap' }}>
                               <Button size="sm" variant="secondary" onClick={() => openDocPreview(d)}>
                                 View File
                               </Button>
@@ -515,7 +527,7 @@ export default function DoctorPatients() {
           onClose={() => setUploadingPatient(null)}
         >
           <form onSubmit={handleUploadSubmit} className="stack-md">
-            <Field label="Document Classification">
+            <Field label="Document Type">
               <div className="row-gap">
                 <label className="radio-label">
                   <input

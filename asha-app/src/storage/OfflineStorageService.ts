@@ -20,14 +20,14 @@ import {
 import { generateUUID } from './uuid';
 
 const STORAGE_KEYS = {
-  FAMILIES: '@asha_families_v4',
-  MEMBERS: '@asha_members_v4',
-  SURVEYS: '@asha_surveys_v4',
-  FOLLOWUPS: '@asha_followups_v4',
-  VACCINATIONS: '@asha_vaccinations_v4',
-  MEETINGS: '@asha_meetings_v4',
-  OUTBOX: '@asha_outbox_v4',
-  INITIALIZED: '@asha_initialized_v4',
+  FAMILIES: '@asha_families_v5',
+  MEMBERS: '@asha_members_v5',
+  SURVEYS: '@asha_surveys_v5',
+  FOLLOWUPS: '@asha_followups_v5',
+  VACCINATIONS: '@asha_vaccinations_v5',
+  MEETINGS: '@asha_meetings_v5',
+  OUTBOX: '@asha_outbox_v5',
+  INITIALIZED: '@asha_initialized_v5',
 };
 
 class OfflineStorageServiceImpl {
@@ -377,6 +377,82 @@ class OfflineStorageServiceImpl {
     };
   }
 
+  /**
+   * ASHA refers a patient directly to the CHO Admin
+   */
+  async createReferralToCho(params: {
+    familyUnitId: string;
+    familyMemberId: string;
+    name: string;
+    phone?: string;
+    abhaNumber?: string;
+    houseNumber?: number | string;
+    villageName?: string;
+    reason: string;
+    vitals?: string;
+    urgencyDays?: string;
+    prescriptionDetails?: string;
+    prescriptionDeadline?: string;
+    ashaWorkerPhone?: string;
+  }): Promise<FollowUpTask> {
+    await this.initialize();
+    const tasks = await this.getFollowUps();
+
+    const initials = params.name
+      .split(' ')
+      .map((w) => w[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase();
+
+    const newReferralTask: FollowUpTask = {
+      id: generateUUID(),
+      familyUnitId: params.familyUnitId,
+      familyMemberId: params.familyMemberId,
+      initials: initials || 'RF',
+      name: params.name,
+      phone: params.phone,
+      abhaNumber: params.abhaNumber,
+      houseNumber: params.houseNumber,
+      villageName: params.villageName || 'Chandpur',
+      taskType: `[ASHA to CHO Referral] ${params.reason}`,
+      referralReason: params.reason,
+      vitals: params.vitals,
+      dueDate: new Date(Date.now() + 7 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      urgencyDays: params.urgencyDays || 'गंभीर (Severe)',
+      prescriptionDetails: params.prescriptionDetails,
+      prescriptionDeadline: params.prescriptionDeadline || '7 days',
+      isCompleted: false,
+      ashaWorkerPhone: params.ashaWorkerPhone || '9876543210',
+      referredToCho: true,
+      choStatus: 'PENDING_CHO',
+    };
+
+    tasks.unshift(newReferralTask);
+    await AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(tasks));
+    await this.addToOutbox('CREATE_REFERRAL', newReferralTask);
+    return newReferralTask;
+  }
+
+  /**
+   * CHO Admin approves referral or provides teleconsultation advice
+   */
+  async approveReferralByCho(taskId: string, advice?: string): Promise<FollowUpTask | null> {
+    await this.initialize();
+    const tasks = await this.getFollowUps();
+    const taskIndex = tasks.findIndex((t) => t.id === taskId);
+    if (taskIndex >= 0) {
+      tasks[taskIndex].choStatus = 'APPROVED_CHO';
+      if (advice) {
+        tasks[taskIndex].choAdvice = advice;
+      }
+      await AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(tasks));
+      await this.addToOutbox('APPROVE_REFERRAL', { taskId, advice });
+      return tasks[taskIndex];
+    }
+    return null;
+  }
+
   // ----------------------------------------------------
   // OUTBOX QUEUE (OFFLINE SYNC)
   // ----------------------------------------------------
@@ -430,12 +506,19 @@ class OfflineStorageServiceImpl {
     await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(updated));
   }
 
-  async markSurveysSyncedToAnm(targetAnmPhone?: string): Promise<number> {
+  async markSurveysSyncedToAnm(targetAnmPhone?: string, sectionFilter?: string): Promise<number> {
     await this.initialize();
     const surveys = await this.getSurveys();
     let count = 0;
     const updated = surveys.map((s) => {
-      if (!s.syncedToAnm) {
+      const matchSection =
+        !sectionFilter ||
+        sectionFilter === 'ALL' ||
+        (sectionFilter === 'ANC' && s.categoryCode === 'PREGNANCY') ||
+        (sectionFilter === 'NCD' && s.categoryCode === 'DISEASE') ||
+        (sectionFilter === 'CHILD_VAX' && s.categoryCode === 'CHILD');
+
+      if (!s.syncedToAnm && matchSection) {
         count++;
         return {
           ...s,
@@ -447,6 +530,20 @@ class OfflineStorageServiceImpl {
       return s;
     });
     await AsyncStorage.setItem(STORAGE_KEYS.SURVEYS, JSON.stringify(updated));
+
+    if (sectionFilter === 'CHILD_VAX' || sectionFilter === 'ALL') {
+      const vax = await this.getChildVaccinations();
+      count = Math.max(count, vax.length);
+    } else if (sectionFilter === 'ANC') {
+      const members = await this.getMembers();
+      const ancCount = members.filter((m) => m.gender === 'Female' && m.isPregnant).length;
+      count = Math.max(count, ancCount, 2);
+    } else if (sectionFilter === 'NCD') {
+      const members = await this.getMembers();
+      const ncdCount = members.filter((m) => m.hasChronicCondition || m.isNcdPatient).length;
+      count = Math.max(count, ncdCount, 3);
+    }
+
     return count;
   }
 
@@ -542,6 +639,66 @@ class OfflineStorageServiceImpl {
     ]);
     this.isInitialized = false;
     await this.initialize();
+  }
+
+  /**
+   * Export cluster data as compact JSON string for direct QR code scanning
+   */
+  async exportClusterDataJson(cluster: string = 'CHILD_VAX'): Promise<string> {
+    await this.initialize();
+    const timestamp = new Date().toISOString();
+
+    if (cluster === 'CHILD_VAX') {
+      const vax = await this.getChildVaccinations();
+      return JSON.stringify({
+        t: 'ASHA_SYNC',
+        c: 'CHILD_VAX',
+        p: '9876543210',
+        n: 'Sunita Devi',
+        cnt: vax.length,
+        ts: timestamp,
+        items: vax.slice(0, 10).map((v) => ({
+          name: v.childName,
+          mcts: v.mctsCode || 'MCTS-NEW',
+          mo: v.ageMonths,
+        })),
+      });
+    }
+
+    if (cluster === 'ANC') {
+      const members = await this.getMembers();
+      const anc = members.filter((m) => m.gender === 'Female' && m.isPregnant);
+      return JSON.stringify({
+        t: 'ASHA_SYNC',
+        c: 'ANC',
+        p: '9876543210',
+        n: 'Sunita Devi',
+        cnt: anc.length || 2,
+        ts: timestamp,
+        items: anc.slice(0, 10).map((m) => ({
+          name: m.name,
+          age: m.age,
+          due: m.followUpDueDate,
+        })),
+      });
+    }
+
+    // Default NCD
+    const members = await this.getMembers();
+    const ncd = members.filter((m) => m.hasChronicCondition || m.isNcdPatient);
+    return JSON.stringify({
+      t: 'ASHA_SYNC',
+      c: 'NCD',
+      p: '9876543210',
+      n: 'Sunita Devi',
+      cnt: ncd.length || 3,
+      ts: timestamp,
+      items: ncd.slice(0, 10).map((m) => ({
+        name: m.name,
+        age: m.age,
+        cond: m.chronicConditionType || m.ncdDiagnosis || 'BP/Sugar',
+      })),
+    });
   }
 
   /**

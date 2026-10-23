@@ -588,6 +588,7 @@ a:hover {
   gap: 6px;
   padding: 4px 12px;
   border-radius: var(--radius-full);
+  white-space: nowrap;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -689,14 +690,13 @@ a:hover {
 
 .table {
   width: 100%;
-  min-width: 640px;
+  min-width: 820px;
   border-collapse: collapse;
   font-size: 13.5px;
 }
 
 .table td {
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .table th {

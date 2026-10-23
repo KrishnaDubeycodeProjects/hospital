@@ -25,32 +25,32 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 
-// 24 village households data for Chandpur Village
+// 24 village households data for Chandpur Village with real patient contact & ABHA numbers
 const INITIAL_HOUSEHOLDS = [
-  { id: 1, houseNo: 1, familyName: 'रामेश्वर दयाल', membersCount: 5, status: 'visited', lastVisited: 'कल', nextVisit: '25 दिन शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'रामेश्वर दयाल', age: 62, gender: 'पुरुष', condition: 'उच्च रक्तचाप (Hypertension)' }, { name: 'कमला देवी', age: 58, gender: 'महिला', condition: 'सामान्य' }] },
-  { id: 2, houseNo: 2, familyName: 'सुनील कुमार', membersCount: 4, status: '7days', lastVisited: '5 दिन पूर्व', nextVisit: '2 दिन शेष', pregnancy: true, child: false, ncd: false, members: [{ name: 'सुनील कुमार', age: 30, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'सुमन देवी', age: 26, gender: 'महिला', isPregnant: true, anc: 'ANC 2 Due', hb: '9.2 g/dL (Mild Anaemia)' }] },
-  { id: 3, houseNo: 3, familyName: 'भगवान दास', membersCount: 6, status: '15days', lastVisited: '12 दिन पूर्व', nextVisit: '3 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'भगवान दास', age: 35, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'आरव', age: 2, gender: 'बालक', childVaccine: 'DPT Booster Due' }] },
-  { id: 4, houseNo: 4, familyName: 'मोहन लाल', membersCount: 4, status: 'visited', lastVisited: '3 दिन पूर्व', nextVisit: '27 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'मोहन लाल', age: 45, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'शान्ति बाई', age: 42, gender: 'महिला', condition: 'सामान्य' }] },
-  { id: 5, houseNo: 5, familyName: 'राजेन्द्र सिंह', membersCount: 5, status: '7days', lastVisited: '7 दिन पूर्व', nextVisit: 'कल शेष', pregnancy: true, child: false, ncd: false, members: [{ name: 'राजेन्द्र सिंह', age: 28, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'सीता बाई', age: 24, gender: 'महिला', isPregnant: true, isHrp: true, anc: 'ANC 3 High Risk', hb: '6.8 g/dL (Severe Anaemia HRP)' }] },
-  { id: 6, houseNo: 6, familyName: 'दिलीप प्रजापति', membersCount: 3, status: '30days', lastVisited: '20 दिन पूर्व', nextVisit: '10 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'दिलीप', age: 38, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 7, houseNo: 7, familyName: 'कल्याण वर्मा', membersCount: 4, status: '15days', lastVisited: '10 दिन पूर्व', nextVisit: '5 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'कल्याण वर्मा', age: 32, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'परी', age: 1, gender: 'बालिका', childVaccine: 'MR-1 Vaccine Due' }] },
-  { id: 8, houseNo: 8, familyName: 'महेन्द्र पाल', membersCount: 5, status: 'noData', lastVisited: 'अज्ञात', nextVisit: 'तुरंत जांच करें', pregnancy: false, child: false, ncd: false, members: [{ name: 'महेन्द्र पाल', age: 50, gender: 'पुरुष', condition: 'सर्वेक्षण शेष' }] },
-  { id: 9, houseNo: 9, familyName: 'गोपाल कृष्ण', membersCount: 6, status: '7days', lastVisited: '6 दिन पूर्व', nextVisit: '1 दिन शेष', pregnancy: true, child: false, ncd: true, members: [{ name: 'गोपाल कृष्ण', age: 55, gender: 'पुरुष', condition: 'मधुमेह (Diabetes)' }, { name: 'राधा बाई', age: 29, gender: 'महिला', isPregnant: true, isHrp: true, anc: 'Gestational Diabetes' }] },
-  { id: 10, houseNo: 10, familyName: 'सुरेश चन्द्र', membersCount: 4, status: 'visited', lastVisited: '4 दिन पूर्व', nextVisit: '26 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'सुरेश चन्द्र', age: 40, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 11, houseNo: 11, familyName: 'देवेंद्र नाथ', membersCount: 5, status: '30days', lastVisited: '22 दिन पूर्व', nextVisit: '8 दिन शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'देवेंद्र नाथ', age: 64, gender: 'पुरुष', condition: 'हृदय रोग एवं बीपी' }] },
-  { id: 12, houseNo: 12, familyName: 'सत्यनारायण', membersCount: 3, status: '15days', lastVisited: '11 दिन पूर्व', nextVisit: '4 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'सत्यनारायण', age: 29, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'रोहन', age: 3, gender: 'बालक', childVaccine: 'Polio & Vitamin A Due' }] },
-  { id: 13, houseNo: 13, familyName: 'राम सिंह', membersCount: 4, status: 'visited', lastVisited: '2 दिन पूर्व', nextVisit: '28 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'राम सिंह', age: 48, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 14, houseNo: 14, familyName: 'जगदीश प्रसाद', membersCount: 5, status: '7days', lastVisited: '8 दिन पूर्व', nextVisit: 'आज ही संपर्क करें', pregnancy: true, child: false, ncd: false, members: [{ name: 'जगदीश', age: 33, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'मंजू देवी', age: 27, gender: 'महिला', isPregnant: true, anc: 'ANC 4 Delivery Prep' }] },
-  { id: 15, houseNo: 15, familyName: 'विनोद कुमार', membersCount: 6, status: '30days', lastVisited: '25 दिन पूर्व', nextVisit: '5 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'विनोद', age: 41, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 16, houseNo: 16, familyName: 'हरि ओम', membersCount: 4, status: 'visited', lastVisited: 'आज', nextVisit: '30 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'हरि ओम', age: 34, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'आयुष', age: 1, gender: 'बालक', childVaccine: 'पूर्ण टीकाकरण' }] },
-  { id: 17, houseNo: 17, familyName: 'ब्रजमोहन', membersCount: 5, status: '7days', lastVisited: '5 दिन पूर्व', nextVisit: '2 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'ब्रजमोहन', age: 36, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'अनिता शर्मा', age: 3, gender: 'बालिका', condition: 'गंभीर तीव्र कुपोषण (SAM MUAC 11.2cm)' }] },
-  { id: 18, houseNo: 18, familyName: 'मुकेश कुमार', membersCount: 3, status: '15days', lastVisited: '14 दिन पूर्व', nextVisit: '1 दिन शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'मुकेश', age: 52, gender: 'पुरुष', condition: 'अस्थमा एवं सांस की बीमारी' }] },
-  { id: 19, houseNo: 19, familyName: 'प्रेम शंकर', membersCount: 4, status: 'visited', lastVisited: 'कल', nextVisit: '29 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'प्रेम शंकर', age: 44, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 20, houseNo: 20, familyName: 'ओम प्रकाश', membersCount: 5, status: '30days', lastVisited: '18 दिन पूर्व', nextVisit: '12 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'ओम प्रकाश', age: 47, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 21, houseNo: 21, familyName: 'बनवारी लाल', membersCount: 4, status: 'noData', lastVisited: 'अज्ञात', nextVisit: 'जांच शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'बनवारी लाल', age: 53, gender: 'पुरुष', condition: 'डेटा शेष' }] },
-  { id: 22, houseNo: 22, familyName: 'राम प्रसाद', membersCount: 5, status: '7days', lastVisited: '6 दिन पूर्व', nextVisit: 'कल शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'राम प्रसाद', age: 58, gender: 'पुरुष', condition: 'अनियंत्रित उच्च रक्तचाप (BP 185/110 mmHg)' }] },
-  { id: 23, houseNo: 23, familyName: 'किशन लाल', membersCount: 4, status: 'visited', lastVisited: '4 दिन पूर्व', nextVisit: '26 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'किशन लाल', age: 39, gender: 'पुरुष', condition: 'सामान्य' }] },
-  { id: 24, houseNo: 24, familyName: 'शंकर दयाल', membersCount: 5, status: '15days', lastVisited: '13 दिन पूर्व', nextVisit: '2 दिन शेष', pregnancy: true, child: false, ncd: false, members: [{ name: 'शंकर दयाल', age: 31, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'माया देवी', age: 25, gender: 'महिला', isPregnant: true, anc: 'ANC 1 Registration' }] },
+  { id: 1, houseNo: 1, familyName: 'रामेश्वर दयाल', primaryPhone: '+91 98765 00001', membersCount: 5, status: 'visited', lastVisited: 'कल', nextVisit: '25 दिन शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'रामेश्वर दयाल', age: 62, gender: 'पुरुष', phone: '+91 98765 00001', abhaId: '91-1029-3847-5501', condition: 'उच्च रक्तचाप (Hypertension)', doctorName: 'Dr. R. K. Singh', prescriptions: 'Tab Amlodipine 5mg OD', prescriptionDeadline: '30 Oct 2026' }, { name: 'कमला देवी', age: 58, gender: 'महिला', phone: '+91 98765 00001', abhaId: '91-1029-3847-5502', condition: 'सामान्य' }] },
+  { id: 2, houseNo: 2, familyName: 'सुनील कुमार', primaryPhone: '+91 98765 00002', membersCount: 4, status: '7days', lastVisited: '5 दिन पूर्व', nextVisit: '2 दिन शेष', pregnancy: true, child: false, ncd: false, members: [{ name: 'सुनील कुमार', age: 30, gender: 'पुरुष', phone: '+91 98765 00002', condition: 'सामान्य' }, { name: 'सुमन देवी', age: 26, gender: 'महिला', phone: '+91 98765 00002', abhaId: '91-2290-4819-3302', isPregnant: true, anc: 'ANC 2 Due', hb: '9.2 g/dL (Mild Anaemia)', doctorName: 'Dr. Meenakshi Soni', prescriptions: 'Tab IFA 100mg + Calcium 500mg', prescriptionDeadline: '29 Oct 2026' }] },
+  { id: 3, houseNo: 3, familyName: 'भगवान दास', primaryPhone: '+91 98765 00003', membersCount: 6, status: '15days', lastVisited: '12 दिन पूर्व', nextVisit: '3 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'भगवान दास', age: 35, gender: 'पुरुष', phone: '+91 98765 00003', condition: 'सामान्य' }, { name: 'आरव', age: 2, gender: 'बालक', abhaId: '91-3381-9021-4411', childVaccine: 'DPT Booster Due' }] },
+  { id: 4, houseNo: 4, familyName: 'मोहन लाल', primaryPhone: '+91 98765 00004', membersCount: 4, status: 'visited', lastVisited: '3 दिन पूर्व', nextVisit: '27 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'मोहन लाल', age: 45, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'शान्ति बाई', age: 42, gender: 'महिला', condition: 'सामान्य' }] },
+  { id: 5, houseNo: 5, familyName: 'राजेन्द्र सिंह', primaryPhone: '+91 98765 00005', membersCount: 5, status: '7days', lastVisited: '7 दिन पूर्व', nextVisit: 'कल शेष', pregnancy: true, child: false, ncd: false, members: [{ name: 'राजेन्द्र सिंह', age: 28, gender: 'पुरुष', phone: '+91 98765 00005', condition: 'सामान्य' }, { name: 'सीता बाई', age: 24, gender: 'महिला', phone: '+91 98765 00014', abhaId: '91-6234-8890-1452', isPregnant: true, isHrp: true, anc: 'ANC 3 High Risk (गंभीर एनीमिया)', hb: '6.8 g/dL (Severe Anaemia HRP)', doctorName: 'Dr. Ananya Roy (District Hospital)', prescriptions: 'Tab IFA 100mg BID, Inj Iron Sucrose 200mg', prescriptionDeadline: '28 Oct 2026 (5 दिन शेष)' }] },
+  { id: 6, houseNo: 6, familyName: 'दिलीप प्रजापति', primaryPhone: '+91 98765 00006', membersCount: 3, status: '30days', lastVisited: '20 दिन पूर्व', nextVisit: '10 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'दिलीप', age: 38, gender: 'पुरुष', phone: '+91 98765 00006', condition: 'सामान्य' }] },
+  { id: 7, houseNo: 7, familyName: 'कल्याण वर्मा', primaryPhone: '+91 98765 00007', membersCount: 4, status: '15days', lastVisited: '10 दिन पूर्व', nextVisit: '5 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'कल्याण वर्मा', age: 32, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'परी', age: 1, gender: 'बालिका', childVaccine: 'MR-1 Vaccine Due' }] },
+  { id: 8, houseNo: 8, familyName: 'महेन्द्र पाल', primaryPhone: '+91 98765 00008', membersCount: 5, status: 'noData', lastVisited: 'अज्ञात', nextVisit: 'तुरंत जांच करें', pregnancy: false, child: false, ncd: false, members: [{ name: 'महेन्द्र पाल', age: 50, gender: 'पुरुष', condition: 'सर्वेक्षण शेष' }] },
+  { id: 9, houseNo: 9, familyName: 'गोपाल कृष्ण', primaryPhone: '+91 98765 00009', membersCount: 6, status: '7days', lastVisited: '6 दिन पूर्व', nextVisit: '1 दिन शेष', pregnancy: true, child: false, ncd: true, members: [{ name: 'गोपाल कृष्ण', age: 55, gender: 'पुरुष', phone: '+91 98765 00009', condition: 'मधुमेह (Diabetes)' }, { name: 'राधा बाई', age: 29, gender: 'महिला', phone: '+91 98765 00009', abhaId: '91-7711-2094-8831', isPregnant: true, isHrp: true, anc: 'Gestational Diabetes Mellitus', doctorName: 'Dr. S. K. Gupta (Endocrinology)', prescriptions: 'Inj Insulin Regular 6U TID', prescriptionDeadline: '30 Oct 2026' }] },
+  { id: 10, houseNo: 10, familyName: 'सुरेश चन्द्र', primaryPhone: '+91 98765 00010', membersCount: 4, status: 'visited', lastVisited: '4 दिन पूर्व', nextVisit: '26 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'सुरेश चन्द्र', age: 40, gender: 'पुरुष', condition: 'सामान्य' }] },
+  { id: 11, houseNo: 11, familyName: 'देवेंद्र नाथ', primaryPhone: '+91 98765 00011', membersCount: 5, status: '30days', lastVisited: '22 दिन पूर्व', nextVisit: '8 दिन शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'देवेंद्र नाथ', age: 64, gender: 'पुरुष', condition: 'हृदय रोग एवं बीपी' }] },
+  { id: 12, houseNo: 12, familyName: 'सत्यनारायण', primaryPhone: '+91 98765 00012', membersCount: 3, status: '15days', lastVisited: '11 दिन पूर्व', nextVisit: '4 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'सत्यनारायण', age: 29, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'रोहन', age: 3, gender: 'बालक', childVaccine: 'Polio & Vitamin A Due' }] },
+  { id: 13, houseNo: 13, familyName: 'राम सिंह', primaryPhone: '+91 98765 00013', membersCount: 4, status: 'visited', lastVisited: '2 दिन पूर्व', nextVisit: '28 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'राम सिंह', age: 48, gender: 'पुरुष', condition: 'सामान्य' }] },
+  { id: 14, houseNo: 14, familyName: 'जगदीश प्रसाद', primaryPhone: '+91 98765 00014', membersCount: 5, status: '7days', lastVisited: '8 दिन पूर्व', nextVisit: 'आज ही संपर्क करें', pregnancy: true, child: false, ncd: false, members: [{ name: 'जगदीश', age: 33, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'मंजू देवी', age: 27, gender: 'महिला', isPregnant: true, anc: 'ANC 4 Delivery Prep' }] },
+  { id: 15, houseNo: 15, familyName: 'विनोद कुमार', primaryPhone: '+91 98765 00015', membersCount: 6, status: '30days', lastVisited: '25 दिन पूर्व', nextVisit: '5 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'विनोद', age: 41, gender: 'पुरुष', condition: 'सामान्य' }] },
+  { id: 16, houseNo: 16, familyName: 'हरि ओम', primaryPhone: '+91 98765 00016', membersCount: 4, status: 'visited', lastVisited: 'आज', nextVisit: '30 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'हरि ओम', age: 34, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'आयुष', age: 1, gender: 'बालक', childVaccine: 'पूर्ण टीकाकरण' }] },
+  { id: 17, houseNo: 17, familyName: 'ब्रजमोहन', primaryPhone: '+91 98765 00017', membersCount: 5, status: '7days', lastVisited: '5 दिन पूर्व', nextVisit: '2 दिन शेष', pregnancy: false, child: true, ncd: false, members: [{ name: 'ब्रजमोहन', age: 36, gender: 'पुरुष', phone: '+91 98765 00017', condition: 'सामान्य' }, { name: 'अनिता शर्मा', age: 3, gender: 'बालिका', phone: '+91 98765 00017', abhaId: '91-3329-8710-4491', condition: 'गंभीर तीव्र कुपोषण (SAM MUAC 11.2cm)', doctorName: 'CHO Dr. Arvind Pathak', prescriptions: 'F-75 Therapeutic Nutrition, Zinc Syp', prescriptionDeadline: '27 Oct 2026' }] },
+  { id: 18, houseNo: 18, familyName: 'मुकेश कुमार', primaryPhone: '+91 98765 00018', membersCount: 3, status: '15days', lastVisited: '14 दिन पूर्व', nextVisit: '1 दिन शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'मुकेश', age: 52, gender: 'पुरुष', condition: 'अस्थमा एवं सांस की बीमारी' }] },
+  { id: 19, houseNo: 19, familyName: 'प्रेम शंकर', primaryPhone: '+91 98765 00019', membersCount: 4, status: 'visited', lastVisited: 'कल', nextVisit: '29 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'प्रेम शंकर', age: 44, gender: 'पुरुष', condition: 'सामान्य' }] },
+  { id: 20, houseNo: 20, familyName: 'ओम प्रकाश', primaryPhone: '+91 98765 00020', membersCount: 5, status: '30days', lastVisited: '18 दिन पूर्व', nextVisit: '12 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'ओम प्रकाश', age: 47, gender: 'पुरुष', condition: 'सामान्य' }] },
+  { id: 21, houseNo: 21, familyName: 'बनवारी लाल', primaryPhone: '+91 98765 00021', membersCount: 4, status: 'noData', lastVisited: 'अज्ञात', nextVisit: 'जांच शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'बनवारी लाल', age: 53, gender: 'पुरुष', condition: 'डेटा शेष' }] },
+  { id: 22, houseNo: 22, familyName: 'राम प्रसाद', primaryPhone: '+91 98765 00022', membersCount: 5, status: '7days', lastVisited: '6 दिन पूर्व', nextVisit: 'कल शेष', pregnancy: false, child: false, ncd: true, members: [{ name: 'राम प्रसाद', age: 58, gender: 'पुरुष', phone: '+91 98765 00022', abhaId: '14-8872-3341-9920', condition: 'अनियंत्रित उच्च रक्तचाप (BP 185/110 mmHg)', doctorName: 'Dr. Rajesh Sharma (BHU Apex)', prescriptions: 'Tab Amlodipine 5mg OD + Tab Telmisartan 40mg', prescriptionDeadline: '26 Oct 2026' }] },
+  { id: 23, houseNo: 23, familyName: 'किशन लाल', primaryPhone: '+91 98765 00023', membersCount: 4, status: 'visited', lastVisited: '4 दिन पूर्व', nextVisit: '26 दिन शेष', pregnancy: false, child: false, ncd: false, members: [{ name: 'किशन लाल', age: 39, gender: 'पुरुष', condition: 'सामान्य' }] },
+  { id: 24, houseNo: 24, familyName: 'शंकर दयाल', primaryPhone: '+91 98765 00024', membersCount: 5, status: '15days', lastVisited: '13 दिन पूर्व', nextVisit: '2 दिन शेष', pregnancy: true, child: false, ncd: false, members: [{ name: 'शंकर दयाल', age: 31, gender: 'पुरुष', condition: 'सामान्य' }, { name: 'माया देवी', age: 25, gender: 'महिला', isPregnant: true, anc: 'ANC 1 Registration' }] },
 ];
 
 export default function AshaFieldWorkerApp({ onSwitchRole }) {
@@ -64,6 +64,42 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
   const [syncing, setSyncing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [outboxCount, setOutboxCount] = useState(3);
+
+  // Referral to CHO State
+  const [referralModalOpen, setReferralModalOpen] = useState(false);
+  const [referralTargetMember, setReferralTargetMember] = useState(null);
+  const [referralTargetHouse, setReferralTargetHouse] = useState(null);
+  const [referralReason, setReferralReason] = useState('गंभीर स्वास्थ्य जटिलता');
+  const [referralUrgency, setReferralUrgency] = useState('urgent_7d');
+  const [referralVitals, setReferralVitals] = useState('BP 140/90, Hb 10.2');
+  const [inOutSyncModalOpen, setInOutSyncModalOpen] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState(null);
+
+  const handleOpenReferralModal = (house, member) => {
+    setReferralTargetHouse(house);
+    setReferralTargetMember(member);
+    setReferralReason(
+      member.isHrp
+        ? 'गंभीर एनीमिया (Hb < 7 g/dL) - उच्च जोखिम गर्भावस्था'
+        : member.anc
+        ? 'गर्भावधि मधुमेह / रक्तचाप निगरानी'
+        : member.childVaccine
+        ? 'बाल कुपोषण एवं छूटा टीकाकरण'
+        : member.condition
+        ? member.condition
+        : 'विस्तृत जांच एवं टेली-परामर्श'
+    );
+    setReferralVitals(
+      member.hb ? `Hb: ${member.hb}` : member.condition?.includes('BP') ? 'BP: 185/110 mmHg' : 'वाइटल्स सामान्य'
+    );
+    setReferralModalOpen(true);
+  };
+
+  const handleConfirmReferralToCho = () => {
+    toast.success(`✓ रोगी ${referralTargetMember?.name} को सफलतापूर्वक सीएचओ एडमिन को रेफर किया गया है।`);
+    setOutboxCount((prev) => prev + 1);
+    setReferralModalOpen(false);
+  };
 
   // CBAC & Village Survey State
   const [surveyTargetMember, setSurveyTargetMember] = useState(null);
@@ -635,6 +671,52 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
                       <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{m.name}</strong>
                       <span style={{ fontSize: '11px', color: '#64748b' }}>{m.gender}, {m.age} वर्ष</span>
                     </div>
+
+                    {/* Attached Contact Number & ABHA ID Number */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '4px 0', flexWrap: 'wrap' }}>
+                      {m.phone && (
+                        <a
+                          href={`tel:${m.phone}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            backgroundColor: '#eff6ff',
+                            color: '#1d4ed8',
+                            border: '1px solid #bfdbfe',
+                            padding: '2px 7px',
+                            borderRadius: '5px',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textDecoration: 'none',
+                          }}
+                        >
+                          <Phone size={10} color="#1d4ed8" />
+                          <span>{m.phone}</span>
+                          <span style={{ fontSize: '9px', backgroundColor: '#dbeafe', padding: '1px 3px', borderRadius: '3px' }}>कॉल</span>
+                        </a>
+                      )}
+                      {m.abhaId && (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            backgroundColor: '#ecfdf5',
+                            color: '#047857',
+                            border: '1px solid #a7f3d0',
+                            padding: '2px 7px',
+                            borderRadius: '5px',
+                            fontSize: '10.5px',
+                            fontWeight: '700',
+                          }}
+                        >
+                          <span>ABHA:</span>
+                          <span>{m.abhaId}</span>
+                        </span>
+                      )}
+                    </div>
+
                     {m.condition && (
                       <div style={{ fontSize: '12px', color: '#b91c1c', fontWeight: '600', marginTop: '4px' }}>
                         ⚠️ {m.condition}
@@ -650,23 +732,78 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
                         💉 {m.childVaccine}
                       </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => handleStartSurvey(selectedHouse, m)}
-                      style={{
-                        marginTop: '8px',
-                        padding: '5px 10px',
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #cbd5e1',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: '700',
-                        color: '#004d40',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      📋 इस सदस्य की CBAC जांच करें &rarr;
-                    </button>
+
+                    {/* Doctor Prescriptions & Deadlines */}
+                    {m.prescriptions && (
+                      <div
+                        style={{
+                          backgroundColor: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          borderRadius: '6px',
+                          padding: '6px 8px',
+                          marginTop: '5px',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <div style={{ fontWeight: '800', color: '#92400e' }}>
+                          💊 डॉक्टर दवा सलाह: {m.prescriptions}
+                        </div>
+                        {m.prescriptionDeadline && (
+                          <div style={{ color: '#dc2626', fontWeight: '700', marginTop: '2px' }}>
+                            ⏰ समयसीमा: {m.prescriptionDeadline}
+                          </div>
+                        )}
+                        {m.doctorName && (
+                          <div style={{ color: '#64748b', fontSize: '10px', marginTop: '1px' }}>
+                            डॉक्टर: {m.doctorName}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Dual Action Buttons: Survey & Direct Referral to CHO */}
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleStartSurvey(selectedHouse, m)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: '700',
+                          color: '#004d40',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        📋 CBAC जांच &rarr;
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReferralModal(selectedHouse, m)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          backgroundColor: '#eff6ff',
+                          border: '1.5px solid #3b82f6',
+                          borderRadius: '6px',
+                          fontSize: '11.5px',
+                          fontWeight: '800',
+                          color: '#1d4ed8',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <Building2 size={13} color="#1d4ed8" />
+                        <span>सीएचओ को रेफर करें</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -910,6 +1047,204 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* REFERRAL TO CHO ADMIN MODAL */}
+      {referralModalOpen && referralTargetMember && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => setReferralModalOpen(false)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              backgroundColor: '#ffffff',
+              borderRadius: '20px',
+              padding: '22px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building2 size={20} color="#1d4ed8" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                    सीएचओ एडमिन को रेफरल प्रेषित करें
+                  </h3>
+                  <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                    आयुष्मान आरोग्य मंदिर • कम्युनिटी हेल्थ ऑफिसर
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReferralModalOpen(false)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Beneficiary Quick Summary Card */}
+            <div
+              style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px',
+                marginBottom: '14px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b' }}>
+                  {referralTargetMember.name} ({referralTargetMember.age} वर्ष · {referralTargetMember.gender})
+                </div>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#0284c7' }}>
+                  घर सं. #{referralTargetHouse?.houseNo}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
+                {referralTargetMember.phone && (
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#1d4ed8', backgroundColor: '#eff6ff', padding: '2px 7px', borderRadius: '4px' }}>
+                    📞 {referralTargetMember.phone}
+                  </span>
+                )}
+                {referralTargetMember.abhaId && (
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#059669', backgroundColor: '#ecfdf5', padding: '2px 7px', borderRadius: '4px' }}>
+                    ABHA: {referralTargetMember.abhaId}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Urgency Level */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '5px' }}>
+                प्राथमिकता स्तर (Urgency Tier):
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setReferralUrgency('urgent_7d')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: referralUrgency === 'urgent_7d' ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                    backgroundColor: referralUrgency === 'urgent_7d' ? '#fef2f2' : '#ffffff',
+                    color: referralUrgency === 'urgent_7d' ? '#b91c1c' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                  }}
+                >
+                  अति-आवश्यक (7 दिन)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReferralUrgency('semi_urgent_14d')}
+                  style={{
+                    flex: 1,
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: referralUrgency === 'semi_urgent_14d' ? '2px solid #2563eb' : '1px solid #cbd5e1',
+                    backgroundColor: referralUrgency === 'semi_urgent_14d' ? '#eff6ff' : '#ffffff',
+                    color: referralUrgency === 'semi_urgent_14d' ? '#1d4ed8' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                  }}
+                >
+                  मध्यम (14 दिन)
+                </button>
+              </div>
+            </div>
+
+            {/* Reason for Referral */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '5px' }}>
+                रेफरल का मुख्य कारण:
+              </label>
+              <input
+                type="text"
+                value={referralReason}
+                onChange={(e) => setReferralReason(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                placeholder="उदा. गंभीर एनीमिया, उच्च रक्तचाप, प्रसव पूर्व जटिलता"
+              />
+            </div>
+
+            {/* Vitals */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '5px' }}>
+                नवीनतम वाइटल्स एवं जाँच:
+              </label>
+              <input
+                type="text"
+                value={referralVitals}
+                onChange={(e) => setReferralVitals(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                placeholder="उदा. BP 185/110 mmHg, Hb 6.8 g/dL"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={handleConfirmReferralToCho}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  backgroundColor: '#1d4ed8',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '13.5px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 6px rgba(29, 78, 216, 0.25)',
+                }}
+              >
+                <Send size={15} />
+                <span>सीएचओ एडमिन को रेफरल भेजें</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReferralModalOpen(false)}
+                style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#f1f5f9',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                रद्द करें
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -189,7 +189,8 @@ function mapHospitalData(raw, defaultDist, index) {
     illustrationUrl = `/hospital_illustrations/hospital_${pick}.png`;
   }
 
-  const isAarogyaFlow = (h.uriSlug === 'main' || h.slug === 'main' || nameLower.includes('aarogyaflow'));
+  const cleanNameLower = nameLower.replace(/\s+/g, '');
+  const isAarogyaFlow = (h.uriSlug === 'main' || h.slug === 'main' || nameLower.includes('aarogya') || nameLower.includes('arogya') || cleanNameLower.includes('aarogyaflow') || cleanNameLower.includes('arogyaflow'));
   const is24Hours = isAarogyaFlow || (openTime === '00:00' && (closeTime === '23:59' || closeTime === '24:00'));
 
   return {

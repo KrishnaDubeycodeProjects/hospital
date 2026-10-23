@@ -678,7 +678,7 @@ export default function DoctorServeEncounter() {
   /* -------------------------------------------------------------------------- */
   /* Render                                                                     */
   /* -------------------------------------------------------------------------- */
-  if (loading) return <Spinner label="Loading patient serving encounter workbench..." />;
+  if (loading) return <Spinner label="Loading consultation room..." />;
 
   if (!profile?.hospitalId) {
     return (
@@ -699,8 +699,8 @@ export default function DoctorServeEncounter() {
       <div className="stack-lg">
         <div className="card-head">
           <div>
-            <h1>Serving Encounter Console</h1>
-            <p className="muted-text">Sequential Clinical Workflow: Prescription ➔ Consent ➔ Continuity Management</p>
+            <h1>Patient Consultation</h1>
+            <p className="muted-text">Step-by-step: Write Prescription ➔ Medical Records ➔ Follow-up & Referrals</p>
           </div>
           <Button variant="secondary" onClick={() => navigate('/doctor/consultation')}>
             ← Back to Queue Workbench
@@ -715,7 +715,7 @@ export default function DoctorServeEncounter() {
             </p>
             <div className="row-gap" style={{ justifyContent: 'center' }}>
               <Button variant="primary" size="lg" onClick={() => navigate('/doctor/consultation')}>
-                Open Live Queue Workbench →
+                Open Patient Queue →
               </Button>
             </div>
           </div>
@@ -754,7 +754,7 @@ export default function DoctorServeEncounter() {
                 }}
               >
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ffffff', animation: 'pulse 1.5s infinite' }} />
-                IN CHAIR (SERVING)
+                IN CONSULTATION
               </span>
               <span style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8', fontFamily: 'monospace' }}>
                 Token #{activeToken.dailyNumber || activeToken.queuePosition || 1}
@@ -792,7 +792,7 @@ export default function DoctorServeEncounter() {
               onClick={() => navigate('/doctor/consultation')}
               style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)' }}
             >
-              ← Queue Workbench
+              ← Patient Queue
             </Button>
             <Button
               size="sm"
@@ -800,7 +800,7 @@ export default function DoctorServeEncounter() {
               onClick={handleMarkNoShow}
               style={{ fontWeight: 700 }}
             >
-              Not in Chair / Demote
+              Mark as Absent / Missed
             </Button>
           </div>
         </div>
@@ -912,7 +912,7 @@ export default function DoctorServeEncounter() {
             1
           </span>
           <Pill size={18} />
-          <span>1. Prescription & Rx</span>
+          <span>1. Checkup & Prescription</span>
         </button>
 
         <button
@@ -950,7 +950,7 @@ export default function DoctorServeEncounter() {
             2
           </span>
           <QrCode size={18} />
-          <span>2. Consent & Records</span>
+          <span>2. Medical Records</span>
         </button>
 
         <button
@@ -988,7 +988,7 @@ export default function DoctorServeEncounter() {
             3
           </span>
           <ClipboardList size={18} />
-          <span>3. Continuity Management</span>
+          <span>3. Follow-up & Referrals</span>
         </button>
       </div>
 
@@ -997,7 +997,7 @@ export default function DoctorServeEncounter() {
       {/* ==================================================================== */}
       {activeStep === 1 && (
         <Card
-          title="Step 1: Clinical Notes, Diagnostics & Prescription (Rx)"
+          title="Step 1: Doctor's Notes & Prescription"
           actions={
             <div className="row-gap">
               <span style={{ fontSize: '12px', color: '#64748b' }}>Quick Presets:</span>
@@ -1031,7 +1031,7 @@ export default function DoctorServeEncounter() {
           <div className="stack-md">
             {/* Chief Complaint & Quick Chips */}
             <div>
-              <Field label="Chief Complaint *" hint="Primary presenting issue or symptom">
+              <Field label="Main Health Concern / Symptoms *" hint="Reason for patient visit">
                 <Input
                   value={chiefComplaint}
                   onChange={(e) => setChiefComplaint(e.target.value)}
@@ -1071,7 +1071,7 @@ export default function DoctorServeEncounter() {
             </div>
 
             <div className="field-row">
-              <Field label="Clinical Notes / History of Present Illness">
+              <Field label="Doctor's Notes & Medical History">
                 <Textarea
                   rows={2}
                   value={clinicalNotes}
@@ -1080,7 +1080,7 @@ export default function DoctorServeEncounter() {
                 />
               </Field>
 
-              <Field label="Physical Examination Findings">
+              <Field label="Physical Checkup Findings">
                 <Textarea
                   rows={2}
                   value={examinationFindings}
@@ -1090,11 +1090,11 @@ export default function DoctorServeEncounter() {
               </Field>
             </div>
 
-            <Field label="Provisional / Primary Diagnosis">
+            <Field label="Doctor's Diagnosis">
               <Input
                 value={provisionalDiagnosis}
                 onChange={(e) => setProvisionalDiagnosis(e.target.value)}
-                placeholder="e.g. Acute Upper Respiratory Tract Infection (ICD-10 J06.9)"
+                placeholder="e.g. Viral Fever, Common Cold, High Blood Pressure"
               />
             </Field>
 
@@ -1103,10 +1103,10 @@ export default function DoctorServeEncounter() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                    Prescriptions (Rx Medications)
+                    Prescriptions (Medicines)
                   </h4>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>
-                    Live Eka Care Drug Database with National Essential List (NLEM) indicators
+                    Search generic and brand medicines with recommended dosages
                   </span>
                 </div>
                 <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionRow}>
@@ -1158,7 +1158,7 @@ export default function DoctorServeEncounter() {
                         onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
                       />
                       <Input
-                        placeholder="Freq (TDS / BD)"
+                        placeholder="How often (e.g. Twice daily)"
                         value={rx.frequency}
                         onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
                       />
@@ -1189,10 +1189,10 @@ export default function DoctorServeEncounter() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                    Diagnostic Investigations & Labs
+                    Lab Tests & Reports
                   </h4>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>
-                    Orders tracked under ABDM DiagnosticReport FHIR profiles
+                    Lab tests prescribed for patient
                   </span>
                 </div>
                 <Button type="button" size="sm" variant="secondary" onClick={() => addLabOrderRow()}>
@@ -1265,7 +1265,7 @@ export default function DoctorServeEncounter() {
             </div>
 
             {/* Care Plan & Dietary Advice */}
-            <Field label="Care & Management Plan / Dietary Advice">
+            <Field label="Doctor Advice & Dietary Instructions">
               <Input
                 value={plan}
                 onChange={(e) => setPlan(e.target.value)}
@@ -1296,7 +1296,7 @@ export default function DoctorServeEncounter() {
                   }}
                   style={{ fontWeight: 800 }}
                 >
-                  Proceed to Step 2: Consent & Records <ArrowRight size={16} />
+                  Next: Medical Records <ArrowRight size={16} />
                 </Button>
               </div>
             </div>
@@ -1311,7 +1311,7 @@ export default function DoctorServeEncounter() {
         <div className="stack-md">
           {/* Card A: In-Chair Live QR Consent */}
           <Card
-            title="Step 2: Patient Record Consent & Shared History"
+            title="Step 2: Patient Medical Records"
             actions={
               <Button size="sm" variant="secondary" onClick={handleGenerateDoctorAccessQr} loading={generatingAccessQr}>
                 <RefreshCw size={14} /> Refresh Consent QR
@@ -1333,7 +1333,7 @@ export default function DoctorServeEncounter() {
                 }}
               >
                 <div style={{ fontWeight: 800, fontSize: '14px', color: '#0369a1', marginBottom: '8px' }}>
-                  📱 Instant Patient Scan: In-Clinic Record Consent
+                  📱 Scan QR Code to Share Medical Records
                 </div>
                 <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px' }}>
                   Ask the patient to scan this QR code with their mobile phone camera or Ayushman Patient Portal.
@@ -1372,14 +1372,14 @@ export default function DoctorServeEncounter() {
               <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <div style={{ fontWeight: 800, fontSize: '14px', color: '#0369a1' }}>
-                    🏛️ ABDM HIU Consent Gateway
+                    🏛️ Records from Other Hospitals
                   </div>
                   <span style={{ fontSize: '10px', background: '#0284c7', color: '#ffffff', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                    NRCES M3
+                    Connected Hospitals
                   </span>
                 </div>
                 <p style={{ fontSize: '12px', color: '#0c4a6e', margin: '0 0 12px' }}>
-                  Request longitudinal health data through National Health Authority (NHA) ABDM consent artifact.
+                  View past medical records from other connected hospitals using the patient's ABHA ID.
                 </p>
 
                 <form onSubmit={handleRequestAbdmConsent} className="stack-sm">
@@ -1480,7 +1480,7 @@ export default function DoctorServeEncounter() {
               onClick={() => setActiveStep(3)}
               style={{ fontWeight: 800 }}
             >
-              Proceed to Step 3: Continuity Management <ArrowRight size={16} />
+              Next: Follow-up & Referrals <ArrowRight size={16} />
             </Button>
           </div>
         </div>
@@ -1493,7 +1493,7 @@ export default function DoctorServeEncounter() {
         <div className="stack-md">
           {/* Card A: Longitudinal Care Episode Continuity */}
           <Card
-            title="Step 3: Continuity of Care (Care Episode & Follow-Up)"
+            title="Step 3: Follow-Up & Treatment Plan"
             actions={
               <div className="row-gap">
                 <span className="badge badge-green">ABDM M2 Care Context</span>
@@ -1502,7 +1502,7 @@ export default function DoctorServeEncounter() {
           >
             <div className="stack-md">
               <div className="field-row">
-                <Field label="Care Episode Title" hint="Longitudinal umbrella connecting encounters">
+                <Field label="Treatment Reason" hint="Name or diagnosis for this treatment visit">
                   <Input
                     value={courseTitle || (chiefComplaint ? `Episode - ${chiefComplaint.slice(0, 30)}` : '')}
                     onChange={(e) => setCourseTitle(e.target.value)}
@@ -1510,7 +1510,7 @@ export default function DoctorServeEncounter() {
                   />
                 </Field>
 
-                <Field label="Episode Category / Type">
+                <Field label="Treatment Type">
                   <Select value={courseType} onChange={(e) => setCourseType(e.target.value)}>
                     <option value="acute">Acute Illness / Infection</option>
                     <option value="chronic">Chronic Disease Management (Hypertension / DM)</option>
@@ -1532,7 +1532,7 @@ export default function DoctorServeEncounter() {
                   </Select>
                 </Field>
 
-                <Field label="Continuity / Handover Instructions (ASHA / PHC)">
+                <Field label="Instructions for Community Health Worker (ASHA) or Patient">
                   <Input
                     value={continuityInstructions}
                     onChange={(e) => setContinuityInstructions(e.target.value)}
@@ -1578,7 +1578,7 @@ export default function DoctorServeEncounter() {
                 checked={enableReferral}
                 onChange={(e) => setEnableReferral(e.target.checked)}
               />
-              <span>Issue Tiered Hospital Referral (Apex / Tertiary Transfer with Quota Lock)</span>
+              <span>Refer Patient to Another Hospital (Specialist Transfer)</span>
             </label>
 
             {enableReferral && (
@@ -1612,16 +1612,16 @@ export default function DoctorServeEncounter() {
                     </Select>
                   </Field>
 
-                  <Field label="Priority Tier">
+                  <Field label="Urgency">
                     <Select value={priorityTier} onChange={(e) => setPriorityTier(e.target.value)}>
                       <option value="emergency_immediate">🚨 Emergency (Immediate 24h)</option>
-                      <option value="urgent_7d">⚡ Urgent (Strict 7-Day Quota-Locked)</option>
-                      <option value="routine_30d">📋 Routine (30-Day appointment)</option>
+                      <option value="urgent_7d">⚡ Urgent (Within 7 Days)</option>
+                      <option value="routine_30d">📋 Routine (Within 30 Days)</option>
                     </Select>
                   </Field>
                 </div>
 
-                <Field label="Reason for Transfer / Clinical Handover Note">
+                <Field label="Reason for Hospital Referral">
                   <Input
                     placeholder="e.g. Higher tertiary cardiac monitoring and coronary angiography evaluation"
                     value={referralReason}
@@ -1669,7 +1669,7 @@ export default function DoctorServeEncounter() {
                 justifyContent: 'center',
               }}
             >
-              ✓ Finalize & Complete Consultation
+              ✓ Finish Consultation & Send Prescription
             </Button>
           </div>
         </div>
@@ -1738,14 +1738,14 @@ export default function DoctorServeEncounter() {
             <div style={{ border: '1px solid #bae6fd', background: '#f0f9ff', borderRadius: '8px', padding: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 800, fontSize: '13px', color: '#0369a1' }}>
-                  🏛️ ABDM M2 Care Context: Generated
+                  📋 Digital Health Record Saved
                 </span>
                 <span style={{ fontSize: '10px', background: '#0284c7', color: '#ffffff', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                  NRCES FHIR R4
+                  Ayushman Health Network
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#0c4a6e', marginTop: '4px' }}>
-                Standard OPConsultRecord FHIR R4 bundle compiled and registered.
+                Prescription and consultation summary saved to patient's Ayushman health record.
               </div>
               {completedResult.encounter && (
                 <div style={{ marginTop: '8px' }}>
@@ -1758,7 +1758,7 @@ export default function DoctorServeEncounter() {
                       window.open(`/api/abdm/courses/${cId}/encounters/${completedResult.encounter.id}/fhir`, '_blank');
                     }}
                   >
-                    🔍 Inspect Official FHIR R4 Bundle (JSON)
+                    📄 View Health Record Data (FHIR)
                   </Button>
                 </div>
               )}
@@ -1791,7 +1791,7 @@ export default function DoctorServeEncounter() {
                   navigate('/doctor/consultation');
                 }}
               >
-                Return to Live Queue Workbench
+                Return to Patient Queue
               </Button>
             </div>
           </div>

@@ -144,7 +144,7 @@ public class QueueManagerService {
             params.put("hospitalId", hospitalId);
         }
         if (category != null && !category.isBlank()) {
-            sql.append(" AND category = :category");
+            sql.append(" AND LOWER(TRIM(category)) = LOWER(TRIM(:category))");
             params.put("category", category);
         }
     }
@@ -588,12 +588,16 @@ public class QueueManagerService {
     }
 
     public static boolean is24Hours(HospitalDto hospital) {
-        if (hospital == null) return false;
+        if (hospital == null) return true;
         if ("main".equalsIgnoreCase(hospital.getUriSlug())) return true;
-        if (hospital.getName() != null && hospital.getName().toLowerCase().contains("aarogyaflow")) return true;
-        if (hospital.getOpenTime() == null || hospital.getCloseTime() == null) return false;
+        if (hospital.getName() != null) {
+            String n = hospital.getName().toLowerCase().replaceAll("\\s+", "");
+            if (n.contains("aarogyaflow") || n.contains("aarogya") || n.contains("arogya") || n.contains("main")) return true;
+        }
+        if (hospital.getOpenTime() == null || hospital.getCloseTime() == null) return true;
         java.time.LocalTime open = hospital.getOpenTime();
         java.time.LocalTime close = hospital.getCloseTime();
+        if (open.equals(close)) return true;
         return open.equals(java.time.LocalTime.MIDNIGHT) && (close.equals(java.time.LocalTime.of(23, 59))
                 || close.equals(java.time.LocalTime.MAX) || close.equals(java.time.LocalTime.MIDNIGHT));
     }
@@ -950,7 +954,9 @@ public class QueueManagerService {
         }
         double distanceKm = geoDistanceService.distanceKm(hospital.getLatitude(), hospital.getLongitude(), lat, lon);
         double travelMinutes = geoDistanceService.estimatedTravelMinutes(distanceKm);
-
+        if (is24Hours(hospital)) {
+            return new GeoDistanceService.ArrivalFeasibility(true, distanceKm, travelMinutes, 1440);
+        }
         java.time.LocalTime now = java.time.LocalTime.now();
         long minutesUntilClose = java.time.Duration.between(now, hospital.getCloseTime()).toMinutes();
         return geoDistanceService.checkClosingTime(distanceKm, travelMinutes, minutesUntilClose);
@@ -1077,7 +1083,7 @@ public class QueueManagerService {
             double vacancyMinutes = computeDepartmentVacancyMinutes(frozen.getHospitalId(), frozen.getCategory());
             java.time.LocalDateTime projectedVacancyTime = now.plusSeconds((long) (vacancyMinutes * 60));
 
-            boolean targetReached = frozen.getTargetArrivalTime() == null || !now.isBefore(frozen.getTargetArrivalTime());
+            boolean targetReached = frozen.getTargetArrivalTime() != null && !now.isBefore(frozen.getTargetArrivalTime());
             boolean vacancyReached = frozen.getTargetArrivalTime() != null && !projectedVacancyTime.isBefore(frozen.getTargetArrivalTime());
 
             if (targetReached || vacancyReached) {

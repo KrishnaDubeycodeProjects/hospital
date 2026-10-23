@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import com.qdischarge.clinicqueue.exception.ReferralQuotaExceededException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -152,6 +153,55 @@ public class ReferralService {
                 RETURNING id
                 """,
                 params, Integer.class);
+
+        // Attach referral to assigned ASHA worker if patient belongs to an ASHA catchment area
+        try {
+            String patientPhone = course.getPatientPhone();
+            Integer familyMemberId = course.getFamilyMemberId();
+            String rawPhone = patientPhone != null ? patientPhone.replace("+91", "").trim() : "";
+
+            String getAshaSql = """
+                SELECT f.asha_worker_phone, f.id as family_unit_id, fm.id as member_id
+                FROM clinicqueue.family_units f
+                LEFT JOIN clinicqueue.family_members fm ON f.id = fm.family_unit_id
+                WHERE (fm.id = :memberId)
+                   OR (f.primary_phone = :phone OR f.primary_phone = :rawPhone OR fm.phone = :phone OR fm.phone = :rawPhone)
+                LIMIT 1
+            """;
+            MapSqlParameterSource ashaParams = new MapSqlParameterSource()
+                    .addValue("memberId", familyMemberId)
+                    .addValue("phone", patientPhone)
+                    .addValue("rawPhone", rawPhone);
+            List<Map<String, Object>> ashaRows = jdbc.queryForList(getAshaSql, ashaParams);
+
+            if (!ashaRows.isEmpty()) {
+                Map<String, Object> ashaRow = ashaRows.get(0);
+                String ashaPhone = (String) ashaRow.get("asha_worker_phone");
+                Integer famUnitId = ashaRow.get("family_unit_id") != null ? ((Number) ashaRow.get("family_unit_id")).intValue() : 1;
+                Integer famMemId = ashaRow.get("member_id") != null ? ((Number) ashaRow.get("member_id")).intValue() : 1;
+
+                if (ashaPhone != null && !ashaPhone.isBlank()) {
+                    String insertFollowUp = """
+                        INSERT INTO clinicqueue.follow_up_tasks
+                        (family_unit_id, family_member_id, asha_worker_phone, task_type, title, description, due_date, status, source_referral_id, created_at)
+                        VALUES
+                        (:famUnitId, :famMemId, :ashaPhone, 'DOCTOR_REFERRAL', :title, :description, :dueDate, 'PENDING', :referralId, NOW())
+                    """;
+                    MapSqlParameterSource fuParams = new MapSqlParameterSource()
+                            .addValue("famUnitId", famUnitId)
+                            .addValue("famMemId", famMemId)
+                            .addValue("ashaPhone", ashaPhone)
+                            .addValue("title", "Doctor Referral: " + req.reason())
+                            .addValue("description", "Referred to " + hospName + " (" + req.targetDepartment() + "). Prescription Deadline: " + validUntil)
+                            .addValue("dueDate", Date.valueOf(validUntil))
+                            .addValue("referralId", referralId);
+                    jdbc.update(insertFollowUp, fuParams);
+                    log.info("Attached doctor referral {} to ASHA worker {}", referralId, ashaPhone);
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not attach referral to ASHA worker: {}", ex.getMessage());
+        }
 
         ReferralDto referral = getReferralById(referralId);
 

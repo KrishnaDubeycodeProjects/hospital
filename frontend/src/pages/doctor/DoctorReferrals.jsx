@@ -84,7 +84,7 @@ export default function DoctorReferrals() {
         reason,
         priorityTier,
       });
-      toast.success(`Referral #${res.id} generated with pessimistic quota lock.`);
+      toast.success(`Referral #${res.id} created successfully.`);
       setCreateModal(false);
       setCourseId('');
       setReason('');
@@ -114,12 +114,12 @@ export default function DoctorReferrals() {
   }
 
   async function handleCancelReferral(id) {
-    if (!window.confirm(`Are you sure you want to cancel Referral #${id}? This will release the quota slot.`)) {
+    if (!window.confirm(`Are you sure you want to cancel Referral #${id}? This will free up the reserved appointment slot.`)) {
       return;
     }
     try {
       await referralApi.cancel(id);
-      toast.success(`Referral #${id} cancelled. Quota slot released.`);
+      toast.success(`Referral #${id} cancelled. Slot released.`);
       loadData();
     } catch (err) {
       toast.error(err.message || 'Failed cancelling referral.');
@@ -158,18 +158,16 @@ export default function DoctorReferrals() {
       <div className="card-head" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>
-            Referrals & Triage Console
+            Patient Referrals
           </h1>
-          <p className="muted-text" style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
-            Manage outbound specialist referrals with pessimistic quota locking and admit incoming transfer patients with prior clinical context.
-          </p>
+          <p className="muted-text" style={{ margin: '4px 0 0 0', fontSize: '13px' }}>Refer patients to specialist hospitals and manage incoming transfer patients.</p>
         </div>
         <div className="row-gap">
           <Button variant="primary" onClick={() => setCreateModal(true)}>
             + Issue New Referral
           </Button>
           <Button variant="secondary" onClick={() => setContextModal(true)}>
-            Inspect Prior Context
+            View Medical History
           </Button>
         </div>
       </div>
@@ -188,7 +186,7 @@ export default function DoctorReferrals() {
           <div className="stat-value">
             {profile?.hospitalName ? 'Active' : 'Enforced'}
           </div>
-          <div className="stat-label">Pessimistic Quota Guard</div>
+          <div className="stat-label">Hospital Slot Allocation</div>
         </div>
       </div>
 
@@ -257,7 +255,7 @@ export default function DoctorReferrals() {
                     <th style={{ padding: '10px 12px' }}>Patient</th>
                     <th style={{ padding: '10px 12px' }}>Destination Hospital</th>
                     <th style={{ padding: '10px 12px' }}>Department</th>
-                    <th style={{ padding: '10px 12px' }}>Priority Tier</th>
+                    <th style={{ padding: '10px 12px' }}>Urgency</th>
                     <th style={{ padding: '10px 12px' }}>Valid Until</th>
                     <th style={{ padding: '10px 12px' }}>Status</th>
                     <th style={{ padding: '10px 12px', textAlign: 'right' }}>Actions</th>
@@ -350,7 +348,7 @@ export default function DoctorReferrals() {
                     <th style={{ padding: '10px 12px' }}>Patient</th>
                     <th style={{ padding: '10px 12px' }}>Department</th>
                     <th style={{ padding: '10px 12px' }}>Priority</th>
-                    <th style={{ padding: '10px 12px' }}>Reason</th>
+                    
                     <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
@@ -381,9 +379,7 @@ export default function DoctorReferrals() {
                           {r.priorityTier?.replace('_', ' ')}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 12px', maxWidth: '320px', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.4 }}>
-                        {r.reason}
-                      </td>
+                      
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                         <Button
                           size="sm"
@@ -395,7 +391,7 @@ export default function DoctorReferrals() {
                           }}
                           style={{ fontSize: '11px' }}
                         >
-                          Inspect Context
+                          View Details
                         </Button>
                       </td>
                     </tr>
@@ -409,9 +405,9 @@ export default function DoctorReferrals() {
 
       {/* Create Referral Modal */}
       {createModal && (
-        <Modal title="Issue Priority Tiered Referral" onClose={() => setCreateModal(false)}>
+        <Modal title="Create Hospital Referral" onClose={() => setCreateModal(false)}>
           <form onSubmit={handleCreateReferral} className="stack-md">
-            <Field label="Medical Course ID *" hint="Course / Episode ID being referred">
+            <Field label="Visit / Treatment ID *" hint="Visit ID of patient to refer">
               <Input
                 type="number"
                 placeholder="e.g. 1"
@@ -421,7 +417,7 @@ export default function DoctorReferrals() {
               />
             </Field>
 
-            <Field label="Destination Hospital *" hint="Locked via pessimistic quota lock">
+            <Field label="Destination Hospital *" hint="Reserved appointment slot at hospital">
               <Select value={toHospitalId} onChange={(e) => setToHospitalId(e.target.value)} required>
                 <option value="">Select target hospital…</option>
                 {hospitals
@@ -445,10 +441,10 @@ export default function DoctorReferrals() {
                 </Select>
               </Field>
 
-              <Field label="Priority Tier">
+              <Field label="Urgency">
                 <Select value={priorityTier} onChange={(e) => setPriorityTier(e.target.value)}>
                   <option value="emergency_immediate">Emergency (Immediate 24h)</option>
-                  <option value="urgent_7d">Urgent (Strict 7-Day Quota)</option>
+                  <option value="urgent_7d">Urgent (Within 7 Days)</option>
                   <option value="routine_30d">Routine (30-Day Window)</option>
                 </Select>
               </Field>
@@ -468,7 +464,7 @@ export default function DoctorReferrals() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" loading={submitting}>
-                Issue & Lock Quota
+                Create Referral
               </Button>
             </div>
           </form>
@@ -477,10 +473,10 @@ export default function DoctorReferrals() {
 
       {/* Prior Context Inspection Modal */}
       {contextModal && (
-        <Modal title="Inspect Incoming Referral Prior Context" wide onClose={() => setContextModal(false)}>
+        <Modal title="Incoming Referral Medical History" wide onClose={() => setContextModal(false)}>
           <div className="stack-md">
             <form onSubmit={handleInspectPriorContext} className="row-gap">
-              <Field label="Course ID from Referral Slip">
+              <Field label="Visit ID from Referral Slip">
                 <Input
                   type="number"
                   placeholder="Enter Course ID"
@@ -490,7 +486,7 @@ export default function DoctorReferrals() {
                 />
               </Field>
               <Button type="submit" variant="primary" loading={fetchingContext} style={{ alignSelf: 'flex-end', minHeight: '48px' }}>
-                Retrieve Prior Context
+                Find Medical History
               </Button>
             </form>
 
@@ -502,7 +498,7 @@ export default function DoctorReferrals() {
                 <div style={{ fontSize: '13px', lineHeight: 1.6 }}>
                   <div><strong>Originating Clinic:</strong> {priorData.fromHospitalName || 'Referring Clinic'}</div>
                   <div><strong>Referring Doctor:</strong> {priorData.referredByName || priorData.referringDoctorName || 'Attending Physician'}</div>
-                  <div><strong>Priority Tier:</strong> <span className="badge badge-amber">{priorData.priorityTier}</span></div>
+                  <div><strong>Urgency:</strong> <span className="badge badge-amber">{priorData.priorityTier}</span></div>
                   <div><strong>Valid Until:</strong> {priorData.validUntil}</div>
                   <div style={{ marginTop: '8px' }}><strong>Transfer Reason:</strong> {priorData.reason}</div>
                 </div>

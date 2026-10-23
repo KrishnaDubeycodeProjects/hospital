@@ -130,7 +130,7 @@ public class TokenDto {
         }
         int num = (dailyNumber != null && dailyNumber > 0)
                 ? dailyNumber
-                : (id != null && id > 0 ? ((id - 1) % 99) + 1 : 1);
+                : (queuePosition != null && queuePosition > 0 ? queuePosition : 1);
         return String.format("%s%02d", deptPrefix.contains("-") ? deptPrefix : deptPrefix + "-", num);
     }
 }

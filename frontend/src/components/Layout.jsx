@@ -20,13 +20,13 @@ const NAV = {
     { to: '/patient/access', label: 'Doctor Access', icon: '🔑' },
   ],
   doctor: [
-    { to: '/doctor', label: 'Profile', end: true },
-    { to: '/doctor/consultation', label: 'Queue Room' },
-    { to: '/doctor/serve', label: 'Serving Console' },
-    { to: '/doctor/courses', label: 'Care Episodes' },
-    { to: '/doctor/referrals', label: 'Referrals & Triage' },
-    { to: '/doctor/patients', label: 'My Patients' },
-    { to: '/doctor/access', label: 'Request Access' },
+    { to: '/doctor', label: 'My Profile', icon: '👤', end: true },
+    { to: '/doctor/consultation', label: 'Patient Queue', icon: '👥' },
+    { to: '/doctor/serve', label: 'Consultation', icon: '🩺' },
+    { to: '/doctor/courses', label: 'Treatments & Visits', icon: '📋' },
+    { to: '/doctor/referrals', label: 'Referrals', icon: '🏥' },
+    { to: '/doctor/patients', label: 'My Patients', icon: '🧑‍⚕️' },
+    { to: '/doctor/access', label: 'Patient Records Access', icon: '🔑' },
   ],
 };
 
@@ -159,7 +159,7 @@ export function RoleShell({ role }) {
             onClick={handleLogout}
             style={{ width: '100%', justifyContent: 'center', color: '#fca5a5', border: '1px solid #334155', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
           >
-            🚪 OPD Exit / Log out
+            Log Out
           </button>
         </div>
       </aside>
@@ -203,7 +203,7 @@ function PatientMobileShell({ session, onLogout }) {
     if (path.startsWith('/patient/family')) return 'Family & ABHA';
     if (path.startsWith('/patient/records')) return 'Health Records';
     if (path.startsWith('/patient/access')) return 'Doctor Access';
-    if (path.startsWith('/patient/courses')) return 'Care Episodes';
+    if (path.startsWith('/patient/courses')) return 'Treatments & Visits';
     if (path.startsWith('/patient/referrals')) return 'Referrals';
     if (path.startsWith('/patient/history')) return 'Visit History';
     if (path.startsWith('/patient/documents')) return 'My Documents';

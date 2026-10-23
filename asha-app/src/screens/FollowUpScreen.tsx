@@ -5,9 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  Linking,
 } from 'react-native';
 import { Colors } from '../theme/colors';
-import { Check, AlertCircle } from 'lucide-react-native';
+import { Check, AlertCircle, Phone, Stethoscope, Clock, ShieldCheck, Pill } from 'lucide-react-native';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -100,82 +101,157 @@ export const FollowUpScreen: React.FC = () => {
           const isMedium = urgencyLabel.includes('Medium') || urgencyLabel.includes('मध्यम');
 
           return (
-            <TouchableOpacity
+            <View
               style={[
                 styles.taskCard,
                 isReferralMissed && styles.referralTaskCard,
               ]}
-              onPress={() => toggleFollowUp(item.id)}
-              activeOpacity={0.75}
             >
-              {/* Beneficiary Avatar */}
-              <View
-                style={[
-                  styles.avatarCircle,
-                  item.isCompleted && styles.completedAvatar,
-                  isReferralMissed && !item.isCompleted && styles.referralAvatar,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.avatarInitials,
-                    item.isCompleted && styles.completedInitials,
-                    isReferralMissed && !item.isCompleted && styles.referralInitials,
-                  ]}
-                >
-                  {item.initials}
-                </Text>
-              </View>
-
-              {/* Middle Information */}
-              <View style={styles.taskInfo}>
-                {isReferralMissed && (
-                  <View style={styles.referralTagRow}>
-                    <AlertCircle size={12} color={Colors.urgentRed} style={{ marginRight: 4 }} />
-                    <Text style={styles.referralTagText}>अस्पताल रेफरल अनुवर्ती (REFERRAL FOLLOW-UP)</Text>
-                  </View>
-                )}
-                <Text style={styles.taskName}>{item.name}</Text>
-                <Text style={styles.taskType}>{item.taskType}</Text>
-                <Text style={styles.taskDueDate}>देय तिथि: {item.dueDate}</Text>
-              </View>
-
-              {/* Right Action & Urgency Chip */}
-              <View style={styles.actionCol}>
+              <View style={styles.cardMainRow}>
+                {/* Beneficiary Avatar */}
                 <View
                   style={[
-                    styles.urgencyChip,
-                    isSevere
-                      ? styles.urgentRedChip
-                      : isMedium
-                      ? styles.urgentPinkChip
-                      : styles.urgentYellowChip,
+                    styles.avatarCircle,
+                    item.isCompleted && styles.completedAvatar,
+                    isReferralMissed && !item.isCompleted && styles.referralAvatar,
                   ]}
                 >
                   <Text
                     style={[
-                      styles.urgencyText,
-                      isSevere
-                        ? styles.urgentRedText
-                        : isMedium
-                        ? styles.urgentPinkText
-                        : styles.urgentYellowText,
+                      styles.avatarInitials,
+                      item.isCompleted && styles.completedInitials,
+                      isReferralMissed && !item.isCompleted && styles.referralInitials,
                     ]}
                   >
-                    {urgencyLabel}
+                    {item.initials}
                   </Text>
                 </View>
 
-                <View
-                  style={[
-                    styles.checkCircleBtn,
-                    item.isCompleted && styles.checkCircleCompleted,
-                  ]}
-                >
-                  {item.isCompleted && <Check size={14} color="#FFFFFF" />}
+                {/* Middle Information */}
+                <View style={styles.taskInfo}>
+                  {isReferralMissed && (
+                    <View style={styles.referralTagRow}>
+                      <AlertCircle size={12} color={Colors.urgentRed} style={{ marginRight: 4 }} />
+                      <Text style={styles.referralTagText}>अस्पताल रेफरल अनुवर्ती (REFERRAL FOLLOW-UP)</Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={styles.taskName}>{item.name}</Text>
+                    {item.houseNumber && (
+                      <Text style={styles.houseTag}>घर नं. {item.houseNumber}</Text>
+                    )}
+                  </View>
+
+                  {/* Attached Real Contact Number & ABHA Number */}
+                  <View style={styles.numberRow}>
+                    {item.phone && (
+                      <TouchableOpacity
+                        style={styles.phoneChip}
+                        onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                        activeOpacity={0.7}
+                      >
+                        <Phone size={11} color="#0284C7" style={{ marginRight: 4 }} />
+                        <Text style={styles.phoneChipText}>{item.phone}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {item.abhaNumber && (
+                      <View style={styles.abhaChip}>
+                        <ShieldCheck size={11} color="#059669" style={{ marginRight: 3 }} />
+                        <Text style={styles.abhaChipText}>ABHA: {item.abhaNumber}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <Text style={styles.taskType}>{item.taskType}</Text>
+
+                  {/* Doctor & Hospital Details */}
+                  {item.doctorName && (
+                    <View style={styles.doctorRow}>
+                      <Stethoscope size={11} color="#475569" style={{ marginRight: 4 }} />
+                      <Text style={styles.doctorText}>
+                        {item.doctorName} {item.hospitalName ? `(${item.hospitalName})` : ''}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Prescriptions & Prescription Deadline */}
+                  {item.prescriptionDetails && (
+                    <View style={styles.prescriptionBox}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                        <Pill size={11} color="#B45309" style={{ marginRight: 4 }} />
+                        <Text style={styles.prescriptionLabel}>दवा निर्देश (Prescription):</Text>
+                      </View>
+                      <Text style={styles.prescriptionText}>{item.prescriptionDetails}</Text>
+                      {item.prescriptionDeadline && (
+                        <View style={styles.deadlineContainer}>
+                          <Clock size={11} color="#DC2626" style={{ marginRight: 4 }} />
+                          <Text style={styles.deadlineText}>
+                            समयसीमा: {item.prescriptionDeadline}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Vitals & Observations */}
+                  {item.vitals && (
+                    <Text style={styles.vitalsText}>जाँच: {item.vitals}</Text>
+                  )}
+
+                  {/* CHO Status */}
+                  {item.referredToCho && (
+                    <View style={styles.choStatusRow}>
+                      <Text style={styles.choStatusLabel}>
+                        सीएचओ स्थिति:{' '}
+                        <Text style={{ fontWeight: '700', color: item.choStatus === 'APPROVED_CHO' ? '#15803D' : '#D97706' }}>
+                          {item.choStatus === 'APPROVED_CHO' ? '✓ स्वीकृत (Approved by CHO)' : '⏳ लंबित (Pending Review)'}
+                        </Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text style={styles.taskDueDate}>देय तिथि: {item.dueDate}</Text>
+                </View>
+
+                {/* Right Action & Urgency Chip */}
+                <View style={styles.actionCol}>
+                  <View
+                    style={[
+                      styles.urgencyChip,
+                      isSevere
+                        ? styles.urgentRedChip
+                        : isMedium
+                        ? styles.urgentPinkChip
+                        : styles.urgentYellowChip,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        isSevere
+                          ? styles.urgentRedText
+                          : isMedium
+                          ? styles.urgentPinkText
+                          : styles.urgentYellowText,
+                      ]}
+                    >
+                      {urgencyLabel}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.checkCircleBtn,
+                      item.isCompleted && styles.checkCircleCompleted,
+                    ]}
+                    onPress={() => toggleFollowUp(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    {item.isCompleted && <Check size={14} color="#FFFFFF" />}
+                  </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
+            </View>
           );
         }}
       />
@@ -233,8 +309,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#000',
@@ -242,6 +316,112 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
+  },
+  cardMainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  houseTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0284C7',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  numberRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginVertical: 4,
+  },
+  phoneChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  phoneChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  abhaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  abhaChipText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  doctorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  doctorText: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  prescriptionBox: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 6,
+  },
+  prescriptionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  prescriptionText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#78350F',
+  },
+  deadlineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    backgroundColor: '#FEF2F2',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  deadlineText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  vitalsText: {
+    fontSize: 11,
+    color: '#475569',
+    fontStyle: 'italic',
+    marginTop: 3,
+  },
+  choStatusRow: {
+    marginTop: 4,
+    paddingVertical: 2,
+  },
+  choStatusLabel: {
+    fontSize: 11,
+    color: '#334155',
   },
   avatarCircle: {
     width: 44,

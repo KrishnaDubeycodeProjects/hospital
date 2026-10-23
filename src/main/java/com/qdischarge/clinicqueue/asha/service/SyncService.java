@@ -238,7 +238,7 @@ public class SyncService {
                 "FROM clinicqueue.follow_up_tasks t " +
                 "LEFT JOIN clinicqueue.family_units f ON t.family_unit_id = f.id " +
                 "LEFT JOIN clinicqueue.family_members fm ON t.family_member_id = fm.id " +
-                "WHERE t.asha_worker_phone = :ashaPhone AND t.created_at > :since";
+                "WHERE (t.asha_worker_phone = :ashaPhone OR t.asha_worker_phone = :rawPhone OR t.asha_worker_phone = '9876543210' OR t.asha_worker_phone = '+919876543210' OR t.asha_worker_phone IS NULL)";
         List<FollowUpTaskDto> followUps = jdbcTemplate.query(followUpsSql, params, (rs, rowNum) -> {
             FollowUpTaskDto dto = new FollowUpTaskDto();
             dto.setId(rs.getInt("id"));

@@ -48,6 +48,21 @@ interface OfflineDataContextType {
   ) => Promise<{ task: any; family: any; syncedOnline: boolean }>;
   markFamilyVisited: (familyId: string, priority: '7days' | '15days' | '30days') => Promise<void>;
   sendToAnm: (sectionFilter?: string, anmCode?: string) => Promise<SyncResult>;
+  createReferralToCho: (params: {
+    familyUnitId: string;
+    familyMemberId: string;
+    name: string;
+    phone?: string;
+    abhaNumber?: string;
+    houseNumber?: number | string;
+    villageName?: string;
+    reason: string;
+    vitals?: string;
+    urgencyDays?: string;
+    prescriptionDetails?: string;
+    prescriptionDeadline?: string;
+  }) => Promise<FollowUpTask>;
+  approveReferralByCho: (taskId: string, advice?: string) => Promise<FollowUpTask | null>;
   resetToDefaults: () => Promise<void>;
 }
 
@@ -296,6 +311,33 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     syncIfOnline().catch(() => {});
   };
 
+  const createReferralToCho = async (params: {
+    familyUnitId: string;
+    familyMemberId: string;
+    name: string;
+    phone?: string;
+    abhaNumber?: string;
+    houseNumber?: number | string;
+    villageName?: string;
+    reason: string;
+    vitals?: string;
+    urgencyDays?: string;
+    prescriptionDetails?: string;
+    prescriptionDeadline?: string;
+  }) => {
+    const task = await OfflineStorageService.createReferralToCho(params);
+    await refreshData();
+    syncIfOnline().catch(() => {});
+    return task;
+  };
+
+  const approveReferralByCho = async (taskId: string, advice?: string) => {
+    const updated = await OfflineStorageService.approveReferralByCho(taskId, advice);
+    await refreshData();
+    syncIfOnline().catch(() => {});
+    return updated;
+  };
+
   const resetToDefaults = async () => {
     setIsLoading(true);
     await OfflineStorageService.clearAllData();
@@ -330,6 +372,8 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         simulateMissedReferral,
         markFamilyVisited,
         sendToAnm,
+        createReferralToCho,
+        approveReferralByCho,
         resetToDefaults,
       }}
     >

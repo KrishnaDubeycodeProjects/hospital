@@ -110,6 +110,24 @@ export interface FollowUpTask {
   isCompleted: boolean;
   completedAt?: string;
   ashaWorkerPhone: string;
+  // Patient Identity & Real Data
+  phone?: string;
+  abhaNumber?: string;
+  houseNumber?: number | string;
+  villageName?: string;
+  age?: number;
+  gender?: 'Male' | 'Female' | 'Other';
+  condition?: string;
+  vitals?: string;
+  doctorName?: string;
+  hospitalName?: string;
+  prescriptionDetails?: string;
+  prescriptionDeadline?: string;
+  referralReason?: string;
+  sourceReferralId?: number | string;
+  referredToCho?: boolean;
+  choStatus?: 'PENDING_CHO' | 'APPROVED_CHO' | 'TELECONSULT_COMPLETED' | 'REFERRED_APEX';
+  choAdvice?: string;
 }
 
 export type OutboxAction =
@@ -120,7 +138,10 @@ export type OutboxAction =
   | 'COMPLETE_FOLLOWUP'
   | 'SAVE_MEETING'
   | 'UPDATE_CHILD_VACCINE'
-  | 'SEND_TO_ANM';
+  | 'SEND_TO_ANM'
+  | 'CREATE_REFERRAL'
+  | 'APPROVE_REFERRAL'
+  | 'RECORD_TELECONSULT';
 
 export interface OutboxItem {
   id: string;
