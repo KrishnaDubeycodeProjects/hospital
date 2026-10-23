@@ -185,7 +185,7 @@ export const GridScreen: React.FC<GridScreenProps> = ({
           age: m.age,
           gender: m.gender,
           isPregnant: m.isPregnant,
-          isChild: m.isChild || (m.age && m.age <= 5),
+          isChild: Boolean(m.isChild || (m.age && m.age <= 5)),
           hasDisease: m.hasChronicCondition || m.isNcdPatient,
           condition: m.isPregnant
             ? 'गर्भवती (ANC)'

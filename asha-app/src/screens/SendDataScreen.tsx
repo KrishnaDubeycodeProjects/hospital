@@ -690,7 +690,6 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                     ANM-QR-9876543211 (रेखा शर्मा)
                   </Text>
                 </TouchableOpacity>
-                </TouchableOpacity>
               </View>
             </View>
 

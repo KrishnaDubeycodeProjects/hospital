@@ -263,7 +263,6 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
                     style={styles.deleteSessionBtn}
                     onPress={() => deleteAnmSession(sess.id)}
                     activeOpacity={0.7}
-                    title="सत्र हटाएं"
                   >
                     <Trash2 size={13} color="#DC2626" />
                   </TouchableOpacity>

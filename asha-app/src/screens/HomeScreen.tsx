@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
@@ -49,7 +50,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { t } = useLanguage();
 
   const [activeSection, setActiveSection] = useState<MainSection>('All');
-  const [viewMode, setViewMode] = useState<'grid' | 'dueList'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'dueList' | 'families'>('grid');
+  const [homeFamilySearch, setHomeFamilySearch] = useState('');
   const [selectedDot, setSelectedDot] = useState<HouseholdDot | null>(null);
 
   const [pregnancyFilter, setPregnancyFilter] = useState<'all' | 'due' | 'hrp' | 'vax'>('all');
@@ -109,7 +111,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           age: m.age,
           gender: m.gender,
           isPregnant: m.isPregnant,
-          isChild: m.isChild || (m.age && m.age <= 5),
+          isChild: Boolean(m.isChild || (m.age && m.age <= 5)),
           hasDisease: m.hasChronicCondition || m.isNcdPatient,
           condition: m.isPregnant
             ? 'गर्भवती (ANC)'
@@ -233,6 +235,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <ListFilter size={15} color={viewMode === 'dueList' ? Colors.primary : '#64748B'} />
           <Text style={[styles.viewModeBtnText, viewMode === 'dueList' && styles.viewModeBtnTextActive]}>
             {t('registerList')}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'families' && styles.viewModeBtnActive]}
+          onPress={() => setViewMode('families')}
+          activeOpacity={0.8}
+        >
+          <Users size={15} color={viewMode === 'families' ? Colors.primary : '#64748B'} />
+          <Text style={[styles.viewModeBtnText, viewMode === 'families' && styles.viewModeBtnTextActive]}>
+            परिवार सूची ({families.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -784,6 +797,122 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </View>
               );
             })}
+          </View>
+        )}
+      
+        {/* ============================================================== */}
+        {/* VIEW MODE 3: ALL 24 FAMILIES & MEMBERS DIRECT LIST            */}
+        {/* ============================================================== */}
+        {viewMode === 'families' && (
+          <View style={{ paddingBottom: 24 }}>
+            {/* Search Box */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: '#E2E8F0',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                marginBottom: 12,
+              }}
+            >
+              <Users size={16} color="#64748B" style={{ marginRight: 8 }} />
+              <TextInput
+                style={{ flex: 1, fontSize: 13, color: '#0F172A', padding: 0 }}
+                placeholder="मकान नंबर, मुखिया या सदस्य के नाम से खोजें..."
+                placeholderTextColor="#94A3B8"
+                value={homeFamilySearch}
+                onChangeText={setHomeFamilySearch}
+              />
+              {homeFamilySearch ? (
+                <TouchableOpacity onPress={() => setHomeFamilySearch('')} style={{ padding: 4 }}>
+                  <Text style={{ fontSize: 12, color: '#94A3B8' }}>✕</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.listHeaderTitle}>
+                गाँव के कुल {families.length} परिवार एवं {members.length} सदस्य
+              </Text>
+              <Text style={styles.listHeaderBadge}>मास्टर रजिस्टर</Text>
+            </View>
+
+            {families
+              .filter((fam) => {
+                if (!homeFamilySearch) return true;
+                const q = homeFamilySearch.toLowerCase().trim();
+                if (fam.houseNumber.toString().includes(q)) return true;
+                if (fam.headName.toLowerCase().includes(q)) return true;
+                const famMems = members.filter((m) => m.familyUnitId === fam.id);
+                return famMems.some((m) => m.name.toLowerCase().includes(q));
+              })
+              .map((fam) => {
+                const famMembers = members.filter((m) => m.familyUnitId === fam.id);
+                return (
+                  <View key={fam.id} style={styles.cleanCard}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.avatarCircle, { backgroundColor: '#F0FDF4' }]}>
+                        <Text style={[styles.avatarText, { color: '#15803D' }]}>#{fam.houseNumber}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cleanCardTitle}>{fam.headName}</Text>
+                        <Text style={styles.cleanCardSub}>
+                          मकान #{fam.houseNumber} • 📞 {fam.primaryPhone} • {famMembers.length || fam.totalMembers} सदस्य
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: '#004D40',
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                          borderRadius: 8,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        onPress={() => {
+                          if (onNavigateToFamilyDetail) {
+                            onNavigateToFamilyDetail(Number(fam.houseNumber), fam.headName);
+                          }
+                        }}
+                      >
+                        <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>सदस्य देखें</Text>
+                        <ArrowRight size={13} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Member Tags */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      {famMembers.map((m) => (
+                        <View
+                          key={m.id}
+                          style={{
+                            backgroundColor: '#F8FAFC',
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0',
+                            borderRadius: 6,
+                            paddingVertical: 3,
+                            paddingHorizontal: 8,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#1E293B' }}>{m.name}</Text>
+                          <Text style={{ fontSize: 11, color: '#64748B' }}>({m.age} वर्ष, {m.gender === 'Female' ? 'महिला' : 'पुरुष'})</Text>
+                          {m.gender === 'Female' && m.isPregnant && <Text style={{ fontSize: 10 }}>🤰</Text>}
+                          {(m.isChild || (m.age && m.age <= 5)) && <Text style={{ fontSize: 10 }}>👶</Text>}
+                          {(m.hasChronicCondition || m.isNcdPatient) && <Text style={{ fontSize: 10 }}>🩺</Text>}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
           </View>
         )}
       </ScrollView>
