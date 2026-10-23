@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { Colors } from '../theme/colors';
 import { HouseholdDot } from './DotGrid';
 import { Home, ChevronRight, X } from 'lucide-react-native';
@@ -21,65 +21,67 @@ export const FamilyBottomSheet: React.FC<FamilyBottomSheetProps> = ({
   if (!dot) return null;
 
   return (
-    <View style={styles.overlay}>
-      <TouchableOpacity
-        style={styles.backdrop}
-        onPress={onClose}
-        activeOpacity={1}
-      />
-      <View style={styles.sheet}>
-        <View style={styles.dragHandle} />
-
-        {/* Tapping anywhere on the header or info card navigates directly into the family folder */}
+    <Modal visible={!!dot} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}>
         <TouchableOpacity
-          style={styles.headerRow}
-          onPress={() => onViewMembers(dot)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.iconCircle}>
-            <Home size={22} color={Colors.primary} />
-          </View>
-          <View style={styles.headerText}>
-            <Text style={styles.houseTitle}>{t('houseNumberLabel')}: {dot.houseNo}</Text>
-            <Text style={styles.familySubtitle}>{dot.familyName} {t('families')}</Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={18} color={Colors.textSecondary} />
+          style={styles.backdrop}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+        <View style={styles.sheet}>
+          <View style={styles.dragHandle} />
+
+          {/* Tapping anywhere on the header or info card navigates directly into the family folder */}
+          <TouchableOpacity
+            style={styles.headerRow}
+            onPress={() => onViewMembers(dot)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.iconCircle}>
+              <Home size={22} color={Colors.primary} />
+            </View>
+            <View style={styles.headerText}>
+              <Text style={styles.houseTitle}>{t('houseNumberLabel')}: {dot.houseNo}</Text>
+              <Text style={styles.familySubtitle}>{dot.familyName} {t('families')}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
 
-        <View style={styles.divider} />
+          <View style={styles.divider} />
 
-        <TouchableOpacity
-          onPress={() => onViewMembers(dot)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t('membersCount')}</Text>
-            <Text style={styles.infoValue}>{dot.totalMembers}</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => onViewMembers(dot)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{t('membersCount')}</Text>
+              <Text style={styles.infoValue}>{dot.totalMembers}</Text>
+            </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t('lastVisited')}</Text>
-            <Text style={styles.infoValue}>{dot.lastVisited}</Text>
-          </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{t('lastVisited')}</Text>
+              <Text style={styles.infoValue}>{dot.lastVisited}</Text>
+            </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t('nextVisit')}</Text>
-            <StatusBadge type={dot.status} label={dot.nextVisit} />
-          </View>
-        </TouchableOpacity>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>{t('nextVisit')}</Text>
+              <StatusBadge type={dot.status} label={dot.nextVisit} />
+            </View>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.ctaButton}
-          onPress={() => onViewMembers(dot)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.ctaText}>{t('viewMembers')}</Text>
-          <ChevronRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.ctaButton}
+            onPress={() => onViewMembers(dot)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaText}>{t('viewMembers')}</Text>
+            <ChevronRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </Modal>
   );
 };
 
