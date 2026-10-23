@@ -590,7 +590,7 @@ export default function PatientFamily() {
             No household members yet
           </h3>
           <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px' }}>
-            Add your spouse, children, or parents to quickly book tokens and link their ABHA cards.
+            Add your spouse, children, or parents to manage their records and link their digital ABHA cards.
           </p>
           <button
             type="button"
@@ -795,33 +795,6 @@ export default function PatientFamily() {
                     )}
                   </div>
                 </div>
-
-                {/* Bottom Row: Quick Book OPD Token for this Member */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.location.assign(`/book?name=${encodeURIComponent(m.name)}&age=${m.age || ''}&gender=${m.gender || ''}`);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '9px',
-                    borderRadius: '10px',
-                    backgroundColor: '#F0FDF4',
-                    border: '1px solid #BBF7D0',
-                    color: '#047857',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>🎟️ Book OPD Token for {m.name.split(' ')[0]}</span>
-                  <span style={{ fontSize: '14px' }}>→</span>
-                </button>
               </div>
             );
           })}
