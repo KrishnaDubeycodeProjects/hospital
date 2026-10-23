@@ -73,8 +73,8 @@ public class SecurityConfig {
                         // ROLE_PATIENT/ROLE_DOCTOR, see JwtService), so every admin-only route below
                         // must say hasRole("ADMIN") explicitly -- a bare authenticated() would also
                         // accept a valid patient or doctor token, which is not what any of these mean.
-                        .requestMatchers(HttpMethod.POST, "/api/queue/verify").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/queue/*").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/queue/verify").hasAnyRole("ADMIN", "DOCTOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/queue/*").hasAnyRole("ADMIN", "DOCTOR")
                         // Missed-queue admin panel: staff-only search/requeue/reject over PII.
                         .requestMatchers("/api/queue/missed", "/api/queue/missed/**").hasRole("ADMIN")
                         // Per-phone visit history can span more than one patient's name/age -- staff-only.
@@ -91,8 +91,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/hospitals/*/time-slots").hasRole("ADMIN")
                         // Multi-counter admin actions (complete/miss/reassign a counter).
                         .requestMatchers(HttpMethod.POST, "/api/counters/**").hasRole("ADMIN")
-                        // Admin pushes a called-but-absent patient back in their own queue (exponential backoff).
-                        .requestMatchers(HttpMethod.POST, "/api/queue/*/no-show").hasRole("ADMIN")
+                        // Admin or Doctor pushes a called-but-absent patient back in their own queue (exponential backoff).
+                        .requestMatchers(HttpMethod.POST, "/api/queue/*/no-show").hasAnyRole("ADMIN", "DOCTOR")
                         // Public auth endpoints: OTP and ABHA address login flows
                         .requestMatchers("/api/auth/otp/**", "/api/auth/abha/**").permitAll()
                         // Doctor registration/login prove identity via OTP (see OtpController), not a

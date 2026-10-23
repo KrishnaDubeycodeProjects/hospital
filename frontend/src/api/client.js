@@ -130,9 +130,9 @@ export const queueApi = {
   closingTimeCheck: (lat, lon) => getD('/api/queue/closing-time-check', { params: { lat, lon } }),
   qrUrl: (id) => `${API_URL}/api/queue/qr/${id}`,
   /** `{ success, message, data }` -- read `.message` for the toast, `.data` for the updated token. */
-  verify: (payload) => post('/api/queue/verify', payload, authFor('ADMIN')),
-  updateStatus: (id, status) => putD(`/api/queue/${id}`, { status }, authFor('ADMIN')),
-  noShow: (id) => postD(`/api/queue/${id}/no-show`, {}, authFor('ADMIN')),
+  verify: (payload) => post('/api/queue/verify', payload, authFor(getToken('ADMIN') ? 'ADMIN' : 'DOCTOR')),
+  updateStatus: (id, status, role) => putD(`/api/queue/${id}`, { status }, authFor(role || (getToken('ADMIN') ? 'ADMIN' : 'DOCTOR'))),
+  noShow: (id, role) => postD(`/api/queue/${id}/no-show`, {}, authFor(role || (getToken('ADMIN') ? 'ADMIN' : 'DOCTOR'))),
   anomalyControl: (hospitalId, category) =>
     getD('/api/queue/anomaly-control', { params: { hospitalId, category }, ...authFor('ADMIN') }),
   missed: (hospitalId, category) => getD('/api/queue/missed', { params: { hospitalId, category }, ...authFor('ADMIN') }),

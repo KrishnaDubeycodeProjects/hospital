@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 import { WhatsAppIcon } from '../components/Icons';
 import {
@@ -130,130 +131,7 @@ export default function Landing() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
       {/* Website Top Navigation Header */}
-      <header
-        style={{
-          backgroundColor: '#ffffff',
-          borderBottom: '1px solid #E2E8F0',
-          position: 'sticky',
-          top: 0,
-          zIndex: 40,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-            padding: '12px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-          }}
-        >
-          {/* Brand */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-            <div
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '10px',
-                backgroundColor: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '3px',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
-                border: '1px solid #E2E8F0',
-                flexShrink: 0,
-              }}
-            >
-              <img
-                src="/aarogya_flow_icon_transparent.png"
-                alt="Aarogya Flow"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#0F4C3A', fontWeight: '800', fontSize: '19px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
-                  Aarogya Flow
-                </span>
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                Hospital Queue &amp; Care Management Platform
-              </div>
-            </div>
-          </Link>
-
-          {/* Center Navigation Links */}
-          <nav className="desktop-patient-nav" style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-            <Link to="/find-hospital" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
-              Find Hospital
-            </Link>
-            <Link to="/track" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
-              Track Queue
-            </Link>
-            <Link to="/login/patient" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
-              Patient Portal
-            </Link>
-            <Link to="/login/doctor" style={{ color: '#334155', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600 }}>
-              Doctor Portal
-            </Link>
-            <Link to="/asha" style={{ color: '#15803D', textDecoration: 'none', fontSize: '13px', fontWeight: 700, backgroundColor: '#DCFCE7', padding: '4px 10px', borderRadius: '6px', border: '1px solid #86EFAC' }}>
-              ASHA Hub
-            </Link>
-          </nav>
-
-          {/* Right Action Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => window.open('https://wa.me/919120123877?text=Hi', '_blank')}
-              style={{
-                backgroundColor: '#F0FDF4',
-                color: '#15803D',
-                border: '1px solid #BBF7D0',
-                borderRadius: '8px',
-                padding: '7px 12px',
-                fontSize: '12.5px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease',
-              }}
-              title="Open WhatsApp Support Bot"
-            >
-              <WhatsAppIcon size={14} color="#15803D" />
-              <span>WhatsApp Access</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/login/patient')}
-              style={{
-                backgroundColor: '#0F4C3A',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '7px 16px',
-                fontSize: '13px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Sign In
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader activeNav="home" />
 
       {/* Main Website Content */}
       <main style={{ flex: 1 }}>
@@ -312,7 +190,7 @@ export default function Landing() {
             </p>
 
             {/* Quick Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '38px' }}>
+            <div className="landing-hero-actions">
               <button
                 type="button"
                 onClick={() => navigate('/find-hospital')}
@@ -381,16 +259,7 @@ export default function Landing() {
             </div>
 
             {/* Platform Feature Pillars */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                gap: '14px',
-                maxWidth: '960px',
-                margin: '0 auto',
-                textAlign: 'left',
-              }}
-            >
+            <div className="landing-pillars-grid">
               {platformPillars.map((p, idx) => {
                 const Icon = p.icon;
                 return (
@@ -436,9 +305,9 @@ export default function Landing() {
         </section>
 
         {/* Core Services Section */}
-        <section style={{ maxWidth: '1200px', margin: '0 auto', padding: '48px 20px' }}>
+        <section style={{ maxWidth: '1200px', margin: '0 auto', padding: 'clamp(32px, 5vw, 48px) clamp(16px, 4vw, 20px)' }}>
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0F4C3A', margin: '0 0 8px' }}>
+            <h2 style={{ fontSize: 'clamp(20px, 3.5vw, 24px)', fontWeight: '800', color: '#0F4C3A', margin: '0 0 8px' }}>
               Comprehensive Healthcare Services
             </h2>
             <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '640px', marginLeft: 'auto', marginRight: 'auto' }}>
@@ -446,7 +315,7 @@ export default function Landing() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+          <div className="landing-services-grid">
             {services.map((svc) => {
               const IconComp = svc.icon;
               return (
@@ -457,7 +326,7 @@ export default function Landing() {
                     backgroundColor: '#ffffff',
                     border: '1px solid #E2E8F0',
                     borderRadius: '14px',
-                    padding: '22px',
+                    padding: '20px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -510,10 +379,10 @@ export default function Landing() {
         </section>
 
         {/* Stakeholder Portals Section */}
-        <section style={{ backgroundColor: '#F1F5F9', borderTop: '1px solid #E2E8F0', padding: '42px 20px' }}>
+        <section style={{ backgroundColor: '#F1F5F9', borderTop: '1px solid #E2E8F0', padding: 'clamp(32px, 5vw, 42px) clamp(16px, 4vw, 20px)' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#1E293B', margin: '0 0 6px' }}>
+              <h2 style={{ fontSize: 'clamp(19px, 3.2vw, 22px)', fontWeight: '800', color: '#1E293B', margin: '0 0 6px' }}>
                 Dedicated Stakeholder Portals
               </h2>
               <p style={{ fontSize: '13px', color: '#64748B', margin: 0 }}>
@@ -521,7 +390,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '18px' }}>
+            <div className="landing-portals-grid">
               <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ marginBottom: '12px', width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <UserCheck size={22} style={{ color: '#0F4C3A' }} />
@@ -594,22 +463,8 @@ export default function Landing() {
         </section>
 
         {/* WhatsApp Assistance Banner */}
-        <section style={{ backgroundColor: '#ffffff', borderTop: '1px solid #E2E8F0', padding: '36px 20px' }}>
-          <div
-            style={{
-              maxWidth: '900px',
-              margin: '0 auto',
-              backgroundColor: '#F0FDF4',
-              border: '1.5px solid #86EFAC',
-              borderRadius: '16px',
-              padding: '24px 28px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '20px',
-            }}
-          >
+        <section style={{ backgroundColor: '#ffffff', borderTop: '1px solid #E2E8F0', padding: 'clamp(28px, 4vw, 36px) clamp(16px, 4vw, 20px)' }}>
+          <div className="landing-wa-banner">
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div
                 style={{
@@ -662,7 +517,7 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '20px 20px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }} />
+      <AyushmanFooter />
     </div>
   );
 }
