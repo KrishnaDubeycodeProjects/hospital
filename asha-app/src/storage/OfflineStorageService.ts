@@ -20,14 +20,14 @@ import {
 import { generateUUID } from './uuid';
 
 const STORAGE_KEYS = {
-  FAMILIES: '@asha_families_v2',
-  MEMBERS: '@asha_members_v2',
-  SURVEYS: '@asha_surveys_v2',
-  FOLLOWUPS: '@asha_followups_v2',
-  VACCINATIONS: '@asha_vaccinations_v2',
-  MEETINGS: '@asha_meetings_v2',
-  OUTBOX: '@asha_outbox_v2',
-  INITIALIZED: '@asha_initialized_v2',
+  FAMILIES: '@asha_families_v4',
+  MEMBERS: '@asha_members_v4',
+  SURVEYS: '@asha_surveys_v4',
+  FOLLOWUPS: '@asha_followups_v4',
+  VACCINATIONS: '@asha_vaccinations_v4',
+  MEETINGS: '@asha_meetings_v4',
+  OUTBOX: '@asha_outbox_v4',
+  INITIALIZED: '@asha_initialized_v4',
 };
 
 class OfflineStorageServiceImpl {
@@ -122,14 +122,27 @@ class OfflineStorageServiceImpl {
     await this.initialize();
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.MEMBERS);
-      const members: FamilyMember[] = raw ? JSON.parse(raw) : [];
+      let members: FamilyMember[] = raw ? JSON.parse(raw) : [];
+
+      // Auto-heal / self-heal: guarantee all 24 houses have their complete members
+      const existingFamIds = new Set(members.map((m) => m.familyUnitId));
+      const missingSeedMembers = SEED_MEMBERS.filter((sm) => !existingFamIds.has(sm.familyUnitId));
+      if (missingSeedMembers.length > 0 || members.length < SEED_MEMBERS.length) {
+        const existingIds = new Set(members.map((m) => m.id));
+        const toAdd = SEED_MEMBERS.filter((sm) => !existingIds.has(sm.id));
+        if (toAdd.length > 0) {
+          members = [...members, ...toAdd];
+          await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+        }
+      }
+
       if (familyUnitId) {
         return members.filter((m) => m.familyUnitId === familyUnitId);
       }
       return members;
     } catch (e) {
       console.error('Error reading members from storage:', e);
-      return [];
+      return SEED_MEMBERS;
     }
   }
 

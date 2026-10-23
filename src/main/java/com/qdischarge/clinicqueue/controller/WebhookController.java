@@ -753,7 +753,16 @@ public class WebhookController {
                 HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
                         activeToken.getCategory(), activeToken.getGender(), activeToken.getPatientLat(), activeToken.getPatientLon(), offset, QueueManagerService.HOSPITAL_PAGE_SIZE);
 
-                if (SHOW_MORE_ROW_ID.equals(buttonId) || isShowMoreCommand(cleanMessage)) {
+                int displayedCount = Math.min(page.results().size(), 9);
+                String cleanMsg = incomingMessage.trim().toLowerCase();
+                Integer selectedIdx = parseInt(cleanMsg);
+
+                boolean showMoreTriggered = SHOW_MORE_ROW_ID.equals(buttonId)
+                        || isShowMoreCommand(cleanMessage)
+                        || isShowMoreCommand(cleanMsg)
+                        || (page.hasMore() && selectedIdx != null && selectedIdx == (displayedCount + 1));
+
+                if (showMoreTriggered) {
                     QueueManagerService.HospitalSearchOutcome outcome = queueManagerService.showMoreHospitals(activeToken.getId());
                     if (outcome == null || outcome.page().results().isEmpty()) {
                         whatsAppService.sendWhatsAppMessage(fromPhone, botMessages.invalidHospitalSelectionReminder(lang));
@@ -772,19 +781,19 @@ public class WebhookController {
                     }
                 }
 
-                String cleanMsg = incomingMessage.trim().toLowerCase();
+
                 if (cleanMsg.startsWith("profile ") || cleanMsg.startsWith("info ") || cleanMsg.startsWith("details ") || cleanMsg.endsWith(" profile")) {
                     String numStr = cleanMsg.replaceAll("[^0-9]", "");
                     Integer idx = parseInt(numStr);
-                    if (idx != null && page != null && idx >= 1 && idx <= page.results().size()) {
+                    if (idx != null && page != null && idx >= 1 && idx <= displayedCount) {
                         HospitalService.HospitalMatch match = page.results().get(idx - 1);
                         sendHospitalProfile(fromPhone, match.hospital(), match.distanceKm(), lang);
                         return ResponseEntity.ok("EVENT_RECEIVED");
                     }
                 }
 
-                Integer selectedIdx = parseInt(cleanMsg);
-                if (selectedIdx != null && page != null && selectedIdx >= 1 && selectedIdx <= page.results().size()) {
+
+                if (selectedIdx != null && page != null && selectedIdx >= 1 && selectedIdx <= displayedCount) {
                     HospitalDto chosen = page.results().get(selectedIdx - 1).hospital();
                     TokenDto selected = queueManagerService.selectHospital(activeToken.getId(), chosen.getId());
                     if (selected != null) {
@@ -1300,7 +1309,15 @@ public class WebhookController {
     }
     
     private boolean isOpdOpen(HospitalDto h) {
+        if (h == null) return true;
+        if ("main".equalsIgnoreCase(h.getUriSlug())) return true;
+        if (h.getName() != null && h.getName().toLowerCase().contains("aarogyaflow")) return true;
         if (h.getOpenTime() == null || h.getCloseTime() == null) return true;
+        LocalTime openCheck = h.getOpenTime();
+        LocalTime closeCheck = h.getCloseTime();
+        if (openCheck.equals(LocalTime.MIDNIGHT) && (closeCheck.equals(LocalTime.of(23, 59)) || closeCheck.equals(LocalTime.MAX) || closeCheck.equals(LocalTime.MIDNIGHT))) {
+            return true;
+        }
         LocalTime now = LocalTime.now();
         LocalTime open = h.getOpenTime();
         LocalTime close = h.getCloseTime();
@@ -1433,7 +1450,12 @@ public class WebhookController {
     }
 
     private boolean isShowMoreCommand(String cleanMessage) {
-        return cleanMessage.contains("more") || cleanMessage.contains("और") || cleanMessage.contains("आणखी") || cleanMessage.contains("+");
+        if (cleanMessage == null) return false;
+        String s = cleanMessage.trim().toLowerCase();
+        return s.contains("more") || s.contains("और") || s.contains("आणखी") || s.contains("+")
+                || s.contains("next") || s.contains("show") || s.contains("अगले") || s.contains("पुढील")
+                || s.equals("10") || s.equals("10.") || s.startsWith("10 ") || s.contains("10 hospital")
+                || s.contains("10 aspatal") || s.contains("10 rugnalay");
     }
 
     private void sendConfirmationCard(String phone, TokenDto token, Lang lang) {

@@ -142,8 +142,8 @@ app:
   hospital-digipin: ${HOSPITAL_DIGIPIN:}
   hospital-latitude: ${HOSPITAL_LATITUDE:}
   hospital-longitude: ${HOSPITAL_LONGITUDE:}
-  hospital-open-time: ${HOSPITAL_OPEN_TIME:09:00}
-  hospital-close-time: ${HOSPITAL_CLOSE_TIME:17:00}
+  hospital-open-time: ${HOSPITAL_OPEN_TIME:00:00}
+  hospital-close-time: ${HOSPITAL_CLOSE_TIME:23:59}
   hospital-active-counters: ${HOSPITAL_ACTIVE_COUNTERS:1}
 
   # OTP verification: 'log' logs the code instead of sending an SMS (dev

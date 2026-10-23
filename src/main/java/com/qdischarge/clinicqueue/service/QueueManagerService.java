@@ -75,7 +75,7 @@ public class QueueManagerService {
     private static final String QUEUE_ORDER = "COALESCE(priority_rank, id) ASC";
     public static final String DEPT_ROW_PREFIX = "dept_";
     /** How many hospitals the WhatsApp booking flow shows per page ("5 options, then Show more"). */
-    public static final int HOSPITAL_PAGE_SIZE = 20;
+    public static final int HOSPITAL_PAGE_SIZE = 9;
     /** R formula headstart: the first 3 genuinely-ahead tokens don't add wait time (see computeTreatmentRemainingMinutes). */
     private static final int ETA_WAITING_HEADSTART_TOKENS = 3;
     /** R formula fixed buffer, in minutes (see computeTreatmentRemainingMinutes). */
@@ -559,6 +559,11 @@ public class QueueManagerService {
         int offset = draft.getSearchOffset() != null ? draft.getSearchOffset() : 0;
         HospitalService.HospitalSearchPage page = hospitalService.searchHospitals(
                 draft.getCategory(), draft.getGender(), draft.getPatientLat(), draft.getPatientLon(), offset, HOSPITAL_PAGE_SIZE);
+        if (page.results().isEmpty() && offset > 0) {
+            offset = 0;
+            page = hospitalService.searchHospitals(
+                    draft.getCategory(), draft.getGender(), draft.getPatientLat(), draft.getPatientLon(), 0, HOSPITAL_PAGE_SIZE);
+        }
         jdbc.update("UPDATE tokens SET search_offset = :offset WHERE id = :id",
                 Map.of("offset", offset + HOSPITAL_PAGE_SIZE, "id", tokenId));
         return new HospitalSearchOutcome(draft, page);
@@ -582,6 +587,17 @@ public class QueueManagerService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public static boolean is24Hours(HospitalDto hospital) {
+        if (hospital == null) return false;
+        if ("main".equalsIgnoreCase(hospital.getUriSlug())) return true;
+        if (hospital.getName() != null && hospital.getName().toLowerCase().contains("aarogyaflow")) return true;
+        if (hospital.getOpenTime() == null || hospital.getCloseTime() == null) return false;
+        java.time.LocalTime open = hospital.getOpenTime();
+        java.time.LocalTime close = hospital.getCloseTime();
+        return open.equals(java.time.LocalTime.MIDNIGHT) && (close.equals(java.time.LocalTime.of(23, 59))
+                || close.equals(java.time.LocalTime.MAX) || close.equals(java.time.LocalTime.MIDNIGHT));
+    }
+
     /** STEP 7: patient confirms -> the draft actually joins its (hospital, category) queue. */
     public TokenDto confirmBooking(int tokenId) {
         TokenDto draft = getRaw(tokenId);
@@ -592,7 +608,7 @@ public class QueueManagerService {
         if (hospital == null) {
             throw new IllegalStateException("Selected hospital no longer exists.");
         }
-        if (hospital.getCloseTime() != null) {
+        if (!is24Hours(hospital) && hospital.getCloseTime() != null) {
             java.time.LocalTime now = java.time.LocalTime.now();
             java.time.LocalTime closeTime = hospital.getCloseTime();
             java.time.LocalTime cutOffTime = closeTime.minusMinutes(30);
@@ -708,7 +724,7 @@ public class QueueManagerService {
         } else {
             hospital = hospitalService.getOperatingHospital();
         }
-        if (hospital != null && hospital.getCloseTime() != null) {
+        if (hospital != null && !is24Hours(hospital) && hospital.getCloseTime() != null) {
             java.time.LocalTime now = java.time.LocalTime.now();
             java.time.LocalTime closeTime = hospital.getCloseTime();
             java.time.LocalTime cutOffTime = closeTime.minusMinutes(30);

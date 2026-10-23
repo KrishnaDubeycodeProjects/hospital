@@ -71,7 +71,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_hospitals_doctor_join_code
 -- HOSPITAL_* env vars on every boot, so this row is just a safe fallback
 -- if the app ever starts against a fresh DB before that runner executes.
 INSERT INTO hospitals (uri_slug, name, address, digipin, latitude, longitude, open_time, close_time, avg_service_minutes, active_counters)
-SELECT 'main', 'Main Hospital', 'Address not yet configured', '3C3P39L8T4', 28.6139, 77.2090, '09:00', '17:00', 10, 1
+SELECT 'main', 'AarogyaFlow Central Hospital', 'Address not yet configured', '3C3P39L8T4', 28.6139, 77.2090, '00:00', '23:59', 10, 1
 WHERE NOT EXISTS (SELECT 1 FROM hospitals WHERE uri_slug = 'main');
 
 -- ----------------------------------------------------------------------------

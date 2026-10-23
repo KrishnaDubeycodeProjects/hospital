@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
-import { User, RefreshCw, CloudOff, CheckCircle, Wifi, Globe } from 'lucide-react-native';
+import { User, RefreshCw, CloudOff, CheckCircle, Wifi, Globe, Check, X, Shield, ChevronRight } from 'lucide-react-native';
 
 interface HeaderProps {
   onRolePress?: () => void;
@@ -15,10 +15,16 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
   const { pendingSyncCount, isSyncing, isOnline, triggerSync } = useOfflineData();
   const { language, setLanguage, t } = useLanguage();
 
+  const [showRoleModal, setShowRoleModal] = React.useState(false);
+
+  const selectRole = (newRole: 'ASHA' | 'ANM' | 'CHO') => {
+    setRole(newRole);
+    triggerSync().catch(() => {});
+    setShowRoleModal(false);
+  };
+
   const cycleRole = () => {
-    if (user.role === 'ASHA') setRole('ANM');
-    else if (user.role === 'ANM') setRole('CHO');
-    else setRole('ASHA');
+    setShowRoleModal(true);
   };
 
   const cycleLanguage = () => {
@@ -92,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
         {/* Role Switcher */}
         <TouchableOpacity
           style={styles.roleBadge}
-          onPress={onRolePress || cycleRole}
+          onPress={onRolePress || (() => setShowRoleModal(true))}
           activeOpacity={0.8}
         >
           <User size={14} color={Colors.primary} />
@@ -100,6 +106,96 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           <RefreshCw size={10} color={Colors.textMuted} style={{ marginLeft: 3 }} />
         </TouchableOpacity>
       </View>
+      {/* Role Selection Modal */}
+      <Modal visible={showRoleModal} transparent animationType="fade">
+        <View style={styles.roleModalOverlay}>
+          <View style={styles.roleModalBox}>
+            <View style={styles.roleModalHeader}>
+              <View>
+                <Text style={styles.roleModalTitle}>{t('roleLabel') || 'रोल चुनें (Select Role)'}</Text>
+                <Text style={styles.roleModalSub}>सक्रिय स्वास्थ्य कार्यकर्ता प्रोफ़ाइल चुनें</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowRoleModal(false)} style={styles.modalCloseBtn}>
+                <X size={20} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.rolesList}>
+              {/* Option 1: ASHA */}
+              <TouchableOpacity
+                style={[styles.roleOptionCard, user.role === 'ASHA' && styles.roleOptionCardActive]}
+                onPress={() => selectRole('ASHA')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.roleAvatar, { backgroundColor: '#ECFDF5' }]}>
+                  <Text style={{ fontSize: 18 }}>🌸</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={styles.roleCardTitle}>आशा कार्यकर्ता (ASHA Worker)</Text>
+                    {user.role === 'ASHA' && <View style={styles.activePill}><Text style={styles.activePillText}>सक्रिय</Text></View>}
+                  </View>
+                  <Text style={styles.roleCardName}>सुनीता देवी • चंदपुर गाँव</Text>
+                  <Text style={styles.roleCardDesc}>24-मकान सूची, गृह भेंट, मातृ-बाल स्वास्थ्य रजिस्टर</Text>
+                </View>
+                {user.role === 'ASHA' ? (
+                  <Check size={20} color={Colors.visitedGreen} />
+                ) : (
+                  <ChevronRight size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+
+              {/* Option 2: ANM */}
+              <TouchableOpacity
+                style={[styles.roleOptionCard, user.role === 'ANM' && styles.roleOptionCardActive]}
+                onPress={() => selectRole('ANM')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.roleAvatar, { backgroundColor: '#E0F2FE' }]}>
+                  <Text style={{ fontSize: 18 }}>🩺</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={styles.roleCardTitle}>एएनएम (ANM - Auxiliary Midwife)</Text>
+                    {user.role === 'ANM' && <View style={styles.activePill}><Text style={styles.activePillText}>सक्रिय</Text></View>}
+                  </View>
+                  <Text style={styles.roleCardName}>रेखा शर्मा • प्राथमिक स्वास्थ्य केंद्र</Text>
+                  <Text style={styles.roleCardDesc}>टीकाकरण सत्र, क्लस्टर QR कोड, फॉर्म अप्रूवल</Text>
+                </View>
+                {user.role === 'ANM' ? (
+                  <Check size={20} color={Colors.visitedGreen} />
+                ) : (
+                  <ChevronRight size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+
+              {/* Option 3: CHO */}
+              <TouchableOpacity
+                style={[styles.roleOptionCard, user.role === 'CHO' && styles.roleOptionCardActive]}
+                onPress={() => selectRole('CHO')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.roleAvatar, { backgroundColor: '#F3E8FF' }]}>
+                  <Text style={{ fontSize: 18 }}>🏥</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={styles.roleCardTitle}>सीएचओ (Community Health Officer)</Text>
+                    {user.role === 'CHO' && <View style={styles.activePill}><Text style={styles.activePillText}>सक्रिय</Text></View>}
+                  </View>
+                  <Text style={styles.roleCardName}>डॉ. कविश आहूजा • ब्लॉक अस्पताल</Text>
+                  <Text style={styles.roleCardDesc}>टेलीकंसल्टेशन, उच्च जोखिम रेफरल, ब्लॉक डैशबोर्ड</Text>
+                </View>
+                {user.role === 'CHO' ? (
+                  <Check size={20} color={Colors.visitedGreen} />
+                ) : (
+                  <ChevronRight size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -211,5 +307,97 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '700',
     color: Colors.primary,
+  },
+  roleModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  roleModalBox: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  roleModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingBottom: 12,
+  },
+  roleModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  roleModalSub: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    padding: 6,
+  },
+  rolesList: {
+    gap: 10,
+  },
+  roleOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: '#FAFAFA',
+  },
+  roleOptionCardActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#F0FDF4',
+  },
+  roleAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  roleCardName: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  roleCardDesc: {
+    fontSize: 10.5,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  activePill: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  activePillText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
 });

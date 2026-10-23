@@ -240,6 +240,7 @@ export default function FindHospital() {
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(10);
 
   // Request GPS geolocation
   const requestLocation = useCallback((force = false) => {
@@ -329,6 +330,8 @@ export default function FindHospital() {
           h.address.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : hospitals;
+
+  const paginatedHospitals = displayedHospitals.slice(0, visibleCount);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
@@ -517,7 +520,7 @@ export default function FindHospital() {
               <div style={{ fontSize: '13px', marginTop: '4px' }}>Try searching with a different hospital name or area</div>
             </div>
           ) : (
-            displayedHospitals.map((h, idx) => (
+            paginatedHospitals.map((h, idx) => (
               <div
                 key={h.id || idx}
                 style={{
@@ -678,6 +681,60 @@ export default function FindHospital() {
                 </button>
               </div>
             ))
+          )}
+
+          {!loading && displayedHospitals.length > visibleCount && (
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px 0 16px',
+                gap: '8px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setVisibleCount((prev) => prev + 10)}
+                style={{
+                  padding: '12px 28px',
+                  backgroundColor: '#F0FDF4',
+                  border: '1.5px solid #00A884',
+                  color: '#00A884',
+                  borderRadius: '12px',
+                  fontSize: '14.5px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 8px rgba(0, 168, 132, 0.12)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>Show More 10 Hospitals</span>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    backgroundColor: '#DCFCE7',
+                    color: '#15803D',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                  }}
+                >
+                  +{Math.min(10, displayedHospitals.length - visibleCount)} more
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <div style={{ fontSize: '12.5px', color: '#64748b' }}>
+                Showing {Math.min(visibleCount, displayedHospitals.length)} of {displayedHospitals.length} hospitals
+              </div>
+            </div>
           )}
         </div>
       </main>

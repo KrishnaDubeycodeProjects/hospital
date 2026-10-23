@@ -63,6 +63,7 @@ const MainAppContent: React.FC = () => {
 
   // Automatically react to role changes from header / profile
   React.useEffect(() => {
+    setActiveTab('Home');
     if (user.role === 'CHO') {
       setCurrentScreen('ChoDashboard');
     } else if (user.role === 'ANM') {

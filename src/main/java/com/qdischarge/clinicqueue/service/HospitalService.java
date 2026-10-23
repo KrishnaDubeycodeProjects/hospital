@@ -325,8 +325,15 @@ public class HospitalService {
     }
 
     private HospitalDto finish(HospitalDto h) {
-        if (h != null && h.getDigipin() != null) {
-            h.setFormattedDigipin(digipinService.format(h.getDigipin()));
+        if (h != null) {
+            if (h.getDigipin() != null) {
+                h.setFormattedDigipin(digipinService.format(h.getDigipin()));
+            }
+            if ("main".equalsIgnoreCase(h.getUriSlug())
+                    || (h.getName() != null && h.getName().toLowerCase().contains("aarogyaflow"))) {
+                h.setOpenTime(LocalTime.of(0, 0));
+                h.setCloseTime(LocalTime.of(23, 59));
+            }
         }
         return h;
     }
