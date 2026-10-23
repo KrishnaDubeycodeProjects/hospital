@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { hospitalApi, setToken } from '../api/client';
 import { isOpenNow, formatApproxDistance } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
+import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 
 const PAGE_SIZE = 20;
@@ -256,6 +257,7 @@ export default function FindHospital() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      <AppHeader activeNav="hospitals" backTo="/" backLabel="Home" title="Select Hospital" subtitle="Find Nearest OPD Counter" />
       <main
         style={{
           width: '100%',
@@ -270,61 +272,6 @@ export default function FindHospital() {
         aria-label="Find Hospital"
       >
 
-        {/* 1. Top App Bar (Header): Back button, Find Hospital title */}
-        <header
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '10px 16px 12px',
-            backgroundColor: '#ffffff',
-            borderBottom: '1px solid #f1f5f9',
-            flexShrink: 0,
-          }}
-          data-purpose="app-header"
-        >
-          {/* Clean circular/rounded back button */}
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            aria-label="Back"
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '12px',
-              backgroundColor: '#f1f5f9',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#1e293b',
-              transition: 'background-color 0.15s ease',
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1e293b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="19" y1="12" x2="5" y2="12" />
-              <polyline points="12 19 5 12 12 5" />
-            </svg>
-          </button>
-
-          {/* Centered bold dark green title */}
-          <h1
-            style={{
-              fontSize: '18px',
-              fontWeight: '700',
-              color: '#043c2c',
-              margin: 0,
-              textAlign: 'center',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            Find Hospital
-          </h1>
-
-          {/* Spacer for symmetrical centering */}
-          <div style={{ width: '40px' }} />
-        </header>
 
         {/* 2. Search & Status Section */}
         <div style={{ padding: '14px 16px 10px', flexShrink: 0, backgroundColor: '#ffffff' }}>
@@ -614,19 +561,9 @@ export default function FindHospital() {
             ))
           )}
         </div>
-
-        {/* 4. Footer: Pinned at bottom */}
-        <AyushmanFooter
-          brandFirst={true}
-          style={{
-            flexShrink: 0,
-            marginTop: 'auto',
-            padding: '8px 16px 14px',
-            backgroundColor: '#ffffff',
-            borderTop: '1px solid #f1f5f9',
-          }}
-        />
       </main>
+
+      <AyushmanFooter />
     </div>
   );
 }

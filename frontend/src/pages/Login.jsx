@@ -3,8 +3,6 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { doctorApi, otpApi, queueApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import AppHeader from '../components/AppHeader';
-import AyushmanFooter from '../components/AyushmanFooter';
 import {
   Stethoscope,
   UserCheck,
@@ -18,19 +16,16 @@ import {
   Lock,
   Eye,
   EyeOff,
-  AlertCircle,
-  Clock,
-  Smartphone,
-  Activity,
-  FileText
+  AlertCircle
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/Icons';
+import AyushmanFooter from '../components/AyushmanFooter';
 
 const ROLES = [
   { key: 'patient', label: 'Patient', icon: UserCheck },
   { key: 'doctor', label: 'Doctor', icon: Stethoscope },
-  { key: 'admin', label: 'Hospital Staff', icon: Building2 },
-  { key: 'asha', label: 'ASHA Worker', icon: Users },
+  { key: 'admin', label: 'Staff', icon: Building2 },
+  { key: 'asha', label: 'ASHA', icon: Users },
 ];
 
 export default function Login() {
@@ -38,125 +33,54 @@ export default function Login() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
-      <AppHeader
-        activeNav={role === 'doctor' ? 'doctor' : role === 'asha' ? 'asha' : 'patient'}
-        backTo="/"
-        backLabel="Home"
-        title="Healthcare Gateway"
-        subtitle={`${role.charAt(0).toUpperCase() + role.slice(1)} Portal Authentication`}
-      />
-      <div className="pro-auth-container" style={{ flex: 1 }}>
-      {/* Left Showcase Panel (Desktop) */}
-      <aside className="pro-auth-sidebar">
-        <div>
-          <div className="pro-auth-sidebar-brand">
-            <div className="pro-auth-brand-logo">
-              <img
-                src="/aarogya_flow_icon_transparent.png"
-                alt="Aarogya Flow"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            </div>
-            <div>
-              <div style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>
-                Aarogya Flow
-              </div>
-              <div style={{ fontSize: '12px', color: '#6ee7b7', fontWeight: 600 }}>
-                Ayushman Digital Health Portal
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pro-auth-sidebar-body">
-          <div className="pro-auth-pill-badge">
-            <ShieldCheck size={14} />
-            <span>ABDM &amp; Ayushman Bharat Certified</span>
-          </div>
-
-          <h1 className="pro-auth-headline">
-            Digital Healthcare, <br />
-            Closer to Every Citizen.
-          </h1>
-
-          <p className="pro-auth-subtext">
-            Streamlined OPD consultations, zero-wait live queue tracking, and complete family health records integrated directly with WhatsApp and ABHA ID.
-          </p>
-
-          <div className="pro-auth-feature-list">
-            <div className="pro-auth-feature-item">
-              <div className="pro-auth-feature-icon-wrap">
-                <Smartphone size={16} />
-              </div>
-              <div>
-                <div className="pro-auth-feature-title">Real-Time WhatsApp Queue Tracking</div>
-                <div className="pro-auth-feature-desc">Live OPD token alerts, ETA updates, and instant digital prescription slips.</div>
-              </div>
-            </div>
-
-            <div className="pro-auth-feature-item">
-              <div className="pro-auth-feature-icon-wrap">
-                <FileText size={16} />
-              </div>
-              <div>
-                <div className="pro-auth-feature-title">Verified ABHA Health Records Hub</div>
-                <div className="pro-auth-feature-desc">Access doctor notes, diagnostic lab reports, and longitudinal care history securely.</div>
-              </div>
-            </div>
-
-            <div className="pro-auth-feature-item">
-              <div className="pro-auth-feature-icon-wrap">
-                <Activity size={16} />
-              </div>
-              <div>
-                <div className="pro-auth-feature-title">Unified Rural &amp; Clinical Care Continuum</div>
-                <div className="pro-auth-feature-desc">Synchronized coordination between ASHA field workers, ANMs, and hospital specialists.</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pro-auth-metrics-row">
-            <div className="pro-auth-metric-card">
-              <div className="pro-auth-metric-num">48+</div>
-              <div className="pro-auth-metric-lbl">Hospitals Active</div>
-            </div>
-            <div className="pro-auth-metric-card">
-              <div className="pro-auth-metric-num">120K+</div>
-              <div className="pro-auth-metric-lbl">Patient Visits</div>
-            </div>
-            <div className="pro-auth-metric-card">
-              <div className="pro-auth-metric-num">&lt; 10s</div>
-              <div className="pro-auth-metric-lbl">WhatsApp Sync</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pro-auth-sidebar-footer">
-          <Lock size={13} />
-          <span>256-Bit Encrypted &bull; ISO 27001 Certified &bull; NHA Standard Compliant</span>
-        </div>
-      </aside>
-
-      {/* Right Authentication Chamber */}
+    <div className="pro-auth-container">
+      {/* Centered White Authentication Chamber */}
       <main className="pro-auth-main">
         <div className="pro-auth-box">
+          {/* Top Bar Navigation */}
           <div className="pro-auth-top-nav">
             <Link to="/" className="pro-auth-back-link">
               <ArrowLeft size={16} />
-              <span>Back to AarogyaFlow</span>
+              <span>Back to Home</span>
             </Link>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#15803D', backgroundColor: '#DCFCE7', padding: '4px 10px', borderRadius: '9999px', fontWeight: 700 }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '11.5px',
+                color: '#15803D',
+                backgroundColor: '#DCFCE7',
+                border: '1px solid #86EFAC',
+                padding: '4px 10px',
+                borderRadius: '9999px',
+                fontWeight: 700,
+              }}
+            >
               <ShieldCheck size={13} />
-              <span>Official Healthcare Gateway</span>
+              <span>ABDM Verified</span>
             </div>
           </div>
 
+          {/* Clean Center Brand Header */}
+          <div className="pro-auth-brand-center">
+            <img
+              src="/aarogya_flow_icon_transparent.png"
+              alt="Aarogya Flow"
+              className="pro-auth-brand-logo-img"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <h1 className="pro-auth-brand-title">Aarogya Flow</h1>
+            <p className="pro-auth-brand-subtitle">
+              Ayushman Digital Health Portal &bull; Care Closer. Healthier Tomorrow.
+            </p>
+          </div>
+
+          {/* Main Auth Card */}
           <div className="pro-auth-card">
-            {/* Role Switcher Tabs */}
+            {/* Mobile-Responsive Role Switcher Tabs */}
             <div className="pro-role-tabs">
               {ROLES.map((t) => {
                 const IconComp = t.icon;
@@ -167,6 +91,7 @@ export default function Login() {
                     type="button"
                     className={`pro-role-tab ${isActive ? 'active' : ''} ${t.key === 'asha' ? 'asha' : ''}`}
                     onClick={() => navigate(`/login/${t.key}`)}
+                    title={t.label}
                   >
                     <IconComp size={15} />
                     <span>{t.label}</span>
@@ -182,16 +107,37 @@ export default function Login() {
             {role === 'asha' && <AshaAuthForm />}
           </div>
 
-          {/* Quick Demo Credentials Assistant */}
-          <DemoCredentialsQuickBar currentRole={role} />
+          {/* Quick Evaluator Access Bar */}
+          <DemoCredentialsQuickBar />
+
+          {/* Security & Compliance Footer */}
+          <div
+            style={{
+              marginTop: '20px',
+              textAlign: 'center',
+              fontSize: '11.5px',
+              color: '#94A3B8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <Lock size={12} />
+            <span>256-Bit SSL Encrypted &bull; National Health Authority Standards &bull; ABDM Compliant</span>
+          </div>
         </div>
       </main>
+
+      {/* Clean Minimalist Ayushman Footer */}
+      <AyushmanFooter brandFirst={true} variant="stacked" style={{ backgroundColor: '#ffffff', borderTop: '1px solid #E2E8F0', padding: '16px 20px' }} />
     </div>
   );
 }
 
 /** 
- * Professional Phone + WhatsApp Real Backend OTP Component
+ * Professional Phone + Real Backend WhatsApp OTP Form
  */
 function OtpAuthForm({ kind }) {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
@@ -455,11 +401,6 @@ function OtpAuthForm({ kind }) {
               </>
             )}
           </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-            <Lock size={12} />
-            <span>Encrypted with ABDM Compliant Security</span>
-          </div>
         </form>
       )}
 
@@ -477,13 +418,13 @@ function OtpAuthForm({ kind }) {
                   setStage('phone');
                   setErrorMsg('');
                 }}
-                style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#0F4C3A', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
               >
                 Change Phone
               </button>
             </div>
 
-            {/* 6 Digit Input Cells */}
+            {/* 6 Digit Input Cells (Responsive) */}
             <div className="pro-otp-grid" onPaste={handlePaste}>
               {digits.map((digit, idx) => (
                 <input
@@ -519,7 +460,7 @@ function OtpAuthForm({ kind }) {
             )}
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12.5px', marginTop: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12.5px', marginTop: '4px', flexWrap: 'wrap', gap: '6px' }}>
             <div style={{ color: '#64748B' }}>
               {resendTimer > 0 ? (
                 <span>Resend OTP in <strong>{resendTimer}s</strong></span>
@@ -534,7 +475,7 @@ function OtpAuthForm({ kind }) {
               style={{
                 background: 'none',
                 border: 'none',
-                color: resendTimer > 0 ? '#94a3b8' : '#0284c7',
+                color: resendTimer > 0 ? '#94A3B8' : '#0F4C3A',
                 fontWeight: 700,
                 fontSize: '12.5px',
                 cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
@@ -795,9 +736,9 @@ function AshaAuthForm() {
 }
 
 /**
- * Discreet Demo / Evaluation Quick-Fill Bar
+ * Discreet Demo / Evaluation Quick-Fill Bar (Mobile-Responsive Wrap)
  */
-function DemoCredentialsQuickBar({ currentRole }) {
+function DemoCredentialsQuickBar() {
   const { login } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
@@ -843,8 +784,8 @@ function DemoCredentialsQuickBar({ currentRole }) {
   return (
     <div
       style={{
-        marginTop: '20px',
-        padding: '12px 16px',
+        marginTop: '16px',
+        padding: '12px 14px',
         backgroundColor: '#ffffff',
         border: '1px solid #E2E8F0',
         borderRadius: '12px',
@@ -854,13 +795,15 @@ function DemoCredentialsQuickBar({ currentRole }) {
         fontSize: '12px',
         color: '#64748B',
         boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        flexWrap: 'wrap',
+        gap: '8px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
-        <Sparkles size={14} color="#0284C7" />
-        <span>1-Click Evaluator Access:</span>
+        <Sparkles size={14} color="#0F4C3A" />
+        <span>1-Click Demo:</span>
       </div>
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={loginAsDemoPatient}
@@ -868,7 +811,7 @@ function DemoCredentialsQuickBar({ currentRole }) {
             background: '#F0FDF4',
             border: '1px solid #BBF7D0',
             color: '#15803D',
-            padding: '4px 10px',
+            padding: '5px 10px',
             borderRadius: '6px',
             fontWeight: 700,
             fontSize: '11px',
@@ -884,7 +827,7 @@ function DemoCredentialsQuickBar({ currentRole }) {
             background: '#EFF6FF',
             border: '1px solid #BFDBFE',
             color: '#1D4ED8',
-            padding: '4px 10px',
+            padding: '5px 10px',
             borderRadius: '6px',
             fontWeight: 700,
             fontSize: '11px',
@@ -900,14 +843,14 @@ function DemoCredentialsQuickBar({ currentRole }) {
             background: '#FAF5FF',
             border: '1px solid #E9D5FF',
             color: '#7E22CE',
-            padding: '4px 10px',
+            padding: '5px 10px',
             borderRadius: '6px',
             fontWeight: 700,
             fontSize: '11px',
             cursor: 'pointer',
           }}
         >
-          Staff Admin
+          Staff
         </button>
       </div>
     </div>

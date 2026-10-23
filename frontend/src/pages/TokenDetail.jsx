@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchAsObjectUrl, queueApi, setToken as setAuthToken } from '../api/client';
 import { useToast } from '../context/ToastContext';
+import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 
 export default function TokenDetail() {
@@ -157,6 +158,13 @@ export default function TokenDetail() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      <AppHeader
+        activeNav="track"
+        backTo="/track"
+        backLabel="Track Queue"
+        title={`Live OPD Token #${token.tokenNumber || ''}`}
+        subtitle={token.hospitalName || 'Outpatient Department'}
+      />
       <main
         style={{
           width: '100%',
@@ -607,8 +615,6 @@ export default function TokenDetail() {
           </div>
         </div>
 
-        {/* Pinned Standard Footer */}
-        <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '8px 16px 18px' }} />
 
         {/* Modal: Full Appointment Details Sheet */}
         {showDetailsModal && (
@@ -726,6 +732,8 @@ export default function TokenDetail() {
           </div>
         )}
       </main>
+
+      <AyushmanFooter />
     </div>
   );
 }

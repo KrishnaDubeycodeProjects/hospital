@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { familyApi, setToken } from '../api/client';
+import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 
 function getAvatarVisual(member, index = 0) {
@@ -121,6 +122,13 @@ export default function SelectPatient() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      <AppHeader
+        activeNav="book"
+        backTo={-1}
+        backLabel="Back"
+        title="Confirm Patient"
+        subtitle="Family & ABHA Profile"
+      />
       <main
         style={{
           width: '100%',
@@ -477,10 +485,9 @@ export default function SelectPatient() {
             </svg>
           </button>
         </div>
-
-        {/* Sticky AyushmanFooter */}
-        <AyushmanFooter brandFirst={true} />
       </main>
+
+      <AyushmanFooter />
     </div>
   );
 }

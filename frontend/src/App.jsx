@@ -27,6 +27,7 @@ import HealthRecordsScreen from './pages/patient/HealthRecordsScreen';
 
 import DoctorProfile from './pages/doctor/DoctorProfile';
 import DoctorConsultation from './pages/doctor/DoctorConsultation';
+import DoctorServeEncounter from './pages/doctor/DoctorServeEncounter';
 import DoctorCourses from './pages/doctor/DoctorCourses';
 import DoctorReferrals from './pages/doctor/DoctorReferrals';
 import DoctorAccess from './pages/doctor/DoctorAccess';
@@ -91,6 +92,8 @@ export default function App() {
             <Route path="/doctor" element={<RoleShell role="doctor" />}>
               <Route index element={<DoctorProfile />} />
               <Route path="consultation" element={<DoctorConsultation />} />
+              <Route path="serve" element={<DoctorServeEncounter />} />
+              <Route path="serve/:tokenId" element={<DoctorServeEncounter />} />
               <Route path="courses" element={<DoctorCourses />} />
               <Route path="referrals" element={<DoctorReferrals />} />
               <Route path="access" element={<DoctorAccess />} />

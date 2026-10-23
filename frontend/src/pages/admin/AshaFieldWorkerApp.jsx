@@ -149,11 +149,11 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case '7days': return { bg: '#fee2e2', border: '#ef4444', text: '#b91c1c', dot: '#dc2626', label: '7 दिन शेष' };
-      case '15days': return { bg: '#ffedd5', border: '#f97316', text: '#c2410c', dot: '#ea580c', label: '15 दिन शेष' };
-      case '30days': return { bg: '#fef9c3', border: '#eab308', text: '#854d0e', dot: '#ca8a04', label: '30 दिन शेष' };
-      case 'visited': return { bg: '#dcfce7', border: '#22c55e', text: '#15803d', dot: '#16a34a', label: 'पूर्ण' };
-      default: return { bg: '#f1f5f9', border: '#cbd5e1', text: '#475569', dot: '#94a3b8', label: 'डेटा शेष' };
+      case '7days': return { bg: '#fff1f2', border: '#fecdd3', text: '#be123c', dot: '#e11d48', label: '7 दिन' };
+      case '15days': return { bg: '#fdf2f8', border: '#fbcfe8', text: '#9d174d', dot: '#db2777', label: '15 दिन' };
+      case '30days': return { bg: '#fffbeb', border: '#fde68a', text: '#b45309', dot: '#d97706', label: '30 दिन' };
+      case 'visited': return { bg: '#ecfdf5', border: '#a7f3d0', text: '#065f46', dot: '#059669', label: 'भेंट पूर्ण' };
+      default: return { bg: '#f8fafc', border: '#e2e8f0', text: '#64748b', dot: '#94a3b8', label: 'जानकारी बाकी' };
     }
   };
 
@@ -285,16 +285,16 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
             <div style={{ fontSize: '11px', color: '#64748b' }}>कुल मकान</div>
           </div>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: '#dc2626' }}>5</div>
-            <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>7 दिन शेष</div>
+            <div style={{ fontSize: '16px', fontWeight: '800', color: '#e11d48' }}>5</div>
+            <div style={{ fontSize: '11px', color: '#e11d48', fontWeight: 600 }}>7 दिन (गंभीर)</div>
           </div>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: '#ea580c' }}>6</div>
-            <div style={{ fontSize: '11px', color: '#ea580c', fontWeight: 600 }}>15 दिन शेष</div>
+            <div style={{ fontSize: '16px', fontWeight: '800', color: '#d97706' }}>6</div>
+            <div style={{ fontSize: '11px', color: '#d97706', fontWeight: 600 }}>15 दिन (मध्यम)</div>
           </div>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: '800', color: '#16a34a' }}>9</div>
-            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>पूर्ण जांच</div>
+            <div style={{ fontSize: '16px', fontWeight: '800', color: '#059669' }}>9</div>
+            <div style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>भेंट पूर्ण</div>
           </div>
         </div>
       </div>

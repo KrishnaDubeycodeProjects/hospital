@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { queueApi, setToken } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { cleanPhone } from '../utils/helpers';
+import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 import { Ticket } from 'lucide-react';
 
@@ -99,6 +100,7 @@ export default function Track() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      <AppHeader activeNav="track" backTo="/" backLabel="Home" title="Track Live Queue" subtitle="Real-time Token Progression" />
       <main
         style={{
           width: '100%',
@@ -115,46 +117,11 @@ export default function Track() {
         {/* 1. Top Section (Header & Typography) */}
         <div
           style={{
-            padding: '16px 20px 0',
+            padding: '24px 20px 0',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          {/* Top Left: Circular, light gray button with a dark gray back arrow (<) */}
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="Back"
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '12px',
-              backgroundColor: '#F1F5F9',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#0f172a',
-              transition: 'background-color 0.15s ease',
-              marginBottom: '26px',
-            }}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="19" y1="12" x2="5" y2="12" />
-              <polyline points="12 19 5 12 12 5" />
-            </svg>
-          </button>
-
           {/* Above the title: Small, bold green text "Track My Turn" */}
           <div
             style={{
@@ -386,10 +353,10 @@ export default function Track() {
         </div>
 
         {/* 4. Bottom Section: Ample empty white space, then pinned footer */}
-        <div style={{ flex: 1, minHeight: '80px' }} />
-
-        <AyushmanFooter brandFirst={true} />
+        <div style={{ flex: 1, minHeight: '60px' }} />
       </main>
+
+      <AyushmanFooter />
     </div>
   );
 }

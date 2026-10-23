@@ -20,7 +20,8 @@ const NAV = {
   ],
   doctor: [
     { to: '/doctor', label: 'Profile', icon: '👤', end: true },
-    { to: '/doctor/consultation', label: 'Consultation Room', icon: '💊' },
+    { to: '/doctor/consultation', label: 'Queue Room', icon: '📊' },
+    { to: '/doctor/serve', label: 'Serving Console', icon: '🪑' },
     { to: '/doctor/courses', label: 'Care Episodes', icon: '📋' },
     { to: '/doctor/referrals', label: 'Referrals & Triage', icon: '🔄' },
     { to: '/doctor/patients', label: 'My Patients', icon: '👥' },
@@ -162,19 +163,25 @@ export function RoleShell({ role }) {
         </div>
       </aside>
 
-      <div className="app-main">
+      <div className="app-main" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <header className="topbar">
-          <button className="hamburger" onClick={() => setMenuOpen((o) => !o)} aria-label="Toggle menu">
-            ☰
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button className="hamburger" onClick={() => setMenuOpen((o) => !o)} aria-label="Toggle menu">
+              ☰
+            </button>
+            <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>
+              {ROLE_TITLE[role]}
+            </span>
+          </div>
           <NavLink to="/" className="topbar-home" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span>←</span>
             <span>Public Services</span>
           </NavLink>
         </header>
-        <main className="app-content">
+        <main className="app-content" style={{ flex: 1 }}>
           <Outlet />
         </main>
+        <AyushmanFooter compact={true} />
       </div>
     </div>
   );

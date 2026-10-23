@@ -4,6 +4,7 @@ import { hospitalApi, locationApi, otpApi, queueApi, familyApi, setToken } from 
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { cleanPhone, formatApproxDistance } from '../utils/helpers';
+import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 import {
   POPULAR_DEPARTMENT_KEYS,
@@ -514,6 +515,13 @@ export default function Book() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
+      <AppHeader
+        activeNav="book"
+        backTo="/find-hospital"
+        backLabel="Hospitals"
+        title={hospitalName || 'Book OPD Token'}
+        subtitle={step === 'department' ? 'Step 1: Department' : step === 'family' ? 'Step 2: Patient' : 'Step 3: Confirm'}
+      />
       <main
         style={{
           width: '100%',
@@ -1794,10 +1802,9 @@ export default function Book() {
             </div>
           </div>
         )}
-
-        {/* Pinned AyushmanFooter */}
-        <AyushmanFooter brandFirst={true} />
       </main>
+
+      <AyushmanFooter />
     </div>
   );
 }

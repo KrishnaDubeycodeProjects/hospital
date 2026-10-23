@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { courseApi, doctorApi, drugApi, hospitalApi, queueApi } from '../../api/client';
 import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
@@ -204,6 +205,7 @@ function LabInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
 }
 
 export default function DoctorConsultation() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [currentQueue, setCurrentQueue] = useState(null);
   const [activeToken, setActiveToken] = useState(null);
@@ -385,8 +387,8 @@ export default function DoctorConsultation() {
   async function handleCallPatient(tokenId) {
     try {
       await queueApi.updateStatus(tokenId, 'serving');
-      toast.success(`Patient #${tokenId} called into chair!`);
-      loadData();
+      toast.success(`Patient #${tokenId} called into chair! Redirecting to Serving Console...`);
+      navigate(`/doctor/serve/${tokenId}`);
     } catch (err) {
       toast.error(err.message || 'Failed to call patient.');
     }
@@ -809,6 +811,50 @@ export default function DoctorConsultation() {
         </div>
       )}
 
+      {/* 🟢 Live Serving Patient Banner if active in chair */}
+      {activeToken && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #ecfdf5 0%, #e0f2fe 100%)',
+            border: '2px solid #10b981',
+            borderRadius: '12px',
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '28px' }}>🪑</span>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '15px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>PATIENT CURRENTLY IN CHAIR: #{activeToken.dailyNumber || activeToken.id} ({activeToken.name || 'Patient'})</span>
+                <span className="badge badge-green" style={{ fontSize: '11px', animation: 'pulse 1.5s infinite' }}>Serving Active</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
+                Phone: {activeToken.phone || '—'} &bull; Department: {activeToken.category || profile.category} &bull; Check-in: {fmtDateTime(activeToken.createdAt)}
+              </div>
+            </div>
+          </div>
+          <Button
+            size="md"
+            variant="primary"
+            onClick={() => navigate(`/doctor/serve/${activeToken.id}`)}
+            style={{
+              fontWeight: 800,
+              backgroundColor: '#10b981',
+              borderColor: '#10b981',
+              boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+            }}
+          >
+            Enter Serving Console (Prescription, Consent, Continuity) →
+          </Button>
+        </div>
+      )}
+
       {/* Active Token Call Board - OPDX 4 Metric Cards */}
       <div className="stat-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <div className="opdx-stat-card blue" style={{ position: 'relative' }}>
@@ -822,10 +868,10 @@ export default function DoctorConsultation() {
               <Button
                 size="sm"
                 variant="primary"
-                onClick={() => setShowPrescriptionModal(true)}
-                style={{ width: '100%', fontWeight: 700, backgroundColor: '#0284c7', borderColor: '#0284c7' }}
+                onClick={() => navigate(`/doctor/serve/${activeToken.id}`)}
+                style={{ width: '100%', fontWeight: 800, backgroundColor: '#0284c7', borderColor: '#0284c7' }}
               >
-                📝 Write Prescription
+                🪑 Open Serving Console
               </Button>
             </div>
           )}
