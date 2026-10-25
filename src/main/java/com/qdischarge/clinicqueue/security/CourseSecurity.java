@@ -50,6 +50,35 @@ public class CourseSecurity {
                 return false;
             }
 
+            // STRICT REVOCATION CHECK: If access is explicitly revoked for this doctor on this patient's records, block access!
+            List<String> ptPhones = jdbc.query(
+                    "SELECT patient_phone FROM courses WHERE id = :courseId",
+                    Map.of("courseId", courseId),
+                    (rs, i) -> rs.getString("patient_phone"));
+            if (!ptPhones.isEmpty()) {
+                List<String> phones = getPhoneVariants(ptPhones.get(0));
+                Integer revokedCount = jdbc.queryForObject(
+                        """
+                        SELECT COUNT(*) FROM access_grants
+                        WHERE doctor_id = :doctorId
+                          AND patient_phone IN (:phones)
+                          AND revoked_at IS NOT NULL
+                          AND NOT EXISTS (
+                              SELECT 1 FROM access_grants ag2
+                              WHERE ag2.doctor_id = :doctorId
+                                AND ag2.patient_phone IN (:phones)
+                                AND ag2.revoked_at IS NULL
+                                AND ag2.granted_at > access_grants.revoked_at
+                          )
+                        """,
+                        Map.of("doctorId", doctorId, "phones", phones),
+                        Integer.class);
+                if (revokedCount != null && revokedCount > 0) {
+                    log.warn("Doctor {} blocked from course {}: patient record access revoked", doctorId, courseId);
+                    return false;
+                }
+            }
+
             Integer hospitalId = null;
             try {
                 hospitalId = jdbc.queryForObject(

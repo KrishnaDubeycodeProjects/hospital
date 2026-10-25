@@ -107,6 +107,33 @@ public class AccessService {
         return updated > 0;
     }
 
+    /** Doctor or patient explicitly revokes doctor's access to a patient's records. */
+    public boolean revokeForDoctor(int doctorId, String patientPhone) {
+        String digits = patientPhone.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) digits = digits.substring(digits.length() - 10);
+        List<String> phones = List.of(patientPhone, digits, "+91" + digits, "91" + digits);
+
+        int updated = jdbc.update(
+                """
+                UPDATE access_grants
+                SET revoked_at = NOW(), revoked_by = 'doctor'
+                WHERE doctor_id = :doctorId
+                  AND patient_phone IN (:phones)
+                  AND revoked_at IS NULL
+                """,
+                Map.of("doctorId", doctorId, "phones", phones));
+        if (updated == 0) {
+            jdbc.update(
+                    """
+                    INSERT INTO access_grants (doctor_id, patient_phone, granted_at, revoked_at, revoked_by)
+                    VALUES (:doctorId, :phone, NOW(), NOW(), 'doctor')
+                    """,
+                    Map.of("doctorId", doctorId, "phone", "+91" + digits));
+            return true;
+        }
+        return true;
+    }
+
     public List<AccessGrantDto> listActiveForPatient(String phone) {
         return jdbc.query(JOINED_GRANT_SELECT + " WHERE g.patient_phone = :phone AND g.revoked_at IS NULL ORDER BY g.granted_at DESC",
                 Map.of("phone", phone), AccessService::mapGrant);

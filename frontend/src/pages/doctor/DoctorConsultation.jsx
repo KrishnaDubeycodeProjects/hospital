@@ -121,8 +121,10 @@ export default function DoctorConsultation() {
 
   // Clinical Assessment (Image 2)
   const [chiefComplaint, setChiefComplaint] = useState('');
+  const [clinicalNotes, setClinicalNotes] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
+  const [patientAccessRevoked, setPatientAccessRevoked] = useState(false);
 
   // Examination & Vitals (Image 2)
   const [bp, setBp] = useState('120/80');
@@ -263,9 +265,21 @@ export default function DoctorConsultation() {
   useEffect(() => {
     if (activeToken?.phone) {
       loadCoursesForPatient(activeToken.phone);
+      // Check if patient access is revoked
+      doctorApi.patientGrants().then((grants) => {
+        const list = Array.isArray(grants) ? grants : grants?.data || [];
+        const phoneDigits = (activeToken.phone || '').replace(/[^0-9]/g, '').slice(-10);
+        const match = list.find(g => (g.patientPhone || '').includes(phoneDigits));
+        if (match && match.revokedAt) {
+          setPatientAccessRevoked(true);
+        } else {
+          setPatientAccessRevoked(false);
+        }
+      }).catch(() => setPatientAccessRevoked(false));
     } else {
       setPatientCourses([]);
       setSelectedCourseId(null);
+      setPatientAccessRevoked(false);
     }
   }, [activeToken?.phone, activeToken?.id]);
 
@@ -475,6 +489,10 @@ export default function DoctorConsultation() {
 
   // Save / Sign & Send Prescription to Patient
   async function handleSignAndSend() {
+    if (patientAccessRevoked) {
+      toast.error('Cannot sign or dispatch: Patient record access has been revoked.');
+      return;
+    }
     setSavingEncounter(true);
     try {
       // 1. Resolve or create target care course
@@ -1116,6 +1134,19 @@ export default function DoctorConsultation() {
                     value={medicalHistory}
                     onChange={(e) => setMedicalHistory(e.target.value)}
                     placeholder="e.g. Known HTN, DM, previous surgeries, current medications, family history..."
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Clinical notes &amp; examination summary
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={clinicalNotes}
+                    onChange={(e) => setClinicalNotes(e.target.value)}
+                    placeholder="e.g. Patient appears febrile and fatigued. Throat congested with mild pharyngeal erythema."
                     style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
                   />
                 </div>
@@ -1882,6 +1913,11 @@ export default function DoctorConsultation() {
                 <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '4px' }}>Chief Complaint &amp; Diagnosis</div>
                 <div style={{ fontSize: '13px', color: '#0F172A', fontWeight: 600 }}>{chiefComplaint || 'Routine Medical Evaluation'}</div>
                 <div style={{ fontSize: '12px', color: '#0284C7', marginTop: '3px' }}>Diagnosis: {diagnosis || 'Clinical Diagnosis'}</div>
+                {clinicalNotes && (
+                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>
+                    <strong>Clinical Notes:</strong> {clinicalNotes}
+                  </div>
+                )}
               </div>
 
               <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>

@@ -215,6 +215,7 @@ export const doctorApi = {
       ...authFor('DOCTOR'),
       headers: { ...authFor('DOCTOR').headers, 'Content-Type': 'multipart/form-data' },
     }),
+  revokePatientAccess: (phone) => postD('/api/doctors/patients/revoke-access', { phone }, authFor('DOCTOR')),
 };
 
 // ------------------------------------------------------------ Patients ----

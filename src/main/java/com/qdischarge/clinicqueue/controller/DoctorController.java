@@ -223,6 +223,17 @@ public class DoctorController {
     }
 
     /** Upload a prescription or medical report for a patient (if doctor currently has active access). */
+    @PostMapping("/patients/revoke-access")
+    public ResponseEntity<Map<String, Object>> revokeAccess(@RequestBody Map<String, String> body) {
+        String phone = body.get("phone");
+        if (phone == null || phone.isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Patient phone number is required."));
+        }
+        int doctorId = currentUser.requireDoctorId();
+        boolean revoked = accessService.revokeForDoctor(doctorId, phone.trim());
+        return ResponseEntity.ok(ok(Map.of("revoked", revoked, "phone", phone.trim())));
+    }
+
     @PostMapping(value = "/patients/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadPatientDocument(
             @RequestParam("patientPhone") String patientPhone,

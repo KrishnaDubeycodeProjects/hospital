@@ -170,13 +170,22 @@ export default function DoctorCourses() {
     }
   }
 
-  function handleRevokeAccess(phone) {
+  async function handleRevokeAccess(phone) {
+    try {
+      await doctorApi.revokePatientAccess(phone);
+    } catch (e) {
+      console.warn('Backend revoke notice:', e);
+    }
     setAccessState((prev) => ({ ...prev, [phone]: 'REVOKED' }));
-    toast.info(`Record access for ${phone} revoked.`);
+    toast.info(`Record access for ${phone} revoked. Medical history locked.`);
   }
 
   // Open Document Preview Modal
   async function openDocPreview(cId, docId, fileName) {
+    if (accessState[selectedPatientPhone] === 'REVOKED') {
+      toast.error('Access to this patient\'s records has been revoked.');
+      return;
+    }
     setLoadingPreview(true);
     try {
       const url = await fetchAsObjectUrl(courseApi.documentDownloadUrl(cId, docId), 'DOCTOR');
@@ -192,6 +201,10 @@ export default function DoctorCourses() {
   // Upload Document Modal submit
   async function handleUploadSubmit(e) {
     e.preventDefault();
+    if (accessState[selectedPatientPhone] === 'REVOKED') {
+      toast.error('Access is revoked. Cannot upload documents.');
+      return;
+    }
     if (!file) {
       toast.error('Please select a document file to attach');
       return;
@@ -219,6 +232,10 @@ export default function DoctorCourses() {
   // Create New Course Submit
   async function handleCreateCourseSubmit(e) {
     e.preventDefault();
+    if (accessState[selectedPatientPhone] === 'REVOKED') {
+      toast.error('Access is revoked. Cannot create care episodes.');
+      return;
+    }
     if (!newCourseTitle.trim()) {
       toast.error('Please provide a title for the new course of care');
       return;
@@ -247,6 +264,10 @@ export default function DoctorCourses() {
   // Add Prescription / Encounter to Course Submit
   async function handleAddEncounterSubmit(e) {
     e.preventDefault();
+    if (accessState[selectedPatientPhone] === 'REVOKED') {
+      toast.error('Access is revoked. Cannot record encounters.');
+      return;
+    }
     setSavingEncounter(true);
     try {
       const payload = {
@@ -413,6 +434,32 @@ export default function DoctorCourses() {
             {/* INLINE EXPANDED PATIENT SECTIONS (Details of Patient, Courses, Documents) */}
             {isSelected && (
               <div>
+                {/* STRICT REVOCATION ENFORCEMENT: If access is revoked, lock all records immediately! */}
+                {currentAccess === 'REVOKED' ? (
+                  <div style={{ padding: '36px 24px', backgroundColor: '#FEF2F2', borderRadius: '12px', border: '1.5px dashed #FCA5A5', textAlign: 'center', margin: '20px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                      <Lock size={24} />
+                    </div>
+                    <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: 800, color: '#991B1B' }}>
+                      Access to Patient Records is Revoked
+                    </h3>
+                    <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#7F1D1D', maxWidth: '460px', marginInline: 'auto' }}>
+                      Access to this patient's clinical history, continuation courses, and diagnostic documents has been revoked. You cannot inspect records, view visit timelines, or attach medical files until consent is granted.
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                      <Button
+                        size="sm"
+                        loading={requestingAccess}
+                        onClick={() => handleRequestAccess(pt.phone)}
+                        style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Send size={14} />
+                        <span>Request Consent via WhatsApp</span>
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 {/* 3 Section Tabs Navigation */}
                 <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E2E8F0', padding: '0 20px', backgroundColor: '#F8FAFC' }}>
                   <button
@@ -852,6 +899,8 @@ export default function DoctorCourses() {
                   </div>
                 )}
               </div>
+                )}
+                  </>
                 )}
               </div>
             )}
