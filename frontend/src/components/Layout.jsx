@@ -21,7 +21,6 @@ const NAV = {
   doctor: [
     { to: '/doctor', label: 'My Profile', end: true },
     { to: '/doctor/consultation', label: 'Patient Queue' },
-    { to: '/doctor/serve', label: 'Consultation' },
     { to: '/doctor/courses', label: 'Treatments & Visits' },
     { to: '/doctor/referrals', label: 'Referrals' },
     { to: '/doctor/patients', label: 'My Patients' },
