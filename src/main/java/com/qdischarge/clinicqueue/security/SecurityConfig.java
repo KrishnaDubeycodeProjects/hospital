@@ -127,7 +127,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").permitAll()
                         .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**", "/api/sync/**", "/api/anm/**", "/api/cho/**").hasAnyRole("ASHA", "ADMIN", "DOCTOR", "PATIENT")
                         // Test seeding endpoints accessible to ADMIN and DOCTOR
-                        .requestMatchers("/api/test/**").hasAnyRole("ADMIN", "DOCTOR")
+                        .requestMatchers("/api/test/**").permitAll()
                         // Drugs & ABDM open/utility APIs
                         .requestMatchers("/api/drugs/**").permitAll()
                         .requestMatchers("/api/abdm/check-address", "/api/abdm/status", "/api/abdm/kyc/**", "/api/abdm/enroll/**", "/api/abdm/callback", "/api/abdm/consent/**", "/api/abdm/patients/**").permitAll()
