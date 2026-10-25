@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { authFor, client, courseApi, doctorApi, drugApi, hospitalApi, queueApi, referralApi } from '../../api/client';
+import { authFor, client, courseApi, doctorApi, drugApi, hospitalApi, queueApi, referralApi, fetchAsObjectUrl } from '../../api/client';
 import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -23,7 +23,16 @@ import {
   Search,
   X,
   ChevronDown,
-  Info
+  Info,
+  Lock,
+  ShieldAlert,
+  ShieldCheck,
+  Download,
+  FolderOpen,
+  QrCode,
+  RefreshCw,
+  ExternalLink,
+  Check
 } from 'lucide-react';
 
 // Comprehensive drug registry with formulation variants (AarogyaFlow Drug Registry)
@@ -125,6 +134,37 @@ export default function DoctorConsultation() {
   const [medicalHistory, setMedicalHistory] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [patientAccessRevoked, setPatientAccessRevoked] = useState(false);
+
+  // Patient Record Access & Consent Gate State
+  const [accessGrants, setAccessGrants] = useState([]);
+  const [accessRequest, setAccessRequest] = useState(null);
+  const [patientAccessStatus, setPatientAccessStatus] = useState('NOT_GRANTED'); // 'GRANTED' | 'NOT_GRANTED' | 'REVOKED'
+  const [verifyingConsentPhone, setVerifyingConsentPhone] = useState(false);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrObjectUrl, setQrObjectUrl] = useState(null);
+  const [qrLoading, setQrLoading] = useState(false);
+
+  // Unlocked Medical Records & Diagnostic Hub
+  const [patientDocuments, setPatientDocuments] = useState([]);
+  const [loadingPatientDocs, setLoadingPatientDocs] = useState(false);
+  const [courseTimeline, setCourseTimeline] = useState(null);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const [recordsHubTab, setRecordsHubTab] = useState('documents'); // 'documents' | 'prescriptions'
+
+  // Document Preview Modal
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // Document Upload Modal (Doctor attaching report to course)
+  const [uploadDocModalOpen, setUploadDocModalOpen] = useState(false);
+  const [uploadDocFile, setUploadDocFile] = useState(null);
+  const [uploadDocType, setUploadDocType] = useState('lab_report');
+  const [uploadDocDescription, setUploadDocDescription] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Queued patients data cache: { [phone]: { courses: [], accessStatus: '...' } }
+  const [queuedPatientsData, setQueuedPatientsData] = useState({});
 
   // Examination & Vitals (Image 2)
   const [bp, setBp] = useState('120/80');
@@ -265,30 +305,286 @@ export default function DoctorConsultation() {
     }
   }
 
+  // Helper to determine access status from grants list
+  function checkAccessForPhone(phone, grantsList = accessGrants) {
+    if (!phone) return 'NOT_GRANTED';
+    const cleanDigits = phone.replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanDigits) return 'NOT_GRANTED';
+    const list = Array.isArray(grantsList) ? grantsList : (Array.isArray(grantsList?.data) ? grantsList.data : []);
+    const match = list.find((g) => {
+      const gPhone = (g?.patientPhone || '').replace(/[^0-9]/g, '').slice(-10);
+      return gPhone === cleanDigits;
+    });
+    if (!match) return 'NOT_GRANTED';
+    if (match.revokedAt) return 'REVOKED';
+    return 'GRANTED';
+  }
+
+  // Load uploaded documents for patient
+  async function loadPatientDocuments(phone) {
+    if (!phone) {
+      setPatientDocuments([]);
+      return;
+    }
+    setLoadingPatientDocs(true);
+    try {
+      const phoneDigits = phone.replace(/[^0-9]/g, '').slice(-10);
+      const allPatients = await doctorApi.patients().catch(() => []);
+      const pList = Array.isArray(allPatients) ? allPatients : (allPatients?.data || []);
+      const matchedGroup = pList.find(p => (p.patientPhone || '').replace(/[^0-9]/g, '').slice(-10) === phoneDigits);
+      setPatientDocuments(matchedGroup?.documents || []);
+    } catch (e) {
+      setPatientDocuments([]);
+    } finally {
+      setLoadingPatientDocs(false);
+    }
+  }
+
+  // Load timeline for selected course
+  async function loadCourseTimeline(courseId) {
+    if (!courseId) {
+      setCourseTimeline(null);
+      return;
+    }
+    setLoadingTimeline(true);
+    try {
+      const tl = await courseApi.timeline(courseId);
+      setCourseTimeline(tl || null);
+    } catch (e) {
+      setCourseTimeline(null);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  }
+
+  // Effect when activeToken changes
   useEffect(() => {
     if (activeToken?.phone) {
-      loadCoursesForPatient(activeToken.phone);
-      // Check if patient access is revoked safely
-      try {
-        doctorApi.patientGrants().then((grants) => {
-          const list = Array.isArray(grants) ? grants : (Array.isArray(grants?.data) ? grants.data : []);
-          const phoneDigits = (activeToken.phone || '').replace(/[^0-9]/g, '').slice(-10);
-          if (phoneDigits && Array.isArray(list)) {
-            const match = list.find(g => (g?.patientPhone || '').includes(phoneDigits));
-            setPatientAccessRevoked(Boolean(match?.revokedAt));
-          } else {
-            setPatientAccessRevoked(false);
-          }
-        }).catch(() => setPatientAccessRevoked(false));
-      } catch (e) {
-        setPatientAccessRevoked(false);
-      }
+      doctorApi.patientGrants().then((grants) => {
+        const list = Array.isArray(grants) ? grants : (Array.isArray(grants?.data) ? grants.data : []);
+        setAccessGrants(list);
+        const status = checkAccessForPhone(activeToken.phone, list);
+        setPatientAccessStatus(status);
+        setPatientAccessRevoked(status !== 'GRANTED');
+
+        if (status === 'GRANTED') {
+          loadCoursesForPatient(activeToken.phone);
+          loadPatientDocuments(activeToken.phone);
+        } else {
+          setPatientCourses([]);
+          setSelectedCourseId(null);
+          setPatientDocuments([]);
+        }
+      }).catch(() => {
+        setPatientAccessStatus('NOT_GRANTED');
+        setPatientAccessRevoked(true);
+        setPatientCourses([]);
+        setSelectedCourseId(null);
+        setPatientDocuments([]);
+      });
     } else {
       setPatientCourses([]);
       setSelectedCourseId(null);
       setPatientAccessRevoked(false);
+      setPatientAccessStatus('NOT_GRANTED');
+      setPatientDocuments([]);
     }
   }, [activeToken?.phone, activeToken?.id]);
+
+  // Effect when selectedCourseId changes
+  useEffect(() => {
+    if (selectedCourseId && patientAccessStatus === 'GRANTED') {
+      loadCourseTimeline(selectedCourseId);
+    } else {
+      setCourseTimeline(null);
+    }
+  }, [selectedCourseId, patientAccessStatus]);
+
+  // 1-Click Patient Consent Verification
+  async function handleQuickGrantConsent(phoneToGrant) {
+    const rawPhone = phoneToGrant || activeToken?.phone || '';
+    const cleanPhone = rawPhone.trim();
+    if (!cleanPhone || cleanPhone.replace(/\D/g, '').length < 10) {
+      toast.error('Please provide a valid 10-digit mobile number for consent verification');
+      return;
+    }
+    let code = accessRequest?.code;
+    if (!code) {
+      try {
+        const newReq = await doctorApi.createAccessRequest();
+        setAccessRequest(newReq);
+        code = newReq.code;
+      } catch (err) {
+        toast.error('Unable to initialize access request');
+        return;
+      }
+    }
+    setVerifyingConsentPhone(true);
+    try {
+      const res = await fetch(`/api/doctors/access-requests/${encodeURIComponent(code)}/grant-by-phone`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        body: JSON.stringify({ phone: cleanPhone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(`Access granted for ${cleanPhone}! Medical records & continuation care unlocked.`);
+        const updatedGrants = await doctorApi.patientGrants().catch(() => []);
+        const list = Array.isArray(updatedGrants) ? updatedGrants : (updatedGrants?.data || []);
+        setAccessGrants(list);
+
+        if (activeToken) {
+          const newStatus = checkAccessForPhone(activeToken.phone, list);
+          setPatientAccessStatus(newStatus);
+          setPatientAccessRevoked(newStatus !== 'GRANTED');
+          if (newStatus === 'GRANTED') {
+            loadCoursesForPatient(activeToken.phone);
+            loadPatientDocuments(activeToken.phone);
+          }
+        }
+        loadQueuePatientsMeta(currentQueue?.tokens || [], list);
+      } else {
+        toast.error(data.message || 'Failed to verify consent');
+      }
+    } catch (err) {
+      toast.error('Consent grant error: ' + (err.message || 'Failed to contact server'));
+    } finally {
+      setVerifyingConsentPhone(false);
+    }
+  }
+
+  // Load metadata (courses & access status) for queued patients
+  async function loadQueuePatientsMeta(tokens, grantsList = accessGrants) {
+    if (!tokens || tokens.length === 0) return;
+    const waitingTokens = tokens.filter(t => t.status === 'waiting');
+    for (const t of waitingTokens) {
+      if (!t.phone) continue;
+      const cleanPhone = t.phone.trim();
+      const status = checkAccessForPhone(cleanPhone, grantsList);
+      if (status === 'GRANTED') {
+        try {
+          const courses = await courseApi.search(cleanPhone).catch(() => []);
+          const list = Array.isArray(courses) ? courses : courses?.data || [];
+          setQueuedPatientsData(prev => ({ ...prev, [cleanPhone]: { accessStatus: status, courses: list } }));
+        } catch (e) {
+          setQueuedPatientsData(prev => ({ ...prev, [cleanPhone]: { accessStatus: status, courses: [] } }));
+        }
+      } else {
+        setQueuedPatientsData(prev => ({ ...prev, [cleanPhone]: { accessStatus: status, courses: [] } }));
+      }
+    }
+  }
+
+  // Call token with a specific chosen course directly from queue
+  async function handleSelectQueuedCourse(token, course) {
+    try {
+      const counterId = profile?.counterId || 1;
+      await queueApi.updateStatus(token.id, 'serving', 'DOCTOR');
+      setActiveToken({ ...token, status: 'serving', counterId });
+      setSelectedCourseId(course?.id || null);
+      setActiveTab('consult');
+      toast.success(`Calling ${token.name} with course "${course?.title || 'Care Episode'}"!`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed calling patient to counter');
+    }
+  }
+
+  // Document preview helpers
+  async function openDocPreview(doc) {
+    setPreviewDoc(doc);
+    setLoadingPreview(true);
+    try {
+      const url = await fetchAsObjectUrl(doctorApi.patientDocumentFileUrl(doc.id), 'DOCTOR');
+      setPreviewUrl(url);
+    } catch (err) {
+      toast.error('Failed loading document preview: ' + err.message);
+      setPreviewDoc(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  async function downloadDoc(doc) {
+    try {
+      const url = await fetchAsObjectUrl(doctorApi.patientDocumentFileUrl(doc.id), 'DOCTOR');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName || `patient-document-${doc.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      toast.error('Download failed: ' + err.message);
+    }
+  }
+
+  // Document upload directly from doctor
+  async function handleUploadDocSubmit(e) {
+    if (e) e.preventDefault();
+    if (!uploadDocFile) {
+      toast.error('Please choose a file to upload');
+      return;
+    }
+    setUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadDocFile);
+      formData.append('patientPhone', activeToken?.phone || '+919100000099');
+      formData.append('docType', uploadDocType);
+      if (uploadDocDescription) formData.append('description', uploadDocDescription);
+      if (selectedCourseId) formData.append('courseId', selectedCourseId);
+
+      await doctorApi.uploadPatientDocument(formData);
+      toast.success('Document uploaded to patient record successfully!');
+      setUploadDocModalOpen(false);
+      setUploadDocFile(null);
+      setUploadDocDescription('');
+      loadPatientDocuments(activeToken?.phone);
+    } catch (err) {
+      toast.error(err.message || 'Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+    }
+  }
+
+  // QR Code generator helper
+  async function openQrModal() {
+    setQrModalOpen(true);
+    if (!accessRequest?.code) {
+      try {
+        const req = await doctorApi.createAccessRequest();
+        setAccessRequest(req);
+      } catch (e) {
+        toast.error('Failed creating QR code');
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!accessRequest?.code || !qrModalOpen) return;
+    let cancelled = false;
+    let objUrl = null;
+    setQrLoading(true);
+    fetchAsObjectUrl(doctorApi.accessRequestQrUrl(accessRequest.code), 'DOCTOR')
+      .then((url) => {
+        if (!cancelled) {
+          objUrl = url;
+          setQrObjectUrl(url);
+        }
+      })
+      .catch((e) => console.warn('QR preview fallback:', e))
+      .finally(() => {
+        if (!cancelled) setQrLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      if (objUrl) URL.revokeObjectURL(objUrl);
+    };
+  }, [accessRequest?.code, qrModalOpen]);
 
   async function handleCreateNewCourseDirect() {
     if (!activeToken) return;
@@ -320,11 +616,28 @@ export default function DoctorConsultation() {
         if (me) setProfile(me);
       } catch (e) {}
 
+      // Pre-load active doctor access grants and code
+      let currentGrants = [];
+      try {
+        currentGrants = await doctorApi.patientGrants();
+        const list = Array.isArray(currentGrants) ? currentGrants : (currentGrants?.data || []);
+        setAccessGrants(list);
+      } catch (e) {}
+
+      try {
+        const req = await doctorApi.createAccessRequest();
+        if (req) setAccessRequest(req);
+      } catch (e) {}
+
       const effectiveHospId = me?.hospitalId || profile?.hospitalId || 1;
       const effectiveCategory = me?.category || profile?.category || 'General Medicine / Internal Medicine';
 
       const q = await queueApi.getQueue(effectiveHospId, effectiveCategory);
       setCurrentQueue(q);
+
+      if (q?.tokens) {
+        loadQueuePatientsMeta(q.tokens, currentGrants);
+      }
 
       try {
         const cur = await queueApi.current(effectiveHospId, effectiveCategory);
@@ -839,49 +1152,194 @@ export default function DoctorConsultation() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(currentQueue?.tokens || []).filter(t => t.status === 'waiting').map((t, idx) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      padding: '14px 18px',
-                      borderRadius: '10px',
-                      border: '1px solid #E2E8F0',
-                      backgroundColor: '#FFFFFF',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      flexWrap: 'wrap',
-                      gap: '12px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <span style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 800, fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        #{idx + 1}
-                      </span>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '15px', color: '#0F172A' }}>{t.name}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', backgroundColor: '#F1F5F9', color: '#475569' }}>
-                            {t.tokenCode || `Token #${t.dailyNumber || t.id}`}
+                {(currentQueue?.tokens || []).filter(t => t.status === 'waiting').map((t, idx) => {
+                  const cleanPhone = (t.phone || '').trim();
+                  const qMeta = queuedPatientsData[cleanPhone] || {};
+                  const qStatus = qMeta.accessStatus || checkAccessForPhone(cleanPhone);
+                  const qCourses = qMeta.courses || [];
+
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        padding: '16px 20px',
+                        borderRadius: '12px',
+                        border: '1px solid #E2E8F0',
+                        backgroundColor: '#FFFFFF',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      }}
+                    >
+                      {/* Queue Patient Header Info */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 800, fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            #{idx + 1}
                           </span>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 800, fontSize: '16px', color: '#0F172A' }}>{t.name}</span>
+                              <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                                {t.tokenCode || `Token #${t.dailyNumber || t.id}`}
+                              </span>
+                              {qStatus === 'GRANTED' ? (
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22C55E' }}></span>
+                                  <span>Access Granted</span>
+                                </span>
+                              ) : qStatus === 'REVOKED' ? (
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#EF4444' }}></span>
+                                  <span>Access Revoked</span>
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#B45309', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Lock size={10} />
+                                  <span>Access Not Granted</span>
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px' }}>
+                              {t.age ? `${t.age} yrs • ` : ''}{t.gender ? `${t.gender} • ` : ''}{t.phone}
+                            </div>
+                          </div>
                         </div>
-                        <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px' }}>
-                          {t.age ? `${t.age} yrs • ` : ''}{t.gender ? `${t.gender} • ` : ''}{t.phone}
+
+                        {/* Direct Call to Counter Action */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCallToken(t)}
+                            style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <Stethoscope size={13} />
+                            <span>Call to Counter &amp; Consult</span>
+                          </Button>
                         </div>
                       </div>
-                    </div>
 
-                    <Button
-                      size="sm"
-                      onClick={() => handleCallToken(t)}
-                      style={{ backgroundColor: '#15803D', borderColor: '#15803D', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <Stethoscope size={13} />
-                      <span>Call to Counter &amp; Consult</span>
-                    </Button>
-                  </div>
-                ))}
+                      {/* Care Continuation Section in Queue Card */}
+                      <div style={{ backgroundColor: '#F8FAFC', borderRadius: '10px', padding: '12px 14px', border: '1px solid #E2E8F0' }}>
+                        {qStatus === 'GRANTED' ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <FolderOpen size={13} color="#25D366" />
+                                <span>Patient Care Continuation ({qCourses.length} Courses Found)</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveToken(t);
+                                  setCreateCourseModalOpen(true);
+                                }}
+                                style={{ border: 'none', background: 'transparent', color: '#0284C7', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                + New Course
+                              </button>
+                            </div>
+
+                            {qCourses.length > 0 ? (
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' }}>
+                                {qCourses.map((c) => {
+                                  const isActive = c.status === 'active';
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      onClick={() => handleSelectQueuedCourse(t, c)}
+                                      style={{
+                                        cursor: 'pointer',
+                                        backgroundColor: '#FFFFFF',
+                                        padding: '9px 12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #CBD5E1',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.borderColor = '#25D366';
+                                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(37,211,102,0.15)';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.borderColor = '#CBD5E1';
+                                        e.currentTarget.style.boxShadow = 'none';
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                                        <span
+                                          style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            backgroundColor: isActive ? '#22C55E' : '#EF4444',
+                                            flexShrink: 0,
+                                          }}
+                                          title={isActive ? 'Active Course' : 'Completed/Closed Course'}
+                                        />
+                                        <div style={{ overflow: 'hidden' }}>
+                                          <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {c.title || c.diagnosis || `Episode #${c.id}`}
+                                          </div>
+                                          <div style={{ fontSize: '11px', color: '#64748B' }}>
+                                            {isActive ? 'Active Care Journey' : 'Past Completed'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#0284C7', whiteSpace: 'nowrap' }}>
+                                        Select &amp; Call &rarr;
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span>No previous courses on file for this patient.</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setActiveToken(t);
+                                    setCreateCourseModalOpen(true);
+                                  }}
+                                  style={{ fontSize: '11.5px', color: '#25D366', fontWeight: 700 }}
+                                >
+                                  + Create Course First
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          /* Access Not Granted / Revoked State in Queue */
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: qStatus === 'REVOKED' ? '#DC2626' : '#B45309' }}>
+                              <Lock size={14} />
+                              <span style={{ fontSize: '12.5px', fontWeight: 600 }}>
+                                {qStatus === 'REVOKED'
+                                  ? 'Patient access revoked. Previous care courses and diagnostic documents are locked.'
+                                  : 'Access not granted. Patient consent is required to view continuation care courses and past documents.'}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleQuickGrantConsent(t.phone)}
+                              loading={verifyingConsentPhone}
+                              style={{ fontSize: '11.5px', fontWeight: 700, borderColor: '#CBD5E1', color: '#0F172A' }}
+                            >
+                              Grant Access with Consent
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -987,6 +1445,22 @@ export default function DoctorConsultation() {
                     <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
                       NOW SERVING
                     </span>
+                    {patientAccessStatus === 'GRANTED' ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22C55E' }}></span>
+                        <span>Access Granted</span>
+                      </span>
+                    ) : patientAccessStatus === 'REVOKED' ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#EF4444' }}></span>
+                        <span>Access Revoked</span>
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#B45309', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Lock size={10} />
+                        <span>Access Not Granted</span>
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     <span>{activeToken.age ? `${activeToken.age} years` : ''} {activeToken.gender ? `• ${activeToken.gender}` : ''}</span>
@@ -1017,102 +1491,441 @@ export default function DoctorConsultation() {
               </div>
             </div>
 
-            {/* Continuation Care Course Context Card */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1.5px solid #E2E8F0',
-                padding: '12px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '12px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#F0FDF4', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Stethoscope size={18} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
-                    Linked Continuation Course
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px' }}>
-                    {loadingCourses ? (
-                      <span style={{ fontSize: '13px', color: '#64748B' }}>Loading patient episodes...</span>
-                    ) : patientCourses.length > 0 ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <select
-                          value={selectedCourseId || ''}
-                          onChange={(e) => setSelectedCourseId(Number(e.target.value))}
-                          style={{
-                            padding: '5px 10px',
-                            borderRadius: '6px',
-                            border: '1.5px solid #25D366',
-                            fontSize: '13px',
-                            fontWeight: 700,
-                            color: '#0F172A',
-                            backgroundColor: '#FFFFFF',
-                            outline: 'none',
-                          }}
-                        >
-                          {patientCourses.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              Episode #{c.id}: {c.title || c.diagnosis || 'Care Course'} ({c.status || 'active'})
-                            </option>
-                          ))}
-                        </select>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
-                          ✓ Course Linked
-                        </span>
+            {/* Access Gate & Care Continuation Hub */}
+            {patientAccessStatus !== 'GRANTED' ? (
+              /* ACCESS NOT GRANTED / REVOKED BANNER */
+              <div
+                style={{
+                  backgroundColor: patientAccessStatus === 'REVOKED' ? '#FEF2F2' : '#FFFBEB',
+                  borderRadius: '14px',
+                  border: patientAccessStatus === 'REVOKED' ? '1.5px solid #FECACA' : '1.5px solid #FDE68A',
+                  padding: '20px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '10px',
+                        backgroundColor: patientAccessStatus === 'REVOKED' ? '#FEE2E2' : '#FEF3C7',
+                        color: patientAccessStatus === 'REVOKED' ? '#DC2626' : '#B45309',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <ShieldAlert size={22} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                        {patientAccessStatus === 'REVOKED'
+                          ? 'Patient Care Records Locked: Access Revoked'
+                          : 'Patient Care Records Locked: Consent Not Granted'}
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
-                          New Care Course &bull; Acute Consultation
-                        </span>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
-                          Auto-created on Sign
-                        </span>
+                      <div style={{ fontSize: '13px', color: '#475569', marginTop: '2px', lineHeight: 1.4 }}>
+                        Under digital healthcare security protocols, continuation courses, historical prescriptions, and uploaded medical documents remain securely locked until patient consent is verified.
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setCreateCourseModalOpen(true)}
-                  style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
-                >
-                  <Plus size={13} color="#25D366" />
-                  <span>+ New Course</span>
-                </Button>
-                <Link
-                  to="/doctor/courses"
+                  {/* QR Code Scan Trigger */}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={openQrModal}
+                    style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <QrCode size={14} />
+                    <span>Show Access QR</span>
+                  </Button>
+                </div>
+
+                {/* Instant 1-Click Phone Consent Unlock */}
+                <div
                   style={{
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#0284C7',
-                    textDecoration: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    backgroundColor: '#F0F9FF',
-                    border: '1px solid #BAE6FD',
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '10px',
+                    padding: '12px 16px',
+                    border: '1px solid #E2E8F0',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
                   }}
                 >
-                  <span>Patient Care Continuum ↗</span>
-                </Link>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Lock size={15} color="#64748B" />
+                    <span style={{ fontSize: '13px', color: '#334155', fontWeight: 600 }}>
+                      Patient Phone: <strong>{activeToken.phone || 'Unknown'}</strong>
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Button
+                      size="sm"
+                      onClick={() => handleQuickGrantConsent(activeToken.phone)}
+                      loading={verifyingConsentPhone}
+                      style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <ShieldCheck size={14} />
+                      <span>Grant &amp; Unlock Medical Records</span>
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* ACCESS GRANTED: PATIENT CARE CONTINUATION & MEDICAL RECORDS HUB */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* 1. PATIENT CARE CONTINUATION CARD */}
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '14px',
+                    border: '1.5px solid #BBF7D0',
+                    padding: '18px 20px',
+                    boxShadow: '0 2px 8px rgba(34,197,94,0.06)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Stethoscope size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span>Patient Care Continuation</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                            ✓ Access Granted
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px' }}>
+                          Select an ongoing care episode to link this consultation encounter, or start a new course.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setCreateCourseModalOpen(true)}
+                        style={{ fontSize: '12.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Plus size={13} color="#25D366" />
+                        <span>+ New Course</span>
+                      </Button>
+                      <Link
+                        to="/doctor/courses"
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#0284C7',
+                          textDecoration: 'none',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: '#F0F9FF',
+                          border: '1px solid #BAE6FD',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>Care Continuum</span>
+                        <ExternalLink size={12} />
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Course Cards Grid */}
+                  {loadingCourses ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                      Loading patient continuation episodes...
+                    </div>
+                  ) : patientCourses.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
+                      {patientCourses.map((c) => {
+                        const isSelected = selectedCourseId === c.id;
+                        const isActive = c.status === 'active';
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => setSelectedCourseId(c.id)}
+                            style={{
+                              cursor: 'pointer',
+                              backgroundColor: isSelected ? '#F0FDF4' : '#FFFFFF',
+                              borderRadius: '10px',
+                              border: isSelected ? '2px solid #25D366' : '1px solid #E2E8F0',
+                              padding: '12px 14px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                              boxShadow: isSelected ? '0 2px 8px rgba(37,211,102,0.12)' : 'none',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span
+                                  style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isActive ? '#22C55E' : '#EF4444',
+                                  }}
+                                  title={isActive ? 'Active Course' : 'Completed/Closed Course'}
+                                />
+                                <span style={{ fontSize: '11px', fontWeight: 800, color: isActive ? '#15803D' : '#DC2626', textTransform: 'uppercase' }}>
+                                  {isActive ? 'Active' : 'Completed'}
+                                </span>
+                              </div>
+                              {isSelected ? (
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#25D366', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                  <Check size={11} />
+                                  <span>Selected</span>
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                                  Click to Select
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A', lineHeight: 1.3 }}>
+                              {c.title || c.diagnosis || `Episode #${c.id}`}
+                            </div>
+
+                            <div style={{ fontSize: '11.5px', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{c.courseType ? `Type: ${c.courseType}` : 'General Episode'}</span>
+                              <span>#{c.id}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '16px 14px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                      <span style={{ fontSize: '13px', color: '#475569' }}>
+                        No ongoing continuation courses found for this patient. Click <strong>+ New Course</strong> to start one, or an acute care episode will be automatically created on signing.
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={() => setCreateCourseModalOpen(true)}
+                        style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}
+                      >
+                        + Create First Course
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. UNLOCKED MEDICAL RECORDS & DOCUMENTS HUB */}
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '14px',
+                    border: '1px solid #E2E8F0',
+                    padding: '16px 20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <FolderOpen size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>
+                          Unlocked Patient Medical Hub
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748B' }}>
+                          Uploaded diagnostics, test reports &amp; previous prescriptions
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setRecordsHubTab('documents')}
+                          style={{
+                            border: 'none',
+                            background: recordsHubTab === 'documents' ? '#FFFFFF' : 'transparent',
+                            color: recordsHubTab === 'documents' ? '#0F172A' : '#64748B',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Uploaded Documents ({patientDocuments.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRecordsHubTab('prescriptions')}
+                          style={{
+                            border: 'none',
+                            background: recordsHubTab === 'prescriptions' ? '#FFFFFF' : 'transparent',
+                            color: recordsHubTab === 'prescriptions' ? '#0F172A' : '#64748B',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Prior Prescriptions ({courseTimeline?.encounters?.length || 0})
+                        </button>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setUploadDocModalOpen(true)}
+                        style={{ fontSize: '11.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Plus size={12} color="#25D366" />
+                        <span>Upload Report</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Tab 1: Uploaded Documents */}
+                  {recordsHubTab === 'documents' && (
+                    <div>
+                      {loadingPatientDocs ? (
+                        <div style={{ padding: '14px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                          Loading patient documents...
+                        </div>
+                      ) : patientDocuments.length > 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
+                          {patientDocuments.map((doc) => (
+                            <div
+                              key={doc.id}
+                              style={{
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                border: '1px solid #E2E8F0',
+                                backgroundColor: '#F8FAFC',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '8px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                                <FileText size={18} color="#0284C7" style={{ flexShrink: 0 }} />
+                                <div style={{ overflow: 'hidden' }}>
+                                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {doc.fileName || 'Diagnostic Report'}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#64748B' }}>
+                                    {doc.docType || 'Medical Report'} • {fmtDateTime(doc.createdAt)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openDocPreview(doc)}
+                                  style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 700, color: '#0284C7' }}
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => downloadDoc(doc)}
+                                  style={{ padding: '4px 8px', fontSize: '11px' }}
+                                >
+                                  <Download size={13} />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '18px 12px', color: '#64748B', fontSize: '12.5px' }}>
+                          No documents uploaded yet for this patient. Click <strong>+ Upload Report</strong> to attach lab results or case notes.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tab 2: Prior Prescriptions & Treatments */}
+                  {recordsHubTab === 'prescriptions' && (
+                    <div>
+                      {loadingTimeline ? (
+                        <div style={{ padding: '14px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                          Loading care course encounters...
+                        </div>
+                      ) : (courseTimeline?.encounters || []).length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {courseTimeline.encounters.map((enc, eIdx) => (
+                            <div
+                              key={enc.id || eIdx}
+                              style={{
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                border: '1px solid #E2E8F0',
+                                backgroundColor: '#F8FAFC',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#0F172A' }}>
+                                  Encounter #{eIdx + 1}: {enc.diagnosis || 'Clinical Consultation'}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                                  {fmtDateTime(enc.createdAt)} • {enc.hospitalName || 'OPD'}
+                                </span>
+                              </div>
+                              {enc.prescriptions && enc.prescriptions.length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                                  {enc.prescriptions.map((rx, rIdx) => (
+                                    <span
+                                      key={rIdx}
+                                      style={{
+                                        fontSize: '11px',
+                                        backgroundColor: '#FFFFFF',
+                                        border: '1px solid #CBD5E1',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        color: '#334155',
+                                      }}
+                                    >
+                                      💊 {rx.medicineName || rx.drugName} ({rx.dosage || rx.dose}) - {rx.frequency}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                                  Clinical advice given. No separate medications prescribed.
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '18px 12px', color: '#64748B', fontSize: '12.5px' }}>
+                          No prior encounters recorded yet in this care episode.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             </>
           ) : (
             /* Empty Station Prompt (Directs user to Station Stats to call a patient) */
@@ -2273,6 +3086,172 @@ export default function DoctorConsultation() {
               Ready for Next Patient
             </Button>
           </div>
+        </Modal>
+      )}
+
+      {/* DOCUMENT PREVIEW MODAL */}
+      {previewDoc && (
+        <Modal title={`Viewing: ${previewDoc.fileName || 'Patient Document'}`} onClose={() => setPreviewDoc(null)}>
+          <div className="stack-md">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="badge badge-blue">
+                {previewDoc.docType || 'Document'}
+              </span>
+              <span style={{ fontSize: '12px', color: '#64748B' }}>
+                Uploaded: {fmtDateTime(previewDoc.createdAt)}
+              </span>
+            </div>
+
+            <div
+              style={{
+                borderRadius: '8px',
+                border: '1px solid #E2E8F0',
+                overflow: 'hidden',
+                backgroundColor: '#F8FAFC',
+                minHeight: '380px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {loadingPreview ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <Spinner size="md" />
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>Loading preview...</span>
+                </div>
+              ) : previewUrl ? (
+                previewDoc.fileName?.toLowerCase().endsWith('.pdf') ? (
+                  <iframe src={previewUrl} title="Document Preview" style={{ width: '100%', height: '520px', border: 'none' }} />
+                ) : (
+                  <img src={previewUrl} alt="Document Preview" style={{ maxWidth: '100%', maxHeight: '520px', objectFit: 'contain' }} />
+                )
+              ) : (
+                <span style={{ fontSize: '13px', color: '#DC2626' }}>Failed loading file preview</span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <Button size="sm" variant="ghost" onClick={() => setPreviewDoc(null)}>
+                Close
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => downloadDoc(previewDoc)}>
+                Download File
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ACCESS REQUEST QR CODE MODAL */}
+      {qrModalOpen && (
+        <Modal title="Patient Access Consent QR" onClose={() => setQrModalOpen(false)}>
+          <div style={{ textAlign: 'center', padding: '16px 10px' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+              Scan to Grant Access
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748B' }}>
+              Ask the patient to scan this QR code on their smartphone to unlock their medical continuum.
+            </p>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                padding: '16px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1.5px solid #25D366',
+                boxShadow: '0 4px 12px rgba(37,211,102,0.12)',
+              }}
+            >
+              {qrLoading ? (
+                <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Spinner size="md" />
+                </div>
+              ) : qrObjectUrl ? (
+                <img src={qrObjectUrl} alt="Access QR Code" style={{ width: '200px', height: '200px', display: 'block' }} />
+              ) : (
+                <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', fontSize: '12px' }}>
+                  QR Code Unavailable
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ fontSize: '13px', color: '#334155', fontWeight: 600 }}>
+                Access Code: <code style={{ backgroundColor: '#F1F5F9', padding: '2px 8px', borderRadius: '4px', fontSize: '14px', color: '#0F172A' }}>{accessRequest?.code || '------'}</code>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              <Button size="sm" variant="secondary" onClick={() => setQrModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* DOCTOR UPLOAD PATIENT DOCUMENT MODAL */}
+      {uploadDocModalOpen && (
+        <Modal title="Upload Medical Document to Patient Record" onClose={() => setUploadDocModalOpen(false)}>
+          <form onSubmit={handleUploadDocSubmit} className="stack-md">
+            <div>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                Select File (PDF, JPG, PNG) *
+              </label>
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={(e) => setUploadDocFile(e.target.files[0] || null)}
+                style={{ width: '100%', padding: '8px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px' }}
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                Document Category
+              </label>
+              <select
+                value={uploadDocType}
+                onChange={(e) => setUploadDocType(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px' }}
+              >
+                <option value="lab_report">Laboratory Test Report</option>
+                <option value="radiology_scan">Radiology / Imaging Scan</option>
+                <option value="discharge_summary">Discharge Summary</option>
+                <option value="case_paper">Clinical Case Paper</option>
+                <option value="prescription">External Prescription</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                Clinical Description / Notes
+              </label>
+              <input
+                type="text"
+                value={uploadDocDescription}
+                onChange={(e) => setUploadDocDescription(e.target.value)}
+                placeholder="e.g. Fasting blood sugar & Lipid profile report"
+                style={{ width: '100%', padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '13px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+              <Button size="sm" variant="ghost" onClick={() => setUploadDocModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                loading={uploadingDoc}
+                style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}
+              >
+                Upload Document
+              </Button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>

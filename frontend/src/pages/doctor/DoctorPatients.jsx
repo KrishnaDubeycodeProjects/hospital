@@ -429,7 +429,7 @@ export default function DoctorPatients() {
                               return <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by You</span>;
                             }
                             if (d.uploadedByDoctorId) {
-                              return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Doctor #{d.uploadedByDoctorId}</span>;
+                              return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Consulting Doctor</span>;
                             }
                             return <span className="badge badge-gray" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by Patient</span>;
                           },
