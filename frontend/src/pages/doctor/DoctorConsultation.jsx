@@ -153,6 +153,7 @@ export default function DoctorConsultation() {
 
   // Smart Medicine Search & Variant Selector Modal State (Image 3)
   const [smartSearchIndex, setSmartSearchIndex] = useState(null);
+  const [selectedRowIndex, setSelectedRowIndex] = useState(0);
   const [activeDrugModal, setActiveDrugModal] = useState(null); // Selected drug object
   const [variantTab, setVariantTab] = useState('All');
   const [drugSearchQuery, setDrugSearchQuery] = useState('');
@@ -265,17 +266,21 @@ export default function DoctorConsultation() {
   useEffect(() => {
     if (activeToken?.phone) {
       loadCoursesForPatient(activeToken.phone);
-      // Check if patient access is revoked
-      doctorApi.patientGrants().then((grants) => {
-        const list = Array.isArray(grants) ? grants : grants?.data || [];
-        const phoneDigits = (activeToken.phone || '').replace(/[^0-9]/g, '').slice(-10);
-        const match = list.find(g => (g.patientPhone || '').includes(phoneDigits));
-        if (match && match.revokedAt) {
-          setPatientAccessRevoked(true);
-        } else {
-          setPatientAccessRevoked(false);
-        }
-      }).catch(() => setPatientAccessRevoked(false));
+      // Check if patient access is revoked safely
+      try {
+        doctorApi.patientGrants().then((grants) => {
+          const list = Array.isArray(grants) ? grants : (Array.isArray(grants?.data) ? grants.data : []);
+          const phoneDigits = (activeToken.phone || '').replace(/[^0-9]/g, '').slice(-10);
+          if (phoneDigits && Array.isArray(list)) {
+            const match = list.find(g => (g?.patientPhone || '').includes(phoneDigits));
+            setPatientAccessRevoked(Boolean(match?.revokedAt));
+          } else {
+            setPatientAccessRevoked(false);
+          }
+        }).catch(() => setPatientAccessRevoked(false));
+      } catch (e) {
+        setPatientAccessRevoked(false);
+      }
     } else {
       setPatientCourses([]);
       setSelectedCourseId(null);
@@ -418,22 +423,27 @@ export default function DoctorConsultation() {
 
   // Prescription Table Actions
   function addPrescriptionRow() {
-    setPrescriptions((prev) => [
-      ...prev,
-      {
-        medicineName: '',
-        strength: '500 mg',
-        dose: '1 tablet',
-        route: 'Oral',
-        frequency: 'BD (Twice daily)',
-        duration: '5 days',
-        quantity: 10,
-        refills: 0,
-        instructions: 'After meals',
-        indication: '',
-        prn: false,
-      }
-    ]);
+    setPrescriptions((prev) => {
+      const next = [
+        ...prev,
+        {
+          medicineName: '',
+          strength: '500 mg',
+          dose: '1 tablet',
+          route: 'Oral',
+          frequency: 'BD (Twice daily)',
+          duration: '5 days',
+          quantity: 10,
+          refills: 0,
+          instructions: 'After meals',
+          indication: '',
+          prn: false,
+        }
+      ];
+      setSelectedRowIndex(next.length - 1);
+      setSmartSearchIndex(next.length - 1);
+      return next;
+    });
   }
 
   function updatePrescriptionField(idx, field, value) {
@@ -446,30 +456,39 @@ export default function DoctorConsultation() {
     setPrescriptions((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  // Variant selector action
+  // Variant / Drug selector action
   function applyMedicineVariant(variant, drug) {
-    if (smartSearchIndex === null) return;
-    setPrescriptions((prev) =>
-      prev.map((p, i) =>
-        i === smartSearchIndex
+    const targetIdx = selectedRowIndex !== null ? selectedRowIndex : (smartSearchIndex !== null ? smartSearchIndex : 0);
+    if (!variant || !drug) return;
+
+    const brandName = variant?.brand ? String(variant.brand).split(',')[0].trim() : '';
+    const genericName = drug?.generic ? String(drug.generic).split('(')[0].trim() : (drug?.name || 'Medicine');
+    const medDisplayName = brandName ? `${genericName} (${brandName})` : genericName;
+
+    setPrescriptions((prev) => {
+      // If array is empty or targetIdx out of bounds, extend or replace
+      const list = prev.length === 0 ? [{}] : [...prev];
+      const actualIdx = targetIdx < list.length ? targetIdx : 0;
+      return list.map((p, i) =>
+        i === actualIdx
           ? {
               ...p,
-              medicineName: `${drug.generic.split('(')[0].trim()} (${variant.brand.split(',')[0].trim()})`,
-              strength: variant.strength,
-              dose: variant.dose,
-              route: variant.route,
-              frequency: variant.freq,
-              duration: variant.duration,
-              quantity: variant.qty,
-              refills: variant.refills,
-              instructions: 'After meals',
+              medicineName: medDisplayName,
+              strength: variant?.strength || p.strength || '500 mg',
+              dose: variant?.dose || p.dose || '1 tablet',
+              route: variant?.route || p.route || 'Oral',
+              frequency: variant?.freq || variant?.frequency || p.frequency || 'BD (Twice daily)',
+              duration: variant?.duration || p.duration || '5 days',
+              quantity: parseInt(variant?.qty) || parseInt(p.quantity) || 10,
+              refills: parseInt(variant?.refills) || 0,
+              instructions: variant?.instructions || p.instructions || 'After meals',
             }
           : p
-      )
-    );
+      );
+    });
     setActiveDrugModal(null);
     setSmartSearchIndex(null);
-    toast.success(`Applied formulation: ${variant.brand.split(',')[0]} ${variant.strength}`);
+    toast.success(`Selected ${medDisplayName} ${variant?.strength || ''}`);
   }
 
   // Investigation Tags toggling
@@ -1303,8 +1322,15 @@ export default function DoctorConsultation() {
                             <input
                               type="text"
                               value={rx.medicineName}
-                              onChange={(e) => updatePrescriptionField(idx, 'medicineName', e.target.value)}
-                              onFocus={() => setSmartSearchIndex(idx)}
+                              onChange={(e) => {
+                                setSelectedRowIndex(idx);
+                                setSmartSearchIndex(idx);
+                                updatePrescriptionField(idx, 'medicineName', e.target.value);
+                              }}
+                              onFocus={() => {
+                                setSelectedRowIndex(idx);
+                                setSmartSearchIndex(idx);
+                              }}
                               placeholder="Type medicine (e.g. Paracetamol)..."
                               style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px', fontWeight: 600 }}
                             />
@@ -1339,24 +1365,97 @@ export default function DoctorConsultation() {
                                 {filteredMeds.map((drug, dIdx) => (
                                   <div
                                     key={dIdx}
-                                    onClick={() => {
-                                      setActiveDrugModal(drug);
-                                      setSmartSearchIndex(null);
-                                    }}
                                     style={{
                                       padding: '10px 12px',
                                       borderBottom: '1px solid #F1F5F9',
                                       cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '8px',
                                       transition: 'background 0.15s ease',
                                     }}
                                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F0FDF4'}
                                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
                                   >
-                                    <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>
-                                      {drug.generic}
+                                    <div
+                                      onClick={() => {
+                                        setSelectedRowIndex(idx);
+                                        const primaryVariant = drug.variants?.[0] || {
+                                          formulation: 'Tablet',
+                                          strength: '500 mg',
+                                          brand: drug.generic,
+                                          dose: '1 tablet',
+                                          route: 'Oral',
+                                          freq: 'BD (Twice daily)',
+                                          duration: '5 days',
+                                          qty: 10,
+                                        };
+                                        applyMedicineVariant(primaryVariant, drug);
+                                      }}
+                                      style={{ flex: 1 }}
+                                    >
+                                      <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>
+                                        {drug.generic}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: '#166534', marginTop: '2px' }}>
+                                        {drug.category} &bull; {drug.variants?.[0]?.formulation || 'Tablet'} {drug.variants?.[0]?.strength || ''}
+                                      </div>
                                     </div>
-                                    <div style={{ fontSize: '11px', color: '#166534', marginTop: '2px' }}>
-                                      {drug.category} &bull; {drug.variants.length} Formulations
+
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRowIndex(idx);
+                                          const primaryVariant = drug.variants?.[0] || {
+                                            formulation: 'Tablet',
+                                            strength: '500 mg',
+                                            brand: drug.generic,
+                                            dose: '1 tablet',
+                                            route: 'Oral',
+                                            freq: 'BD (Twice daily)',
+                                            duration: '5 days',
+                                            qty: 10,
+                                          };
+                                          applyMedicineVariant(primaryVariant, drug);
+                                        }}
+                                        style={{
+                                          padding: '4px 9px',
+                                          borderRadius: '6px',
+                                          border: '1px solid #86EFAC',
+                                          backgroundColor: '#DCFCE7',
+                                          color: '#15803D',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        Select
+                                      </button>
+                                      {drug.variants?.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedRowIndex(idx);
+                                            setActiveDrugModal(drug);
+                                            setSmartSearchIndex(null);
+                                          }}
+                                          style={{
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            border: '1px solid #CBD5E1',
+                                            backgroundColor: '#F8FAFC',
+                                            color: '#475569',
+                                            fontSize: '10.5px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          Options ({drug.variants.length})
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 ))}
