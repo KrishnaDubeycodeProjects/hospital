@@ -1273,13 +1273,15 @@ public class QueueManagerService {
         params.put("id", id);
         String counterSql = "";
         if (counterId != null && counterId > 0) {
-            counterSql = ", counter_id = :counterId";
+            counterSql = ", counter_id = :counterId ";
             params.put("counterId", counterId);
         }
         jdbc.update(
                 """
                 UPDATE tokens
-                SET status = 'waiting', daily_number = :dailyNumber, priority_rank = NULL""" + counterSql + """
+                SET status = 'waiting', daily_number = :dailyNumber, priority_rank = NULL
+                """ + counterSql + """
+                
                 WHERE id = :id AND status = 'frozen'
                 """,
                 params);
@@ -2065,7 +2067,7 @@ public class QueueManagerService {
         updateParams.put("rank", newRank);
         String counterSql = "";
         if (counterId != null && counterId > 0) {
-            counterSql = ", counter_id = :counterId";
+            counterSql = ", counter_id = :counterId ";
             updateParams.put("counterId", counterId);
         }
 
@@ -2074,7 +2076,9 @@ public class QueueManagerService {
                 UPDATE tokens
                 SET status = 'waiting', priority_rank = :rank,
                     missed_at = NULL, served_at = NULL, completed_at = NULL, rejected_at = NULL,
-                    notified_ready_at = NULL""" + counterSql + """
+                    notified_ready_at = NULL
+                """ + counterSql + """
+                
                 WHERE id = :id AND status = 'missed'
                 RETURNING *
                 """, updateParams, TOKEN_ROW_MAPPER);

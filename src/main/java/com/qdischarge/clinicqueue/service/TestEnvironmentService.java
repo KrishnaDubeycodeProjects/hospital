@@ -299,15 +299,15 @@ public class TestEnvironmentService {
         tokenParams.put("phone", cleanPhone);
         tokenParams.put("hId", hId);
         tokenParams.put("status", st);
-        tokenParams.put("dailyNumber", dailyNumber != null ? dailyNumber : (Object) java.sql.Types.NULL);
-        tokenParams.put("dist", distanceKm != null ? distanceKm : (Object) java.sql.Types.NULL);
-        tokenParams.put("travelMins", travelMinutes != null ? travelMinutes : (Object) java.sql.Types.NULL);
+        tokenParams.put("dailyNumber", dailyNumber);
+        tokenParams.put("dist", distanceKm);
+        tokenParams.put("travelMins", travelMinutes);
         tokenParams.put("tokenCode", tokenCode);
 
         boolean isVerified = "waiting".equals(st) || "serving".equals(st);
         tokenParams.put("isVerified", isVerified);
         Integer counterId = "serving".equals(st) ? 1 : null;
-        tokenParams.put("counterId", counterId != null ? counterId : (Object) java.sql.Types.NULL);
+        tokenParams.put("counterId", counterId);
 
         if ("serving".equals(st)) {
             jdbc.update("UPDATE tokens SET status = 'completed', completed_at = NOW() WHERE hospital_id = :hId AND LOWER(TRIM(category)) = LOWER(TRIM(:cat)) AND status = 'serving'", Map.of("hId", hId, "cat", cat));
@@ -320,7 +320,7 @@ public class TestEnvironmentService {
                                    is_verified, verified_at, served_at, missed_at, completed_at, session_step, created_at)
                 VALUES (:name, :age, :gender, :cat, :phone, :hId, :counterId, :status, :dailyNumber,
                         :dist, :travelMins, :travelMins,
-                        CASE WHEN :travelMins IS NOT NULL THEN NOW() + (:travelMins || ' minutes')::INTERVAL ELSE NULL END,
+                        CASE WHEN :travelMins IS NOT NULL THEN NOW() + ((:travelMins)::integer * INTERVAL '1 minute') ELSE NULL END,
                         :tokenCode,
                         :isVerified,
                         CASE WHEN :isVerified THEN NOW() ELSE NULL END,
