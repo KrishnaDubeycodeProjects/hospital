@@ -37,9 +37,11 @@ public class DoctorService {
             return new DoctorAuthResult(false, "This phone number is already registered as a doctor -- use /api/doctors/login instead.", null, null);
         }
 
+        var op = hospitalService.getOperatingHospital();
+        int defaultHospId = op != null ? op.getId() : 1;
         Integer id = jdbc.queryForObject(
-                "INSERT INTO doctors (phone, name) VALUES (:phone, :name) RETURNING id",
-                Map.of("phone", phone, "name", name), Integer.class);
+                "INSERT INTO doctors (phone, name, hospital_id) VALUES (:phone, :name, :hospId) RETURNING id",
+                Map.of("phone", phone, "name", name, "hospId", defaultHospId), Integer.class);
 
         String token = jwtService.generateDoctorToken(phone, id);
         return new DoctorAuthResult(true, "Registered.", token, getById(id));
@@ -52,6 +54,11 @@ public class DoctorService {
         DoctorDto doctor = findByPhone(phone);
         if (doctor == null) {
             return new DoctorAuthResult(false, "No doctor account for this phone number -- register first.", null, null);
+        }
+        if (doctor.getHospitalId() == null) {
+            var op = hospitalService.getOperatingHospital();
+            int defaultHospId = op != null ? op.getId() : 1;
+            doctor = linkHospital(doctor.getId(), defaultHospId);
         }
         String token = jwtService.generateDoctorToken(phone, doctor.getId());
         return new DoctorAuthResult(true, "Logged in.", token, doctor);

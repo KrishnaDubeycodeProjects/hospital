@@ -85,12 +85,27 @@ public class DoctorController {
         DoctorDto doctor = doctorService.getById(doctorId);
         if (doctor != null && doctor.getHospitalId() == null) {
             var op = hospitalService.getOperatingHospital();
-            if (op != null) {
-                doctorService.linkHospital(doctorId, op.getId());
-                doctor = doctorService.getById(doctorId);
-            }
+            int defaultHospId = op != null ? op.getId() : 1;
+            doctor = doctorService.linkHospital(doctorId, defaultHospId);
         }
         return ResponseEntity.ok(ok(doctor));
+    }
+
+    @PutMapping("/me/counter")
+    public ResponseEntity<Map<String, Object>> updateMyCounter(@RequestBody Map<String, Object> body) {
+        int doctorId = currentUser.requireDoctorId();
+        DoctorDto doctor = doctorService.getById(doctorId);
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(msg("Doctor profile not found."));
+        }
+        int hospId = doctor.getHospitalId() != null ? doctor.getHospitalId() : 1;
+        int counterId = body.get("counterId") instanceof Number n ? n.intValue() : 1;
+        String category = body.get("category") != null ? String.valueOf(body.get("category")) : doctor.getCategory();
+        if (category == null || category.isBlank()) {
+            category = "General Medicine / Internal Medicine";
+        }
+        DoctorDto updated = doctorService.assignLocation(hospId, doctorId, counterId, category);
+        return ResponseEntity.ok(ok(updated));
     }
 
     /** Generates a fresh 30-minute access-request code; GET .../qr renders it as a scannable PNG. */

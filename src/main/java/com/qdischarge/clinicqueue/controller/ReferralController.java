@@ -32,8 +32,11 @@ public class ReferralController {
     public ResponseEntity<Map<String, Object>> createReferral(@Valid @RequestBody CreateReferralRequest request) {
         int doctorId = currentUser.requireDoctorId();
         DoctorDto doctor = doctorService.getById(doctorId);
-        if (doctor == null || doctor.getHospitalId() == null) {
-            return ResponseEntity.badRequest().body(msg("Doctor must be affiliated with a hospital before creating referrals."));
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(msg("Doctor profile not found."));
+        }
+        if (doctor.getHospitalId() == null) {
+            doctor = doctorService.linkHospital(doctorId, 1);
         }
         int fromHospitalId = doctor.getHospitalId();
 

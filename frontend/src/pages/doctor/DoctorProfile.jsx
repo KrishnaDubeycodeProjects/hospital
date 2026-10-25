@@ -53,19 +53,14 @@ export default function DoctorProfile() {
 
   async function handleUpdateCounter(e) {
     if (e) e.preventDefault();
-    if (!me?.hospitalId) {
-      toast.error('Please join a hospital before assigning a counter.');
-      return;
-    }
     setUpdatingCounter(true);
     try {
-      // Update counter via hospital location assignment endpoint
-      const slug = me.hospitalUriSlug || 'main';
-      await hospitalApi.assignDoctorLocation(slug, me.id, {
-        counterId: parseInt(selectedCounterId) || 1,
-        category: me.category || 'General Medicine / Internal Medicine',
+      const counterNum = parseInt(selectedCounterId) || 1;
+      await doctorApi.updateMyCounter({
+        counterId: counterNum,
+        category: me?.category || 'General Medicine / Internal Medicine',
       });
-      toast.success(`Assigned to Counter #${selectedCounterId} successfully.`);
+      toast.success(`Assigned to Counter #${counterNum} successfully.`);
       setEditingCounter(false);
       load();
     } catch (err) {

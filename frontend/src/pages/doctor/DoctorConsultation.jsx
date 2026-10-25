@@ -369,28 +369,43 @@ export default function DoctorConsultation() {
       const payload = {
         chiefComplaint: chiefComplaint || 'Consultation',
         clinicalNotes: `Assessment: ${clinicalNotes || 'Examined'}\nHistory: ${medicalHistory || 'None reported'}\nDiagnosis: ${diagnosis || 'Clinical evaluation'}\nVitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg\nFindings: ${examFindings || 'Clear'}\nAdvice: ${adviceNotes}`,
-        prescriptions: prescriptions.map((p) => ({
-          drugName: `${p.medicineName} ${p.strength}`,
-          dosage: p.dose,
-          frequency: p.frequency,
-          durationDays: parseInt(p.duration) || 5,
-          instructions: p.instructions,
-        })),
-        referral: enableReferral
-          ? {
-              toHospitalId: parseInt(referralHospitalId) || 1,
-              toCategory: referralDept || 'General Medicine',
-              reason: referralReason || chiefComplaint,
-              priorityTier: 'urgent_7d',
-            }
-          : null,
+        prescriptions: prescriptions
+          .filter((p) => p.medicineName && p.medicineName.trim())
+          .map((p) => ({
+            drugName: `${p.medicineName} ${p.strength}`,
+            dosage: p.dose,
+            frequency: p.frequency,
+            durationDays: parseInt(p.duration) || 5,
+            instructions: p.instructions,
+          })),
       };
 
-      await courseApi.addEncounter(targetCourseId, payload);
+      const enc = await courseApi.addEncounter(targetCourseId, payload);
+
+      // 2b. Add referral if enabled
+      if (enableReferral) {
+        try {
+          await referralApi.create({
+            courseId: targetCourseId,
+            encounterId: enc?.id || null,
+            toHospitalId: parseInt(referralHospitalId) || 1,
+            targetDepartment: referralDept || 'General Medicine',
+            reason: referralReason || chiefComplaint || 'Specialist Consultation',
+            priorityTier: 'urgent_7d',
+            referredDoctorId: null,
+          });
+        } catch (refErr) {
+          console.warn('Referral creation notice:', refErr);
+        }
+      }
 
       // 3. Complete token in queue
       if (activeToken?.id) {
-        await queueApi.updateStatus(activeToken.id, 'completed', 'DOCTOR');
+        try {
+          await queueApi.updateStatus(activeToken.id, 'completed', 'DOCTOR');
+        } catch (qErr) {
+          console.warn('Token status completion notice:', qErr);
+        }
       }
 
       setShowSignedModal(true);

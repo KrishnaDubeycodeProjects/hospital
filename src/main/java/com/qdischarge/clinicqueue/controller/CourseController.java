@@ -41,8 +41,11 @@ public class CourseController {
     public ResponseEntity<Map<String, Object>> createCourse(@Valid @RequestBody CreateCourseRequest request) {
         int doctorId = currentUser.requireDoctorId();
         DoctorDto doctor = doctorService.getById(doctorId);
-        if (doctor == null || doctor.getHospitalId() == null) {
-            return ResponseEntity.badRequest().body(msg("Doctor must be affiliated with a hospital before creating courses."));
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(msg("Doctor profile not found."));
+        }
+        if (doctor.getHospitalId() == null) {
+            doctor = doctorService.linkHospital(doctorId, 1);
         }
         int hospitalId = doctor.getHospitalId();
 
@@ -94,8 +97,11 @@ public class CourseController {
             @Valid @RequestBody AddEncounterRequest request) {
         int doctorId = currentUser.requireDoctorId();
         DoctorDto doctor = doctorService.getById(doctorId);
-        if (doctor == null || doctor.getHospitalId() == null) {
-            return ResponseEntity.badRequest().body(msg("Doctor must be affiliated with a hospital before recording encounters."));
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(msg("Doctor profile not found."));
+        }
+        if (doctor.getHospitalId() == null) {
+            doctor = doctorService.linkHospital(doctorId, 1);
         }
         int hospitalId = doctor.getHospitalId();
 
@@ -117,8 +123,11 @@ public class CourseController {
             @RequestBody CompleteAndNextRequest request) {
         int doctorId = currentUser.requireDoctorId();
         DoctorDto doctor = doctorService.getById(doctorId);
-        if (doctor == null || doctor.getHospitalId() == null) {
-            return ResponseEntity.badRequest().body(msg("Doctor must be affiliated with a hospital before completing consultations."));
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(msg("Doctor profile not found."));
+        }
+        if (doctor.getHospitalId() == null) {
+            doctor = doctorService.linkHospital(doctorId, 1);
         }
         int hospitalId = doctor.getHospitalId();
 

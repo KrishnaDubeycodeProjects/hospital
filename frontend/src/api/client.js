@@ -202,6 +202,7 @@ export const doctorApi = {
   login: (phone) => post('/api/doctors/login', { phone }),
   joinHospital: (hospitalCode) => postD('/api/doctors/join-hospital', { hospitalCode }, authFor('DOCTOR')),
   me: () => getD('/api/doctors/me', authFor('DOCTOR')),
+  updateMyCounter: (payload) => putD('/api/doctors/me/counter', payload, authFor('DOCTOR')),
   myTimeSlots: () => getD('/api/doctors/me/time-slots', authFor('DOCTOR')),
   createAccessRequest: () => postD('/api/doctors/access-requests', {}, authFor('DOCTOR')),
   accessRequestQrUrl: (code) => `${API_URL}/api/doctors/access-requests/${encodeURIComponent(code)}/qr`,

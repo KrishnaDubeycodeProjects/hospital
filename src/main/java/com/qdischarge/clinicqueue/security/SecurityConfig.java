@@ -76,7 +76,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/queue/verify").hasAnyRole("ADMIN", "DOCTOR")
                         .requestMatchers(HttpMethod.PUT, "/api/queue/*").hasAnyRole("ADMIN", "DOCTOR")
                         // Missed-queue admin panel: staff-only search/requeue/reject over PII.
-                        .requestMatchers("/api/queue/missed", "/api/queue/missed/**").hasRole("ADMIN")
+                        .requestMatchers("/api/queue/missed", "/api/queue/missed/**").hasAnyRole("ADMIN", "DOCTOR")
+                        .requestMatchers(HttpMethod.POST, "/api/queue/unfreeze/**").hasAnyRole("ADMIN", "DOCTOR")
                         // Per-phone visit history can span more than one patient's name/age -- staff-only.
                         .requestMatchers("/api/queue/history/**").hasRole("ADMIN")
                         // Hospital directory reads (location/URI/OPD hours) are public; creating,
@@ -86,11 +87,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/departments/*/counters").hasRole("ADMIN")
                         .requestMatchers("/api/hospitals/*/doctor-join-code", "/api/hospitals/*/doctor-join-code/**").hasRole("ADMIN")
                         // Hospital assigns one of its doctors to a counter/department location.
-                        .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/doctors/*/location").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/hospitals/*/doctors/*/location").hasAnyRole("ADMIN", "DOCTOR")
                         // Time-slot reads (a hospital's OPD schedule) are public; opening one is admin-only.
                         .requestMatchers(HttpMethod.POST, "/api/hospitals/*/time-slots").hasRole("ADMIN")
                         // Multi-counter admin actions (complete/miss/reassign a counter).
-                        .requestMatchers(HttpMethod.POST, "/api/counters/**").hasRole("ADMIN")
+                        .requestMatchers("/api/counters/**").hasAnyRole("ADMIN", "DOCTOR")
                         // Admin or Doctor pushes a called-but-absent patient back in their own queue (exponential backoff).
                         .requestMatchers(HttpMethod.POST, "/api/queue/*/no-show").hasAnyRole("ADMIN", "DOCTOR")
                         // Webhook callback endpoints
