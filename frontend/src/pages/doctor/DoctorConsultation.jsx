@@ -370,7 +370,7 @@ export default function DoctorConsultation() {
     }
   }
 
-  // Load timeline for selected course
+  // Load timeline for selected course with resilient fallback
   async function loadCourseTimeline(courseId) {
     if (!courseId) {
       setCourseTimeline(null);
@@ -381,7 +381,13 @@ export default function DoctorConsultation() {
       const tl = await courseApi.timeline(courseId);
       setCourseTimeline(tl || null);
     } catch (e) {
-      setCourseTimeline(null);
+      console.warn('Timeline load error, attempting public fallback:', e);
+      try {
+        const pubTl = await courseApi.timeline(courseId, 'PUBLIC');
+        setCourseTimeline(pubTl || null);
+      } catch (err) {
+        setCourseTimeline(null);
+      }
     } finally {
       setLoadingTimeline(false);
     }
@@ -535,32 +541,61 @@ export default function DoctorConsultation() {
     }
   }
 
-  // Document preview helpers
+  // Document preview helpers with dual course & patient doc support
   async function openDocPreview(doc) {
+    if (!doc) return;
     setPreviewDoc(doc);
     setLoadingPreview(true);
     try {
-      const url = await fetchAsObjectUrl(doctorApi.patientDocumentFileUrl(doc.id), 'DOCTOR');
+      const fileUrl = (doc.isCourseDoc || doc.courseId)
+        ? courseApi.documentDownloadUrl(doc.courseId || selectedCourseId, doc.id)
+        : doctorApi.patientDocumentFileUrl(doc.id);
+      const url = await fetchAsObjectUrl(fileUrl, 'DOCTOR');
       setPreviewUrl(url);
     } catch (err) {
-      toast.error('Failed loading document preview: ' + err.message);
-      setPreviewDoc(null);
+      try {
+        const fallbackUrl = (doc.isCourseDoc || doc.courseId)
+          ? doctorApi.patientDocumentFileUrl(doc.id)
+          : courseApi.documentDownloadUrl(selectedCourseId || 1, doc.id);
+        const url2 = await fetchAsObjectUrl(fallbackUrl, 'DOCTOR');
+        setPreviewUrl(url2);
+      } catch (e) {
+        toast.error('Failed loading document preview: ' + (err.message || 'Error'));
+        setPreviewDoc(null);
+      }
     } finally {
       setLoadingPreview(false);
     }
   }
 
   async function downloadDoc(doc) {
+    if (!doc) return;
     try {
-      const url = await fetchAsObjectUrl(doctorApi.patientDocumentFileUrl(doc.id), 'DOCTOR');
+      const fileUrl = (doc.isCourseDoc || doc.courseId)
+        ? courseApi.documentDownloadUrl(doc.courseId || selectedCourseId, doc.id)
+        : doctorApi.patientDocumentFileUrl(doc.id);
+      const url = await fetchAsObjectUrl(fileUrl, 'DOCTOR');
       const a = document.createElement('a');
       a.href = url;
-      a.download = doc.fileName || `patient-document-${doc.id}.pdf`;
+      a.download = doc.fileName || `document-${doc.id}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     } catch (err) {
-      toast.error('Download failed: ' + err.message);
+      try {
+        const fallbackUrl = (doc.isCourseDoc || doc.courseId)
+          ? doctorApi.patientDocumentFileUrl(doc.id)
+          : courseApi.documentDownloadUrl(selectedCourseId || 1, doc.id);
+        const url2 = await fetchAsObjectUrl(fallbackUrl, 'DOCTOR');
+        const a2 = document.createElement('a');
+        a2.href = url2;
+        a2.download = doc.fileName || `document-${doc.id}.pdf`;
+        document.body.appendChild(a2);
+        a2.click();
+        document.body.removeChild(a2);
+      } catch (e) {
+        toast.error('Download failed: ' + (err.message || 'Error'));
+      }
     }
   }
 
@@ -704,7 +739,14 @@ export default function DoctorConsultation() {
       const effectiveHospId = profile?.hospitalId || 1;
       const effectiveCategory = profile?.category || 'General Medicine / Internal Medicine';
       queueApi.getQueue(effectiveHospId, effectiveCategory).then(setCurrentQueue).catch(() => {});
-      queueApi.current(effectiveHospId, effectiveCategory).then(setActiveToken).catch(() => {});
+      queueApi.current(effectiveHospId, effectiveCategory).then((cur) => {
+        setActiveToken((prev) => {
+          if (!cur && !prev) return null;
+          if (cur?.id === prev?.id && cur?.status === prev?.status) return prev;
+          if (!prev && cur && cur.status === 'serving') return cur;
+          return prev;
+        });
+      }).catch(() => {});
     }, 5000);
     return () => clearInterval(timer);
   }, [profile?.hospitalId, profile?.category]);
@@ -1799,207 +1841,260 @@ export default function DoctorConsultation() {
                 </div>
 
                 {/* 2. UNLOCKED MEDICAL RECORDS & DOCUMENTS HUB */}
-                <div
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    borderRadius: '14px',
-                    border: '1px solid #E2E8F0',
-                    padding: '16px 20px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px', marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <FolderOpen size={16} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>
-                          Unlocked Patient Medical Hub
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#64748B' }}>
-                          Uploaded diagnostics, test reports &amp; previous prescriptions
-                        </div>
-                      </div>
-                    </div>
+                {(() => {
+                  const selectedCourse = patientCourses.find((c) => c.id === selectedCourseId);
+                  
+                  // Extract all prescriptions from the selected course encounters
+                  const coursePrescriptions = (courseTimeline?.encounters || []).flatMap((enc) =>
+                    (enc.prescriptions || []).map((rx) => ({
+                      ...rx,
+                      encounterDate: enc.createdAt || enc.visitDate,
+                      encounterDiagnosis: enc.diagnosis || enc.chiefComplaint,
+                      doctorName: enc.doctorName,
+                      hospitalName: enc.hospitalName,
+                    }))
+                  );
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => setRecordsHubTab('documents')}
-                          style={{
-                            border: 'none',
-                            background: recordsHubTab === 'documents' ? '#FFFFFF' : 'transparent',
-                            color: recordsHubTab === 'documents' ? '#0F172A' : '#64748B',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            fontWeight: 700,
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Uploaded Documents ({patientDocuments.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRecordsHubTab('prescriptions')}
-                          style={{
-                            border: 'none',
-                            background: recordsHubTab === 'prescriptions' ? '#FFFFFF' : 'transparent',
-                            color: recordsHubTab === 'prescriptions' ? '#0F172A' : '#64748B',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            fontWeight: 700,
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Prior Prescriptions ({courseTimeline?.encounters?.length || 0})
-                        </button>
-                      </div>
+                  // Extract all documents from the selected course (standalone + encounters)
+                  const courseDocs = [
+                    ...(courseTimeline?.standaloneDocuments || []).map((d) => ({ ...d, isCourseDoc: true, courseId: selectedCourseId })),
+                    ...(courseTimeline?.encounters || []).flatMap((enc) =>
+                      (enc.documents || []).map((d) => ({ ...d, isCourseDoc: true, courseId: selectedCourseId, encounterDate: enc.createdAt }))
+                    ),
+                  ];
 
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setUploadDocModalOpen(true)}
-                        style={{ fontSize: '11.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <Plus size={12} color="#25D366" />
-                        <span>Upload Report</span>
-                      </Button>
-                    </div>
-                  </div>
+                  // Combine with patient documents, avoiding duplicates by id
+                  const combinedDocs = [
+                    ...courseDocs,
+                    ...patientDocuments.filter((pd) => !courseDocs.some((cd) => cd.id === pd.id)),
+                  ];
 
-                  {/* Tab 1: Uploaded Documents */}
-                  {recordsHubTab === 'documents' && (
-                    <div>
-                      {loadingPatientDocs ? (
-                        <div style={{ padding: '14px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
-                          Loading patient documents...
-                        </div>
-                      ) : patientDocuments.length > 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '10px' }}>
-                          {patientDocuments.map((doc) => (
-                            <div
-                              key={doc.id}
-                              style={{
-                                padding: '10px 14px',
-                                borderRadius: '8px',
-                                border: '1px solid #E2E8F0',
-                                backgroundColor: '#F8FAFC',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                gap: '8px',
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                                <FileText size={18} color="#0284C7" style={{ flexShrink: 0 }} />
-                                <div style={{ overflow: 'hidden' }}>
-                                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {doc.fileName || 'Diagnostic Report'}
-                                  </div>
-                                  <div style={{ fontSize: '11px', color: '#64748B' }}>
-                                    {doc.docType || 'Medical Report'} • {fmtDateTime(doc.createdAt)}
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => openDocPreview(doc)}
-                                  style={{ padding: '4px 8px', fontSize: '11px', fontWeight: 700, color: '#0284C7' }}
-                                >
-                                  View
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => downloadDoc(doc)}
-                                  style={{ padding: '4px 8px', fontSize: '11px' }}
-                                >
-                                  <Download size={13} />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '18px 12px', color: '#64748B', fontSize: '12.5px' }}>
-                          No documents uploaded yet for this patient. Click <strong>+ Upload Report</strong> to attach lab results or case notes.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tab 2: Prior Prescriptions & Treatments */}
-                  {recordsHubTab === 'prescriptions' && (
-                    <div>
-                      {loadingTimeline ? (
-                        <div style={{ padding: '14px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
-                          Loading care course encounters...
-                        </div>
-                      ) : (courseTimeline?.encounters || []).length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {courseTimeline.encounters.map((enc, eIdx) => (
-                            <div
-                              key={enc.id || eIdx}
-                              style={{
-                                padding: '10px 14px',
-                                borderRadius: '8px',
-                                border: '1px solid #E2E8F0',
-                                backgroundColor: '#F8FAFC',
-                              }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#0F172A' }}>
-                                  Encounter #{eIdx + 1}: {enc.diagnosis || 'Clinical Consultation'}
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: '14px',
+                        border: '1.5px solid #E2E8F0',
+                        padding: '18px 20px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                      }}
+                    >
+                      {/* Hub Header & Navigation Controls */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid #F1F5F9', paddingBottom: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <FolderOpen size={18} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>Medical Records &amp; Course History</span>
+                              {selectedCourse && (
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0' }}>
+                                  {selectedCourse.title || `Episode #${selectedCourse.id}`}
                                 </span>
-                                <span style={{ fontSize: '11px', color: '#64748B' }}>
-                                  {fmtDateTime(enc.createdAt)} • {enc.hospitalName || 'OPD'}
-                                </span>
-                              </div>
-                              {enc.prescriptions && enc.prescriptions.length > 0 ? (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                                  {enc.prescriptions.map((rx, rIdx) => (
-                                    <span
-                                      key={rIdx}
-                                      style={{
-                                        fontSize: '11px',
-                                        backgroundColor: '#FFFFFF',
-                                        border: '1px solid #CBD5E1',
-                                        padding: '2px 8px',
-                                        borderRadius: '4px',
-                                        color: '#334155',
-                                      }}
-                                    >
-                                      💊 {rx.medicineName || rx.drugName} ({rx.dosage || rx.dose}) - {rx.frequency}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                                  Clinical advice given. No separate medications prescribed.
-                                </div>
                               )}
                             </div>
-                          ))}
+                            <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px' }}>
+                              Selected care course prescriptions, encounter history &amp; uploaded diagnostic reports
+                            </div>
+                          </div>
                         </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '18px 12px', color: '#64748B', fontSize: '12.5px' }}>
-                          No prior encounters recorded yet in this care episode.
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setRecordsHubTab('prescriptions')}
+                              style={{
+                                border: 'none',
+                                background: recordsHubTab === 'prescriptions' ? '#FFFFFF' : 'transparent',
+                                color: recordsHubTab === 'prescriptions' ? '#0F172A' : '#64748B',
+                                padding: '5px 12px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                fontSize: '12.5px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <Pill size={13} color="#25D366" />
+                              <span>Course Prescriptions ({coursePrescriptions.length})</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRecordsHubTab('documents')}
+                              style={{
+                                border: 'none',
+                                background: recordsHubTab === 'documents' ? '#FFFFFF' : 'transparent',
+                                color: recordsHubTab === 'documents' ? '#0F172A' : '#64748B',
+                                padding: '5px 12px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                fontSize: '12.5px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                              }}
+                            >
+                              <FileText size={13} color="#0284C7" />
+                              <span>Documents &amp; Reports ({combinedDocs.length})</span>
+                            </button>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setUploadDocModalOpen(true)}
+                            style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Plus size={13} color="#25D366" />
+                            <span>+ Upload Report</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* TAB 1: SELECTED COURSE PRESCRIPTIONS */}
+                      {recordsHubTab === 'prescriptions' && (
+                        <div>
+                          {loadingTimeline ? (
+                            <div style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                              <Spinner size="sm" />
+                              <span style={{ marginLeft: '8px' }}>Loading course prescription history...</span>
+                            </div>
+                          ) : coursePrescriptions.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '10px' }}>
+                                {coursePrescriptions.map((rx, rIdx) => (
+                                  <div
+                                    key={rx.id || rIdx}
+                                    style={{
+                                      padding: '12px 14px',
+                                      borderRadius: '10px',
+                                      border: '1.5px solid #DCFCE7',
+                                      backgroundColor: '#F0FDF4',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Pill size={15} color="#15803D" />
+                                        <span style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A' }}>
+                                          {rx.medicineName || rx.drugName || 'Prescribed Medicine'}
+                                        </span>
+                                      </div>
+                                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#FFFFFF', color: '#15803D', border: '1px solid #86EFAC' }}>
+                                        {rx.dosage || rx.dose || 'Standard Dose'}
+                                      </span>
+                                    </div>
+
+                                    <div style={{ fontSize: '12px', color: '#334155', display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '2px' }}>
+                                      <span><strong>Frequency:</strong> {rx.frequency || 'As advised'}</span>
+                                      {rx.durationDays && <span><strong>Duration:</strong> {rx.durationDays} days</span>}
+                                      {rx.route && <span><strong>Route:</strong> {rx.route}</span>}
+                                    </div>
+
+                                    {rx.instructions && (
+                                      <div style={{ fontSize: '11.5px', color: '#64748B', fontStyle: 'italic', marginTop: '2px' }}>
+                                        Instructions: {rx.instructions}
+                                      </div>
+                                    )}
+
+                                    <div style={{ fontSize: '11px', color: '#94A3B8', borderTop: '1px dashed #BBF7D0', paddingTop: '6px', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                                      <span>Prescribed: {fmtDateTime(rx.encounterDate || rx.createdAt)}</span>
+                                      {rx.doctorName && <span>Dr. {rx.doctorName}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '24px 16px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1', color: '#64748B', fontSize: '13px' }}>
+                              No prescriptions recorded yet in this care episode. Use the prescription builder below to issue medications.
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* TAB 2: COURSE & PATIENT DOCUMENTS */}
+                      {recordsHubTab === 'documents' && (
+                        <div>
+                          {loadingPatientDocs || loadingTimeline ? (
+                            <div style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                              <Spinner size="sm" />
+                              <span style={{ marginLeft: '8px' }}>Loading patient documents and reports...</span>
+                            </div>
+                          ) : combinedDocs.length > 0 ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '10px' }}>
+                              {combinedDocs.map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  style={{
+                                    padding: '12px 14px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #E2E8F0',
+                                    backgroundColor: '#F8FAFC',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '10px',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                                    <FileText size={20} color="#0284C7" style={{ flexShrink: 0 }} />
+                                    <div style={{ overflow: 'hidden' }}>
+                                      <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {doc.fileName || 'Diagnostic Report'}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                        {doc.docType || 'Medical Report'} • {fmtDateTime(doc.createdAt || doc.encounterDate)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => openDocPreview(doc)}
+                                      style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 700, color: '#0284C7' }}
+                                    >
+                                      View
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => downloadDoc(doc)}
+                                      style={{ padding: '4px 8px', fontSize: '11.5px' }}
+                                      title="Download File"
+                                    >
+                                      <Download size={14} />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ textAlign: 'center', padding: '24px 16px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1', color: '#64748B', fontSize: '13px' }}>
+                              No documents uploaded yet for this patient or course. Click <strong>+ Upload Report</strong> to attach diagnostic files.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
+                  );
+                })()}
               </div>
             )}
             </>
           ) : (
-            /* Empty Station Prompt (Directs user to Station Stats to call a patient) */
+            /* Empty Station Prompt (Directs user to Queue to call a patient) */
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -2013,26 +2108,20 @@ export default function DoctorConsultation() {
               <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: '#F0FDF4', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
                 <Stethoscope size={28} />
               </div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>
-                Counter #{profile?.counterId || 1} &bull; No Active Consultation
-              </h3>
-              <p style={{ margin: '0 0 20px', fontSize: '13.5px', color: '#64748B', maxWidth: '480px', marginInline: 'auto' }}>
-                Patient queue calling and station controls are managed in <strong>Queue</strong>. Switch to Queue to call the next waiting patient to this counter.
+              <h2 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>
+                No Patient Currently in Consultation
+              </h2>
+              <p style={{ margin: '0 auto 18px', fontSize: '13px', color: '#64748B', maxWidth: '440px', lineHeight: 1.5 }}>
+                Calling and queue controls are managed in <strong>Queue</strong>. Switch to Queue to call the next waiting patient to this counter.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
                 <Button
+                  variant="primary"
                   onClick={() => setActiveTab('stats')}
-                  style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
+                  style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}
                 >
-                  <BarChart3 size={15} />
+                  <Clock size={14} style={{ marginRight: '6px' }} />
                   <span>Open Queue</span>
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => handleAddTestPatient('serving')}
-                  style={{ fontWeight: 700 }}
-                >
-                  + Consult Test Patient Now
                 </Button>
               </div>
             </div>

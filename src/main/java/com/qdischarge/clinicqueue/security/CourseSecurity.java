@@ -117,18 +117,24 @@ public class CourseSecurity {
             }
 
             // 3. Active consent / access grant check for this doctor
-            Integer grantCount = jdbc.queryForObject(
-                    """
-                    SELECT COUNT(*) FROM access_grants ag
-                    JOIN courses c ON ag.patient_phone = c.patient_phone
-                    WHERE c.id = :courseId
-                      AND ag.doctor_id = :doctorId
-                      AND ag.revoked_at IS NULL
-                    """,
-                    Map.of("courseId", courseId, "doctorId", doctorId),
-                    Integer.class);
-            if (grantCount != null && grantCount > 0) {
-                return true;
+            List<String> cPhones = jdbc.query(
+                    "SELECT patient_phone FROM courses WHERE id = :courseId",
+                    Map.of("courseId", courseId),
+                    (rs, i) -> rs.getString("patient_phone"));
+            if (!cPhones.isEmpty() && cPhones.get(0) != null) {
+                List<String> phones = getPhoneVariants(cPhones.get(0));
+                Integer grantCount = jdbc.queryForObject(
+                        """
+                        SELECT COUNT(*) FROM access_grants ag
+                        WHERE ag.doctor_id = :doctorId
+                          AND ag.patient_phone IN (:phones)
+                          AND ag.revoked_at IS NULL
+                        """,
+                        Map.of("phones", phones, "doctorId", doctorId),
+                        Integer.class);
+                if (grantCount != null && grantCount > 0) {
+                    return true;
+                }
             }
 
             // 4. Hospital facility check: doctors at the hospital where the course is conducted
