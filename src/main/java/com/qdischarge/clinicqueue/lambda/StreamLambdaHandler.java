@@ -29,8 +29,26 @@ public class StreamLambdaHandler implements RequestStreamHandler {
         try {
             log.info("🚀 Bootstrapping Spring Boot 3 on AWS Lambda (HTTP API v2 / Function URL mode)...");
             LambdaContainerHandler.getObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            LambdaContainerHandler.getContainerConfig().addBinaryContentTypes(
+                    "multipart/form-data",
+                    "application/octet-stream",
+                    "application/pdf",
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/webp"
+            );
             handler = SpringBootLambdaContainerHandler.getHttpApiV2ProxyHandler(ClinicQueueApplication.class);
             LambdaContainerHandler.getObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            LambdaContainerHandler.getContainerConfig().addBinaryContentTypes(
+                    "multipart/form-data",
+                    "application/octet-stream",
+                    "application/pdf",
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/webp"
+            );
             log.info("✅ Spring Boot 3 initialized successfully on AWS Lambda!");
         } catch (ContainerInitializationException e) {
             log.error("❌ Could not initialize Spring Boot application for AWS Lambda", e);

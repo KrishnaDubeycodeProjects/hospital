@@ -462,11 +462,12 @@ public class CourseService {
         params.put("fileHash", stored.fileHash());
         params.put("doctorId", doctorId);
         params.put("notes", notes);
+        params.put("fileData", file.getBytes());
 
         Integer id = jdbc.queryForObject(
                 """
-                INSERT INTO course_documents (course_id, encounter_id, doc_type, file_name, content_type, file_size, storage_path, file_hash, uploaded_by_doctor_id, notes)
-                VALUES (:courseId, :encounterId, :docType, :fileName, :contentType, :fileSize, :storagePath, :fileHash, :doctorId, :notes)
+                INSERT INTO course_documents (course_id, encounter_id, doc_type, file_name, content_type, file_size, storage_path, file_hash, uploaded_by_doctor_id, notes, file_data)
+                VALUES (:courseId, :encounterId, :docType, :fileName, :contentType, :fileSize, :storagePath, :fileHash, :doctorId, :notes, :fileData)
                 RETURNING id
                 """,
                 params, Integer.class);
@@ -735,7 +736,11 @@ public class CourseService {
         Map<String, Object> row = rows.get(0);
         String storagePath = (String) row.get("storage_path");
         if (storagePath != null && !storagePath.isBlank()) {
-            return documentStorageService.loadFile(storagePath);
+            try {
+                return documentStorageService.loadFile(storagePath);
+            } catch (Exception e) {
+                log.warn("Could not load course doc {} from storage path {}, falling back to bytea", id, storagePath);
+            }
         }
         byte[] legacyData = (byte[]) row.get("file_data");
         if (legacyData != null) {

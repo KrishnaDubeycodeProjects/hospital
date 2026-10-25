@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -46,6 +47,7 @@ public class DoctorController {
     private final QrCodeService qrCodeService;
     private final TimeSlotService timeSlotService;
     private final HospitalService hospitalService;
+    private final NamedParameterJdbcTemplate jdbc;
     private final CurrentUser currentUser;
 
     @PostMapping("/register")
@@ -203,6 +205,62 @@ public class DoctorController {
     }
 
     /** Download one document's image -- only if this doctor currently has active access to that patient's phone. */
+    private boolean hasDoctorQueueOrCourseAccess(int doctorId, String patientPhone) {
+        if (patientPhone == null || patientPhone.isBlank()) {
+            return false;
+        }
+        String cleanPhone = PhoneNormalizer.normalize(patientPhone);
+        String rawDigits = cleanPhone.replaceAll("[^0-9]", "");
+        String last10 = rawDigits.length() >= 10 ? rawDigits.substring(rawDigits.length() - 10) : rawDigits;
+
+        try {
+            // Check if patient has a token assigned to doctor or in doctor's department/hospital
+            Integer tokenCount = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM tokens 
+                WHERE (assigned_doctor_id = :doctorId OR doctor_id = :doctorId)
+                  AND (phone = :cleanPhone OR phone LIKE :suffix)
+                """,
+                Map.of("doctorId", doctorId, "cleanPhone", cleanPhone, "suffix", "%" + last10),
+                Integer.class);
+            if (tokenCount != null && tokenCount > 0) {
+                return true;
+            }
+
+            // Check if patient has an active continuation course assigned to doctor
+            Integer courseCount = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM courses 
+                WHERE assigned_doctor_id = :doctorId 
+                  AND (patient_phone = :cleanPhone OR patient_phone LIKE :suffix)
+                """,
+                Map.of("doctorId", doctorId, "cleanPhone", cleanPhone, "suffix", "%" + last10),
+                Integer.class);
+            if (courseCount != null && courseCount > 0) {
+                return true;
+            }
+
+            // Check if doctor and patient are at the same hospital
+            DoctorDto doctor = doctorService.getById(doctorId);
+            if (doctor != null && doctor.getHospitalId() != null) {
+                Integer hospTokenCount = jdbc.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM tokens 
+                    WHERE hospital_id = :hospitalId
+                      AND (phone = :cleanPhone OR phone LIKE :suffix)
+                    """,
+                    Map.of("hospitalId", doctor.getHospitalId(), "cleanPhone", cleanPhone, "suffix", "%" + last10),
+                    Integer.class);
+                if (hospTokenCount != null && hospTokenCount > 0) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore and fall through to return false
+        }
+        return false;
+    }
+
     @GetMapping("/patients/documents/{docId}/file")
     public ResponseEntity<?> patientDocumentFile(@PathVariable int docId) {
         int doctorId = currentUser.requireDoctorId();
@@ -213,16 +271,22 @@ public class DoctorController {
         List<String> allowedPhones = accessService.listActivePatientPhonesForDoctor(doctorId);
         boolean hasAccess = allowedPhones.stream().anyMatch(p -> PhoneNormalizer.matches(p, meta.getPatientPhone()));
         if (!hasAccess) {
+            hasAccess = hasDoctorQueueOrCourseAccess(doctorId, meta.getPatientPhone());
+        }
+        if (!hasAccess) {
             return ResponseEntity.status(403).body(msg("You don't currently have access to this patient's records."));
         }
         PatientDocumentService.FileContent file = patientDocumentService.getFile(docId);
+        if (file == null || file.data() == null) {
+            return ResponseEntity.status(404).body(msg("Document file content not found."));
+        }
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(file.contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName()).build().toString())
+                .contentType(MediaType.parseMediaType(file.contentType() != null ? file.contentType() : "application/octet-stream"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName() != null ? file.fileName() : "document").build().toString())
                 .body(file.data());
     }
 
-    /** Upload a prescription or medical report for a patient (if doctor currently has active access). */
+    /** Revoke a patient's access grant */
     @PostMapping("/patients/revoke-access")
     public ResponseEntity<Map<String, Object>> revokeAccess(@RequestBody Map<String, String> body) {
         String phone = body.get("phone");
@@ -236,24 +300,66 @@ public class DoctorController {
 
     @PostMapping(value = "/patients/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadPatientDocument(
-            @RequestParam("patientPhone") String patientPhone,
+            @RequestParam(value = "patientPhone", required = false) String patientPhone,
             @RequestParam(name = "patientName", required = false) String patientName,
             @RequestParam(name = "patientAge", required = false) Integer patientAge,
             @RequestParam(name = "docType", required = false, defaultValue = "lab_report") String docType,
-            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            jakarta.servlet.http.HttpServletRequest request) {
+        if (patientPhone == null || patientPhone.isBlank()) {
+            patientPhone = request.getParameter("patientPhone");
+        }
+        if (patientPhone == null || patientPhone.isBlank()) {
+            patientPhone = request.getHeader("X-Patient-Phone");
+        }
+        if (patientPhone == null || patientPhone.isBlank()) {
+            return ResponseEntity.badRequest().body(msg("Patient phone number is required for uploading documents."));
+        }
+        try {
+            patientPhone = java.net.URLDecoder.decode(patientPhone, java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (Exception ignored) {}
+
+        if (patientName == null || patientName.isBlank()) {
+            patientName = request.getParameter("patientName");
+        }
         if (patientName == null || patientName.isBlank()) {
             patientName = "Patient";
+        } else {
+            try {
+                patientName = java.net.URLDecoder.decode(patientName, java.nio.charset.StandardCharsets.UTF_8).trim();
+            } catch (Exception ignored) {}
         }
+
+        if (patientAge == null) {
+            String ageStr = request.getParameter("patientAge");
+            if (ageStr != null && !ageStr.isBlank()) {
+                try {
+                    patientAge = Integer.parseInt(ageStr.trim());
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        if (docType == null || docType.isBlank()) {
+            docType = request.getParameter("docType");
+            if (docType == null || docType.isBlank()) {
+                docType = "lab_report";
+            }
+        }
+
+        final String finalPhone = patientPhone;
         int doctorId = currentUser.requireDoctorId();
         List<String> allowedPhones = accessService.listActivePatientPhonesForDoctor(doctorId);
-        boolean hasAccess = allowedPhones.stream().anyMatch(p -> PhoneNormalizer.matches(p, patientPhone));
+        boolean hasAccess = allowedPhones.stream().anyMatch(p -> PhoneNormalizer.matches(p, finalPhone));
+        if (!hasAccess) {
+            hasAccess = hasDoctorQueueOrCourseAccess(doctorId, finalPhone);
+        }
         if (!hasAccess) {
             return ResponseEntity.status(403).body(msg("You don't currently have active access to this patient's records."));
         }
         try {
             DoctorDto doctor = doctorService.getById(doctorId);
             PatientDocumentDto doc = patientDocumentService.upload(
-                    patientPhone, patientName, patientAge, docType,
+                    finalPhone, patientName, patientAge, docType,
                     doctor != null ? doctor.getHospitalId() : null, doctorId, file);
             return ResponseEntity.ok(ok(doc));
         } catch (Exception e) {

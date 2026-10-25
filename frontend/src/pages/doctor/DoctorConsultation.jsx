@@ -608,19 +608,38 @@ export default function DoctorConsultation() {
     }
     setUploadingDoc(true);
     try {
+      const targetPhone = activeToken?.phone || selectedCourse?.patientPhone || '+919100000099';
+      const targetName = activeToken?.name || selectedCourse?.patientName || 'Patient';
+      const targetAge = activeToken?.age || selectedCourse?.patientAge;
+
       const formData = new FormData();
-      formData.append('patientPhone', activeToken?.phone || '+919100000099');
-      formData.append('patientName', activeToken?.name || 'Patient');
-      if (activeToken?.age) formData.append('patientAge', activeToken.age);
+      formData.append('patientPhone', targetPhone);
+      formData.append('patientName', targetName);
+      if (targetAge) formData.append('patientAge', targetAge);
       formData.append('docType', uploadDocType || 'lab_report');
       formData.append('file', uploadDocFile);
 
       await doctorApi.uploadPatientDocument(formData);
+
+      // If viewing a care course, also upload to course documents so it's tied to the course timeline
+      if (activeCourseId) {
+        try {
+          const cFd = new FormData();
+          cFd.append('docType', uploadDocType || 'Other');
+          if (uploadDocDescription) cFd.append('notes', uploadDocDescription);
+          cFd.append('file', uploadDocFile);
+          await courseApi.uploadDocument(activeCourseId, cFd);
+          await loadCourseTimeline(activeCourseId);
+        } catch (cErr) {
+          console.warn('Course document attachment notice:', cErr);
+        }
+      }
+
       toast.success('Document uploaded to patient record successfully!');
       setUploadDocModalOpen(false);
       setUploadDocFile(null);
       setUploadDocDescription('');
-      loadPatientDocuments(activeToken?.phone);
+      loadPatientDocuments(targetPhone);
     } catch (err) {
       toast.error(err.message || 'Failed to upload document');
     } finally {

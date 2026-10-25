@@ -45,6 +45,18 @@ export function authFor(role) {
   return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 }
 
+function extractFormDataParams(formData, extraParams = {}) {
+  const params = { ...extraParams };
+  if (typeof FormData !== 'undefined' && formData instanceof FormData) {
+    for (const [key, val] of formData.entries()) {
+      if (typeof val === 'string') {
+        params[key] = val;
+      }
+    }
+  }
+  return params;
+}
+
 /** Decodes a JWT's payload without verifying the signature (verification is the server's job) -- just for reading role/subject/exp client-side. */
 export function decodeJwt(token) {
   try {
@@ -213,7 +225,7 @@ export const doctorApi = {
   uploadPatientDocument: (formData) =>
     postD('/api/doctors/patients/documents/upload', formData, {
       ...authFor('DOCTOR'),
-      headers: { ...authFor('DOCTOR').headers, 'Content-Type': 'multipart/form-data' },
+      params: extractFormDataParams(formData),
     }),
   revokePatientAccess: (phone) => postD('/api/doctors/patients/revoke-access', { phone }, authFor('DOCTOR')),
 };
@@ -226,7 +238,7 @@ export const patientApi = {
   uploadDocument: (formData) =>
     postD('/api/patients/documents', formData, {
       ...authFor('PATIENT'),
-      headers: { ...authFor('PATIENT').headers, 'Content-Type': 'multipart/form-data' },
+      params: extractFormDataParams(formData),
     }),
   documents: () => getD('/api/patients/documents', authFor('PATIENT')),
   publicDocuments: (phone) => getD('/api/patients/public/documents', { params: { phone } }),
@@ -253,7 +265,7 @@ export const courseApi = {
   uploadDocument: (id, formData) =>
     postD(`/api/courses/${id}/documents`, formData, {
       ...authFor('DOCTOR'),
-      headers: { ...authFor('DOCTOR').headers, 'Content-Type': 'multipart/form-data' },
+      params: extractFormDataParams(formData),
     }),
   documentDownloadUrl: (id, docId) => `${API_URL}/api/courses/${id}/documents/${docId}/download`,
   close: (id) => postD(`/api/courses/${id}/close`, {}, authFor('DOCTOR')),

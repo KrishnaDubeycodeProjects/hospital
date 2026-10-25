@@ -74,14 +74,15 @@ public class PatientDocumentService {
         params.put("fileSize", (int) storedFile.fileSize());
         params.put("storagePath", storedFile.storagePath());
         params.put("fileHash", storedFile.fileHash());
+        params.put("fileData", file.getBytes());
 
         Integer id = jdbc.queryForObject(
                 """
                 INSERT INTO patient_documents (patient_phone, patient_name, patient_age, doc_type, hospital_id,
                                               uploaded_by_doctor_id, file_name, content_type, file_size,
-                                              storage_path, file_hash)
+                                              storage_path, file_hash, file_data)
                 VALUES (:phone, :name, :age, :docType, :hospitalId, :uploadedByDoctorId,
-                        :fileName, :contentType, :fileSize, :storagePath, :fileHash)
+                        :fileName, :contentType, :fileSize, :storagePath, :fileHash, :fileData)
                 RETURNING id
                 """, params, Integer.class);
 
@@ -196,15 +197,15 @@ public class PatientDocumentService {
         String contentType = (String) r.get("content_type");
         String fileName = (String) r.get("file_name");
 
-        byte[] data;
+        byte[] data = null;
         if (storagePath != null && !storagePath.isBlank()) {
             try {
                 data = documentStorageService.loadFile(storagePath);
-            } catch (IOException e) {
-                // Fallback to legacy file_data BYTEA if file missing on disk
-                data = (byte[]) r.get("file_data");
+            } catch (Exception e) {
+                log.warn("Could not load document {} from storage path {}, falling back to bytea", id, storagePath);
             }
-        } else {
+        }
+        if (data == null || data.length == 0) {
             data = (byte[]) r.get("file_data");
         }
 
