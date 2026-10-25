@@ -622,14 +622,14 @@ export default function DoctorConsultation() {
       await doctorApi.uploadPatientDocument(formData);
 
       // If viewing a care course, also upload to course documents so it's tied to the course timeline
-      if (activeCourseId) {
+      if (selectedCourseId) {
         try {
           const cFd = new FormData();
           cFd.append('docType', uploadDocType || 'Other');
           if (uploadDocDescription) cFd.append('notes', uploadDocDescription);
           cFd.append('file', uploadDocFile);
-          await courseApi.uploadDocument(activeCourseId, cFd);
-          await loadCourseTimeline(activeCourseId);
+          await courseApi.uploadDocument(selectedCourseId, cFd);
+          await loadCourseTimeline(selectedCourseId);
         } catch (cErr) {
           console.warn('Course document attachment notice:', cErr);
         }
