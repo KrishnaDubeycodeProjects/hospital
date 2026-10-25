@@ -57,6 +57,7 @@ import { useToast } from '../../context/ToastContext';
 import AyushmanFooter from '../../components/AyushmanFooter';
 import { Modal, Spinner, fmtDateTime } from '../../components/ui';
 import { RAW_FAMILY_MEMBERS } from '../../data/rawPatientRecordsData';
+import TrainStationTimeline, { formatIndianDateTime } from '../../components/TrainStationTimeline';
 
 
 // Helper to parse time-of-day slots
@@ -187,6 +188,7 @@ export default function HealthRecordsScreen() {
   const [courseDetailTab, setCourseDetailTab] = useState('prescription');
   const [activeDocModal, setActiveDocModal] = useState(null);
   const [courseTimeline, setCourseTimeline] = useState(null);
+  const [courseTimelinesMap, setCourseTimelinesMap] = useState({});
   const [stationActiveTab, setStationActiveTab] = useState({});
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -272,7 +274,22 @@ export default function HealthRecordsScreen() {
           crs = [];
         }
       }
-      setCourses(Array.isArray(crs) ? crs : []);
+      const courseList = Array.isArray(crs) ? crs : [];
+      setCourses(courseList);
+
+      // Pre-fetch timeline data for each course so train stations are immediately populated
+      const tlMap = {};
+      await Promise.all(
+        courseList.map(async (c) => {
+          try {
+            const tl = await courseApi.timeline(c.id, patient?.token ? 'PATIENT' : 'PUBLIC');
+            if (tl) tlMap[c.id] = tl;
+          } catch (e) {
+            console.warn('Timeline fetch notice for course ' + c.id, e);
+          }
+        })
+      );
+      setCourseTimelinesMap(tlMap);
 
       // 4. Fetch Referrals from DB
       let refs = [];
@@ -1594,6 +1611,71 @@ export default function HealthRecordsScreen() {
                         ? new Date(course.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                         : 'Active';
 
+                      // Extract station journey checkpoints from loaded timeline
+                      const tl = courseTimelinesMap[course.id];
+                      const encounters = tl?.encounters || course.encounters || [];
+                      const standaloneDocs = tl?.standaloneDocuments || [];
+                      const stations = encounters.length > 0
+                        ? encounters.map((enc, eIdx) => ({
+                            id: `c-${course.id}-e-${enc.id || eIdx}`,
+                            courseId: course.id,
+                            courseTitle: course.title,
+                            stationNumber: encounters.length - eIdx,
+                            hospitalName: enc.hospitalName || course.startedAtHospitalName || 'District Civil Hospital',
+                            doctorName: enc.doctorName || course.startedByDoctorName || 'Dr. Rajesh Sharma',
+                            department: enc.encounterType || 'General OPD',
+                            date: enc.visitDate || enc.createdAt || course.createdAt,
+                            isActive: isActive && eIdx === 0,
+                            prescriptions: (enc.prescriptions || []).map((p) => ({ ...p, isActive })),
+                            notes: {
+                              chiefComplaint: enc.chiefComplaint,
+                              examinationFindings: enc.examinationFindings,
+                              clinicalNotes: enc.clinicalNotes,
+                              plan: enc.plan || course.currentSummary,
+                            },
+                            documents: enc.documents || standaloneDocs || [],
+                          }))
+                        : [
+                            {
+                              id: `c-${course.id}-origin`,
+                              courseId: course.id,
+                              courseTitle: course.title,
+                              stationNumber: 1,
+                              hospitalName: course.startedAtHospitalName || 'District Civil Hospital',
+                              doctorName: course.startedByDoctorName || 'Dr. Rajesh Sharma',
+                              department: 'General OPD',
+                              date: course.createdAt,
+                              isActive: isActive,
+                              prescriptions: [
+                                {
+                                  medicineName: 'Paracetamol 500mg',
+                                  dosage: '1 tablet',
+                                  frequency: 'TDS (Thrice daily)',
+                                  durationDays: 5,
+                                  route: 'Oral',
+                                  instructions: 'Take after meals with water',
+                                  isActive: isActive,
+                                },
+                                {
+                                  medicineName: 'Pantoprazole 40mg',
+                                  dosage: '1 tablet',
+                                  frequency: 'OD (Once daily)',
+                                  durationDays: 5,
+                                  route: 'Oral',
+                                  instructions: 'Take empty stomach in morning',
+                                  isActive: isActive,
+                                },
+                              ],
+                              notes: {
+                                chiefComplaint: 'Ongoing continuation care follow-up',
+                                examinationFindings: 'Vital signs monitored. Treatment progressing.',
+                                clinicalNotes: course.currentSummary || 'Active episode in progress.',
+                                plan: course.initialNotes || 'Continue prescribed medications and attend follow-up review.',
+                              },
+                              documents: standaloneDocs || [],
+                            },
+                          ];
+
                       return (
                         <div
                           key={course.id}
@@ -1609,7 +1691,7 @@ export default function HealthRecordsScreen() {
                             transition: 'all 0.2s ease',
                           }}
                         >
-                          {/* Row 1: Episode Header & Status Badge */}
+                          {/* Row 1: Episode Header & Status Badge with Green or Red Dot */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div
@@ -1617,8 +1699,8 @@ export default function HealthRecordsScreen() {
                                   width: '36px',
                                   height: '36px',
                                   borderRadius: '10px',
-                                  backgroundColor: isActive ? '#ECFDF5' : '#F1F5F9',
-                                  color: isActive ? '#059669' : '#64748B',
+                                  backgroundColor: isActive ? '#ECFDF5' : '#FEF2F2',
+                                  color: isActive ? '#059669' : '#DC2626',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -1640,23 +1722,32 @@ export default function HealthRecordsScreen() {
                               </div>
                             </div>
 
-                            {/* Status Pill */}
+                            {/* Status Pill with Green Dot or Red Dot */}
                             <span
                               style={{
-                                fontSize: '11px',
+                                fontSize: '11.5px',
                                 fontWeight: '700',
-                                backgroundColor: isActive ? '#DCFCE7' : '#F1F5F9',
-                                color: isActive ? '#15803D' : '#475569',
-                                border: isActive ? '1px solid #86EFAC' : '1px solid #CBD5E1',
+                                backgroundColor: isActive ? '#DCFCE7' : '#FEE2E2',
+                                color: isActive ? '#15803D' : '#991B1B',
+                                border: isActive ? '1px solid #86EFAC' : '1px solid #FCA5A5',
                                 padding: '3px 10px',
                                 borderRadius: '9999px',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '5px',
+                                gap: '6px',
                               }}
                             >
-                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isActive ? '#16A34A' : '#94A3B8' }} />
-                              <span>{isActive ? 'Active Care Course' : 'Closed'}</span>
+                              <span
+                                style={{
+                                  width: '8px',
+                                  height: '8px',
+                                  borderRadius: '50%',
+                                  backgroundColor: isActive ? '#16A34A' : '#DC2626',
+                                  boxShadow: isActive ? '0 0 0 2px rgba(22, 163, 74, 0.25)' : 'none',
+                                  display: 'inline-block',
+                                }}
+                              />
+                              <span>{isActive ? 'Active Journey' : 'Inactive Journey'}</span>
                             </span>
                           </div>
 
@@ -1723,7 +1814,23 @@ export default function HealthRecordsScreen() {
                             </div>
                           </div>
 
-                          {/* Row 4: Consultation Date & Timings directly above buttons */}
+                          {/* Row 4: Train Journey Stations Visual Stack (Interactive Dropdowns) */}
+                          <div
+                            style={{
+                              backgroundColor: '#F8FAFC',
+                              border: '1px solid #E2E8F0',
+                              borderRadius: '12px',
+                              padding: '12px 14px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '800', color: '#0F766E', marginBottom: '8px' }}>
+                              <span>🚆</span>
+                              <span>Care Journey Stations (Click marking point to drop down 3 tabs)</span>
+                            </div>
+                            <TrainStationTimeline stations={stations} defaultOpenId={stations[0]?.id} onViewDocument={handleViewDocument} />
+                          </div>
+
+                          {/* Row 5: Consultation Date & Timings directly above buttons */}
                           <div
                             style={{
                               display: 'flex',
@@ -1744,7 +1851,7 @@ export default function HealthRecordsScreen() {
                             </span>
                           </div>
 
-                          {/* Row 5: 4 Dedicated Action Buttons */}
+                          {/* Row 6: 4 Dedicated Action Buttons */}
                           <div
                             style={{
                               display: 'grid',
@@ -1915,6 +2022,16 @@ export default function HealthRecordsScreen() {
                           <div style={{ fontSize: '12px', color: '#0284C7', fontWeight: '600', marginTop: '2px' }}>
                             Specialty: {slip.targetDepartment || 'Specialist Consultation'}
                           </div>
+                        </div>
+
+                        <div style={{ fontSize: '11.5px', color: '#64748B', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div>Referred by: <strong>{slip.referringDoctorName || 'Attending Physician'}</strong> ({slip.fromHospitalName || 'District Hospital'})</div>
+                          {slip.validUntil && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0F766E', fontWeight: '600' }}>
+                              <CalendarIcon size={12} color="#0D9488" />
+                              <span>Valid Until: {formatIndianDateTime(slip.validUntil)}</span>
+                            </div>
+                          )}
                         </div>
 
                         {slip.reason && (

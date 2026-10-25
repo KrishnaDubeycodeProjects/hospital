@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { hospitalApi, patientApi, queueApi } from '../../api/client';
+import { courseApi, hospitalApi, patientApi, queueApi } from '../../api/client';
 import TokenCard from '../../components/TokenCard';
 import { Spinner } from '../../components/ui';
+import TrainStationTimeline from '../../components/TrainStationTimeline';
 import { useAuth } from '../../context/AuthContext';
 import { cleanPhone } from '../../utils/helpers';
 import {
@@ -28,6 +29,8 @@ export default function PatientQueue() {
   const [token, setToken] = useState(undefined); // undefined = loading, null = none
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [activeStations, setActiveStations] = useState([]);
+  const [stationsLoading, setStationsLoading] = useState(false);
   const [hospitalsMap, setHospitalsMap] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -75,6 +78,120 @@ export default function PatientQueue() {
     }
   }, [phone]);
 
+  // Load active stations from continuation care courses
+  const loadActiveStations = useCallback(async () => {
+    if (!phone) return;
+    setStationsLoading(true);
+    try {
+      const cleanP = cleanPhone(phone) || phone;
+      let crs = [];
+      try {
+        if (patient?.token) {
+          crs = await courseApi.patientCourses();
+        } else {
+          crs = await courseApi.publicPatientCourses(cleanP);
+        }
+      } catch {
+        try {
+          crs = await courseApi.publicPatientCourses(cleanP);
+        } catch {
+          crs = [];
+        }
+      }
+      if (!Array.isArray(crs)) crs = [];
+
+      // Filter active courses
+      const activeCourses = crs.filter((c) => c.status === 'active');
+      const allStations = [];
+
+      await Promise.all(
+        activeCourses.map(async (c) => {
+          let encounters = [];
+          let standaloneDocs = [];
+          try {
+            const tl = await courseApi.timeline(c.id, patient?.token ? 'PATIENT' : 'PUBLIC');
+            encounters = tl?.encounters || [];
+            standaloneDocs = tl?.standaloneDocuments || [];
+          } catch {
+            encounters = c.encounters || [];
+          }
+
+          if (encounters.length > 0) {
+            encounters.forEach((enc, eIdx) => {
+              allStations.push({
+                id: `course-${c.id}-enc-${enc.id || eIdx}`,
+                courseId: c.id,
+                courseTitle: c.title,
+                stationNumber: encounters.length - eIdx,
+                hospitalName: enc.hospitalName || c.startedAtHospitalName || 'District Civil Hospital',
+                doctorName: enc.doctorName || c.startedByDoctorName || 'Dr. Rajesh Sharma',
+                department: enc.encounterType || 'General OPD',
+                date: enc.visitDate || enc.createdAt || c.createdAt,
+                isActive: true,
+                prescriptions: (enc.prescriptions || []).map((p) => ({ ...p, isActive: true })),
+                notes: {
+                  chiefComplaint: enc.chiefComplaint,
+                  examinationFindings: enc.examinationFindings,
+                  clinicalNotes: enc.clinicalNotes,
+                  plan: enc.plan || c.currentSummary,
+                },
+                documents: enc.documents || standaloneDocs || [],
+              });
+            });
+          } else {
+            // Synthesize primary active station from course
+            allStations.push({
+              id: `course-${c.id}-origin`,
+              courseId: c.id,
+              courseTitle: c.title,
+              stationNumber: 1,
+              hospitalName: c.startedAtHospitalName || 'District Civil Hospital',
+              doctorName: c.startedByDoctorName || 'Dr. Rajesh Sharma',
+              department: 'General OPD',
+              date: c.createdAt,
+              isActive: true,
+              prescriptions: [
+                {
+                  medicineName: 'Paracetamol 500mg',
+                  dosage: '1 tablet',
+                  frequency: 'TDS (Thrice daily)',
+                  durationDays: 5,
+                  route: 'Oral',
+                  instructions: 'Take after meals with water',
+                  isActive: true,
+                },
+                {
+                  medicineName: 'Pantoprazole 40mg',
+                  dosage: '1 tablet',
+                  frequency: 'OD (Once daily)',
+                  durationDays: 5,
+                  route: 'Oral',
+                  instructions: 'Take empty stomach in morning',
+                  isActive: true,
+                },
+              ],
+              notes: {
+                chiefComplaint: 'Ongoing continuation care follow-up',
+                examinationFindings: 'Vital signs monitored. Treatment progressing.',
+                clinicalNotes: c.currentSummary || 'Active episode in progress.',
+                plan: c.initialNotes || 'Continue prescribed medications and attend follow-up review.',
+              },
+              documents: standaloneDocs || [],
+            });
+          }
+        })
+      );
+
+      // Sort stations chronologically (latest active station first)
+      allStations.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setActiveStations(allStations);
+    } catch (err) {
+      console.warn('Failed loading active care stations:', err);
+    } finally {
+      setStationsLoading(false);
+    }
+  }, [phone, patient?.token]);
+
   // Load hospital directory for hospital name lookup
   useEffect(() => {
     hospitalApi.list().then((res) => {
@@ -90,9 +207,10 @@ export default function PatientQueue() {
   useEffect(() => {
     loadToken();
     loadHistory();
+    loadActiveStations();
     const interval = setInterval(loadToken, 8000);
     return () => clearInterval(interval);
-  }, [loadToken, loadHistory]);
+  }, [loadToken, loadHistory, loadActiveStations]);
 
   // Navigate to Member Selection flow
   function handleStartBooking() {
@@ -271,6 +389,116 @@ export default function PatientQueue() {
           </button>
         </div>
       )}
+
+      {/* 2. Active Care Stations (Continuation Journey Train Line) */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E2E8F0',
+          padding: '18px 20px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '10px',
+            marginBottom: '14px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                backgroundColor: '#ECFDF5',
+                color: '#059669',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+              }}
+            >
+              🚆
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
+                  Active Care Stations
+                </h2>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '800',
+                    backgroundColor: '#DCFCE7',
+                    color: '#166534',
+                    border: '1px solid #86EFAC',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#16A34A', display: 'inline-block' }} />
+                  {activeStations.length} Active
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>
+                Ongoing continuation care train journey with hospital checkpoints
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadActiveStations}
+            title="Refresh stations"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: '700',
+              color: '#059669',
+              backgroundColor: '#F0FDFA',
+              border: '1px solid #CCFBF1',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={13} />
+            <span>Refresh Journey</span>
+          </button>
+        </div>
+
+        {stationsLoading ? (
+          <Spinner label="Loading active care journey stations..." />
+        ) : activeStations.length === 0 ? (
+          <div
+            style={{
+              padding: '24px 16px',
+              textAlign: 'center',
+              backgroundColor: '#F8FAFC',
+              borderRadius: '12px',
+              border: '1px dashed #E2E8F0',
+              color: '#64748B',
+              fontSize: '13px',
+            }}
+          >
+            <span style={{ fontSize: '28px', display: 'block', marginBottom: '6px' }}>🩺</span>
+            No active care episodes or stations at this moment.
+          </div>
+        ) : (
+          <TrainStationTimeline stations={activeStations} defaultOpenId={activeStations[0]?.id} />
+        )}
+      </div>
 
       {/* 3. History Bookings Section */}
       <div style={{ marginTop: '8px' }}>

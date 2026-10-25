@@ -266,7 +266,12 @@ public class ReferralService {
                 LEFT JOIN hospitals fh ON r.from_hospital_id = fh.id
                 LEFT JOIN hospitals th ON r.to_hospital_id = th.id
                 LEFT JOIN doctors rd ON r.referred_doctor_id = rd.id
-                WHERE c.patient_phone IN (:phones)
+                WHERE (c.patient_phone IN (:phones)
+                   OR c.family_member_id IN (
+                       SELECT id FROM family_members WHERE family_unit_id IN (
+                           SELECT family_unit_id FROM family_members WHERE phone IN (:phones)
+                       )
+                   ))
                 ORDER BY r.created_at DESC
                 """,
                 Map.of("phones", phones), REFERRAL_MAPPER);
@@ -359,10 +364,22 @@ public class ReferralService {
     private static List<String> getPhoneVariants(String phone) {
         if (phone == null || phone.isBlank()) return List.of();
         String p = phone.trim();
+        try {
+            p = java.net.URLDecoder.decode(p, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception ignored) {}
         String digits = p.replaceAll("[^0-9]", "");
         if (digits.length() > 10) {
             digits = digits.substring(digits.length() - 10);
         }
-        return List.of(p, digits, "+91" + digits, "91" + digits);
+        java.util.LinkedHashSet<String> variants = new java.util.LinkedHashSet<>();
+        variants.add(phone.trim());
+        variants.add(p);
+        if (!digits.isBlank()) {
+            variants.add(digits);
+            variants.add("+91" + digits);
+            variants.add("91" + digits);
+            variants.add("%2B91" + digits);
+        }
+        return new java.util.ArrayList<>(variants);
     }
 }
