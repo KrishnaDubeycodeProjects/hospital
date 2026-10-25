@@ -85,6 +85,7 @@ public class TokenDto {
     // --- Dynamic Alphanumeric Token & Integer Queue Ordering ---
     private String tokenCode;
     private Integer queuePosition;
+    private Integer familyMemberId;
 
     /**
      * The number to actually show a patient in any "Token #N" message --

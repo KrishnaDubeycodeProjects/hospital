@@ -198,11 +198,9 @@ export default function HealthRecordsScreen() {
       }
 
       if (!Array.isArray(members) || members.length === 0) {
+        const primaryName = patient?.name || patient?.fullName || 'Self';
         members = [
-          { id: 1, name: 'Kavish Ahuja', relationship: 'Self', age: 24, gender: 'Male', abhaAddress: 'kavish@abdm', abhaNumber: '91-2808-1122-3344' },
-          { id: 2, name: 'Sonia Ahuja', relationship: 'Mother', age: 48, gender: 'Female', abhaAddress: 'sonia@abdm', abhaNumber: '91-3819-2233-4455' },
-          { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male', abhaAddress: 'subhash@abdm', abhaNumber: '91-4920-3344-5566' },
-          { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male', abhaAddress: 'ayush@abdm', abhaNumber: '91-5031-4455-6677' },
+          { id: 'primary-self', name: primaryName, relationship: 'Self', phone: activePhone }
         ];
       }
       setFamilyMembers(members);
@@ -474,32 +472,7 @@ export default function HealthRecordsScreen() {
       return vName === memberName || memberName.includes(vName) || vName.includes(memberName);
     });
 
-    if (dbFiltered.length > 0) return dbFiltered;
-
-    return [
-      {
-        id: 104,
-        tokenCode: 'AF-GM08',
-        category: 'General Medicine',
-        hospitalName: 'District Civil Hospital — OPD Desk 4',
-        doctorName: 'Dr. Vivek Verma (MD)',
-        status: 'completed',
-        servedAt: '2026-09-18T10:15:00',
-        completedAt: '2026-09-18T10:28:00',
-        name: selectedMember.name,
-      },
-      {
-        id: 92,
-        tokenCode: 'AF-PU03',
-        category: 'Pulmonology',
-        hospitalName: 'Safdarjung Hospital — Chest Clinic',
-        doctorName: 'Dr. Neha Sharma',
-        status: 'completed',
-        servedAt: '2026-08-02T11:40:00',
-        completedAt: '2026-08-02T11:55:00',
-        name: selectedMember.name,
-      },
-    ];
+    return dbFiltered;
   }, [selectedMember, visitHistory]);
 
   // Handle uploading document for a chosen family member

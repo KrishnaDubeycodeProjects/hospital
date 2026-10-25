@@ -6,6 +6,8 @@ import com.qdischarge.clinicqueue.bot.WaSessionService;
 import com.qdischarge.clinicqueue.catalog.MedicalCategory;
 import com.qdischarge.clinicqueue.config.AppProperties;
 import com.qdischarge.clinicqueue.dto.CreateTokenResult;
+import com.qdischarge.clinicqueue.dto.FamilyMemberDto;
+import com.qdischarge.clinicqueue.dto.FamilyUnitDto;
 import com.qdischarge.clinicqueue.dto.HospitalDto;
 import com.qdischarge.clinicqueue.dto.QueueData;
 import com.qdischarge.clinicqueue.dto.SetLocationRequest;
@@ -70,6 +72,7 @@ public class QueueManagerService {
     private final WaSessionService waSessionService;
     private final WhatsAppService whatsAppService;
     private final JwtService jwtService;
+    private final FamilyUnitService familyUnitService;
 
     private static final RowMapper<TokenDto> TOKEN_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenDto.class);
     private static final RowMapper<TokenHistoryDto> TOKEN_HISTORY_ROW_MAPPER = new BeanPropertyRowMapper<>(TokenHistoryDto.class);
@@ -188,14 +191,19 @@ public class QueueManagerService {
 
     public TokenDto getPatientPosition(String phone) {
         cleanExpiredTokens();
+        List<String> phones = getPhoneVariants(phone);
+        if (phones.isEmpty()) {
+            return null;
+        }
 
         String sql = """
                 SELECT * FROM tokens
-                WHERE (phone = :phone OR phone = '+' || :phone OR phone = REPLACE(:phone, '+', '') OR phone LIKE '%' || :phone)
-                  AND status IN ('waiting', 'serving')
+                WHERE phone IN (:phones)
+                  AND status IN ('waiting', 'serving', 'frozen')
+                ORDER BY created_at DESC
                 LIMIT 1
                 """;
-        List<TokenDto> rows = jdbc.query(sql, Map.of("phone", phone), TOKEN_ROW_MAPPER);
+        List<TokenDto> rows = jdbc.query(sql, Map.of("phones", phones), TOKEN_ROW_MAPPER);
         if (rows.isEmpty()) {
             return null;
         }
@@ -318,14 +326,19 @@ public class QueueManagerService {
 
     public TokenDto getActiveToken(String phone) {
         cleanExpiredTokens();
+        List<String> phones = getPhoneVariants(phone);
+        if (phones.isEmpty()) {
+            return null;
+        }
 
         String sql = """
                 SELECT * FROM tokens
-                WHERE (phone = :phone OR phone = '+' || :phone OR phone = REPLACE(:phone, '+', '') OR phone LIKE '%' || :phone)
+                WHERE phone IN (:phones)
                   AND status IN ('waiting', 'serving', 'registering_name', 'frozen')
+                ORDER BY created_at DESC
                 LIMIT 1
                 """;
-        List<TokenDto> rows = jdbc.query(sql, Map.of("phone", phone), TOKEN_ROW_MAPPER);
+        List<TokenDto> rows = jdbc.query(sql, Map.of("phones", phones), TOKEN_ROW_MAPPER);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -336,7 +349,33 @@ public class QueueManagerService {
     // token to "awaiting_category".
     // -----------------------------------------------------------------
 
-    public record KnownIdentity(String name, Integer age, String gender) {
+    public static List<String> getPhoneVariants(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return List.of();
+        }
+        String p = phone.trim();
+        String digits = p.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) {
+            digits = digits.substring(digits.length() - 10);
+        }
+        java.util.LinkedHashSet<String> variants = new java.util.LinkedHashSet<>();
+        variants.add(p);
+        try {
+            variants.add(java.net.URLDecoder.decode(p, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception ignored) {}
+        if (!digits.isEmpty()) {
+            variants.add(digits);
+            variants.add("+91" + digits);
+            variants.add("91" + digits);
+            variants.add("0" + digits);
+            variants.add("+91 " + digits);
+            variants.add("%2B91" + digits);
+            variants.add("%2B" + digits);
+        }
+        return new java.util.ArrayList<>(variants);
+    }
+
+    public record KnownIdentity(Integer familyMemberId, String name, Integer age, String gender) {
     }
 
     /**
@@ -348,19 +387,50 @@ public class QueueManagerService {
      * before.
      */
     private KnownIdentity findKnownIdentity(String phone) {
+        List<String> phones = getPhoneVariants(phone);
+        if (phones.isEmpty()) {
+            return null;
+        }
+
+        // 1. Centralized family repository check: Look up member from family_members/family_units
+        try {
+            String famSql = """
+                    SELECT m.id AS family_member_id, m.name, m.age, m.gender
+                    FROM family_members m
+                    JOIN family_units u ON m.family_unit_id = u.id
+                    WHERE u.primary_phone IN (:phones)
+                    ORDER BY CASE WHEN LOWER(COALESCE(m.relationship, '')) IN ('self', 'head') THEN 0 ELSE 1 END, m.id ASC
+                    LIMIT 1
+                    """;
+            List<KnownIdentity> famRows = jdbc.query(famSql, Map.of("phones", phones),
+                    (rs, i) -> new KnownIdentity((Integer) rs.getObject("family_member_id"),
+                            rs.getString("name"),
+                            (Integer) rs.getObject("age"),
+                            rs.getString("gender")));
+            if (!famRows.isEmpty() && famRows.get(0).name() != null && !famRows.get(0).name().isBlank() && !"Patient".equalsIgnoreCase(famRows.get(0).name())) {
+                return famRows.get(0);
+            }
+        } catch (Exception e) {
+            log.warn("Error querying family_members in findKnownIdentity: {}", e.getMessage());
+        }
+
+        // 2. Fall back to past visits or registrations
         String sql = """
-                SELECT name, age, gender FROM (
-                    SELECT name, age, gender, completed_at AS ts FROM token_history WHERE phone = :phone
+                SELECT family_member_id, name, age, gender FROM (
+                    SELECT NULL::int AS family_member_id, name, age, gender, completed_at AS ts FROM token_history WHERE phone IN (:phones)
                     UNION ALL
-                    SELECT name, age, gender, created_at AS ts FROM tokens
-                    WHERE phone = :phone AND name <> 'Patient' AND age IS NOT NULL AND gender IS NOT NULL
+                    SELECT family_member_id, name, age, gender, created_at AS ts FROM tokens
+                    WHERE phone IN (:phones) AND name <> 'Patient' AND age IS NOT NULL AND gender IS NOT NULL
                 ) known
                 WHERE name IS NOT NULL AND age IS NOT NULL AND gender IS NOT NULL
                 ORDER BY ts DESC NULLS LAST
                 LIMIT 1
                 """;
-        List<KnownIdentity> rows = jdbc.query(sql, Map.of("phone", phone),
-                (rs, i) -> new KnownIdentity(rs.getString("name"), (Integer) rs.getObject("age"), rs.getString("gender")));
+        List<KnownIdentity> rows = jdbc.query(sql, Map.of("phones", phones),
+                (rs, i) -> new KnownIdentity((Integer) rs.getObject("family_member_id"),
+                        rs.getString("name"),
+                        (Integer) rs.getObject("age"),
+                        rs.getString("gender")));
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -390,9 +460,16 @@ public class QueueManagerService {
         if (known == null) {
             return draft;
         }
+        Map<String, Object> updateParams = new HashMap<>();
+        updateParams.put("name", known.name());
+        updateParams.put("age", known.age());
+        updateParams.put("gender", known.gender());
+        updateParams.put("memberId", known.familyMemberId());
+        updateParams.put("id", draft.getId());
+
         List<TokenDto> updated = jdbc.query(
-                "UPDATE tokens SET name = :name, age = :age, gender = :gender, session_step = 'awaiting_category' WHERE id = :id RETURNING *",
-                Map.of("name", known.name(), "age", known.age(), "gender", known.gender(), "id", draft.getId()),
+                "UPDATE tokens SET name = :name, age = :age, gender = :gender, family_member_id = :memberId, session_step = 'awaiting_category' WHERE id = :id RETURNING *",
+                updateParams,
                 TOKEN_ROW_MAPPER);
         return updated.isEmpty() ? draft : updated.get(0);
     }
@@ -703,6 +780,23 @@ public class QueueManagerService {
             evaluateNotifyTriggers();
         }
 
+        // Ensure centralized family connection
+        if (draft.getFamilyMemberId() == null && draft.getPhone() != null && draft.getName() != null && !"Patient".equalsIgnoreCase(draft.getName())) {
+            try {
+                FamilyUnitDto unit = familyUnitService.getOrCreateFamilyUnit(draft.getPhone(), draft.getName());
+                if (unit != null && unit.getMembers() != null && !unit.getMembers().isEmpty()) {
+                    FamilyMemberDto matchedMember = unit.getMembers().stream()
+                            .filter(m -> draft.getName().equalsIgnoreCase(m.getName()))
+                            .findFirst()
+                            .orElse(unit.getMembers().get(0));
+                    jdbc.update("UPDATE tokens SET family_member_id = :mId WHERE id = :id AND family_member_id IS NULL",
+                            Map.of("mId", matchedMember.getId(), "id", tokenId));
+                }
+            } catch (Exception e) {
+                log.warn("Could not auto-link family unit for confirmed token {}: {}", tokenId, e.getMessage());
+            }
+        }
+
         TokenDto booked = getTokenDetails(String.valueOf(tokenId));
         triggerBookingCall(booked, hospital);
         return booked;
@@ -817,6 +911,22 @@ public class QueueManagerService {
             dailyNumber = nextDailyNumber(resolvedHospitalId, canonicalCategory);
         }
 
+        Integer resolvedFamilyMemberId = null;
+        if (phone != null && defaultName != null && !"Patient".equalsIgnoreCase(defaultName)) {
+            try {
+                FamilyUnitDto unit = familyUnitService.getOrCreateFamilyUnit(phone, defaultName);
+                if (unit != null && unit.getMembers() != null && !unit.getMembers().isEmpty()) {
+                    FamilyMemberDto matchedMember = unit.getMembers().stream()
+                            .filter(m -> defaultName.equalsIgnoreCase(m.getName()))
+                            .findFirst()
+                            .orElse(unit.getMembers().get(0));
+                    resolvedFamilyMemberId = matchedMember.getId();
+                }
+            } catch (Exception e) {
+                log.warn("Could not auto-link family unit in createToken: {}", e.getMessage());
+            }
+        }
+
         Map<String, Object> insertParams = new HashMap<>();
         insertParams.put("name", defaultName);
         insertParams.put("age", age);
@@ -826,6 +936,7 @@ public class QueueManagerService {
         insertParams.put("hospitalId", resolvedHospitalId);
         insertParams.put("status", isFrozen ? "frozen" : "waiting");
         insertParams.put("dailyNumber", dailyNumber);
+        insertParams.put("familyMemberId", resolvedFamilyMemberId);
         insertParams.put("patientDigipin", patientDigipin);
         insertParams.put("patientLat", patientLat);
         insertParams.put("patientLon", patientLon);
@@ -837,10 +948,10 @@ public class QueueManagerService {
         Integer newId = jdbc.queryForObject(
                 """
                 INSERT INTO tokens (name, age, gender, category, phone, status, session_step, hospital_id, daily_number,
-                                    patient_digipin, patient_lat, patient_lon, distance_km, travel_minutes,
+                                    family_member_id, patient_digipin, patient_lat, patient_lon, distance_km, travel_minutes,
                                     target_arrival_time, selected_travel_minutes)
                 VALUES (:name, :age, :gender, :category, :phone, :status, 'menu', :hospitalId, :dailyNumber,
-                        :patientDigipin, :patientLat, :patientLon, :distanceKm, :travelMinutes,
+                        :familyMemberId, :patientDigipin, :patientLat, :patientLon, :distanceKm, :travelMinutes,
                         :targetArrivalTime, :selectedTravelMinutes)
                 RETURNING id
                 """,
@@ -1497,15 +1608,85 @@ public class QueueManagerService {
     }
 
     public List<TokenHistoryDto> getPatientHistory(String phone) {
-        String p = phone != null ? phone.trim() : "";
-        String digits = p.replaceAll("[^0-9]", "");
-        if (digits.length() > 10) {
-            digits = digits.substring(digits.length() - 10);
+        List<String> phones = getPhoneVariants(phone);
+        if (phones.isEmpty()) {
+            return List.of();
         }
-        List<String> phones = List.of(p, digits, "+91" + digits, "91" + digits);
-        return jdbc.query(
-                "SELECT th.*, h.name AS hospital_name FROM token_history th LEFT JOIN hospitals h ON h.id = th.hospital_id WHERE th.phone IN (:phones) ORDER BY th.completed_at DESC NULLS LAST, th.id DESC",
-                Map.of("phones", phones), TOKEN_HISTORY_ROW_MAPPER);
+
+        // 1. Fetch active/in-progress tokens from tokens table
+        String activeSql = """
+                SELECT t.id AS token_id, t.id, t.phone, t.name, t.age, t.gender, t.category,
+                       t.hospital_id, h.name AS hospital_name, t.counter_id, t.status,
+                       t.daily_number, t.queue_position, t.family_member_id,
+                       d.name AS doctor_name,
+                       ('AF-' || UPPER(SUBSTRING(COALESCE(t.category, 'OPD'), 1, 2)) || LPAD(COALESCE(t.daily_number, t.id)::text, 2, '0')) AS token_code,
+                       t.created_at, t.served_at, t.completed_at, t.created_at AS archived_at
+                FROM tokens t
+                LEFT JOIN hospitals h ON h.id = t.hospital_id
+                LEFT JOIN doctors d ON d.hospital_id = t.hospital_id AND d.counter_id = t.counter_id
+                WHERE t.phone IN (:phones)
+                  AND t.status IN ('waiting', 'serving', 'frozen', 'reserved')
+                ORDER BY t.created_at DESC
+                """;
+        List<TokenHistoryDto> activeTokens = jdbc.query(activeSql, Map.of("phones", phones), TOKEN_HISTORY_ROW_MAPPER);
+
+        // Calculate peopleAhead for active waiting tokens
+        for (TokenHistoryDto act : activeTokens) {
+            if ("waiting".equals(act.getStatus()) && act.getHospitalId() != null && act.getCategory() != null) {
+                try {
+                    int ahead = jdbc.queryForObject(
+                            "SELECT COUNT(*)::int FROM tokens WHERE status = 'waiting' AND hospital_id = :hId AND category = :cat AND id < :id",
+                            Map.of("hId", act.getHospitalId(), "cat", act.getCategory(), "id", act.getId()), Integer.class);
+                    act.setPeopleAhead(ahead);
+                    if (act.getQueuePosition() == null) {
+                        act.setQueuePosition(ahead + 1);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
+        // 2. Fetch past completed/missed visits from token_history
+        String historySql = """
+                SELECT th.id, th.token_id, th.phone, th.name, th.age, th.gender, th.category,
+                       th.hospital_id, h.name AS hospital_name, th.counter_id,
+                       'completed' AS status,
+                       COALESCE(t.daily_number, th.token_id) AS daily_number,
+                       NULL::int AS queue_position,
+                       t.family_member_id,
+                       d.name AS doctor_name,
+                       ('AF-' || UPPER(SUBSTRING(COALESCE(th.category, 'OPD'), 1, 2)) || LPAD(COALESCE(t.daily_number, th.token_id)::text, 2, '0')) AS token_code,
+                       th.created_at, th.served_at, th.completed_at, th.archived_at
+                FROM token_history th
+                LEFT JOIN hospitals h ON h.id = th.hospital_id
+                LEFT JOIN tokens t ON t.id = th.token_id
+                LEFT JOIN doctors d ON d.hospital_id = th.hospital_id AND d.counter_id = th.counter_id
+                WHERE th.phone IN (:phones)
+                ORDER BY th.completed_at DESC NULLS LAST, th.id DESC
+                """;
+        List<TokenHistoryDto> pastHistory = jdbc.query(historySql, Map.of("phones", phones), TOKEN_HISTORY_ROW_MAPPER);
+
+        // Deduplicate and combine (active first, then past history)
+        java.util.Set<Integer> seenTokenIds = new java.util.HashSet<>();
+        List<TokenHistoryDto> combined = new java.util.ArrayList<>();
+
+        for (TokenHistoryDto act : activeTokens) {
+            if (act.getTokenId() != null) {
+                seenTokenIds.add(act.getTokenId());
+            }
+            combined.add(act);
+        }
+
+        for (TokenHistoryDto past : pastHistory) {
+            if (past.getTokenId() != null && seenTokenIds.contains(past.getTokenId())) {
+                continue;
+            }
+            if (past.getTokenId() != null) {
+                seenTokenIds.add(past.getTokenId());
+            }
+            combined.add(past);
+        }
+
+        return combined;
     }
 
     /**

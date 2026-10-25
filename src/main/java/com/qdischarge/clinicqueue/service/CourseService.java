@@ -56,10 +56,36 @@ public class CourseService {
 
     @Transactional(rollbackFor = Exception.class)
     public CourseDto createCourse(CreateCourseRequest req, int doctorId, int hospitalId) {
+        String pPhone = req.patientPhone() != null ? req.patientPhone().trim() : "+919100000099";
+        String pName = (req.patientName() != null && !req.patientName().isBlank()) ? req.patientName().trim() : "Patient";
+        Integer resolvedMemberId = req.familyMemberId();
+        if (resolvedMemberId == null && pPhone != null) {
+            try {
+                List<String> phones = getPhoneVariants(pPhone);
+                List<Integer> memberIds = jdbc.queryForList(
+                        """
+                        SELECT m.id FROM family_members m
+                        JOIN family_units u ON m.family_unit_id = u.id
+                        WHERE u.primary_phone IN (:phones)
+                        ORDER BY CASE WHEN LOWER(TRIM(m.name)) = LOWER(TRIM(:name)) THEN 0
+                                      WHEN LOWER(COALESCE(m.relationship, '')) IN ('self', 'head') THEN 1
+                                      ELSE 2 END, m.id ASC
+                        LIMIT 1
+                        """,
+                        Map.of("phones", phones, "name", pName),
+                        Integer.class);
+                if (!memberIds.isEmpty()) {
+                    resolvedMemberId = memberIds.get(0);
+                }
+            } catch (Exception e) {
+                log.warn("Could not auto-resolve familyMemberId for course: {}", e.getMessage());
+            }
+        }
+
         Map<String, Object> params = new HashMap<>();
-        params.put("phone", req.patientPhone() != null ? req.patientPhone().trim() : "+919100000099");
-        params.put("name", (req.patientName() != null && !req.patientName().isBlank()) ? req.patientName().trim() : "Patient");
-        params.put("memberId", req.familyMemberId());
+        params.put("phone", pPhone);
+        params.put("name", pName);
+        params.put("memberId", resolvedMemberId);
         params.put("courseType", (req.courseType() != null && !req.courseType().isBlank()) ? req.courseType().trim().toLowerCase() : "acute");
         params.put("title", (req.title() != null && !req.title().isBlank()) ? req.title().trim() : "Care Episode");
         params.put("diagnosis", (req.diagnosis() != null && !req.diagnosis().isBlank()) ? req.diagnosis().trim() : "Clinical Evaluation");
@@ -738,6 +764,17 @@ public class CourseService {
         if (digits.length() > 10) {
             digits = digits.substring(digits.length() - 10);
         }
-        return List.of(p, digits, "+91" + digits, "91" + digits);
+        java.util.LinkedHashSet<String> variants = new java.util.LinkedHashSet<>();
+        variants.add(p);
+        if (!digits.isEmpty()) {
+            variants.add(digits);
+            variants.add("+91" + digits);
+            variants.add("91" + digits);
+            variants.add("0" + digits);
+            variants.add("+91 " + digits);
+            variants.add("%2B91" + digits);
+            variants.add("%2B" + digits);
+        }
+        return new java.util.ArrayList<>(variants);
     }
 }

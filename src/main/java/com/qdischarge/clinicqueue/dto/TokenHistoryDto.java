@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
  * visits -- for potentially different patients (different name/age each
  * time) -- be looked up (GET /api/queue/history/{phone}) independently of
  * the live "tokens" table, which only tracks the current/active booking.
+ * Also augmented with live queue fields (status, dailyNumber, tokenCode,
+ * queuePosition, peopleAhead, familyMemberId, doctorName) when retrieved
+ * via getPatientHistory to give a unified view across both active and completed visits.
  */
 @Data
 @NoArgsConstructor
@@ -32,6 +35,13 @@ public class TokenHistoryDto {
     private Integer hospitalId;
     private String hospitalName;
     private Integer counterId;
+    private String status;
+    private Integer dailyNumber;
+    private String tokenCode;
+    private Integer queuePosition;
+    private Integer peopleAhead;
+    private Integer familyMemberId;
+    private String doctorName;
     private LocalDateTime createdAt;
     private LocalDateTime servedAt;
     private LocalDateTime completedAt;

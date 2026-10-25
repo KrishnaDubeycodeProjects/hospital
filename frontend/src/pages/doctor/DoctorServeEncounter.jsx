@@ -624,9 +624,11 @@ export default function DoctorServeEncounter() {
         const newCourse = await courseApi.create({
           patientPhone: activeToken?.phone || '+919999999999',
           patientName: activeToken?.name || 'Walk-in Patient',
+          familyMemberId: activeToken?.familyMemberId || null,
           title: titleText,
           courseType: courseType || 'acute',
           targetDepartment: profile?.category || 'General Medicine',
+          diagnosis: provisionalDiagnosis || chiefComplaint,
           primaryDiagnosis: provisionalDiagnosis || chiefComplaint,
         });
         targetCourseId = newCourse.id;

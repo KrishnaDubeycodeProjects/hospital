@@ -66,43 +66,7 @@ export default function PatientQueue() {
       if (Array.isArray(hist) && hist.length > 0) {
         setHistory(hist);
       } else {
-        // Fallback verified records to ensure user always sees their appointments
-        setHistory([
-          {
-            id: 104,
-            tokenId: 104,
-            dailyNumber: 8,
-            tokenCode: 'AF-GM08',
-            name: 'Kavish Ahuja',
-            age: 20,
-            gender: 'Male',
-            relationship: 'Self',
-            category: 'General Medicine',
-            hospitalName: 'District Civil Hospital — OPD Counter 4',
-            doctorName: 'Dr. Vivek Verma (MD)',
-            status: 'completed',
-            servedAt: '2026-09-18T10:15:00',
-            completedAt: '2026-09-18T10:28:00',
-            createdAt: '2026-09-18T09:30:00',
-          },
-          {
-            id: 92,
-            tokenId: 92,
-            dailyNumber: 3,
-            tokenCode: 'AF-PU03',
-            name: 'Kavish Ahuja',
-            age: 20,
-            gender: 'Male',
-            relationship: 'Self',
-            category: 'Pulmonology',
-            hospitalName: 'Safdarjung Hospital — Chest Clinic',
-            doctorName: 'Dr. Neha Sharma',
-            status: 'completed',
-            servedAt: '2026-08-02T11:40:00',
-            completedAt: '2026-08-02T11:55:00',
-            createdAt: '2026-08-02T10:50:00',
-          },
-        ]);
+        setHistory([]);
       }
     } catch (err) {
       console.warn('Failed to load visit history:', err);

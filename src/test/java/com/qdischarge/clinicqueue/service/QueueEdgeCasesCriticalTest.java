@@ -41,6 +41,7 @@ class QueueEdgeCasesCriticalTest {
     private WaSessionService waSessionService;
     private WhatsAppService whatsAppService;
     private JwtService jwtService;
+    private FamilyUnitService familyUnitService;
 
     private QueueManagerService queueManagerService;
     private CounterAssignmentService counterAssignmentService;
@@ -59,6 +60,7 @@ class QueueEdgeCasesCriticalTest {
         waSessionService = mock(WaSessionService.class);
         whatsAppService = mock(WhatsAppService.class);
         jwtService = mock(JwtService.class);
+        familyUnitService = mock(FamilyUnitService.class);
 
         HospitalDto mockHospital = HospitalDto.builder()
                 .id(1)
@@ -73,7 +75,7 @@ class QueueEdgeCasesCriticalTest {
         queueManagerService = new QueueManagerService(
                 jdbc, appProperties, hospitalService, hospitalDepartmentService,
                 geoDistanceService, otpService, mapMyIndiaRoutingService,
-                twilioStudioCallService, botMessages, waSessionService, whatsAppService, jwtService);
+                twilioStudioCallService, botMessages, waSessionService, whatsAppService, jwtService, familyUnitService);
 
         counterAssignmentService = new CounterAssignmentService(
                 jdbc, queueManagerService, hospitalDepartmentService,
