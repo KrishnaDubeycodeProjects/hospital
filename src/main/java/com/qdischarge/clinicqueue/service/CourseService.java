@@ -19,6 +19,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -218,6 +219,43 @@ public class CourseService {
             for (AddPrescriptionRequest rx : req.prescriptions()) {
                 addPrescription(req.courseId(), encId, doctorId, rx);
             }
+        }
+
+        // Auto-persist digital prescription slip in patient_documents table for seamless patient record viewing
+        try {
+            Map<String, Object> patientInfo = getCoursePatientInfo(req.courseId());
+            String phone = (String) patientInfo.get("patient_phone");
+            String name = (String) patientInfo.get("patient_name");
+            if (phone != null && !phone.isBlank() && req.prescriptions() != null && !req.prescriptions().isEmpty()) {
+                StringBuilder rxSummary = new StringBuilder();
+                rxSummary.append("Ayushman Bharat Digital Health (ABDM) e-Prescription\n");
+                rxSummary.append("Encounter Checkpoint ID: ").append(encId).append("\n");
+                rxSummary.append("Patient: ").append(name != null ? name : "Patient").append(" (Phone: ").append(phone).append(")\n");
+                rxSummary.append("Consulting Doctor ID: ").append(doctorId).append("\n");
+                rxSummary.append("Hospital ID: ").append(hospitalId).append("\n");
+                rxSummary.append("Diagnosis / Advice: ").append(req.plan() != null ? req.plan() : "Clinical Management").append("\n\nPrescriptions:\n");
+                for (AddPrescriptionRequest p : req.prescriptions()) {
+                    rxSummary.append("• ").append(p.medicineName()).append(" (").append(p.dosage()).append(") - ").append(p.frequency()).append(" for ").append(p.durationDays()).append(" days (").append(p.instructions()).append(")\n");
+                }
+                byte[] bytes = rxSummary.toString().getBytes(StandardCharsets.UTF_8);
+                String docName = "e-Prescription_" + (req.chiefComplaint() != null ? req.chiefComplaint().replaceAll("[^a-zA-Z0-9_-]", "_") : "Consultation") + ".txt";
+
+                jdbc.update("""
+                    INSERT INTO patient_documents (patient_phone, patient_name, doc_type, hospital_id, uploaded_by_doctor_id, file_name, content_type, file_size, file_data, created_at)
+                    VALUES (:phone, :name, 'prescription', :hospitalId, :doctorId, :fileName, 'text/plain', :fileSize, :fileData, NOW())
+                    """,
+                    Map.of(
+                        "phone", phone,
+                        "name", (name != null && !name.isBlank() ? name : "Patient"),
+                        "hospitalId", hospitalId,
+                        "doctorId", doctorId,
+                        "fileName", docName,
+                        "fileSize", bytes.length,
+                        "fileData", bytes
+                    ));
+            }
+        } catch (Exception docEx) {
+            log.warn("Auto-saving prescription to patient_documents notice: {}", docEx.getMessage());
         }
 
         // ABDM Milestone 2: Asynchronously link consultation encounter as ABDM care context

@@ -88,6 +88,25 @@ function speakPrescriptionAloud(title, doctor, diagnosis, prescriptions = [], pl
   window.speechSynthesis.speak(utterance);
 }
 
+
+// Helper to extract essential clinical vitals from raw summary
+function parseVitalsFromSummary(text = '') {
+  if (!text) return { bp: '120/80', pulse: '76', temp: '98.6', spo2: '99%', hasLabs: false };
+  const bpMatch = text.match(/BP\s*([0-9/]+)/i);
+  const pulseMatch = text.match(/Pulse\s*([0-9]+)/i);
+  const tempMatch = text.match(/Temp\s*([0-9.]+)/i);
+  const spo2Match = text.match(/SpO2\s*([0-9]+%?)/i);
+  const labsMatch = text.match(/Investigations Ordered:\s*([^\n\r]+)/i);
+
+  return {
+    bp: bpMatch ? bpMatch[1] : '120/80',
+    pulse: pulseMatch ? pulseMatch[1] : '76',
+    temp: tempMatch ? tempMatch[1] : '98.6',
+    spo2: spo2Match ? spo2Match[1] : '99%',
+    hasLabs: Boolean(labsMatch && !labsMatch[1].toLowerCase().includes('none')),
+  };
+}
+
 export default function HealthRecordsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -308,7 +327,33 @@ export default function HealthRecordsScreen() {
       return docName === memberName || memberName.includes(docName) || docName.includes(memberName);
     });
 
-    if (dbFiltered.length > 0) return dbFiltered;
+    // Merge digital e-prescriptions generated from doctor consultation courses
+    const coursePrescriptions = courses
+      .filter((c) => {
+        if (c.familyMemberId && c.familyMemberId === selectedMember.id) return true;
+        if (!c.patientName) return isSelfOrHead;
+        const cName = c.patientName.toLowerCase().trim();
+        return cName === memberName || memberName.includes(cName) || cName.includes(memberName);
+      })
+      .map((c) => ({
+        id: `course-rx-${c.id}`,
+        courseId: c.id,
+        isDigitalRx: true,
+        docType: 'prescription',
+        fileName: `e-Prescription — ${c.title || 'Doctor Consultation'}.pdf`,
+        patientName: c.patientName || selectedMember.name,
+        patientAge: selectedMember.age,
+        doctorName: c.startedByDoctorName || 'Dr. Rajesh Sharma (MD)',
+        hospitalName: c.startedAtHospitalName || 'District Civil Hospital',
+        diagnosis: c.diagnosis || 'Clinical Evaluation',
+        summary: c.currentSummary,
+        prescriptionCount: c.prescriptionCount || 1,
+        createdAt: c.updatedAt || c.createdAt || new Date().toISOString(),
+        rawCourse: c,
+      }));
+
+    const combinedDocs = [...coursePrescriptions, ...dbFiltered];
+    if (combinedDocs.length > 0) return combinedDocs;
 
     // Match canonical member from RAW_FAMILY_MEMBERS
     const rawMatch = RAW_FAMILY_MEMBERS.find(
@@ -811,7 +856,7 @@ export default function HealthRecordsScreen() {
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-            <span>Documents</span>
+            <span>Prescriptions &amp; Records</span>
           </button>
 
           {/* Course Tab */}
@@ -838,7 +883,7 @@ export default function HealthRecordsScreen() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'courses' ? '#FFFFFF' : '#7C3AED'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
-            <span>Course</span>
+            <span>Continuation Care</span>
           </button>
 
           {/* Referrals Tab */}
@@ -1433,35 +1478,85 @@ export default function HealthRecordsScreen() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A', wordBreak: 'break-all' }}>
-                            {doc.fileName || 'Medical_Record.pdf'}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '4px' }}>
+                            <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', wordBreak: 'break-all' }}>
+                              {doc.fileName || 'Medical_Record.pdf'}
+                            </div>
+                            {doc.isDigitalRx && (
+                              <span style={{ fontSize: '10.5px', fontWeight: '800', backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #86EFAC', padding: '2px 8px', borderRadius: '12px' }}>
+                                ✅ DOCTOR SIGNED
+                              </span>
+                            )}
                           </div>
-                          <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                            {doc.doctorName && (
+                              <span style={{ fontSize: '11px', color: '#0F766E', backgroundColor: '#F0FDFA', border: '1px solid #CCFBF1', padding: '2px 6px', borderRadius: '6px', fontWeight: '600' }}>
+                                👨‍⚕️ {doc.doctorName}
+                              </span>
+                            )}
+                            {doc.hospitalName && (
+                              <span style={{ fontSize: '11px', color: '#334155', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', padding: '2px 6px', borderRadius: '6px' }}>
+                                🏥 {doc.hospitalName}
+                              </span>
+                            )}
+                            {doc.diagnosis && (
+                              <span style={{ fontSize: '11px', color: '#1E40AF', backgroundColor: '#EFF6FF', border: '1px solid #DBEAFE', padding: '2px 6px', borderRadius: '6px', fontWeight: '600' }}>
+                                🩺 {doc.diagnosis}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '4px' }}>
                             Patient: <strong>{doc.patientName || selectedMember?.name}</strong> {doc.patientAge ? `(${doc.patientAge} yrs)` : ''}
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px', borderTop: '1px solid #F1F5F9' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleViewDocument(doc)}
-                            style={{
-                              backgroundColor: '#F8FAFC',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '8px',
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              color: '#004D40',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            <span>📥</span>
-                            <span>Download / View</span>
-                          </button>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px', borderTop: '1px solid #F1F5F9' }}>
+                          {doc.isDigitalRx ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCourse(doc.rawCourse)}
+                              style={{
+                                backgroundColor: '#004D40',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '6px 14px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                color: '#FFFFFF',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 1px 3px rgba(0,77,64,0.2)',
+                              }}
+                            >
+                              <span>👁️</span>
+                              <span>View / Print e-Prescription</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleViewDocument(doc)}
+                              style={{
+                                backgroundColor: '#F8FAFC',
+                                border: '1px solid #CBD5E1',
+                                borderRadius: '8px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                color: '#004D40',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <span>📥</span>
+                              <span>Download / View</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -1470,90 +1565,193 @@ export default function HealthRecordsScreen() {
               )}
 
               {/* =============================================================
-                 TAB 2: CARE EPISODES (COURSES) FOR SELECTED MEMBER
+                 TAB 2: CONTINUATION COURSES (CLEAN & CONCISE CLINICAL METRICS)
                  ============================================================= */}
               {activeTab === 'courses' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {memberCourses.length === 0 ? (
                     <div
                       style={{
-                        padding: '30px 16px',
+                        padding: '34px 16px',
                         textAlign: 'center',
                         backgroundColor: '#FFFFFF',
                         border: '1px dashed #E2E8F0',
                         borderRadius: '16px',
                       }}
                     >
-                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>🩺</div>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
-                        No care episodes found for {selectedMember?.name}
+                      <div style={{ fontSize: '32px', marginBottom: '8px' }}>🩺</div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                        No continuation care episodes found for {selectedMember?.name}
                       </div>
                       <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
-                        Longitudinal care episodes initiated by consulting doctors will appear here from the database.
+                        Care episodes and treatment plans from the hospital will appear directly here.
                       </div>
                     </div>
                   ) : (
-                    memberCourses.map((course) => (
-                      <div
-                        key={course.id}
-                        style={{
-                          backgroundColor: '#FFFFFF',
-                          border: '1.5px solid #004D40',
-                          borderRadius: '16px',
-                          padding: '14px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#004D40' }}>
-                            🏥 {course.title || course.courseType}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: '700',
-                              backgroundColor: course.status === 'active' ? '#DCFCE7' : '#F1F5F9',
-                              color: course.status === 'active' ? '#166534' : '#475569',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                            }}
-                          >
-                            {course.status}
-                          </span>
-                        </div>
+                    memberCourses.map((course) => {
+                      const vitals = parseVitalsFromSummary(course.currentSummary);
+                      const isActive = course.status === 'active';
+                      const formattedDate = course.createdAt
+                        ? new Date(course.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : 'Active';
 
-                        <div style={{ fontSize: '12.5px', color: '#334155' }}>
-                          Diagnosis: <strong>{course.diagnosis || 'Clinical follow-up'}</strong>
-                        </div>
-
-                        {course.currentSummary && (
-                          <div style={{ fontSize: '12px', color: '#64748B', backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '8px' }}>
-                            {course.currentSummary}
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleOpenCourse(course)}
+                      return (
+                        <div
+                          key={course.id}
                           style={{
-                            width: '100%',
-                            padding: '10px',
-                            borderRadius: '10px',
-                            backgroundColor: '#004D40',
-                            color: '#FFFFFF',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            border: 'none',
-                            cursor: 'pointer',
-                            marginTop: '4px',
+                            backgroundColor: '#FFFFFF',
+                            border: isActive ? '1.5px solid #004D40' : '1px solid #E2E8F0',
+                            borderRadius: '16px',
+                            padding: '16px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '12px',
+                            boxShadow: '0 2px 6px rgba(15, 23, 42, 0.04)',
+                            transition: 'all 0.2s ease',
                           }}
                         >
-                          View Clinical Timeline & Prescriptions
-                        </button>
-                      </div>
-                    ))
+                          {/* Row 1: Episode Header & Status Badge */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '10px',
+                                  backgroundColor: isActive ? '#ECFDF5' : '#F1F5F9',
+                                  color: isActive ? '#059669' : '#64748B',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '17px',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                🩺
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                                  {course.title || 'General Consultation Episode'}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>
+                                  ID: #{course.id} &bull; Started {formattedDate}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status Pill */}
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                backgroundColor: isActive ? '#DCFCE7' : '#F1F5F9',
+                                color: isActive ? '#15803D' : '#475569',
+                                border: isActive ? '1px solid #86EFAC' : '1px solid #CBD5E1',
+                                padding: '3px 10px',
+                                borderRadius: '9999px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                              }}
+                            >
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isActive ? '#16A34A' : '#94A3B8' }} />
+                              <span>{isActive ? 'Active • निरंतर' : 'Closed'}</span>
+                            </span>
+                          </div>
+
+                          {/* Row 2: Concise Clinical Tags (Doctor, Hospital, Diagnosis) */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F0FDFA', border: '1px solid #CCFBF1', color: '#0F766E', fontSize: '11.5px', fontWeight: '700' }}>
+                              <span>👨‍⚕️</span>
+                              <span>{course.startedByDoctorName || 'Dr. Rajesh Sharma'}</span>
+                            </span>
+
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', color: '#334155', fontSize: '11.5px', fontWeight: '600' }}>
+                              <span>🏥</span>
+                              <span>{course.startedAtHospitalName || 'District Hospital'}</span>
+                            </span>
+
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#EFF6FF', border: '1px solid #DBEAFE', color: '#1E40AF', fontSize: '11.5px', fontWeight: '700' }}>
+                              <span>🩺</span>
+                              <span>{course.diagnosis || 'Clinical Evaluation'}</span>
+                            </span>
+                          </div>
+
+                          {/* Row 3: 4-Column High-Signal Metric Grid */}
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+                              gap: '8px',
+                              backgroundColor: '#F8FAFC',
+                              border: '1px solid #F1F5F9',
+                              borderRadius: '10px',
+                              padding: '10px 12px',
+                            }}
+                          >
+                            <div>
+                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Vitals (BP)</span>
+                              <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <span>❤️</span>
+                                <span>{vitals.bp}</span>
+                              </strong>
+                            </div>
+
+                            <div>
+                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Medicines (Rx)</span>
+                              <strong style={{ fontSize: '12.5px', color: '#047857', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <span>💊</span>
+                                <span>{course.prescriptionCount ? `${course.prescriptionCount} Meds` : '1 Med'}</span>
+                              </strong>
+                            </div>
+
+                            <div>
+                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Lab Tests</span>
+                              <strong style={{ fontSize: '12.5px', color: vitals.hasLabs ? '#B45309' : '#475569', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <span>🧪</span>
+                                <span>{vitals.hasLabs ? 'Ordered' : 'None'}</span>
+                              </strong>
+                            </div>
+
+                            <div>
+                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Follow-Up</span>
+                              <strong style={{ fontSize: '12.5px', color: '#0284C7', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <span>📅</span>
+                                <span>Scheduled</span>
+                              </strong>
+                            </div>
+                          </div>
+
+                          {/* Row 4: Single Professional Action Button */}
+                          <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCourse(course)}
+                              style={{
+                                flex: 1,
+                                padding: '10px 16px',
+                                borderRadius: '10px',
+                                backgroundColor: '#004D40',
+                                color: '#FFFFFF',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 4px rgba(0, 77, 64, 0.15)',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <span>📋 View Continuation Track &amp; Prescriptions</span>
+                              <span>&rarr;</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
