@@ -274,6 +274,7 @@ export default function DoctorConsultation() {
   // Patient Course Continuum State
   const [patientCourses, setPatientCourses] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const selectedCourse = patientCourses.find((c) => c.id === selectedCourseId) || null;
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [createCourseModalOpen, setCreateCourseModalOpen] = useState(false);
   const [customCourseTitle, setCustomCourseTitle] = useState('');

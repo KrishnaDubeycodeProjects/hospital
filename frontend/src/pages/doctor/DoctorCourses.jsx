@@ -205,6 +205,10 @@ export default function DoctorCourses() {
       toast.error('Access is revoked. Cannot upload documents.');
       return;
     }
+    if (!activeCourseId) {
+      toast.error('Please select an active care course to attach document');
+      return;
+    }
     if (!file) {
       toast.error('Please select a document file to attach');
       return;
