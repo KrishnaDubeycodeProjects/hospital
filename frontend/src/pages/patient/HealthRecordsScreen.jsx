@@ -1769,18 +1769,9 @@ export default function HealthRecordsScreen() {
 
                           {/* Accordion Content: Revealed upon clicking Course Title / Header */}
                           {isCourseOpen && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
-                              {/* Train Journey Stations Stack */}
-                              <div
-                                style={{
-                                  backgroundColor: '#F8FAFC',
-                                  border: '1px solid #E2E8F0',
-                                  borderRadius: '12px',
-                                  padding: '12px 14px',
-                                }}
-                              >
-                                <TrainStationTimeline stations={stations} defaultOpenId={stations[0]?.id} onViewDocument={handleViewDocument} />
-                              </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
+                              {/* Direct Transit Stations Timeline (No redundant outer card nesting) */}
+                              <TrainStationTimeline stations={stations} defaultOpenId={stations[0]?.id} onViewDocument={handleViewDocument} />
 
                               {/* Consultation Date & Timings directly above buttons */}
                               <div
@@ -1788,99 +1779,96 @@ export default function HealthRecordsScreen() {
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: '6px',
-                                  padding: '8px 12px',
+                                  padding: '7px 10px',
                                   backgroundColor: '#F0FDFA',
                                   border: '1px solid #CCFBF1',
                                   borderRadius: '8px',
-                                  fontSize: '12px',
+                                  fontSize: '11.5px',
                                   fontWeight: '700',
                                   color: '#0F766E',
-                                }}
-                              >
-                                <CalendarIcon size={14} color="#0D9488" />
-                                <span>
-                                  Consultation Date &amp; Timings: {formatLaymanDateTime(course.createdAt)}
-                                </span>
-                              </div>
-
-                              {/* 3 Dedicated Action Buttons: Prescription & Tests, Doctor Profile, Advice */}
-                              <div
-                                style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                                  gap: '8px',
                                   marginTop: '2px',
                                 }}
                               >
+                                <CalendarIcon size={13} color="#0D9488" />
+                                <span>Consultation: {formatLaymanDateTime(course.createdAt)}</span>
+                              </div>
+
+                              {/* 3 Clean Action Buttons (Mobile First: Prominent Primary + 2-Column Secondary) */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
+                                {/* Primary Action: Full Width */}
                                 <button
                                   type="button"
                                   onClick={() => handleOpenCourse(course, 'prescription')}
                                   style={{
-                                    padding: '9px 12px',
+                                    width: '100%',
+                                    padding: '11px 16px',
                                     borderRadius: '10px',
                                     backgroundColor: '#004D40',
                                     color: '#FFFFFF',
-                                    fontSize: '12.5px',
-                                    fontWeight: '700',
+                                    fontSize: '13px',
+                                    fontWeight: '800',
                                     border: 'none',
                                     cursor: 'pointer',
-                                    display: 'inline-flex',
+                                    display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    gap: '6px',
-                                    boxShadow: '0 2px 4px rgba(0, 77, 64, 0.2)',
+                                    gap: '8px',
+                                    boxShadow: '0 2px 6px rgba(0, 77, 64, 0.25)',
                                     transition: 'all 0.15s ease',
                                   }}
                                 >
                                   <span>💊</span>
-                                  <span>Prescription &amp; Tests</span>
+                                  <span>View Prescription &amp; Tests</span>
                                 </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenCourse(course, 'doctor')}
-                                  style={{
-                                    padding: '9px 12px',
-                                    borderRadius: '10px',
-                                    backgroundColor: '#FFFFFF',
-                                    color: '#0F766E',
-                                    border: '1.5px solid #99F6E4',
-                                    fontSize: '12.5px',
-                                    fontWeight: '700',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    transition: 'all 0.15s ease',
-                                  }}
-                                >
-                                  <span>👨‍⚕️</span>
-                                  <span>Doctor Profile</span>
-                                </button>
+                                {/* Secondary Actions: 2 Columns */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCourse(course, 'doctor')}
+                                    style={{
+                                      padding: '9px 10px',
+                                      borderRadius: '10px',
+                                      backgroundColor: '#FFFFFF',
+                                      color: '#0F766E',
+                                      border: '1.5px solid #CCFBF1',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '5px',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span>👨‍⚕️</span>
+                                    <span>Doctor Profile</span>
+                                  </button>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenCourse(course, 'advice')}
-                                  style={{
-                                    padding: '9px 12px',
-                                    borderRadius: '10px',
-                                    backgroundColor: '#FFFFFF',
-                                    color: '#1E40AF',
-                                    border: '1.5px solid #BFDBFE',
-                                    fontSize: '12.5px',
-                                    fontWeight: '700',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    transition: 'all 0.15s ease',
-                                  }}
-                                >
-                                  <span>💡</span>
-                                  <span>Advice</span>
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCourse(course, 'advice')}
+                                    style={{
+                                      padding: '9px 10px',
+                                      borderRadius: '10px',
+                                      backgroundColor: '#FFFFFF',
+                                      color: '#1E40AF',
+                                      border: '1.5px solid #DBEAFE',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '5px',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span>💡</span>
+                                    <span>Care Advice</span>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           )}
