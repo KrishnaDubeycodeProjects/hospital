@@ -171,8 +171,10 @@ export default function DoctorPatients() {
       {/* Header */}
       <div className="card-head">
         <div>
-          <h1>My Patients & Medical Records</h1>
-          <p className="muted-text">
+          <h1 style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+            My Patients &amp; Medical Records
+          </h1>
+          <p className="muted-text" style={{ margin: '4px 0 0', fontSize: '13px' }}>
             View your patients, their medical reports, prescriptions, and past consultations.
           </p>
         </div>

@@ -76,8 +76,8 @@ export default function DoctorProfile() {
     <div className="stack-lg">
       <div className="card-head">
         <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Stethoscope size={28} color="#25D366" />
+          <h1 style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Stethoscope size={26} color="#00A884" />
             Doctor Profile
           </h1>
           <p className="muted-text">

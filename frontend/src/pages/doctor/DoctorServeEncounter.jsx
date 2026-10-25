@@ -723,7 +723,7 @@ export default function DoctorServeEncounter() {
       <div className="stack-lg">
         <div className="card-head">
           <div>
-            <h1>Patient Consultation</h1>
+            <h1 style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>Patient Consultation</h1>
             <p className="muted-text">Step-by-step: Write Prescription ➔ Medical Records ➔ Follow-up & Referrals</p>
           </div>
           <Button variant="secondary" onClick={() => navigate('/doctor/consultation')}>

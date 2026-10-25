@@ -195,8 +195,10 @@ export default function DoctorAccess() {
     <div className="stack-lg">
       <div className="card-head">
         <div>
-          <h1>Patient Access & Medical Records</h1>
-          <p className="muted-text">
+          <h1 style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+            Patient Access &amp; Medical Records
+          </h1>
+          <p className="muted-text" style={{ margin: '4px 0 0', fontSize: '13px' }}>
             Generate a QR code or access code for patients to share their medical history, lab reports, and prescriptions.
           </p>
         </div>
