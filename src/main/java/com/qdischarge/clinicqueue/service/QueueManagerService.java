@@ -156,7 +156,7 @@ public class QueueManagerService {
             }
             String canonical = MedicalCategory.match(decoded);
             if (canonical != null) {
-                sql.append(" AND (LOWER(TRIM(category)) = LOWER(TRIM(:category)) OR LOWER(TRIM(category)) = LOWER(TRIM(:canonical)) OR :canonical ILIKE '%' || TRIM(category) || '%' OR TRIM(category) ILIKE '%' || :firstWord || '%')");
+                sql.append(" AND (LOWER(TRIM(category)) = LOWER(TRIM(:category)) OR LOWER(TRIM(category)) = LOWER(TRIM(:canonical)) OR (category IS NOT NULL AND POSITION(LOWER(TRIM(category)) IN LOWER(:canonical)) > 0) OR TRIM(category) ILIKE '%' || :firstWord || '%')");
                 params.put("canonical", canonical);
                 String firstWord = canonical.contains(" ") ? canonical.split(" ")[0] : canonical;
                 params.put("firstWord", firstWord);
@@ -312,7 +312,8 @@ public class QueueManagerService {
 
     private int countWaitingAhead(TokenDto token) {
         Map<String, Object> params = new HashMap<>();
-        params.put("sortKey", token.getPriorityRank() != null ? token.getPriorityRank() : token.getId());
+        long sortKey = token.getPriorityRank() != null ? token.getPriorityRank().longValue() : (long) token.getId();
+        params.put("sortKey", sortKey);
         params.put("hospitalId", token.getHospitalId());
         params.put("category", token.getCategory());
         Integer count = jdbc.queryForObject(
@@ -1305,7 +1306,7 @@ public class QueueManagerService {
         List<TokenDto> demoted = new java.util.ArrayList<>();
         for (TokenDto token : expired) {
             jdbc.update(
-                    "UPDATE tokens SET status = 'waiting', queue_position = 1, priority_rank = 1.0 WHERE id = :id",
+                    "UPDATE tokens SET status = 'waiting', queue_position = 1, priority_rank = 1 WHERE id = :id",
                     Map.of("id", token.getId()));
             renumberQueuePositions(token.getHospitalId(), token.getCategory());
             TokenDto pushed = pushBackNoShow(token.getId());
@@ -1396,7 +1397,8 @@ public class QueueManagerService {
      */
     private int countGenuinelyAheadForEta(TokenDto token) {
         Map<String, Object> params = new HashMap<>();
-        params.put("sortKey", token.getPriorityRank() != null ? token.getPriorityRank() : token.getId());
+        long sortKey = token.getPriorityRank() != null ? token.getPriorityRank().longValue() : (long) token.getId();
+        params.put("sortKey", sortKey);
         params.put("hospitalId", token.getHospitalId());
         params.put("category", token.getCategory());
         Integer count = jdbc.queryForObject(
@@ -1898,7 +1900,7 @@ public class QueueManagerService {
             jdbc.update(
                     """
                     UPDATE tokens
-                    SET status = 'waiting', queue_position = 1, priority_rank = 1.0, is_verified = TRUE, verified_at = NOW()
+                    SET status = 'waiting', queue_position = 1, priority_rank = 1, is_verified = TRUE, verified_at = NOW()
                     WHERE id = :id
                     """, Map.of("id", id));
 
@@ -2042,14 +2044,21 @@ public class QueueManagerService {
         }
         Map<String, Object> scopeParams = new HashMap<>();
         scopeParams.put("hospitalId", missed.getHospitalId());
-        scopeParams.put("category", missed.getCategory());
-        Double minRank = jdbc.queryForObject(
+        String cat = missed.getCategory();
+        scopeParams.put("category", cat != null ? cat.trim() : null);
+        String canonical = cat != null ? MedicalCategory.match(cat) : null;
+        scopeParams.put("canonical", canonical);
+
+        Long minRank = jdbc.queryForObject(
                 """
-                SELECT COALESCE(MIN(priority_rank), 0)::float8 FROM tokens WHERE status = 'waiting'
-                  AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                SELECT COALESCE(MIN(priority_rank), 0)::bigint FROM tokens WHERE status = 'waiting'
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId
+                  AND (category IS NOT DISTINCT FROM :category
+                       OR (:category IS NOT NULL AND LOWER(TRIM(category)) = LOWER(TRIM(:category)))
+                       OR (:canonical IS NOT NULL AND LOWER(TRIM(category)) = LOWER(TRIM(:canonical))))
                 """,
-                scopeParams, Double.class);
-        double newRank = Math.min(minRank == null ? 0.0 : minRank, 0.0) - 1;
+                scopeParams, Long.class);
+        long newRank = Math.min(minRank == null ? 0L : minRank, 0L) - 1L;
 
         Map<String, Object> updateParams = new HashMap<>();
         updateParams.put("id", id);
@@ -2071,6 +2080,10 @@ public class QueueManagerService {
                 """, updateParams, TOKEN_ROW_MAPPER);
 
         if (rows.isEmpty()) {
+            TokenDto existing = getRaw(id);
+            if (existing != null && ("waiting".equals(existing.getStatus()) || "serving".equals(existing.getStatus()))) {
+                return getTokenDetails(String.valueOf(id));
+            }
             return null;
         }
         TokenDto token = rows.get(0);
@@ -2143,7 +2156,7 @@ public class QueueManagerService {
         // CounterAssignmentService#refreshReservations) -- its old position no
         // longer means it's up next for whichever counter had earmarked it.
         jdbc.update("UPDATE tokens SET priority_rank = :rank, reserved_counter_id = NULL WHERE id = :id",
-                Map.of("rank", newRank, "id", tokenId));
+                Map.of("rank", (long) Math.round(newRank), "id", tokenId));
         return getTokenDetails(String.valueOf(tokenId));
     }
 
@@ -2200,13 +2213,15 @@ public class QueueManagerService {
     private List<Double> otherWaitingRanksInOrder(TokenDto token) {
         Map<String, Object> scopeParams = new HashMap<>();
         scopeParams.put("hospitalId", token.getHospitalId());
-        scopeParams.put("category", token.getCategory());
+        String cat = token.getCategory();
+        scopeParams.put("category", cat != null ? cat.trim() : null);
         scopeParams.put("id", token.getId());
         return jdbc.queryForList(
                 """
                 SELECT COALESCE(priority_rank, id)::float8 FROM tokens
                 WHERE status = 'waiting' AND id != :id
-                  AND hospital_id IS NOT DISTINCT FROM :hospitalId AND category IS NOT DISTINCT FROM :category
+                  AND hospital_id IS NOT DISTINCT FROM :hospitalId
+                  AND (category IS NOT DISTINCT FROM :category OR (category IS NOT NULL AND :category IS NOT NULL AND LOWER(TRIM(category)) = LOWER(TRIM(:category))))
                 ORDER BY COALESCE(priority_rank, id) ASC
                 """, scopeParams, Double.class);
     }
@@ -2260,7 +2275,7 @@ public class QueueManagerService {
         for (int i = 0; i < newQueue.size(); i++) {
             jdbc.update(
                     "UPDATE tokens SET priority_rank = :rank, queue_position = :pos WHERE id = :id",
-                    Map.of("rank", (double) (i + 1), "pos", (i + 1), "id", newQueue.get(i).getId()));
+                    Map.of("rank", (long) (i + 1), "pos", (i + 1), "id", newQueue.get(i).getId()));
         }
     }
 
