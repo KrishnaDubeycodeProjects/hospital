@@ -44,6 +44,7 @@ public class PatientDocumentService {
 
     public PatientDocumentDto upload(String patientPhone, String patientName, Integer patientAge, String docType,
                                       Integer hospitalId, Integer uploadedByDoctorId, MultipartFile file) throws IOException {
+        patientPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(patientPhone);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("A file is required.");
         }

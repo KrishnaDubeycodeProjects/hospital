@@ -56,7 +56,8 @@ public class CourseService {
 
     @Transactional(rollbackFor = Exception.class)
     public CourseDto createCourse(CreateCourseRequest req, int doctorId, int hospitalId) {
-        String pPhone = req.patientPhone() != null ? req.patientPhone().trim() : "+919100000099";
+        String pPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(req.patientPhone());
+        if (pPhone == null || pPhone.isBlank()) pPhone = "+919100000099";
         String pName = (req.patientName() != null && !req.patientName().isBlank()) ? req.patientName().trim() : "Patient";
         Integer resolvedMemberId = req.familyMemberId();
         if (resolvedMemberId == null && pPhone != null) {

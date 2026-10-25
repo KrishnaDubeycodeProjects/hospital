@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { hospitalApi, queueApi } from '../../api/client';
 import QrScanner from '../../components/QrScanner';
+import { formatDisplayPhone } from '../../utils/helpers';
 import { Button, Card, Field, Input, Modal, Select, Spinner, StatusBadge, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 import { Search, BarChart3, Users, Clock, CheckCircle2, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
@@ -477,7 +478,7 @@ export default function AdminQueue() {
                               {t.name || 'Patient'}
                             </div>
                             <div style={{ fontSize: '11px', color: '#64748B' }}>
-                              {t.category} &bull; {t.phone}
+                              {t.category} &bull; {formatDisplayPhone(t.phone)}
                             </div>
                           </div>
                           <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: '#e0f2fe', color: '#0369a1' }}>
@@ -595,7 +596,7 @@ export default function AdminQueue() {
                                 {t.name || 'Patient'}
                               </div>
                               <div style={{ fontSize: '11px', color: '#64748B' }}>
-                                {t.category} &bull; {t.phone}
+                                {t.category} &bull; {formatDisplayPhone(t.phone)}
                               </div>
                             </div>
                             <div>
@@ -727,7 +728,7 @@ export default function AdminQueue() {
                               {t.name || 'Patient'}
                             </div>
                             <div style={{ fontSize: '11px', color: '#64748B' }}>
-                              {t.category} &bull; {t.phone}
+                              {t.category} &bull; {formatDisplayPhone(t.phone)}
                             </div>
                           </div>
                           <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 5px', borderRadius: '4px', background: '#fee2e2', color: '#991b1b' }}>

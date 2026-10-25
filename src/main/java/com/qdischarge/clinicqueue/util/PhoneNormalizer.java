@@ -13,6 +13,13 @@ public final class PhoneNormalizer {
             return "";
         }
         String clean = phone.trim();
+        try {
+            clean = java.net.URLDecoder.decode(clean, java.nio.charset.StandardCharsets.UTF_8).trim();
+            if (clean.contains("%")) {
+                clean = java.net.URLDecoder.decode(clean, java.nio.charset.StandardCharsets.UTF_8).trim();
+            }
+        } catch (Exception ignored) {}
+        clean = clean.replaceAll("(?i)%2b", "+").trim();
         String digits = clean.replaceAll("[^0-9]", "");
         if (digits.length() > 10) {
             digits = digits.substring(digits.length() - 10);
@@ -20,7 +27,7 @@ public final class PhoneNormalizer {
         if (digits.length() == 10) {
             return "+91" + digits;
         }
-        return clean;
+        return clean.startsWith("+") ? clean : (clean.isEmpty() ? "" : clean);
     }
 
     /**

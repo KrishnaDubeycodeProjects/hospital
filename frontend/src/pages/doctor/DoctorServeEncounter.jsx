@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { cleanPhone, formatDisplayPhone } from '../../utils/helpers';
 import {
   doctorApi,
   queueApi,
@@ -798,7 +799,7 @@ export default function DoctorServeEncounter() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', fontSize: '13px', color: '#94a3b8' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Phone size={14} color="#38bdf8" />
-                {activeToken.phone || 'No phone'}
+                {formatDisplayPhone(activeToken.phone) || 'No phone'}
               </span>
               <span>&bull;</span>
               <span>Department: <strong>{profile.category || 'General Medicine'}</strong></span>
@@ -1459,7 +1460,7 @@ export default function DoctorServeEncounter() {
           >
             {patientDocuments.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>
-                No prior clinic documents found for {activeToken.phone || 'this patient'}. Use "+ Upload Physical Report" above to attach a paper report or ECG.
+                No prior clinic documents found for {formatDisplayPhone(activeToken.phone) || 'this patient'}. Use "+ Upload Physical Report" above to attach a paper report or ECG.
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>

@@ -821,6 +821,7 @@ public class QueueManagerService {
 
     @Transactional(rollbackFor = Exception.class)
     public CreateTokenResult createToken(String name, Integer age, String gender, String category, String phone, SetLocationRequest location, Integer hospitalId, Integer selectedTravelMinutes) {
+        phone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
         if (appProperties.isOtpRequiredForRegistration() && !otpService.isPhoneVerifiedRecently(phone)) {
             throw new IllegalStateException("Please verify your phone number with the OTP sent via SMS before registering.");
         }

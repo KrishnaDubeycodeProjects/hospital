@@ -34,4 +34,12 @@ public class PatientDocumentDto {
     private String storagePath;
     private String fileHash;
     private LocalDateTime createdAt;
+
+    public void setPatientPhone(String patientPhone) {
+        this.patientPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(patientPhone);
+    }
+
+    public String getPatientPhone() {
+        return com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(this.patientPhone);
+    }
 }

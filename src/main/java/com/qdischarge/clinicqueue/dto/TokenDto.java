@@ -95,6 +95,14 @@ public class TokenDto {
      * patients to see e.g. "#17" for the 1st booking of the day in their
      * department).
      */
+    public void setPhone(String phone) {
+        this.phone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
+    }
+
+    public String getPhone() {
+        return com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(this.phone);
+    }
+
     public int displayNumber() {
         return dailyNumber != null ? dailyNumber : 0;
     }

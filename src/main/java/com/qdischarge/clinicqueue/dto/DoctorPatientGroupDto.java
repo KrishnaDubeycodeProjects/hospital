@@ -27,4 +27,12 @@ public class DoctorPatientGroupDto {
     private String name;
     private Integer age;
     private List<PatientDocumentDto> documents;
+
+    public void setPatientPhone(String patientPhone) {
+        this.patientPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(patientPhone);
+    }
+
+    public String getPatientPhone() {
+        return com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(this.patientPhone);
+    }
 }

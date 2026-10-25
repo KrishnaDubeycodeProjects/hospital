@@ -34,4 +34,12 @@ public class CourseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime closedAt;
+
+    public void setPatientPhone(String patientPhone) {
+        this.patientPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(patientPhone);
+    }
+
+    public String getPatientPhone() {
+        return com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(this.patientPhone);
+    }
 }

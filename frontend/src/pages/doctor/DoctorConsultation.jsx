@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authFor, client, courseApi, doctorApi, drugApi, hospitalApi, queueApi, referralApi, fetchAsObjectUrl } from '../../api/client';
 import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
+import { normalizePhone, formatDisplayPhone } from '../../utils/helpers';
 import {
   Printer,
   Eye,
@@ -440,7 +441,7 @@ export default function DoctorConsultation() {
   // 1-Click Patient Consent Verification
   async function handleQuickGrantConsent(phoneToGrant) {
     const rawPhone = phoneToGrant || activeToken?.phone || '';
-    const cleanPhone = rawPhone.trim();
+    const cleanPhone = normalizePhone(rawPhone);
     if (!cleanPhone || cleanPhone.replace(/\D/g, '').length < 10) {
       toast.error('Please provide a valid 10-digit mobile number for consent verification');
       return;
@@ -499,7 +500,7 @@ export default function DoctorConsultation() {
     const waitingTokens = tokens.filter(t => t.status === 'waiting');
     for (const t of waitingTokens) {
       if (!t.phone) continue;
-      const cleanPhone = t.phone.trim();
+      const cleanPhone = normalizePhone(t.phone);
       const status = checkAccessForPhone(cleanPhone, grantsList);
       if (status === 'GRANTED') {
         try {
@@ -1286,7 +1287,7 @@ export default function DoctorConsultation() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {(currentQueue?.tokens || []).filter(t => t.status === 'waiting').map((t, idx) => {
-                  const cleanPhone = (t.phone || '').trim();
+                  const cleanPhone = normalizePhone(t.phone);
                   const qMeta = queuedPatientsData[cleanPhone] || {};
                   const qStatus = qMeta.accessStatus || checkAccessForPhone(cleanPhone);
                   const qCourses = qMeta.courses || [];
@@ -1335,7 +1336,7 @@ export default function DoctorConsultation() {
                               )}
                             </div>
                             <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px' }}>
-                              {t.age ? `${t.age} yrs • ` : ''}{t.gender ? `${t.gender} • ` : ''}{t.phone}
+                              {t.age ? `${t.age} yrs • ` : ''}{t.gender ? `${t.gender} • ` : ''}{formatDisplayPhone(t.phone)}
                             </div>
                           </div>
                         </div>
@@ -1597,7 +1598,7 @@ export default function DoctorConsultation() {
                   </div>
                   <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     <span>{activeToken.age ? `${activeToken.age} years` : ''} {activeToken.gender ? `• ${activeToken.gender}` : ''}</span>
-                    <span>{activeToken.phone}</span>
+                    <span>{formatDisplayPhone(activeToken.phone)}</span>
                     <span>Counter #{profile?.counterId || activeToken.counterId || 1}</span>
                   </div>
                 </div>
@@ -1697,7 +1698,7 @@ export default function DoctorConsultation() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Lock size={15} color="#64748B" />
                     <span style={{ fontSize: '13px', color: '#334155', fontWeight: 600 }}>
-                      Patient Phone: <strong>{activeToken.phone || 'Unknown'}</strong>
+                      Patient Phone: <strong>{formatDisplayPhone(activeToken.phone) || 'Unknown'}</strong>
                     </span>
                   </div>
 
@@ -2971,7 +2972,7 @@ export default function DoctorConsultation() {
                 </Select>
               </Field>
               <Field label="Patient">
-                <Input value={`${activeToken?.name || 'Patient'} (${activeToken?.phone || ''})`} disabled />
+                <Input value={`${activeToken?.name || 'Patient'} (${formatDisplayPhone(activeToken?.phone) || ''})`} disabled />
               </Field>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
@@ -3122,7 +3123,7 @@ export default function DoctorConsultation() {
                   {activeToken?.name || 'Walk-In Patient'}
                 </div>
                 <div style={{ fontSize: '12px', color: '#15803D', marginTop: '2px' }}>
-                  {activeToken?.age ? `${activeToken.age} yrs • ` : ''}{activeToken?.gender ? `${activeToken.gender} • ` : ''}{activeToken?.phone || 'No phone'}
+                  {activeToken?.age ? `${activeToken.age} yrs • ` : ''}{activeToken?.gender ? `${activeToken.gender} • ` : ''}{formatDisplayPhone(activeToken?.phone) || 'No phone'}
                 </div>
               </div>
               <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 9px', borderRadius: '6px', backgroundColor: '#FFFFFF', color: '#166534', border: '1px solid #86EFAC' }}>

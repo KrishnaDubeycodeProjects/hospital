@@ -3,6 +3,7 @@ import { courseApi, doctorApi, fetchAsObjectUrl } from '../../api/client';
 import { Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table, Textarea, fmtDateTime } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { normalizePhone, formatDisplayPhone } from '../../utils/helpers';
 import {
   Search,
   Plus,
@@ -87,10 +88,10 @@ export default function DoctorCourses() {
       // Group courses by patient phone
       const patientMap = new Map();
       courses.forEach((c) => {
-        const key = c.patientPhone || `patient-${c.id}`;
+        const key = normalizePhone(c.patientPhone) || c.patientPhone || `patient-${c.id}`;
         if (!patientMap.has(key)) {
           patientMap.set(key, {
-            phone: c.patientPhone,
+            phone: normalizePhone(c.patientPhone) || c.patientPhone,
             name: c.patientName || 'Patient',
             age: c.patientAge,
             gender: c.patientGender,
@@ -407,7 +408,7 @@ export default function DoctorCourses() {
                     </span>
                   </div>
                   <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span>Phone: {pt.phone}</span>
+                    <span>Phone: {formatDisplayPhone(pt.phone)}</span>
                     {pt.age && <span>Age: {pt.age}</span>}
                     {pt.gender && <span>Gender: {pt.gender}</span>}
                   </div>
@@ -538,7 +539,7 @@ export default function DoctorCourses() {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#0F172A' }}>
                           <div><strong>Full Name:</strong> {pt.name}</div>
-                          <div><strong>Phone:</strong> {pt.phone}</div>
+                          <div><strong>Phone:</strong> {formatDisplayPhone(pt.phone)}</div>
                           <div><strong>Age:</strong> {pt.age || 'Not specified'} years</div>
                           <div><strong>Gender:</strong> {pt.gender || 'Not specified'}</div>
                         </div>
@@ -549,7 +550,7 @@ export default function DoctorCourses() {
                           Healthcare Stack &amp; Consent
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#0F172A' }}>
-                          <div><strong>ABHA ID:</strong> {pt.phone ? `${pt.phone.replace(/[^0-9]/g, '').slice(-10)}@sbx` : 'Linked'}</div>
+                          <div><strong>ABHA ID:</strong> {pt.phone ? `${normalizePhone(pt.phone).replace(/[^0-9]/g, '').slice(-10)}@sbx` : 'Linked'}</div>
                           <div><strong>Consent Status:</strong> <span style={{ color: currentAccess === 'GRANTED' ? '#15803D' : '#D97706', fontWeight: 700 }}>{currentAccess}</span></div>
                           <div><strong>Care Continuum:</strong> {courses.length} Active Courses</div>
                           <div style={{ marginTop: '4px' }}>
@@ -956,7 +957,7 @@ export default function DoctorCourses() {
                   {patientCourses[selectedPatientPhone]?.find(c => c.id === encounterCourseId)?.title || 'Active Care Episode'}
                 </span>
               </div>
-              <span style={{ fontSize: '11px', color: '#64748B' }}>Patient: {patientList.find(p => p.phone === selectedPatientPhone)?.name || selectedPatientPhone}</span>
+              <span style={{ fontSize: '11px', color: '#64748B' }}>Patient: {patientList.find(p => p.phone === selectedPatientPhone)?.name || formatDisplayPhone(selectedPatientPhone)}</span>
             </div>
             <Field label="Chief Complaint / Purpose of Visit">
               <Input

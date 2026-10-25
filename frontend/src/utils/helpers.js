@@ -1,17 +1,59 @@
 /**
- * Cleans user phone input: strips non-digits, prepends +91 if 10-digit Indian number.
+ * Cleans user phone input: decodes URI components, strips %2B/url encoding,
+ * extracts digits, and ensures standard E.164 +91XXXXXXXXXX.
  */
 export function cleanPhone(input) {
   if (!input) return '';
-  let digits = input.trim().replace(/[^\d+]/g, '');
-  if (digits.startsWith('+')) {
-    digits = '+' + digits.slice(1).replace(/\D/g, '');
-  } else if (digits.length === 10) {
-    digits = '+91' + digits;
-  } else if (digits.length === 12 && digits.startsWith('91')) {
-    digits = '+' + digits;
+  let str = String(input).trim();
+  try {
+    str = decodeURIComponent(str);
+    if (str.includes('%')) {
+      str = decodeURIComponent(str);
+    }
+  } catch (e) {}
+  str = str.replace(/%2b/gi, '+').trim();
+  
+  let digits = str.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return '+91' + digits;
   }
-  return digits;
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return '+' + digits;
+  }
+  if (digits.length > 10) {
+    return '+91' + digits.slice(-10);
+  }
+  return digits ? ('+' + digits) : '';
+}
+
+/**
+ * Formats a phone number for clean human display (e.g. "+91 91000 00099"),
+ * completely preventing raw URL encodings like "%2B919100000099".
+ */
+export function formatDisplayPhone(input) {
+  if (!input) return '';
+  let str = String(input).trim();
+  try {
+    str = decodeURIComponent(str);
+    if (str.includes('%')) {
+      str = decodeURIComponent(str);
+    }
+  } catch (e) {}
+  str = str.replace(/%2b/gi, '+').trim();
+
+  const digits = str.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+  }
+  if (digits.length === 12 && digits.startsWith('91')) {
+    const local = digits.slice(2);
+    return `+91 ${local.slice(0, 5)} ${local.slice(5)}`;
+  }
+  if (digits.length > 10) {
+    const local = digits.slice(-10);
+    return `+91 ${local.slice(0, 5)} ${local.slice(5)}`;
+  }
+  return str.startsWith('+') ? str : (digits ? `+${digits}` : str);
 }
 
 /**
@@ -90,3 +132,5 @@ export function formatDateTime(isoString) {
     return isoString;
   }
 }
+
+export const normalizePhone = cleanPhone;
