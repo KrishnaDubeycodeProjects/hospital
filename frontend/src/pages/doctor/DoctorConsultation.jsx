@@ -21,7 +21,8 @@ import {
   Search,
   X,
   ChevronDown,
-  Info
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 
 // Comprehensive drug registry with formulation variants (AarogyaFlow Drug Registry)
