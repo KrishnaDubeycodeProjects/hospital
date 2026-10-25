@@ -89,9 +89,9 @@ export default function Login() {
             </div>
 
             {/* Auth Body Rendered By Role */}
-            {role === 'patient' && <OtpAuthForm kind="patient" />}
-            {role === 'doctor' && <OtpAuthForm kind="doctor" />}
-            {role === 'admin' && <AdminAuthForm />}
+            {role === 'patient' && <OtpAuthForm kind="patient" redirectTarget={redirectTarget} />}
+            {role === 'doctor' && <OtpAuthForm kind="doctor" redirectTarget={redirectTarget} />}
+            {role === 'admin' && <AdminAuthForm redirectTarget={redirectTarget} />}
             
           </div>
 
@@ -121,7 +121,9 @@ export default function Login() {
 /** 
  * Professional Phone + Real Backend WhatsApp OTP Form
  */
-function OtpAuthForm({ kind }) {
+function OtpAuthForm({ kind, redirectTarget }) {
+  const [searchParams] = useSearchParams();
+  const effectiveRedirect = redirectTarget || (searchParams.get('redirect') ? decodeURIComponent(searchParams.get('redirect')) : null);
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
   const [phone, setPhone] = useState(kind === 'doctor' ? '9888877777' : '9100000099');
   const [stage, setStage] = useState('phone'); // 'phone' | 'otp' | 'profile'
@@ -241,7 +243,7 @@ function OtpAuthForm({ kind }) {
       if (kind === 'patient') {
         login('PATIENT', res.token);
         toast.success('Authenticated successfully! Welcome to AarogyaFlow.');
-        navigate(redirectTarget || '/patient');
+        navigate(effectiveRedirect || '/patient');
         return;
       }
 
@@ -512,7 +514,9 @@ function OtpAuthForm({ kind }) {
 /**
  * Hospital Staff & Admin Authentication Component
  */
-function AdminAuthForm() {
+function AdminAuthForm({ redirectTarget }) {
+  const [searchParams] = useSearchParams();
+  const effectiveRedirect = redirectTarget || (searchParams.get('redirect') ? decodeURIComponent(searchParams.get('redirect')) : null);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
@@ -530,7 +534,7 @@ function AdminAuthForm() {
       const res = await queueApi.login(username, password);
       login('ADMIN', res.token);
       toast.success('Welcome back to ArogyaFlow Hospital Administration.');
-      navigate('/admin');
+      navigate(effectiveRedirect || '/admin');
     } catch (err) {
       setErrorMsg(err.message || 'Invalid username or password. Please verify credentials.');
     } finally {
