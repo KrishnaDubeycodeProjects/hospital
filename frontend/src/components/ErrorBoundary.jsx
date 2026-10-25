@@ -50,7 +50,17 @@ export class ErrorBoundary extends React.Component {
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
                 type="button"
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  try {
+                    sessionStorage.clear();
+                    if ('caches' in window) {
+                      caches.keys().then((names) => {
+                        for (const name of names) caches.delete(name);
+                      });
+                    }
+                  } catch (e) {}
+                  window.location.href = window.location.pathname + '?reload=' + Date.now();
+                }}
                 style={{
                   backgroundColor: '#0284c7',
                   color: '#ffffff',

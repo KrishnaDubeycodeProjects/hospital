@@ -21,8 +21,7 @@ import {
   Search,
   X,
   ChevronDown,
-  Info,
-  ShieldCheck
+  Info
 } from 'lucide-react';
 
 // Comprehensive drug registry with formulation variants (AarogyaFlow Drug Registry)
@@ -1142,7 +1141,7 @@ export default function DoctorConsultation() {
             }}
           >
             <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ShieldCheck size={14} color="#15803D" />
+              <CheckCircle2 size={14} color="#15803D" />
               <span>A valid prescription must be authenticated by the prescriber before sending.</span>
             </div>
 
