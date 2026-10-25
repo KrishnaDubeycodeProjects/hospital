@@ -320,22 +320,25 @@ public class CourseService {
 
     @Transactional(rollbackFor = Exception.class)
     public CoursePrescriptionDto addPrescription(int courseId, Integer encounterId, int doctorId, AddPrescriptionRequest req) {
-        if (req.dosage() == null || req.dosage().isBlank()) {
-            throw new IllegalArgumentException("Dosage instructions cannot be blank.");
-        }
+        String dosage = (req != null && req.dosage() != null && !req.dosage().isBlank()) ? req.dosage().trim() : "1 tablet";
+        String medicineName = (req != null && req.medicineName() != null && !req.medicineName().isBlank()) ? req.medicineName().trim() : "Standard Medicine";
+        String frequency = (req != null && req.frequency() != null && !req.frequency().isBlank()) ? req.frequency().trim() : "BD (Twice daily)";
+        int durationDays = (req != null && req.durationDays() != null && req.durationDays() > 0) ? req.durationDays() : 5;
+        String route = (req != null && req.route() != null && !req.route().isBlank()) ? req.route().trim() : "Oral";
+        String instructions = (req != null && req.instructions() != null) ? req.instructions().trim() : "After meals";
 
         Map<String, Object> params = new HashMap<>();
         params.put("courseId", courseId);
         params.put("encounterId", encounterId);
         params.put("doctorId", doctorId);
-        params.put("medicineName", req.medicineName().trim());
-        params.put("snomedCode", req.snomedCode());
-        params.put("dosage", req.dosage().trim());
-        params.put("frequency", req.frequency().trim());
-        params.put("durationDays", req.durationDays());
-        params.put("route", req.route() != null ? req.route().trim() : "Oral");
-        params.put("instructions", req.instructions());
-        params.put("isNlem", Boolean.TRUE.equals(req.isNlem()));
+        params.put("medicineName", medicineName);
+        params.put("snomedCode", req != null ? req.snomedCode() : null);
+        params.put("dosage", dosage);
+        params.put("frequency", frequency);
+        params.put("durationDays", durationDays);
+        params.put("route", route);
+        params.put("instructions", instructions);
+        params.put("isNlem", req != null && Boolean.TRUE.equals(req.isNlem()));
 
         Integer id = jdbc.queryForObject(
                 """

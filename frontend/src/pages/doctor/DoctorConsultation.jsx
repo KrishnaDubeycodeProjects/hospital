@@ -576,13 +576,16 @@ export default function DoctorConsultation() {
         plan: planText,
         examinationFindings: examFindings || `Vitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg`,
         prescriptions: prescriptions
-          .filter((p) => p.medicineName && p.medicineName.trim())
+          .filter((p) => p && p.medicineName && p.medicineName.trim())
           .map((p) => ({
-            drugName: `${p.medicineName} ${p.strength}`,
-            dosage: p.dose,
-            frequency: p.frequency,
+            medicineName: p.medicineName.trim(),
+            drugName: p.medicineName.trim(),
+            dosage: p.dose || p.dosage || '1 tablet',
+            dose: p.dose || p.dosage || '1 tablet',
+            frequency: p.frequency || 'BD (Twice daily)',
             durationDays: parseInt(p.duration) || 5,
-            instructions: p.instructions,
+            route: p.route || 'Oral',
+            instructions: p.instructions || 'After meals',
           })),
       };
 
