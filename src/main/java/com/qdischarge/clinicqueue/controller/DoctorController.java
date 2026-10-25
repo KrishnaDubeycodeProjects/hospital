@@ -237,10 +237,13 @@ public class DoctorController {
     @PostMapping(value = "/patients/documents/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadPatientDocument(
             @RequestParam("patientPhone") String patientPhone,
-            @RequestParam("patientName") String patientName,
+            @RequestParam(name = "patientName", required = false) String patientName,
             @RequestParam(name = "patientAge", required = false) Integer patientAge,
-            @RequestParam("docType") String docType,
+            @RequestParam(name = "docType", required = false, defaultValue = "lab_report") String docType,
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        if (patientName == null || patientName.isBlank()) {
+            patientName = "Patient";
+        }
         int doctorId = currentUser.requireDoctorId();
         List<String> allowedPhones = accessService.listActivePatientPhonesForDoctor(doctorId);
         boolean hasAccess = allowedPhones.stream().anyMatch(p -> PhoneNormalizer.matches(p, patientPhone));

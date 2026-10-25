@@ -287,8 +287,38 @@ export default function DoctorConsultation() {
     }
     setLoadingCourses(true);
     try {
-      const results = await courseApi.search(phone);
-      const list = Array.isArray(results) ? results : results?.data || [];
+      const cleanDigits = phone.replace(/[^0-9]/g, '').slice(-10);
+      let list = [];
+
+      // 1. First try publicPatientCourses with clean 10 digits
+      try {
+        const pubRes = await courseApi.publicPatientCourses(cleanDigits || phone);
+        list = Array.isArray(pubRes) ? pubRes : (pubRes?.data || []);
+      } catch (e) {}
+
+      // 2. Also try with original phone (e.g. +91...)
+      if (list.length === 0 && phone !== cleanDigits) {
+        try {
+          const pubRes2 = await courseApi.publicPatientCourses(phone);
+          list = Array.isArray(pubRes2) ? pubRes2 : (pubRes2?.data || []);
+        } catch (e) {}
+      }
+
+      // 3. Fallback to course search by digits and phone
+      if (list.length === 0) {
+        try {
+          const searchRes = await courseApi.search(cleanDigits || phone);
+          list = Array.isArray(searchRes) ? searchRes : (searchRes?.data || []);
+        } catch (e) {}
+      }
+
+      if (list.length === 0 && cleanDigits) {
+        try {
+          const searchRes2 = await courseApi.search('+91' + cleanDigits);
+          list = Array.isArray(searchRes2) ? searchRes2 : (searchRes2?.data || []);
+        } catch (e) {}
+      }
+
       setPatientCourses(list);
       if (list.length > 0) {
         const activeOne = list.find((c) => c.status === 'active') || list[0];
@@ -466,8 +496,20 @@ export default function DoctorConsultation() {
       const status = checkAccessForPhone(cleanPhone, grantsList);
       if (status === 'GRANTED') {
         try {
-          const courses = await courseApi.search(cleanPhone).catch(() => []);
-          const list = Array.isArray(courses) ? courses : courses?.data || [];
+          const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
+          let list = [];
+          try {
+            const pub = await courseApi.publicPatientCourses(cleanDigits || cleanPhone);
+            list = Array.isArray(pub) ? pub : (pub?.data || []);
+          } catch (e) {}
+          if (list.length === 0) {
+            const pub2 = await courseApi.publicPatientCourses(cleanPhone);
+            list = Array.isArray(pub2) ? pub2 : (pub2?.data || []);
+          }
+          if (list.length === 0) {
+            const s = await courseApi.search(cleanDigits || cleanPhone);
+            list = Array.isArray(s) ? s : (s?.data || []);
+          }
           setQueuedPatientsData(prev => ({ ...prev, [cleanPhone]: { accessStatus: status, courses: list } }));
         } catch (e) {
           setQueuedPatientsData(prev => ({ ...prev, [cleanPhone]: { accessStatus: status, courses: [] } }));
@@ -532,11 +574,11 @@ export default function DoctorConsultation() {
     setUploadingDoc(true);
     try {
       const formData = new FormData();
-      formData.append('file', uploadDocFile);
       formData.append('patientPhone', activeToken?.phone || '+919100000099');
-      formData.append('docType', uploadDocType);
-      if (uploadDocDescription) formData.append('description', uploadDocDescription);
-      if (selectedCourseId) formData.append('courseId', selectedCourseId);
+      formData.append('patientName', activeToken?.name || 'Patient');
+      if (activeToken?.age) formData.append('patientAge', activeToken.age);
+      formData.append('docType', uploadDocType || 'lab_report');
+      formData.append('file', uploadDocFile);
 
       await doctorApi.uploadPatientDocument(formData);
       toast.success('Document uploaded to patient record successfully!');
@@ -921,7 +963,7 @@ export default function DoctorConsultation() {
         }
       }
 
-      // 3. Complete token in queue
+      // 3. Complete token in queue and finish with this patient
       if (activeToken?.id) {
         try {
           await queueApi.updateStatus(activeToken.id, 'completed', 'DOCTOR');
@@ -930,8 +972,37 @@ export default function DoctorConsultation() {
         }
       }
 
+      // Reset patient and clinical fields so consultation is complete
+      setActiveToken(null);
+      setChiefComplaint('');
+      setClinicalNotes('');
+      setMedicalHistory('');
+      setDiagnosis('');
+      setExamFindings('');
+      setAdviceNotes('Drink adequate water, maintain light diet, rest adequately.');
+      setReviewDate('');
+      setSelectedCourseId(null);
+      setCourseTimeline(null);
+      setPatientDocuments([]);
+      setPrescriptions([
+        {
+          medicineName: '',
+          strength: '',
+          dose: '1 tablet',
+          route: 'Oral',
+          frequency: 'TDS (3 times daily)',
+          duration: '5 days',
+          quantity: 15,
+          refills: 0,
+          instructions: 'After meals',
+          indication: '',
+          prn: false,
+        }
+      ]);
+
       setShowSignedModal(true);
       toast.success('e-Prescription signed & dispatched to patient on WhatsApp!');
+      setActiveTab('stats'); // Switch back to Queue tab
       loadData();
     } catch (err) {
       toast.error(err.message || 'Failed to complete consultation');
@@ -997,7 +1068,7 @@ export default function DoctorConsultation() {
               }}
             >
               <BarChart3 size={14} color="#25D366" />
-              <span>Station Stats</span>
+              <span>Queue</span>
             </button>
           </div>
 
@@ -1486,7 +1557,7 @@ export default function DoctorConsultation() {
                   style={{ fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
                   <BarChart3 size={13} />
-                  <span>Station Stats &amp; Queue</span>
+                  <span>Queue</span>
                 </Button>
               </div>
             </div>
@@ -1946,7 +2017,7 @@ export default function DoctorConsultation() {
                 Counter #{profile?.counterId || 1} &bull; No Active Consultation
               </h3>
               <p style={{ margin: '0 0 20px', fontSize: '13.5px', color: '#64748B', maxWidth: '480px', marginInline: 'auto' }}>
-                Patient queue calling and station controls are managed in <strong>Station Stats</strong>. Switch to Station Stats to call the next waiting patient to this counter.
+                Patient queue calling and station controls are managed in <strong>Queue</strong>. Switch to Queue to call the next waiting patient to this counter.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
                 <Button
@@ -1954,7 +2025,7 @@ export default function DoctorConsultation() {
                   style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <BarChart3 size={15} />
-                  <span>Open Station Stats &amp; Queue Control</span>
+                  <span>Open Queue</span>
                 </Button>
                 <Button
                   variant="secondary"
@@ -3077,13 +3148,12 @@ export default function DoctorConsultation() {
             <Button
               onClick={() => {
                 setShowSignedModal(false);
-                // Reset form
-                setChiefComplaint('');
-                setDiagnosis('');
+                setActiveTab('stats');
+                loadData();
               }}
               style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, padding: '8px 24px' }}
             >
-              Ready for Next Patient
+              Back to Queue for Next Patient
             </Button>
           </div>
         </Modal>

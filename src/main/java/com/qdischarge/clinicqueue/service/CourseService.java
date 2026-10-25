@@ -184,6 +184,8 @@ public class CourseService {
                     LIMIT 60
                     """;
         } else {
+            String digits = filter.replaceAll("[^0-9]", "");
+            List<String> phones = digits.length() >= 10 ? getPhoneVariants(digits.substring(digits.length() - 10)) : List.of();
             sql = """
                     SELECT c.*, d.name AS started_by_doctor_name, h.name AS started_at_hospital_name,
                            (SELECT COUNT(*) FROM course_documents WHERE course_id = c.id)::int AS doc_count,
@@ -194,6 +196,7 @@ public class CourseService {
                     LEFT JOIN hospitals h ON c.started_at_hospital_id = h.id
                     WHERE LOWER(c.patient_name) LIKE LOWER(:q)
                        OR c.patient_phone LIKE :q
+                       OR (:hasPhones = true AND c.patient_phone IN (:phones))
                        OR LOWER(c.title) LIKE LOWER(:q)
                        OR LOWER(c.target_department) LIKE LOWER(:q)
                        OR LOWER(COALESCE(c.primary_diagnosis, '')) LIKE LOWER(:q)
@@ -201,6 +204,8 @@ public class CourseService {
                     LIMIT 60
                     """;
             params.put("q", "%" + filter + "%");
+            params.put("hasPhones", !phones.isEmpty());
+            params.put("phones", phones.isEmpty() ? List.of("NONE") : phones);
         }
         return jdbc.query(sql, params, (rs, rowNum) -> {
             CourseDto dto = COURSE_MAPPER.mapRow(rs, rowNum);
