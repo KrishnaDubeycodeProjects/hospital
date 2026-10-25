@@ -76,6 +76,7 @@ export default function DoctorCourses() {
   // Patient access state map: phone -> 'GRANTED' | 'REQUESTED' | 'REVOKED'
   const [accessState, setAccessState] = useState({});
   const [requestingAccess, setRequestingAccess] = useState(false);
+  const [patientTabs, setPatientTabs] = useState({});
 
   async function loadInitialCourses(query = '') {
     setSearching(true);
@@ -286,7 +287,7 @@ export default function DoctorCourses() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>
-            Longitudinal Patient Care &amp; Courses
+            Continuation Course &amp; Patient Care
           </h1>
           <p className="muted-text" style={{ margin: '4px 0 0' }}>
             Unified patient continuum: Select a patient to open their care courses and linked visit timelines inline
@@ -405,8 +406,185 @@ export default function DoctorCourses() {
               </div>
             </div>
 
-            {/* INLINE EXPANDED COURSES SECTION (Opens Right Here) */}
+            {/* INLINE EXPANDED PATIENT SECTIONS (Details of Patient, Courses, Documents) */}
             {isSelected && (
+              <div>
+                {/* 3 Section Tabs Navigation */}
+                <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #E2E8F0', padding: '0 20px', backgroundColor: '#F8FAFC' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPatientTabs(prev => ({ ...prev, [pt.phone]: 'details' })); }}
+                    style={{
+                      padding: '12px 18px',
+                      border: 'none',
+                      borderBottom: (patientTabs[pt.phone] === 'details') ? '2.5px solid #25D366' : '2.5px solid transparent',
+                      background: 'transparent',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      color: (patientTabs[pt.phone] === 'details') ? '#15803D' : '#64748B',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <User size={14} />
+                    <span>Details of Patient</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPatientTabs(prev => ({ ...prev, [pt.phone]: 'courses' })); }}
+                    style={{
+                      padding: '12px 18px',
+                      border: 'none',
+                      borderBottom: (!patientTabs[pt.phone] || patientTabs[pt.phone] === 'courses') ? '2.5px solid #25D366' : '2.5px solid transparent',
+                      background: 'transparent',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      color: (!patientTabs[pt.phone] || patientTabs[pt.phone] === 'courses') ? '#15803D' : '#64748B',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Stethoscope size={14} />
+                    <span>Courses ({courses.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPatientTabs(prev => ({ ...prev, [pt.phone]: 'documents' })); }}
+                    style={{
+                      padding: '12px 18px',
+                      border: 'none',
+                      borderBottom: (patientTabs[pt.phone] === 'documents') ? '2.5px solid #25D366' : '2.5px solid transparent',
+                      background: 'transparent',
+                      fontWeight: 700,
+                      fontSize: '13px',
+                      color: (patientTabs[pt.phone] === 'documents') ? '#15803D' : '#64748B',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <FileText size={14} />
+                    <span>Documents</span>
+                  </button>
+                </div>
+
+                {/* SECTION 1: DETAILS OF PATIENT */}
+                {patientTabs[pt.phone] === 'details' && (
+                  <div style={{ padding: '24px 20px', backgroundColor: '#FFFFFF' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                      <div style={{ padding: '16px', borderRadius: '10px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '8px' }}>
+                          Primary Demographics
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#0F172A' }}>
+                          <div><strong>Full Name:</strong> {pt.name}</div>
+                          <div><strong>Phone:</strong> {pt.phone}</div>
+                          <div><strong>Age:</strong> {pt.age || 'Not specified'} years</div>
+                          <div><strong>Gender:</strong> {pt.gender || 'Not specified'}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '16px', borderRadius: '10px', border: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '8px' }}>
+                          Healthcare Stack &amp; Consent
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#0F172A' }}>
+                          <div><strong>ABHA ID:</strong> {pt.phone ? `${pt.phone.replace(/[^0-9]/g, '').slice(-10)}@sbx` : 'Linked'}</div>
+                          <div><strong>Consent Status:</strong> <span style={{ color: currentAccess === 'GRANTED' ? '#15803D' : '#D97706', fontWeight: 700 }}>{currentAccess}</span></div>
+                          <div><strong>Care Continuum:</strong> {courses.length} Active Courses</div>
+                          <div style={{ marginTop: '4px' }}>
+                            {currentAccess !== 'GRANTED' && (
+                              <Button size="sm" variant="secondary" onClick={() => handleRequestAccess(pt.phone)}>
+                                Request Consent via WhatsApp
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SECTION 3: DOCUMENTS */}
+                {patientTabs[pt.phone] === 'documents' && (
+                  <div style={{ padding: '24px 20px', backgroundColor: '#FFFFFF' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#0F172A' }}>
+                        Patient Medical Vault &amp; Diagnostic Documents
+                      </div>
+                      {courses.length > 0 && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setActiveCourseId(courses[0].id);
+                            setUploadModal(true);
+                          }}
+                          style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Upload size={13} />
+                          <span>Upload New Document</span>
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Aggregate all documents across this patient's courses */}
+                    {(() => {
+                      const allDocs = courses.flatMap(c => (courseTimelines[c.id]?.documents || []).map(d => ({ ...d, courseTitle: c.title, courseId: c.id })));
+                      if (allDocs.length === 0) {
+                        return (
+                          <div style={{ textAlign: 'center', padding: '30px 10px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1', color: '#64748B', fontSize: '13px' }}>
+                            No documents or lab reports uploaded yet for this patient.
+                          </div>
+                        );
+                      }
+                      return (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+                          {allDocs.map((doc) => (
+                            <div
+                              key={doc.id}
+                              style={{
+                                backgroundColor: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '10px',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>
+                                  {doc.fileName || `Document #${doc.id}`}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                  {doc.courseTitle} &bull; {fmtDateTime(doc.createdAt)}
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => openDocPreview(doc.courseId, doc.id, doc.fileName)}
+                                style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Eye size={13} />
+                                <span>View</span>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* SECTION 2: COURSES (Default tab) */}
+                {(!patientTabs[pt.phone] || patientTabs[pt.phone] === 'courses') && (
               <div style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
                 {/* Control bar inside patient section */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '18px', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
@@ -517,11 +695,11 @@ export default function DoctorCourses() {
                             </div>
                           </div>
 
-                          {/* Longitudinal Care Timeline Sequence */}
+                          {/* Continuation Course Timeline Sequence */}
                           <div style={{ padding: '18px' }}>
                             <div style={{ fontWeight: 800, fontSize: '13px', color: '#334155', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <Stethoscope size={15} color="#25D366" />
-                              <span>Longitudinal Visit Timeline</span>
+                              <span>Continuation Course Timeline</span>
                             </div>
 
                             {isLoadingTl && <Spinner label="Loading encounter timeline..." />}
@@ -668,6 +846,8 @@ export default function DoctorCourses() {
                       );
                     })}
                   </div>
+                )}
+              </div>
                 )}
               </div>
             )}

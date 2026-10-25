@@ -2,6 +2,7 @@ package com.qdischarge.clinicqueue.service;
 
 import com.qdischarge.clinicqueue.dto.FamilyMemberDto;
 import com.qdischarge.clinicqueue.dto.FamilyUnitDto;
+import com.qdischarge.clinicqueue.catalog.MedicalCategory;
 import com.qdischarge.clinicqueue.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -248,7 +249,9 @@ public class TestEnvironmentService {
             Double distanceKm, Integer travelMinutes) {
 
         String cleanPhone = (phone != null && !phone.isBlank()) ? phone.trim() : "+919100000099";
-        String cat = (category != null && !category.isBlank()) ? category : "General Medicine";
+        String rawCat = (category != null && !category.isBlank()) ? category : "General Medicine / Internal Medicine";
+        String matchedCat = MedicalCategory.match(rawCat);
+        String cat = matchedCat != null ? matchedCat : rawCat;
         int hId = (hospitalId != null && hospitalId > 0) ? hospitalId : 1;
         String st = (status != null && !status.isBlank()) ? status.toLowerCase() : "waiting";
         if (!List.of("waiting", "serving", "frozen", "reserved", "missed", "completed").contains(st)) {
@@ -303,13 +306,19 @@ public class TestEnvironmentService {
 
         boolean isVerified = "waiting".equals(st) || "serving".equals(st);
         tokenParams.put("isVerified", isVerified);
+        Integer counterId = "serving".equals(st) ? 1 : null;
+        tokenParams.put("counterId", counterId != null ? counterId : (Object) java.sql.Types.NULL);
+
+        if ("serving".equals(st)) {
+            jdbc.update("UPDATE tokens SET status = 'completed', completed_at = NOW() WHERE hospital_id = :hId AND LOWER(TRIM(category)) = LOWER(TRIM(:cat)) AND status = 'serving'", Map.of("hId", hId, "cat", cat));
+        }
 
         Integer id = jdbc.queryForObject(
                 """
-                INSERT INTO tokens (name, age, gender, category, phone, hospital_id, status, daily_number,
+                INSERT INTO tokens (name, age, gender, category, phone, hospital_id, counter_id, status, daily_number,
                                    distance_km, travel_minutes, selected_travel_minutes, target_arrival_time, token_code,
                                    is_verified, verified_at, served_at, missed_at, completed_at, session_step, created_at)
-                VALUES (:name, :age, :gender, :cat, :phone, :hId, :status, :dailyNumber,
+                VALUES (:name, :age, :gender, :cat, :phone, :hId, :counterId, :status, :dailyNumber,
                         :dist, :travelMins, :travelMins,
                         CASE WHEN :travelMins IS NOT NULL THEN NOW() + (:travelMins || ' minutes')::INTERVAL ELSE NULL END,
                         :tokenCode,

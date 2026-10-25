@@ -146,18 +146,31 @@ public class QueueManagerService {
             params.put("hospitalId", hospitalId);
         }
         if (category != null && !category.isBlank()) {
-            sql.append(" AND LOWER(TRIM(category)) = LOWER(TRIM(:category))");
-            params.put("category", category);
+            String decoded = category;
+            try {
+                decoded = java.net.URLDecoder.decode(category, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (Exception ignored) {
+            }
+            String canonical = MedicalCategory.match(decoded);
+            if (canonical != null) {
+                sql.append(" AND (LOWER(TRIM(category)) = LOWER(TRIM(:category)) OR LOWER(TRIM(category)) = LOWER(TRIM(:canonical)) OR :canonical ILIKE '%' || TRIM(category) || '%' OR TRIM(category) ILIKE '%' || :firstWord || '%')");
+                params.put("canonical", canonical);
+                String firstWord = canonical.contains(" ") ? canonical.split(" ")[0] : canonical;
+                params.put("firstWord", firstWord);
+            } else {
+                sql.append(" AND LOWER(TRIM(category)) = LOWER(TRIM(:category))");
+            }
+            params.put("category", decoded.trim());
         }
     }
 
     public TokenDto getCurrentServingToken(Integer hospitalId, String category) {
         cleanExpiredTokens();
 
-        StringBuilder sql = new StringBuilder("SELECT * FROM tokens WHERE status = 'serving'");
+        StringBuilder sql = new StringBuilder("SELECT * FROM tokens WHERE status IN ('serving', 'called')");
         Map<String, Object> params = new HashMap<>();
         appendScope(sql, params, hospitalId, category);
-        sql.append(" ORDER BY served_at DESC LIMIT 1");
+        sql.append(" ORDER BY served_at DESC NULLS LAST, id DESC LIMIT 1");
 
         List<TokenDto> rows = jdbc.query(sql.toString(), params, TOKEN_ROW_MAPPER);
         if (rows.isEmpty()) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { client, courseApi, doctorApi, drugApi, hospitalApi, queueApi, referralApi } from '../../api/client';
 import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
@@ -156,6 +156,7 @@ export default function DoctorConsultation() {
   // Investigations & Labs State
   const [selectedLabs, setSelectedLabs] = useState(['CBC (Complete Blood Count)']);
   const [customLabQuery, setCustomLabQuery] = useState('');
+  const [labSuggestions, setLabSuggestions] = useState([]);
 
   // Advice & Follow-up State
   const [adviceNotes, setAdviceNotes] = useState('Drink adequate water, maintain light diet, rest adequately.');
@@ -177,6 +178,44 @@ export default function DoctorConsultation() {
   const [testPatientPhone, setTestPatientPhone] = useState('+919100000099');
   const [testTargetStatus, setTestTargetStatus] = useState('waiting');
   const [testCreating, setTestCreating] = useState(false);
+
+  // Station Queue Call & Switch Actions
+  async function handleCallToken(token) {
+    if (!token?.id) return;
+    try {
+      const counterId = profile?.counterId || 1;
+      await queueApi.updateStatus(token.id, 'serving', 'DOCTOR');
+      setActiveToken({ ...token, status: 'serving', counterId });
+      toast.success(`Calling ${token.name} (${token.tokenCode || token.dailyNumber || token.id}) to Counter #${counterId}`);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to call token');
+    }
+  }
+
+  async function handleCallNext() {
+    const waitingTokens = (currentQueue?.tokens || []).filter((t) => t.status === 'waiting');
+    if (waitingTokens.length === 0) {
+      toast.error('No waiting patients in queue for this station');
+      return;
+    }
+    await handleCallToken(waitingTokens[0]);
+  }
+
+  async function handleReleaseCurrent() {
+    if (!activeToken?.id) {
+      setActiveToken(null);
+      return;
+    }
+    try {
+      await queueApi.updateStatus(activeToken.id, 'missed', 'DOCTOR');
+      toast.info(`Token #${activeToken.tokenCode || activeToken.id} released from counter`);
+      setActiveToken(null);
+      loadData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to release token');
+    }
+  }
 
   // Sign & Complete Modal
   const [showSignedModal, setShowSignedModal] = useState(false);
@@ -365,10 +404,19 @@ export default function DoctorConsultation() {
         targetCourseId = newCourse.id;
       }
 
-      // 2. Add clinical encounter
+      // 2. Add clinical encounter (Including database saving of Lab Tests & Investigations)
+      const labsText = selectedLabs.length > 0 ? selectedLabs.join(', ') : 'None ordered';
+      const planText = [
+        `Investigations Ordered: ${labsText}`,
+        adviceNotes ? `Advice: ${adviceNotes}` : '',
+        reviewDate ? `Review on: ${reviewDate}` : ''
+      ].filter(Boolean).join('\n');
+
       const payload = {
         chiefComplaint: chiefComplaint || 'Consultation',
-        clinicalNotes: `Assessment: ${clinicalNotes || 'Examined'}\nHistory: ${medicalHistory || 'None reported'}\nDiagnosis: ${diagnosis || 'Clinical evaluation'}\nVitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg\nFindings: ${examFindings || 'Clear'}\nAdvice: ${adviceNotes}`,
+        clinicalNotes: `Assessment: ${clinicalNotes || 'Examined'}\nHistory: ${medicalHistory || 'None reported'}\nDiagnosis: ${diagnosis || 'Clinical evaluation'}\nVitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg\nFindings: ${examFindings || 'Clear'}\nInvestigations Ordered: ${labsText}\nAdvice: ${adviceNotes}`,
+        plan: planText,
+        examinationFindings: examFindings || `Vitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg`,
         prescriptions: prescriptions
           .filter((p) => p.medicineName && p.medicineName.trim())
           .map((p) => ({
@@ -424,9 +472,9 @@ export default function DoctorConsultation() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>Consultations</span>
+            <Link to="/doctor" style={{ color: '#0284C7', textDecoration: 'none' }}>Consultations</Link>
             <span>/</span>
-            <span style={{ color: '#0F172A' }}>Clinical Notes &amp; Prescription</span>
+            <Link to="/doctor/consultation" style={{ color: '#0F172A', textDecoration: 'none', fontWeight: 700 }}>Clinical Notes &amp; Prescription</Link>
           </div>
           <h1 style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>
             Clinical Notes &amp; Prescription
@@ -507,6 +555,7 @@ export default function DoctorConsultation() {
             <Input value={testPatientAge} onChange={(e) => setTestPatientAge(e.target.value)} placeholder="Age" type="number" />
             <Input value={testPatientPhone} onChange={(e) => setTestPatientPhone(e.target.value)} placeholder="Phone (+91...)" />
             <Select value={testTargetStatus} onChange={(e) => setTestTargetStatus(e.target.value)}>
+              <option value="serving">Serving (Active in Consultation)</option>
               <option value="waiting">Waiting (Immediate FIFO)</option>
               <option value="frozen">Frozen (Commute Buffer)</option>
               <option value="missed">Missed Turn</option>
@@ -556,75 +605,239 @@ export default function DoctorConsultation() {
       {activeTab === 'consult' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Patient Info Strip (Image 2) */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '14px',
-              border: '1px solid #E2E8F0',
-              padding: '16px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '16px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  backgroundColor: '#DCFCE7',
-                  color: '#15803D',
-                  fontWeight: 800,
-                  fontSize: '17px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                {activeToken?.name ? activeToken.name.slice(0, 2).toUpperCase() : 'AS'}
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
-                    {activeToken?.name || 'Ananya Sharma'}
-                  </h3>
-                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#F1F5F9', color: '#475569' }}>
-                    PID: {activeToken ? `AF-${activeToken.id}` : 'AF-10482'}
-                  </span>
-                </div>
-                <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <span>{activeToken?.age || '32'} years &bull; {activeToken?.gender || 'Female'}</span>
-                  <span>{activeToken?.phone || '+91 98888 77777'}</span>
-                  <span>Visit ID: VIS-2026-0104</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Allergies Warning Banner */}
+          {/* Station Queue & Patient Status Board */}
+          {activeToken && (activeToken.status === 'serving' || activeToken.status === 'called') ? (
+            /* Active Serving Patient Banner (100% Real Serving Data, Zero Dummy Fallback) */
             <div
               style={{
-                backgroundColor: '#FFF7ED',
-                border: '1px solid #FFEDD5',
-                borderRadius: '8px',
-                padding: '8px 14px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '14px',
+                border: '1.5px solid #86EFAC',
+                padding: '16px 20px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                color: '#C2410C',
-                fontSize: '12.5px',
-                fontWeight: 600,
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '16px',
+                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.08)',
               }}
             >
-              <AlertTriangle size={15} color="#EA580C" />
-              <span>Allergies: Penicillin (Rash) &bull; Review Required</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '50%',
+                    backgroundColor: '#DCFCE7',
+                    color: '#15803D',
+                    fontWeight: 800,
+                    fontSize: '17px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {activeToken.name ? activeToken.name.slice(0, 2).toUpperCase() : 'PT'}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+                      {activeToken.name}
+                    </h3>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                      {activeToken.tokenCode || `Token #${activeToken.dailyNumber || activeToken.id}`}
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                      NOW SERVING
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <span>{activeToken.age ? `${activeToken.age} years` : ''} {activeToken.gender ? `• ${activeToken.gender}` : ''}</span>
+                    <span>{activeToken.phone}</span>
+                    <span>Counter #{profile?.counterId || activeToken.counterId || 1}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleReleaseCurrent}
+                  style={{ color: '#DC2626', fontSize: '12px', fontWeight: 600 }}
+                >
+                  Skip / Mark Missed
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setActiveToken(null)}
+                  style={{ fontSize: '12px', fontWeight: 600 }}
+                >
+                  View Station Queue
+                </Button>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Station Waiting Queue & Call Controls (When no patient is currently serving) */
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '14px',
+                border: '1.5px solid #E2E8F0',
+                padding: '20px 24px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #F1F5F9' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#25D366' }} />
+                    <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                      Counter #{profile?.counterId || 1} &bull; Station Ready
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                      {profile?.category || 'General Medicine'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#64748B' }}>
+                    No patient currently serving at this counter. Select a patient from the waiting queue below or call next.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Button
+                    size="sm"
+                    onClick={handleCallNext}
+                    style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Stethoscope size={14} />
+                    <span>Call Next Patient</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setTestModeOpen(true)}
+                    style={{ fontWeight: 700 }}
+                  >
+                    🧪 Inject Test Patient
+                  </Button>
+                </div>
+              </div>
+
+              {/* Waiting Queue List at this station */}
+              {((currentQueue?.tokens || []).filter(t => t.status === 'waiting').length === 0) ? (
+                <div style={{ textAlign: 'center', padding: '28px 16px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1' }}>
+                  <Clock size={28} color="#94A3B8" style={{ margin: '0 auto 8px' }} />
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#334155' }}>
+                    Station Queue is Currently Empty
+                  </div>
+                  <p style={{ margin: '4px 0 12px', fontSize: '12.5px', color: '#64748B' }}>
+                    No patients are waiting in the queue for {profile?.category || 'General Medicine'}.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleAddTestPatient('serving')}
+                    style={{ fontWeight: 700 }}
+                  >
+                    + Add &amp; Consult Test Patient Now
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '8px' }}>
+                    Patients Waiting at Counter ({((currentQueue?.tokens || []).filter(t => t.status === 'waiting')).length}):
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(currentQueue?.tokens || []).filter(t => t.status === 'waiting').map((t, idx) => (
+                      <div
+                        key={t.id}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '10px',
+                          border: '1px solid #E2E8F0',
+                          backgroundColor: '#FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 800, fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            #{idx + 1}
+                          </span>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 800, fontSize: '14px', color: '#0F172A' }}>{t.name}</span>
+                              <span style={{ fontSize: '11px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                                {t.tokenCode || `Token #${t.dailyNumber || t.id}`}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                              {t.age ? `${t.age} yrs • ` : ''}{t.gender ? `${t.gender} • ` : ''}{t.phone}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          onClick={() => handleCallToken(t)}
+                          style={{ backgroundColor: '#15803D', borderColor: '#15803D', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <span>Call to Counter</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Distant Frozen Buffer & Missed Tokens Accordion */}
+              {((currentQueue?.frozen || []).length > 0 || (currentQueue?.missed || []).length > 0) && (
+                <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  {(currentQueue?.frozen || []).length > 0 && (
+                    <div style={{ flex: 1, minWidth: '240px', padding: '10px 14px', backgroundColor: '#FAF5FF', borderRadius: '8px', border: '1px solid #F3E8FF' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#7E22CE', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        En Route / Frozen Patients ({currentQueue.frozen.length}):
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {currentQueue.frozen.map(fz => (
+                          <div key={fz.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                            <span>{fz.name} ({fz.tokenCode || `#${fz.id}`})</span>
+                            <Button size="sm" variant="ghost" onClick={() => handleUnfreeze(fz.id)} style={{ color: '#7E22CE', fontSize: '11px', padding: '2px 6px' }}>
+                              Unfreeze
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(currentQueue?.missed || []).length > 0 && (
+                    <div style={{ flex: 1, minWidth: '240px', padding: '10px 14px', backgroundColor: '#FEF2F2', borderRadius: '8px', border: '1px solid #FEE2E2' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#DC2626', textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Missed Patients ({currentQueue.missed.length}):
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {currentQueue.missed.map(ms => (
+                          <div key={ms.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                            <span>{ms.name} ({ms.tokenCode || `#${ms.id}`})</span>
+                            <Button size="sm" variant="ghost" onClick={() => handleRequeue(ms.id)} style={{ color: '#DC2626', fontSize: '11px', padding: '2px 6px' }}>
+                              Requeue
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* TWO-COLUMN TOP SECTION: Clinical Assessment & Examination & Vitals (Image 2) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
@@ -963,18 +1176,55 @@ export default function DoctorConsultation() {
                 <span style={{ fontSize: '11px', color: '#64748B' }}>Add required pathology &amp; radiology orders</span>
               </div>
 
-              {/* Search Test Input */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                <input
-                  type="text"
-                  value={customLabQuery}
-                  onChange={(e) => setCustomLabQuery(e.target.value)}
-                  placeholder="Search test (e.g. Complete Blood Count, X-Ray Chest, ECG)"
-                  style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
-                />
-                <Button size="sm" onClick={addCustomLab} style={{ backgroundColor: '#0284C7', borderColor: '#0284C7', color: '#ffffff', fontWeight: 700 }}>
-                  + Add Test
-                </Button>
+              {/* Search Test Input with Live Drug/Lab Registry Suggestions */}
+              <div style={{ position: 'relative', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={customLabQuery}
+                    onChange={(e) => {
+                      const q = e.target.value;
+                      setCustomLabQuery(q);
+                      if (q.trim().length >= 1) {
+                        drugApi.searchLabs(q).then((res) => {
+                          const items = Array.isArray(res) ? res : res?.data || [];
+                          setLabSuggestions(items);
+                        }).catch(() => {});
+                      } else {
+                        setLabSuggestions([]);
+                      }
+                    }}
+                    placeholder="Search test in registry (e.g. Complete Blood Count, Lipid Profile, LFT, KFT)"
+                    style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+                  />
+                  <Button size="sm" onClick={addCustomLab} style={{ backgroundColor: '#0284C7', borderColor: '#0284C7', color: '#ffffff', fontWeight: 700 }}>
+                    + Add Test
+                  </Button>
+                </div>
+
+                {labSuggestions.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #CBD5E1', boxShadow: '0 8px 16px rgba(0,0,0,0.1)', maxHeight: '180px', overflowY: 'auto', marginTop: '4px' }}>
+                    {labSuggestions.slice(0, 6).map((sug, sIdx) => (
+                      <div
+                        key={sIdx}
+                        onClick={() => {
+                          const testName = sug.name || sug.commonName;
+                          if (testName && !selectedLabs.includes(testName)) {
+                            setSelectedLabs((prev) => [...prev, testName]);
+                          }
+                          setCustomLabQuery('');
+                          setLabSuggestions([]);
+                        }}
+                        style={{ padding: '8px 12px', borderBottom: '1px solid #F1F5F9', cursor: 'pointer', fontSize: '12.5px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F0FDF4'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                      >
+                        <span style={{ fontWeight: 600, color: '#0F172A' }}>{sug.name}</span>
+                        <span style={{ fontSize: '11px', color: '#0369A1', backgroundColor: '#E0F2FE', padding: '1px 6px', borderRadius: '4px' }}>{sug.category || 'Standard'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Grouped Quick Add Tags (Image 2) */}
