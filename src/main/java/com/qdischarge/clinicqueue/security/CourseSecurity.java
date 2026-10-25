@@ -38,7 +38,18 @@ public class CourseSecurity {
             }
             List<String> phones = getPhoneVariants(phone);
             Integer count = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM courses WHERE id = :courseId AND patient_phone IN (:phones)",
+                    """
+                    SELECT COUNT(*) FROM courses c
+                    WHERE c.id = :courseId
+                      AND (
+                          c.patient_phone IN (:phones)
+                          OR c.family_member_id IN (
+                              SELECT m.id FROM family_members m
+                              JOIN family_units u ON m.family_unit_id = u.id
+                              WHERE u.primary_phone IN (:phones)
+                          )
+                      )
+                    """,
                     Map.of("courseId", courseId, "phones", phones),
                     Integer.class);
             return count != null && count > 0;
@@ -210,10 +221,24 @@ public class CourseSecurity {
     private List<String> getPhoneVariants(String phone) {
         if (phone == null || phone.isBlank()) return List.of();
         String p = phone.trim();
+        try {
+            p = java.net.URLDecoder.decode(p, java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (Exception ignored) {}
         String digits = p.replaceAll("[^0-9]", "");
         if (digits.length() > 10) {
             digits = digits.substring(digits.length() - 10);
         }
-        return List.of(p, digits, "+91" + digits, "91" + digits);
+        java.util.LinkedHashSet<String> variants = new java.util.LinkedHashSet<>();
+        variants.add(phone.trim());
+        variants.add(p);
+        if (!digits.isEmpty()) {
+            variants.add(digits);
+            variants.add("+91" + digits);
+            variants.add("91" + digits);
+            variants.add("0" + digits);
+            variants.add("%2B91" + digits);
+            variants.add("%2B" + digits);
+        }
+        return new java.util.ArrayList<>(variants);
     }
 }

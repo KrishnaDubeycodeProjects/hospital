@@ -224,10 +224,28 @@ public class CourseController {
         }
         try {
             byte[] data = courseService.getDocumentData(docId);
-            String contentType = doc.getContentType() != null ? doc.getContentType() : "application/octet-stream";
+            String contentType = doc.getContentType() != null && !doc.getContentType().isBlank() ? doc.getContentType() : "application/pdf";
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + doc.getFileName() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getFileName() + "\"")
+                    .body(data);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @GetMapping("/public/{id}/documents/{docId}/download")
+    public ResponseEntity<byte[]> downloadPublicDocument(@PathVariable int id, @PathVariable int docId) {
+        CourseDocumentDto doc = courseService.getDocumentMetadata(docId);
+        if (doc == null || doc.getCourseId() != id) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            byte[] data = courseService.getDocumentData(docId);
+            String contentType = doc.getContentType() != null && !doc.getContentType().isBlank() ? doc.getContentType() : "application/pdf";
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getFileName() + "\"")
                     .body(data);
         } catch (Exception e) {
             return ResponseEntity.status(500).build();

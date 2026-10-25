@@ -330,7 +330,13 @@ export default function HealthRecordsScreen() {
           crs = [];
         }
       }
-      const courseList = Array.isArray(crs) ? crs : [];
+      let courseList = Array.isArray(crs) ? crs : [];
+      if (courseList.length === 0 && !activePhone.startsWith('+')) {
+        try {
+          const fb = await courseApi.publicPatientCourses('+91' + activePhone.replace(/[^0-9]/g, '').slice(-10));
+          if (Array.isArray(fb) && fb.length > 0) courseList = fb;
+        } catch {}
+      }
       setCourses(courseList);
 
       // Pre-fetch timeline data for each course so train stations are immediately populated
@@ -381,7 +387,14 @@ export default function HealthRecordsScreen() {
           hist = [];
         }
       }
-      setVisitHistory(Array.isArray(hist) ? hist : []);
+      let histList = Array.isArray(hist) ? hist : [];
+      if (histList.length === 0 && !activePhone.startsWith('+')) {
+        try {
+          const fbHist = await patientApi.publicHistory('+91' + activePhone.replace(/[^0-9]/g, '').slice(-10));
+          if (Array.isArray(fbHist) && fbHist.length > 0) histList = fbHist;
+        } catch {}
+      }
+      setVisitHistory(histList);
 
       // 6. Fetch Hospitals list
       try {
@@ -650,14 +663,24 @@ export default function HealthRecordsScreen() {
       return;
     }
     const docId = typeof docOrId === 'object' ? docOrId.id : docOrId;
+    const courseId = docObj?.courseId || activeCourseModal?.id;
     try {
-      const url = await fetchAsObjectUrl(patientApi.documentFileUrl(docId), 'PATIENT');
+      const fileUrl = (docObj?.isCourseDoc || docObj?.courseId)
+        ? (patient?.token ? courseApi.documentDownloadUrl(courseId, docId) : courseApi.publicDocumentDownloadUrl(courseId, docId))
+        : (patient?.token ? patientApi.documentFileUrl(docId) : patientApi.publicDocumentFileUrl(docId, activePhone));
+      const url = await fetchAsObjectUrl(fileUrl, patient?.token ? 'PATIENT' : 'PUBLIC');
       window.open(url, '_blank', 'noopener');
     } catch {
-      if (docObj) {
-        setActiveDocModal(docObj);
-      } else {
-        toast.error('Could not open document from server.');
+      try {
+        const fallbackUrl = patientApi.publicDocumentFileUrl(docId, activePhone);
+        const url2 = await fetchAsObjectUrl(fallbackUrl, 'PUBLIC');
+        window.open(url2, '_blank', 'noopener');
+      } catch {
+        if (docObj) {
+          setActiveDocModal(docObj);
+        } else {
+          toast.error('Could not open document from server.');
+        }
       }
     }
   };
@@ -2575,7 +2598,7 @@ export default function HealthRecordsScreen() {
                                   if (doc.downloadUrl) {
                                     window.open(doc.downloadUrl, '_blank');
                                   } else {
-                                    handleViewDocument(doc);
+                                    handleViewDocument({ ...doc, isCourseDoc: true, courseId: activeCourseModal?.id });
                                   }
                                 }}
                                 style={{

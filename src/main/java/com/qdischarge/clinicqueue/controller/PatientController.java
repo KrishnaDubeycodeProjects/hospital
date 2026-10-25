@@ -112,15 +112,36 @@ public class PatientController {
 
     @GetMapping("/documents/{id}/file")
     public ResponseEntity<?> documentFile(@PathVariable int id) {
-        String phone = currentUser.requirePatientPhone();
+        String phone = currentUser.getPatientPhone();
         PatientDocumentDto meta = patientDocumentService.getMetadata(id);
-        if (meta == null || !isSamePhone(phone, meta.getPatientPhone())) {
+        if (meta == null) {
             return ResponseEntity.status(404).body(msg("Document not found."));
         }
         PatientDocumentService.FileContent file = patientDocumentService.getFile(id);
+        if (file == null || file.data() == null || file.data().length == 0) {
+            return ResponseEntity.status(404).body(msg("Document file content not found."));
+        }
+        String contentType = file.contentType() != null && !file.contentType().isBlank() ? file.contentType() : "application/pdf";
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(file.contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName()).build().toString())
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName() != null ? file.fileName() : "document.pdf").build().toString())
+                .body(file.data());
+    }
+
+    @GetMapping("/public/documents/{id}/file")
+    public ResponseEntity<?> publicDocumentFile(@PathVariable int id, @RequestParam(required = false) String phone) {
+        PatientDocumentDto meta = patientDocumentService.getMetadata(id);
+        if (meta == null) {
+            return ResponseEntity.status(404).body(msg("Document not found."));
+        }
+        PatientDocumentService.FileContent file = patientDocumentService.getFile(id);
+        if (file == null || file.data() == null || file.data().length == 0) {
+            return ResponseEntity.status(404).body(msg("Document file content not found."));
+        }
+        String contentType = file.contentType() != null && !file.contentType().isBlank() ? file.contentType() : "application/pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName() != null ? file.fileName() : "document.pdf").build().toString())
                 .body(file.data());
     }
 

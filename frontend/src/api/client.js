@@ -243,6 +243,7 @@ export const patientApi = {
   documents: () => getD('/api/patients/documents', authFor('PATIENT')),
   publicDocuments: (phone) => getD('/api/patients/public/documents', { params: { phone } }),
   documentFileUrl: (id) => `${API_URL}/api/patients/documents/${id}/file`,
+  publicDocumentFileUrl: (id, phone) => `${API_URL}/api/patients/public/documents/${id}/file${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`,
   acceptAccess: (code) => postD(`/api/patients/access/${encodeURIComponent(code)}/accept`, {}, authFor('PATIENT')),
   activeAccess: () => getD('/api/patients/access', authFor('PATIENT')),
   accessHistory: () => getD('/api/patients/access/history', authFor('PATIENT')),
@@ -268,6 +269,7 @@ export const courseApi = {
       params: extractFormDataParams(formData),
     }),
   documentDownloadUrl: (id, docId) => `${API_URL}/api/courses/${id}/documents/${docId}/download`,
+  publicDocumentDownloadUrl: (id, docId) => `${API_URL}/api/courses/public/${id}/documents/${docId}/download`,
   close: (id) => postD(`/api/courses/${id}/close`, {}, authFor('DOCTOR')),
   patientCourses: () => getD('/api/courses/patient', authFor('PATIENT')),
   publicPatientCourses: (phone) => getD('/api/courses/public/patient', { params: { phone } }),
@@ -340,5 +342,14 @@ export const abdmApi = {
 /** For <img>/<a> tags hitting a protected binary route (document/QR download) -- fetches with the Bearer header and hands back an object URL. */
 export async function fetchAsObjectUrl(url, role) {
   const res = await client.get(url, { ...authFor(role), responseType: 'blob' });
+  if (res.data && res.data.type === 'application/json') {
+    const text = await res.data.text();
+    let msg = 'Failed loading document';
+    try {
+      const parsed = JSON.parse(text);
+      msg = parsed.message || parsed.error || msg;
+    } catch {}
+    throw new Error(msg);
+  }
   return URL.createObjectURL(res.data);
 }
