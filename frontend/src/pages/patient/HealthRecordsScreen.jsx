@@ -379,7 +379,7 @@ export default function HealthRecordsScreen() {
     return familyMembers.find((m) => m.id === selectedMemberId) || familyMembers[0];
   }, [familyMembers, selectedMemberId]);
 
-  // Filtered Documents from DB based on selected member or all, with verified sample fallback
+  // Filtered Documents from DB based on selected member or all (Only authentic documents and reports)
   const rawMemberDocuments = useMemo(() => {
     const isAll = filterMemberId === 'all' || !selectedMember;
     const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
@@ -394,36 +394,9 @@ export default function HealthRecordsScreen() {
       return docName === memberName || memberName.includes(docName) || docName.includes(memberName);
     });
 
-    // Merge digital e-prescriptions generated from doctor consultation courses
-    const coursePrescriptions = courses
-      .filter((c) => {
-        if (isAll) return true;
-        if (c.familyMemberId && c.familyMemberId === selectedMember.id) return true;
-        if (!c.patientName) return isSelfOrHead;
-        const cName = c.patientName.toLowerCase().trim();
-        return cName === memberName || memberName.includes(cName) || cName.includes(memberName);
-      })
-      .map((c) => ({
-        id: `course-rx-${c.id}`,
-        courseId: c.id,
-        isDigitalRx: true,
-        docType: 'prescription',
-        fileName: `e-Prescription — ${c.title || 'Doctor Consultation'}.pdf`,
-        patientName: c.patientName || (selectedMember?.name) || 'Ramesh Kumar',
-        patientAge: selectedMember?.age || 28,
-        doctorName: c.startedByDoctorName || 'Dr. Rajesh Sharma (MD)',
-        hospitalName: c.startedAtHospitalName || 'District Civil Hospital',
-        diagnosis: c.diagnosis || 'Clinical Evaluation',
-        summary: c.currentSummary,
-        prescriptionCount: c.prescriptionCount || 1,
-        createdAt: c.updatedAt || c.createdAt || new Date().toISOString(),
-        rawCourse: c,
-      }));
+    if (dbFiltered.length > 0) return dbFiltered;
 
-    const combinedDocs = [...coursePrescriptions, ...dbFiltered];
-    if (combinedDocs.length > 0) return combinedDocs;
-
-    // Match canonical members from RAW_FAMILY_MEMBERS
+    // Match canonical members from RAW_FAMILY_MEMBERS (ONLY documents/reports, NOT prescriptions)
     const rawMatches = isAll
       ? RAW_FAMILY_MEMBERS
       : RAW_FAMILY_MEMBERS.filter(
@@ -432,17 +405,6 @@ export default function HealthRecordsScreen() {
 
     const fallbackList = [];
     rawMatches.forEach((rm) => {
-      (rm.prescriptions || []).forEach((rx) => {
-        fallbackList.push({
-          id: rx.id,
-          docType: 'prescription',
-          fileName: rx.fileName || `${rx.title.replace(/\s+/g, '_')}.pdf`,
-          patientName: rm.name,
-          patientAge: rm.age,
-          createdAt: rx.date || '18 Sep 2026',
-          prescriptionDetails: rx,
-        });
-      });
       (rm.documents || []).forEach((doc) => {
         fallbackList.push({
           id: doc.id,
@@ -450,6 +412,7 @@ export default function HealthRecordsScreen() {
           fileName: doc.fileName || `${doc.title.replace(/\s+/g, '_')}.pdf`,
           patientName: rm.name,
           patientAge: rm.age,
+          hospitalName: doc.facility || 'District Diagnostic Labs',
           createdAt: doc.date || '12 Sep 2026',
           reportDetails: doc,
         });
@@ -457,7 +420,7 @@ export default function HealthRecordsScreen() {
     });
 
     return fallbackList;
-  }, [selectedMember, filterMemberId, documents, courses]);
+  }, [selectedMember, filterMemberId, documents]);
 
   // Apply search query filter
   const memberDocuments = useMemo(() => {
@@ -1225,7 +1188,7 @@ export default function HealthRecordsScreen() {
                     >
                       <div style={{ fontSize: '28px', marginBottom: '8px' }}>📄</div>
                       <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
-                        No prescriptions or documents found for {selectedMember?.name}
+                        No documents found for {selectedMember ? selectedMember.name : 'this filter'}
                       </div>
                       <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
                         Uploaded medical records for this patient will appear directly from the database here.
@@ -1270,16 +1233,11 @@ export default function HealthRecordsScreen() {
                             <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A', wordBreak: 'break-all' }}>
                               {doc.fileName || 'Medical_Record.pdf'}
                             </div>
-                            {doc.isDigitalRx && (
-                              <span style={{ fontSize: '10.5px', fontWeight: '800', backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #86EFAC', padding: '2px 8px', borderRadius: '12px' }}>
-                                ✅ DOCTOR SIGNED
-                              </span>
-                            )}
                           </div>
 
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
                             {doc.doctorName && (
-                              <span style={{ fontSize: '11px', color: '#0F766E', backgroundColor: '#F0FDFA', border: '1px solid #CCFBF1', padding: '2px 6px', borderRadius: '6px', fontWeight: '600' }}>
+                              <span style={{ fontSize: '11px', color: '#0F766E', backgroundColor: '#E8F8F5', border: '1px solid #A7F3D0', padding: '2px 6px', borderRadius: '6px', fontWeight: '600' }}>
                                 👨‍⚕️ {doc.doctorName}
                               </span>
                             )}
@@ -1301,50 +1259,27 @@ export default function HealthRecordsScreen() {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px', borderTop: '1px solid #F1F5F9' }}>
-                          {doc.isDigitalRx ? (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenCourse(doc.rawCourse)}
-                              style={{
-                                backgroundColor: '#00A884',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '6px 14px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                color: '#FFFFFF',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                boxShadow: '0 1px 3px rgba(0, 168, 132,0.2)',
-                              }}
-                            >
-                              <span>👁️</span>
-                              <span>View / Print e-Prescription</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleViewDocument(doc)}
-                              style={{
-                                backgroundColor: '#F8FAFC',
-                                border: '1px solid #CBD5E1',
-                                borderRadius: '8px',
-                                padding: '6px 12px',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                color: '#00A884',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                              }}
-                            >
-                              <span>📥</span>
-                              <span>Download / View</span>
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleViewDocument(doc)}
+                            style={{
+                              backgroundColor: '#E8F8F5',
+                              border: '1.5px solid #00A884',
+                              borderRadius: '8px',
+                              padding: '6px 14px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              color: '#00A884',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <span>📥</span>
+                            <span>Download / View</span>
+                          </button>
                         </div>
                       </div>
                     ))
