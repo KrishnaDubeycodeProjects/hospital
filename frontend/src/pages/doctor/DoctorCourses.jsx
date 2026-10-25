@@ -225,9 +225,12 @@ export default function DoctorCourses() {
     }
     setCreatingCourse(true);
     try {
+      const patient = patientList.find(p => p.phone === selectedPatientPhone);
       const newCourse = await courseApi.create({
         patientPhone: selectedPatientPhone,
+        patientName: patient?.name || 'Patient',
         title: newCourseTitle.trim(),
+        diagnosis: newCourseTitle.trim(),
         courseType: newCourseType,
       });
       toast.success(`New Care Episode "${newCourse.title || newCourseTitle}" initiated.`);
@@ -247,6 +250,7 @@ export default function DoctorCourses() {
     setSavingEncounter(true);
     try {
       const payload = {
+        courseId: encounterCourseId,
         chiefComplaint: encounterForm.chiefComplaint || 'Follow-up Consultation',
         clinicalNotes: encounterForm.clinicalNotes,
         prescriptions: encounterForm.drugName
@@ -890,6 +894,17 @@ export default function DoctorCourses() {
       {encounterModal && (
         <Modal title="Add Clinical Visit &amp; Prescription" onClose={() => setEncounterModal(false)}>
           <form onSubmit={handleAddEncounterSubmit} className="stack-md">
+            <div style={{ padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#166534', color: '#ffffff' }}>
+                  Course #{encounterCourseId}
+                </span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#166534' }}>
+                  {patientCourses[selectedPatientPhone]?.find(c => c.id === encounterCourseId)?.title || 'Active Care Episode'}
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', color: '#64748B' }}>Patient: {patientList.find(p => p.phone === selectedPatientPhone)?.name || selectedPatientPhone}</span>
+            </div>
             <Field label="Chief Complaint / Purpose of Visit">
               <Input
                 value={encounterForm.chiefComplaint}
@@ -968,6 +983,25 @@ export default function DoctorCourses() {
       {uploadModal && (
         <Modal title="Upload Clinical Document" onClose={() => setUploadModal(false)}>
           <form onSubmit={handleUploadSubmit} className="stack-md">
+            <div style={{ padding: '10px 14px', backgroundColor: '#EFF6FF', borderRadius: '8px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#1D4ED8', color: '#ffffff' }}>
+                  Target Course #{activeCourseId}
+                </span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#1E40AF' }}>
+                  {patientCourses[selectedPatientPhone]?.find(c => c.id === activeCourseId)?.title || 'Care Episode'}
+                </span>
+              </div>
+            </div>
+            {(patientCourses[selectedPatientPhone] || []).length > 1 && (
+              <Field label="Switch Target Care Course">
+                <Select value={activeCourseId || ''} onChange={(e) => setActiveCourseId(Number(e.target.value))}>
+                  {(patientCourses[selectedPatientPhone] || []).map(c => (
+                    <option key={c.id} value={c.id}>Course #{c.id} - {c.title}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             <Field label="Document Category">
               <Select value={docType} onChange={(e) => setDocType(e.target.value)}>
                 <option value="prescription">Rx Prescription Slip</option>

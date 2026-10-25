@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doctorApi, hospitalApi, referralApi } from '../../api/client';
+import { courseApi, doctorApi, hospitalApi, referralApi } from '../../api/client';
 import { Button, Card, Field, Input, Modal, Select, Spinner, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
 
@@ -18,6 +18,7 @@ export default function DoctorReferrals() {
   const [createModal, setCreateModal] = useState(false);
   const [courseId, setCourseId] = useState('');
   const [toHospitalId, setToHospitalId] = useState('');
+  const [coursesList, setCoursesList] = useState([]);
   const [targetDepartment, setTargetDepartment] = useState('Cardiology');
   const [reason, setReason] = useState('');
   const [priorityTier, setPriorityTier] = useState('urgent_7d');
@@ -38,6 +39,12 @@ export default function DoctorReferrals() {
       const [me, hospList] = await Promise.all([doctorApi.me(), hospitalApi.list()]);
       setProfile(me);
       setHospitals(hospList || []);
+
+      // Fetch available patient courses for easy selection
+      try {
+        const cRes = await courseApi.search('');
+        setCoursesList(Array.isArray(cRes) ? cRes : cRes?.data || []);
+      } catch (e) {}
 
       // Fetch outgoing and incoming hospital referrals
       try {
@@ -407,14 +414,29 @@ export default function DoctorReferrals() {
       {createModal && (
         <Modal title="Create Hospital Referral" onClose={() => setCreateModal(false)}>
           <form onSubmit={handleCreateReferral} className="stack-md">
-            <Field label="Visit / Treatment ID *" hint="Visit ID of patient to refer">
-              <Input
-                type="number"
-                placeholder="e.g. 1"
-                value={courseId}
-                onChange={(e) => setCourseId(e.target.value)}
-                required
-              />
+            <Field label="Patient Visit / Care Course *" hint="Select an active patient course or enter Course ID directly">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {coursesList.length > 0 && (
+                  <Select
+                    value={coursesList.some(c => String(c.id) === String(courseId)) ? courseId : ''}
+                    onChange={(e) => setCourseId(e.target.value)}
+                  >
+                    <option value="">Select from active patient care courses…</option>
+                    {coursesList.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Course #{c.id} - {c.patientName || c.patientPhone} ({c.title || c.diagnosis || 'Care Episode'})
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                <Input
+                  type="number"
+                  placeholder="Or enter Course ID manually (e.g. 1)"
+                  value={courseId}
+                  onChange={(e) => setCourseId(e.target.value)}
+                  required
+                />
+              </div>
             </Field>
 
             <Field label="Destination Hospital *" hint="Reserved appointment slot at hospital">

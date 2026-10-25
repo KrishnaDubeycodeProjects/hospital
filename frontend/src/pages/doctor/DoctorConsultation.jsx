@@ -226,6 +226,71 @@ export default function DoctorConsultation() {
   const [savingEncounter, setSavingEncounter] = useState(false);
   const toast = useToast();
 
+  // Patient Course Continuum State
+  const [patientCourses, setPatientCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [loadingCourses, setLoadingCourses] = useState(false);
+  const [createCourseModalOpen, setCreateCourseModalOpen] = useState(false);
+  const [customCourseTitle, setCustomCourseTitle] = useState('');
+  const [customCourseType, setCustomCourseType] = useState('acute');
+
+  async function loadCoursesForPatient(phone) {
+    if (!phone) {
+      setPatientCourses([]);
+      setSelectedCourseId(null);
+      return;
+    }
+    setLoadingCourses(true);
+    try {
+      const results = await courseApi.search(phone);
+      const list = Array.isArray(results) ? results : results?.data || [];
+      setPatientCourses(list);
+      if (list.length > 0) {
+        const activeOne = list.find((c) => c.status === 'active') || list[0];
+        setSelectedCourseId(activeOne.id);
+      } else {
+        setSelectedCourseId(null);
+      }
+    } catch (err) {
+      console.warn('Could not load patient courses:', err);
+      setPatientCourses([]);
+      setSelectedCourseId(null);
+    } finally {
+      setLoadingCourses(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeToken?.phone) {
+      loadCoursesForPatient(activeToken.phone);
+    } else {
+      setPatientCourses([]);
+      setSelectedCourseId(null);
+    }
+  }, [activeToken?.phone, activeToken?.id]);
+
+  async function handleCreateNewCourseDirect() {
+    if (!activeToken) return;
+    const title = customCourseTitle.trim() || `Care Episode - ${chiefComplaint?.slice(0, 32) || 'Consultation'}`;
+    try {
+      const created = await courseApi.create({
+        patientPhone: activeToken.phone || '+919100000099',
+        patientName: activeToken.name || 'Patient',
+        title,
+        diagnosis: diagnosis || chiefComplaint || 'Clinical Evaluation',
+        courseType: customCourseType || 'acute',
+        initialNotes: clinicalNotes || 'Encounter episode started',
+      });
+      toast.success(`Care Episode "${created.title || title}" created!`);
+      setSelectedCourseId(created.id);
+      setCreateCourseModalOpen(false);
+      setCustomCourseTitle('');
+      loadCoursesForPatient(activeToken.phone);
+    } catch (err) {
+      toast.error(err.message || 'Failed creating care episode');
+    }
+  }
+
   async function loadData() {
     try {
       let me = null;
@@ -412,15 +477,20 @@ export default function DoctorConsultation() {
   async function handleSignAndSend() {
     setSavingEncounter(true);
     try {
-      // 1. Create or link care course
-      let targetCourseId = activeToken?.courseId || courseId;
+      // 1. Resolve or create target care course
+      let targetCourseId = selectedCourseId;
       if (!targetCourseId) {
+        const episodeTitle = chiefComplaint ? `Care Episode - ${chiefComplaint.slice(0, 36)}` : 'General Consultation Episode';
         const newCourse = await courseApi.create({
           patientPhone: activeToken?.phone || '+919100000099',
-          title: `Care Episode - ${chiefComplaint.slice(0, 32) || 'Consultation'}`,
+          patientName: activeToken?.name || 'Patient',
+          title: episodeTitle,
+          diagnosis: diagnosis || chiefComplaint || 'Clinical Evaluation',
           courseType: 'acute',
+          initialNotes: clinicalNotes || chiefComplaint || 'Consultation assessment',
         });
         targetCourseId = newCourse.id;
+        setSelectedCourseId(newCourse.id);
       }
 
       // 2. Add clinical encounter (Including database saving of Lab Tests & Investigations)
@@ -432,6 +502,7 @@ export default function DoctorConsultation() {
       ].filter(Boolean).join('\n');
 
       const payload = {
+        courseId: targetCourseId,
         chiefComplaint: chiefComplaint || 'Consultation',
         clinicalNotes: `Assessment: ${clinicalNotes || 'Examined'}\nHistory: ${medicalHistory || 'None reported'}\nDiagnosis: ${diagnosis || 'Clinical evaluation'}\nVitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg\nFindings: ${examFindings || 'Clear'}\nInvestigations Ordered: ${labsText}\nAdvice: ${adviceNotes}`,
         plan: planText,
@@ -800,7 +871,8 @@ export default function DoctorConsultation() {
           
           {/* Active Serving Patient or Empty State */}
           {activeToken && (activeToken.status === 'serving' || activeToken.status === 'called') ? (
-            /* Active Serving Patient Banner (100% Real Serving Data, Zero Dummy Fallback) */
+            <>
+            {/* Active Serving Patient Banner (100% Real Serving Data, Zero Dummy Fallback) */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
@@ -873,6 +945,104 @@ export default function DoctorConsultation() {
                 </Button>
               </div>
             </div>
+
+            {/* Continuation Care Course Context Card */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1.5px solid #E2E8F0',
+                padding: '12px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '8px', backgroundColor: '#F0FDF4', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Stethoscope size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                    Linked Continuation Course
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px' }}>
+                    {loadingCourses ? (
+                      <span style={{ fontSize: '13px', color: '#64748B' }}>Loading patient episodes...</span>
+                    ) : patientCourses.length > 0 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <select
+                          value={selectedCourseId || ''}
+                          onChange={(e) => setSelectedCourseId(Number(e.target.value))}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '6px',
+                            border: '1.5px solid #25D366',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: '#0F172A',
+                            backgroundColor: '#FFFFFF',
+                            outline: 'none',
+                          }}
+                        >
+                          {patientCourses.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              Episode #{c.id}: {c.title || c.diagnosis || 'Care Course'} ({c.status || 'active'})
+                            </option>
+                          ))}
+                        </select>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                          ✓ Course Linked
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                          New Care Course &bull; Acute Consultation
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                          Auto-created on Sign
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setCreateCourseModalOpen(true)}
+                  style={{ fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <Plus size={13} color="#25D366" />
+                  <span>+ New Course</span>
+                </Button>
+                <Link
+                  to="/doctor/courses"
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#0284C7',
+                    textDecoration: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: '#F0F9FF',
+                    border: '1px solid #BAE6FD',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span>Patient Care Continuum ↗</span>
+                </Link>
+              </div>
+            </div>
+            </>
           ) : (
             /* Empty Station Prompt (Directs user to Station Stats to call a patient) */
             <div
@@ -1545,6 +1715,49 @@ export default function DoctorConsultation() {
           </div>
 
         </div>
+      )}
+
+            {/* CREATE NEW COURSE MODAL */}
+      {createCourseModalOpen && (
+        <Modal title="Create New Care Course for Patient" onClose={() => setCreateCourseModalOpen(false)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCreateNewCourseDirect();
+            }}
+            className="stack-md"
+          >
+            <Field label="Care Course Title *" hint="E.g. Acute Bronchitis Care, Diabetes Review, Post-Op Follow-up">
+              <Input
+                value={customCourseTitle}
+                onChange={(e) => setCustomCourseTitle(e.target.value)}
+                placeholder="e.g. Acute Respiratory Infection Care"
+                required
+              />
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <Field label="Course Type">
+                <Select value={customCourseType} onChange={(e) => setCustomCourseType(e.target.value)}>
+                  <option value="acute">Acute Care</option>
+                  <option value="chronic">Chronic Condition</option>
+                  <option value="followup">Follow-up Care</option>
+                  <option value="rehab">Rehabilitation</option>
+                </Select>
+              </Field>
+              <Field label="Patient">
+                <Input value={`${activeToken?.name || 'Patient'} (${activeToken?.phone || ''})`} disabled />
+              </Field>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+              <Button type="button" variant="ghost" onClick={() => setCreateCourseModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}>
+                Create &amp; Link Course
+              </Button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {/* SMART MEDICINE VARIANT SELECTOR MODAL (Image 3) */}
