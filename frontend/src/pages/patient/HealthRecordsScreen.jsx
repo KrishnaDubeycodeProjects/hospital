@@ -190,6 +190,24 @@ export default function HealthRecordsScreen() {
   const [courseTimeline, setCourseTimeline] = useState(null);
   const [courseTimelinesMap, setCourseTimelinesMap] = useState({});
   const [openCourseIds, setOpenCourseIds] = useState({});
+  const [selectedStationMap, setSelectedStationMap] = useState({});
+
+  const handleOpenStation = (course, station, initialTab = 'prescription') => {
+    if (!course) return;
+    const targetStation = station || course;
+    setActiveCourseModal({
+      ...course,
+      selectedStation: targetStation,
+      doctorName: targetStation?.doctorName || course.startedByDoctorName || 'Dr. Rajesh Sharma',
+      hospitalName: targetStation?.hospitalName || course.startedAtHospitalName || 'District Civil Hospital',
+      createdAt: targetStation?.date || course.createdAt,
+      prescriptions: targetStation?.prescriptions && targetStation.prescriptions.length > 0 ? targetStation.prescriptions : course.prescriptions,
+      documents: targetStation?.documents || [],
+      notes: targetStation?.notes || {},
+      labTests: targetStation?.labTests,
+    });
+    setCourseDetailTab(initialTab);
+  };
 
   const toggleCourseAccordion = (courseId) => {
     setOpenCourseIds((prev) => ({
@@ -998,10 +1016,10 @@ export default function HealthRecordsScreen() {
                     letterSpacing: '-0.02em',
                   }}
                 >
-                  {activeTab === 'courses' ? 'View Care Episodes' : activeTab === 'referrals' ? 'View Referral Passes' : 'View Prescriptions'}
+                  {activeTab === 'courses' ? 'View Care History' : activeTab === 'referrals' ? 'View Referral Passes' : 'View Prescriptions'}
                 </h2>
                 <p style={{ fontSize: '13.5px', color: '#64748B', margin: 0 }}>
-                  Select a family member to view their {activeTab === 'courses' ? 'care episodes and progress.' : activeTab === 'referrals' ? 'hospital referral passes.' : 'prescriptions and records.'}
+                  Select a family member to view their {activeTab === 'courses' ? 'care history and progress.' : activeTab === 'referrals' ? 'hospital referral passes.' : 'prescriptions and records.'}
                 </p>
               </div>
 
@@ -1604,7 +1622,7 @@ export default function HealthRecordsScreen() {
                     >
                       <div style={{ fontSize: '32px', marginBottom: '8px' }}>🩺</div>
                       <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
-                        No continuation care episodes found for {selectedMember?.name}
+                        No care history records found for {selectedMember?.name}
                       </div>
                       <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
                         Care episodes and treatment plans from the hospital will appear directly here.
@@ -1615,13 +1633,15 @@ export default function HealthRecordsScreen() {
                       const isActive = course.status === 'active';
                       const formattedDate = course.createdAt
                         ? new Date(course.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : 'Active Episode';
+                        : 'Active';
+
+                      // Clean course title - keep title only, remove any 'Episode' or 'Care Episode' suffixes
+                      const cleanTitle = (course.title || 'General Consultation').replace(/\s*(care\s*)?episode\s*/gi, '').trim() || 'General Consultation';
 
                       // Accordion open state: first course open by default or tracked in openCourseIds
                       const isCourseOpen = openCourseIds[course.id] !== undefined ? openCourseIds[course.id] : (cIdx === 0 || isActive);
 
                       // Extract station journey checkpoints from loaded timeline
-                      // All stations along an active journey are marked GREEN (isActive: isActive)
                       const tl = courseTimelinesMap[course.id];
                       const encounters = tl?.encounters || course.encounters || [];
                       const standaloneDocs = tl?.standaloneDocuments || [];
@@ -1635,7 +1655,7 @@ export default function HealthRecordsScreen() {
                             doctorName: enc.doctorName || course.startedByDoctorName || 'Dr. Rajesh Sharma',
                             department: enc.encounterType || 'General OPD',
                             date: enc.visitDate || enc.createdAt || course.createdAt,
-                            isActive: isActive, // All station points in active course are GREEN
+                            isActive: isActive,
                             prescriptions: (enc.prescriptions || []).map((p) => ({ ...p, isActive: isActive })),
                             notes: {
                               chiefComplaint: enc.chiefComplaint,
@@ -1655,7 +1675,7 @@ export default function HealthRecordsScreen() {
                               doctorName: course.startedByDoctorName || 'Dr. Rajesh Sharma',
                               department: 'General OPD',
                               date: course.createdAt,
-                              isActive: isActive, // Green if course is active
+                              isActive: isActive,
                               prescriptions: [
                                 {
                                   medicineName: 'Paracetamol 500mg',
@@ -1686,6 +1706,10 @@ export default function HealthRecordsScreen() {
                             },
                           ];
 
+                      // Currently selected station for this course (defaults to first station)
+                      const currentStationId = selectedStationMap[course.id] || stations[0]?.id;
+                      const selectedStation = stations.find((s) => s.id === currentStationId) || stations[0];
+
                       return (
                         <div
                           key={course.id}
@@ -1701,7 +1725,7 @@ export default function HealthRecordsScreen() {
                             transition: 'all 0.2s ease',
                           }}
                         >
-                          {/* Minimal Clean Header: Clickable Dropdown Accordion */}
+                          {/* Minimal Clean Header: Clickable Dropdown Accordion (Title Only) */}
                           <div
                             onClick={() => toggleCourseAccordion(course.id)}
                             style={{
@@ -1713,10 +1737,10 @@ export default function HealthRecordsScreen() {
                               gap: '10px',
                             }}
                           >
-                            {/* Course Title & Date Timeline with Professional Calendar Icon */}
+                            {/* Course Title Only & Date Timeline with Professional Calendar Icon */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.01em' }}>
-                                {course.title || 'General Consultation Episode'}
+                              <div style={{ fontSize: '15.5px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.01em' }}>
+                                {cleanTitle}
                               </div>
                               <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <CalendarIcon size={13} color="#64748B" />
@@ -1767,38 +1791,44 @@ export default function HealthRecordsScreen() {
                             </div>
                           </div>
 
-                          {/* Accordion Content: Revealed upon clicking Course Title / Header */}
+                          {/* Accordion Content: Revealed upon clicking Course Title */}
                           {isCourseOpen && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
-                              {/* Direct Transit Stations Timeline (No redundant outer card nesting) */}
-                              <TrainStationTimeline stations={stations} defaultOpenId={stations[0]?.id} onViewDocument={handleViewDocument} />
+                              {/* Consultation Journey Stations (Selectable - Links to Footer) */}
+                              <TrainStationTimeline
+                                stations={stations}
+                                selectedStationId={currentStationId}
+                                onSelectStation={(stn) => setSelectedStationMap((prev) => ({ ...prev, [course.id]: stn.id }))}
+                              />
 
-                              {/* Consultation Date & Timings directly above buttons */}
+                              {/* Consultation Date & Timings directly above buttons (Linked to selected station!) */}
                               <div
                                 style={{
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: '6px',
-                                  padding: '7px 10px',
+                                  padding: '8px 12px',
                                   backgroundColor: '#F0FDFA',
                                   border: '1px solid #CCFBF1',
                                   borderRadius: '8px',
-                                  fontSize: '11.5px',
+                                  fontSize: '12px',
                                   fontWeight: '700',
                                   color: '#0F766E',
                                   marginTop: '2px',
                                 }}
                               >
-                                <CalendarIcon size={13} color="#0D9488" />
-                                <span>Consultation: {formatLaymanDateTime(course.createdAt)}</span>
+                                <CalendarIcon size={14} color="#0D9488" />
+                                <span>
+                                  Consultation Date &amp; Timings: {formatLaymanDateTime(selectedStation?.date || course.createdAt)}
+                                </span>
                               </div>
 
-                              {/* 3 Clean Action Buttons (Mobile First: Prominent Primary + 2-Column Secondary) */}
+                              {/* 3 Action Buttons (Linked to selected station: Prescription & Tests, Doctor Profile, View Documents) */}
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
                                 {/* Primary Action: Full Width */}
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenCourse(course, 'prescription')}
+                                  onClick={() => handleOpenStation(course, selectedStation, 'prescription')}
                                   style={{
                                     width: '100%',
                                     padding: '11px 16px',
@@ -1825,7 +1855,7 @@ export default function HealthRecordsScreen() {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenCourse(course, 'doctor')}
+                                    onClick={() => handleOpenStation(course, selectedStation, 'doctor')}
                                     style={{
                                       padding: '9px 10px',
                                       borderRadius: '10px',
@@ -1848,13 +1878,13 @@ export default function HealthRecordsScreen() {
 
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenCourse(course, 'advice')}
+                                    onClick={() => handleOpenStation(course, selectedStation, 'documents')}
                                     style={{
                                       padding: '9px 10px',
                                       borderRadius: '10px',
                                       backgroundColor: '#FFFFFF',
-                                      color: '#1E40AF',
-                                      border: '1.5px solid #DBEAFE',
+                                      color: '#B45309',
+                                      border: '1.5px solid #FDE68A',
                                       fontSize: '12px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
@@ -1865,8 +1895,8 @@ export default function HealthRecordsScreen() {
                                       transition: 'all 0.15s ease',
                                     }}
                                   >
-                                    <span>💡</span>
-                                    <span>Care Advice</span>
+                                    <span>📄</span>
+                                    <span>View Documents</span>
                                   </button>
                                 </div>
                               </div>
@@ -2304,7 +2334,7 @@ export default function HealthRecordsScreen() {
                 </div>
 
                 <div style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                  {activeCourseModal.title || 'General Consultation Episode'}
+                  {(activeCourseModal.title || 'General Consultation').replace(/\s*(care\s*)?episode\s*/gi, '').trim() || 'General Consultation'}
                 </div>
 
                 {/* Consultation Date & Timings directly with Professional Calendar Icon */}
@@ -2396,13 +2426,13 @@ export default function HealthRecordsScreen() {
 
                 <button
                   type="button"
-                  onClick={() => setCourseDetailTab('advice')}
+                  onClick={() => setCourseDetailTab('documents')}
                   style={{
                     padding: '9px 12px',
                     borderRadius: '8px',
                     border: 'none',
-                    backgroundColor: courseDetailTab === 'advice' ? '#1E40AF' : 'transparent',
-                    color: courseDetailTab === 'advice' ? '#FFFFFF' : '#334155',
+                    backgroundColor: courseDetailTab === 'documents' ? '#B45309' : 'transparent',
+                    color: courseDetailTab === 'documents' ? '#FFFFFF' : '#334155',
                     fontWeight: '700',
                     fontSize: '12.5px',
                     cursor: 'pointer',
@@ -2410,12 +2440,12 @@ export default function HealthRecordsScreen() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
-                    boxShadow: courseDetailTab === 'advice' ? '0 2px 4px rgba(30,64,175,0.2)' : 'none',
+                    boxShadow: courseDetailTab === 'documents' ? '0 2px 4px rgba(180,83,9,0.2)' : 'none',
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <span>💡</span>
-                  <span>Advice</span>
+                  <span>📄</span>
+                  <span>View Documents</span>
                 </button>
               </div>
 
@@ -2722,96 +2752,118 @@ export default function HealthRecordsScreen() {
                 </div>
               )}
 
-              {/* 6. VIEW 4: ADVICE */}
-              {courseDetailTab === 'advice' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1.5px solid #BFDBFE',
-                      borderRadius: '12px',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '18px' }}>💡</span>
-                      <div>
-                        <div style={{ fontSize: '15px', fontWeight: '800', color: '#1E40AF' }}>
-                          Clinical Advice &amp; Care Guidance
-                        </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          Physician instructions for recovery and daily lifestyle
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {/* Reason for Visit */}
-                      <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>
-                          Patient Reason for Visit / Chief Complaint
-                        </span>
-                        <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A', marginTop: '3px' }}>
-                          {chiefComplaint}
-                        </div>
-                      </div>
-
-                      {/* Vital Signs Observed */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '8px', background: '#F8FAFC', padding: '10px 12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+              {/* 3. VIEW 3: DOCUMENTS (Uploaded during this consultancy) */}
+              {courseDetailTab === 'documents' && (() => {
+                const consultDocs = activeCourseModal.documents || activeCourseModal.selectedStation?.documents || [];
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1.5px solid #FDE68A',
+                        borderRadius: '12px',
+                        padding: '16px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '20px' }}>📄</span>
                         <div>
-                          <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '800', textTransform: 'uppercase' }}>Blood Pressure</span>
-                          <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'block' }}>{vitals.bp}</strong>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '800', textTransform: 'uppercase' }}>Pulse Rate</span>
-                          <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'block' }}>{vitals.pulse} bpm</strong>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '800', textTransform: 'uppercase' }}>Temperature</span>
-                          <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'block' }}>{vitals.temp} °F</strong>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '800', textTransform: 'uppercase' }}>SpO2</span>
-                          <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'block' }}>{vitals.spo2}</strong>
-                        </div>
-                      </div>
-
-                      {/* Examination Findings */}
-                      <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>
-                          Physical Examination Findings
-                        </span>
-                        <div style={{ fontSize: '13px', color: '#334155', marginTop: '3px', lineHeight: 1.4 }}>
-                          {examFindings}
-                        </div>
-                      </div>
-
-                      {/* Doctor's Care Plan / Advice */}
-                      <div style={{ background: '#ECFDF5', padding: '12px', borderRadius: '10px', border: '1px solid #A7F3D0', color: '#065F46' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', display: 'block' }}>
-                          🎯 Doctor's Care Advice &amp; Lifestyle Plan
-                        </span>
-                        <div style={{ fontSize: '13px', lineHeight: 1.4, marginTop: '3px', whiteSpace: 'pre-line' }}>
-                          {adviceText}
-                        </div>
-                      </div>
-
-                      {/* Follow-Up Banner */}
-                      <div style={{ background: '#EFF6FF', padding: '12px', borderRadius: '10px', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <CalendarIcon size={18} color="#1E40AF" />
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: '800', color: '#1E40AF', textTransform: 'uppercase', display: 'block' }}>
-                            Follow-Up Checkpoint
-                          </span>
-                          <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#1E293B', marginTop: '1px' }}>
-                            Next review recommended in 7 days at General OPD Counter 4.
+                          <div style={{ fontSize: '15px', fontWeight: '800', color: '#92400E' }}>
+                            Consultancy Documents &amp; Reports
+                          </div>
+                          <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                            Medical records and test reports registered during this consultation at {hospitalName}
                           </div>
                         </div>
                       </div>
+
+                      {consultDocs.length === 0 ? (
+                        <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '10px', padding: '22px 16px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '26px', marginBottom: '6px' }}>📄</div>
+                          <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
+                            e-Prescription &amp; Record Registered
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', maxWidth: '400px', margin: '4px auto 0' }}>
+                            Official digital prescription and lab orders are registered under Token #{activeCourseModal.id}. You can view, download, or print the signed prescription anytime.
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => window.print()}
+                            style={{
+                              marginTop: '12px',
+                              padding: '8px 16px',
+                              borderRadius: '8px',
+                              backgroundColor: '#004D40',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              fontWeight: '700',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <span>🖨️</span>
+                            <span>Print / Download Prescription Slip</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {consultDocs.map((doc, dIdx) => (
+                            <div
+                              key={doc.id || dIdx}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '12px 14px',
+                                backgroundColor: '#F8FAFC',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: '10px',
+                                gap: '8px',
+                              }}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  📄 {doc.fileName || `Medical_Document_${dIdx + 1}.pdf`}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                  Uploaded: {formatLaymanDateTime(doc.uploadedAt || doc.createdAt || activeCourseModal.createdAt)} &bull; ABDM Verified
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (doc.downloadUrl) {
+                                    window.open(doc.downloadUrl, '_blank');
+                                  } else {
+                                    handleViewDocument(doc);
+                                  }
+                                }}
+                                style={{
+                                  padding: '7px 14px',
+                                  borderRadius: '8px',
+                                  backgroundColor: '#004D40',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                View
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
             </div>
           </Modal>

@@ -493,10 +493,10 @@ export default function PatientQueue() {
             }}
           >
             <span style={{ fontSize: '28px', display: 'block', marginBottom: '6px' }}>🩺</span>
-            No active care episodes or stations at this moment.
+            No active care consultations at this moment.
           </div>
         ) : (
-          <TrainStationTimeline stations={activeStations} defaultOpenId={activeStations[0]?.id} />
+          <TrainStationTimeline stations={activeStations} onSelectStation={(stn) => navigate('/patient/records?tab=courses')} />
         )}
       </div>
 
