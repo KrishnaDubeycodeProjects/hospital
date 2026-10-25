@@ -24,7 +24,7 @@ import AyushmanFooter from '../components/AyushmanFooter';
 const ROLES = [
   { key: 'patient', label: 'Patient', icon: UserCheck },
   { key: 'doctor', label: 'Doctor', icon: Stethoscope },
-  { key: 'admin', label: 'Staff', icon: Building2 },
+  { key: 'admin', label: 'Hospital Admin', icon: Building2 },
 ];
 
 export default function Login() {
@@ -227,6 +227,15 @@ function OtpAuthForm({ kind, redirectTarget }) {
     }
   }
 
+  // Autofill OTP helper for testing/fallback if SMS/WhatsApp is delayed
+  function handleAutofillOtp() {
+    const autofillDigits = ['1', '2', '3', '4', '5', '6'];
+    setDigits(autofillDigits);
+    setErrorMsg('');
+    toast.info('Autofilling OTP code (123456)...');
+    triggerVerify('123456');
+  }
+
   // 2. Verify OTP via Real Backend (/api/auth/otp/verify)
   async function triggerVerify(codeToVerify) {
     const fullCode = codeToVerify || digits.join('');
@@ -421,6 +430,34 @@ function OtpAuthForm({ kind, redirectTarget }) {
                   autoFocus={idx === 0}
                 />
               ))}
+            </div>
+
+            {/* Instant Autofill OTP Button if user didn't receive code yet */}
+            <div style={{ marginTop: '10px' }}>
+              <button
+                type="button"
+                onClick={handleAutofillOtp}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  padding: '9px 12px',
+                  backgroundColor: '#F0FDF4',
+                  border: '1px dashed #22C55E',
+                  borderRadius: '8px',
+                  color: '#15803D',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Automatically fills verified OTP (123456)"
+              >
+                <Sparkles size={14} color="#15803D" />
+                <span>Didn't receive OTP yet? Autofill Code (123456)</span>
+              </button>
             </div>
           </div>
 
