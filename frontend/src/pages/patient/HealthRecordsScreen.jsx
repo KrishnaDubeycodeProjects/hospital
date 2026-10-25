@@ -189,6 +189,14 @@ export default function HealthRecordsScreen() {
   const [activeDocModal, setActiveDocModal] = useState(null);
   const [courseTimeline, setCourseTimeline] = useState(null);
   const [courseTimelinesMap, setCourseTimelinesMap] = useState({});
+  const [openCourseIds, setOpenCourseIds] = useState({});
+
+  const toggleCourseAccordion = (courseId) => {
+    setOpenCourseIds((prev) => ({
+      ...prev,
+      [courseId]: prev[courseId] === undefined ? false : !prev[courseId],
+    }));
+  };
   const [stationActiveTab, setStationActiveTab] = useState({});
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
@@ -696,10 +704,9 @@ export default function HealthRecordsScreen() {
       isActive: location.pathname.startsWith('/patient/records') || location.pathname.startsWith('/records-select'),
       icon: (active) => (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          <line x1="12" y1="11" x2="12" y2="17" />
+          <line x1="9" y1="14" x2="15" y2="14" />
         </svg>
       ),
     },
@@ -871,7 +878,7 @@ export default function HealthRecordsScreen() {
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-            <span>Prescriptions &amp; Records</span>
+            <span>Documents</span>
           </button>
 
           {/* Course Tab */}
@@ -898,7 +905,7 @@ export default function HealthRecordsScreen() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={activeTab === 'courses' ? '#FFFFFF' : '#7C3AED'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
             </svg>
-            <span>Continuation Care</span>
+            <span>Care History</span>
           </button>
 
           {/* Referrals Tab */}
@@ -1604,14 +1611,17 @@ export default function HealthRecordsScreen() {
                       </div>
                     </div>
                   ) : (
-                    memberCourses.map((course) => {
-                      const vitals = parseVitalsFromSummary(course.currentSummary);
+                    memberCourses.map((course, cIdx) => {
                       const isActive = course.status === 'active';
                       const formattedDate = course.createdAt
                         ? new Date(course.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : 'Active';
+                        : 'Active Episode';
+
+                      // Accordion open state: first course open by default or tracked in openCourseIds
+                      const isCourseOpen = openCourseIds[course.id] !== undefined ? openCourseIds[course.id] : (cIdx === 0 || isActive);
 
                       // Extract station journey checkpoints from loaded timeline
+                      // All stations along an active journey are marked GREEN (isActive: isActive)
                       const tl = courseTimelinesMap[course.id];
                       const encounters = tl?.encounters || course.encounters || [];
                       const standaloneDocs = tl?.standaloneDocuments || [];
@@ -1625,8 +1635,8 @@ export default function HealthRecordsScreen() {
                             doctorName: enc.doctorName || course.startedByDoctorName || 'Dr. Rajesh Sharma',
                             department: enc.encounterType || 'General OPD',
                             date: enc.visitDate || enc.createdAt || course.createdAt,
-                            isActive: isActive && eIdx === 0,
-                            prescriptions: (enc.prescriptions || []).map((p) => ({ ...p, isActive })),
+                            isActive: isActive, // All station points in active course are GREEN
+                            prescriptions: (enc.prescriptions || []).map((p) => ({ ...p, isActive: isActive })),
                             notes: {
                               chiefComplaint: enc.chiefComplaint,
                               examinationFindings: enc.examinationFindings,
@@ -1645,7 +1655,7 @@ export default function HealthRecordsScreen() {
                               doctorName: course.startedByDoctorName || 'Dr. Rajesh Sharma',
                               department: 'General OPD',
                               date: course.createdAt,
-                              isActive: isActive,
+                              isActive: isActive, // Green if course is active
                               prescriptions: [
                                 {
                                   medicineName: 'Paracetamol 500mg',
@@ -1683,276 +1693,197 @@ export default function HealthRecordsScreen() {
                             backgroundColor: '#FFFFFF',
                             border: isActive ? '1.5px solid #004D40' : '1px solid #E2E8F0',
                             borderRadius: '16px',
-                            padding: '16px',
+                            padding: '14px 16px',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '12px',
+                            gap: '10px',
                             boxShadow: '0 2px 6px rgba(15, 23, 42, 0.04)',
                             transition: 'all 0.2s ease',
                           }}
                         >
-                          {/* Row 1: Episode Header & Status Badge with Green or Red Dot */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div
-                                style={{
-                                  width: '36px',
-                                  height: '36px',
-                                  borderRadius: '10px',
-                                  backgroundColor: isActive ? '#ECFDF5' : '#FEF2F2',
-                                  color: isActive ? '#059669' : '#DC2626',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '17px',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                🩺
-                              </div>
-                              <div>
-                                <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
-                                  {course.title || 'General Consultation Episode'}
-                                </div>
-                                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span>ID: #{course.id} &bull; Started</span>
-                                  <CalendarIcon size={12} color="#64748B" />
-                                  <span>{formattedDate}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Status Pill with Green Dot or Red Dot */}
-                            <span
-                              style={{
-                                fontSize: '11.5px',
-                                fontWeight: '700',
-                                backgroundColor: isActive ? '#DCFCE7' : '#FEE2E2',
-                                color: isActive ? '#15803D' : '#991B1B',
-                                border: isActive ? '1px solid #86EFAC' : '1px solid #FCA5A5',
-                                padding: '3px 10px',
-                                borderRadius: '9999px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: '8px',
-                                  height: '8px',
-                                  borderRadius: '50%',
-                                  backgroundColor: isActive ? '#16A34A' : '#DC2626',
-                                  boxShadow: isActive ? '0 0 0 2px rgba(22, 163, 74, 0.25)' : 'none',
-                                  display: 'inline-block',
-                                }}
-                              />
-                              <span>{isActive ? 'Active Journey' : 'Inactive Journey'}</span>
-                            </span>
-                          </div>
-
-                          {/* Row 2: Concise Clinical Tags (Doctor, Hospital, Diagnosis) */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F0FDFA', border: '1px solid #CCFBF1', color: '#0F766E', fontSize: '11.5px', fontWeight: '700' }}>
-                              <span>👨‍⚕️</span>
-                              <span>{course.startedByDoctorName || 'Dr. Rajesh Sharma'}</span>
-                            </span>
-
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', color: '#334155', fontSize: '11.5px', fontWeight: '600' }}>
-                              <span>🏥</span>
-                              <span>{course.startedAtHospitalName || 'District Hospital'}</span>
-                            </span>
-
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', backgroundColor: '#EFF6FF', border: '1px solid #DBEAFE', color: '#1E40AF', fontSize: '11.5px', fontWeight: '700' }}>
-                              <span>🩺</span>
-                              <span>{course.diagnosis || 'Clinical Evaluation'}</span>
-                            </span>
-                          </div>
-
-                          {/* Row 3: 4-Column High-Signal Metric Grid */}
+                          {/* Minimal Clean Header: Clickable Dropdown Accordion */}
                           <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
-                              gap: '8px',
-                              backgroundColor: '#F8FAFC',
-                              border: '1px solid #F1F5F9',
-                              borderRadius: '10px',
-                              padding: '10px 12px',
-                            }}
-                          >
-                            <div>
-                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Vitals (BP)</span>
-                              <strong style={{ fontSize: '12.5px', color: '#0F172A', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                <span>❤️</span>
-                                <span>{vitals.bp}</span>
-                              </strong>
-                            </div>
-
-                            <div>
-                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Medicines (Rx)</span>
-                              <strong style={{ fontSize: '12.5px', color: '#047857', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                <span>💊</span>
-                                <span>{course.prescriptionCount ? `${course.prescriptionCount} Meds` : '1 Med'}</span>
-                              </strong>
-                            </div>
-
-                            <div>
-                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Lab Tests</span>
-                              <strong style={{ fontSize: '12.5px', color: vitals.hasLabs ? '#B45309' : '#475569', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                <span>🧪</span>
-                                <span>{vitals.hasLabs ? 'Ordered' : 'None'}</span>
-                              </strong>
-                            </div>
-
-                            <div>
-                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>Follow-Up</span>
-                              <strong style={{ fontSize: '12.5px', color: '#0284C7', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                <CalendarIcon size={13} color="#0284C7" />
-                                <span>Scheduled</span>
-                              </strong>
-                            </div>
-                          </div>
-
-                          {/* Row 4: Train Journey Stations Visual Stack (Interactive Dropdowns) */}
-                          <div
-                            style={{
-                              backgroundColor: '#F8FAFC',
-                              border: '1px solid #E2E8F0',
-                              borderRadius: '12px',
-                              padding: '12px 14px',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '800', color: '#0F766E', marginBottom: '8px' }}>
-                              <span>🚆</span>
-                              <span>Care Journey Stations (Click marking point to drop down 3 tabs)</span>
-                            </div>
-                            <TrainStationTimeline stations={stations} defaultOpenId={stations[0]?.id} onViewDocument={handleViewDocument} />
-                          </div>
-
-                          {/* Row 5: Consultation Date & Timings directly above buttons */}
-                          <div
+                            onClick={() => toggleCourseAccordion(course.id)}
                             style={{
                               display: 'flex',
+                              justifyContent: 'space-between',
                               alignItems: 'center',
-                              gap: '6px',
-                              padding: '8px 12px',
-                              backgroundColor: '#F0FDFA',
-                              border: '1px solid #CCFBF1',
-                              borderRadius: '8px',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              color: '#0F766E',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              gap: '10px',
                             }}
                           >
-                            <CalendarIcon size={14} color="#0D9488" />
-                            <span>
-                              Consultation Date &amp; Timings: {formatLaymanDateTime(course.createdAt)}
-                            </span>
+                            {/* Course Title & Date Timeline with Professional Calendar Icon */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.01em' }}>
+                                {course.title || 'General Consultation Episode'}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <CalendarIcon size={13} color="#64748B" />
+                                <span>{formattedDate}</span>
+                              </div>
+                            </div>
+
+                            {/* Status Dot (Green for Active, Red for Inactive) + Chevron Dropdown */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span
+                                style={{
+                                  fontSize: '11.5px',
+                                  fontWeight: '700',
+                                  backgroundColor: isActive ? '#DCFCE7' : '#FEE2E2',
+                                  color: isActive ? '#15803D' : '#991B1B',
+                                  border: isActive ? '1px solid #86EFAC' : '1px solid #FCA5A5',
+                                  padding: '3px 10px',
+                                  borderRadius: '9999px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isActive ? '#16A34A' : '#DC2626',
+                                    boxShadow: isActive ? '0 0 0 2px rgba(22, 163, 74, 0.25)' : 'none',
+                                    display: 'inline-block',
+                                  }}
+                                />
+                                <span>{isActive ? 'Active' : 'Inactive'}</span>
+                              </span>
+
+                              <span
+                                style={{
+                                  fontSize: '13px',
+                                  fontWeight: '800',
+                                  color: '#004D40',
+                                  padding: '4px',
+                                  lineHeight: 1,
+                                }}
+                              >
+                                {isCourseOpen ? '▲' : '▼'}
+                              </span>
+                            </div>
                           </div>
 
-                          {/* Row 6: 4 Dedicated Action Buttons */}
-                          <div
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                              gap: '8px',
-                              marginTop: '2px',
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleOpenCourse(course, 'prescription')}
-                              style={{
-                                padding: '9px 12px',
-                                borderRadius: '10px',
-                                backgroundColor: '#004D40',
-                                color: '#FFFFFF',
-                                fontSize: '12.5px',
-                                fontWeight: '700',
-                                border: 'none',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                boxShadow: '0 2px 4px rgba(0, 77, 64, 0.2)',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <span>💊</span>
-                              <span>Prescription</span>
-                            </button>
+                          {/* Accordion Content: Revealed upon clicking Course Title / Header */}
+                          {isCourseOpen && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                              {/* Train Journey Stations Stack */}
+                              <div
+                                style={{
+                                  backgroundColor: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: '12px',
+                                  padding: '12px 14px',
+                                }}
+                              >
+                                <TrainStationTimeline stations={stations} defaultOpenId={stations[0]?.id} onViewDocument={handleViewDocument} />
+                              </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleOpenCourse(course, 'tests')}
-                              style={{
-                                padding: '9px 12px',
-                                borderRadius: '10px',
-                                backgroundColor: '#FFFFFF',
-                                color: '#B45309',
-                                border: '1.5px solid #FCD34D',
-                                fontSize: '12.5px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <span>🧪</span>
-                              <span>Lab Tests</span>
-                            </button>
+                              {/* Consultation Date & Timings directly above buttons */}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '8px 12px',
+                                  backgroundColor: '#F0FDFA',
+                                  border: '1px solid #CCFBF1',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  color: '#0F766E',
+                                }}
+                              >
+                                <CalendarIcon size={14} color="#0D9488" />
+                                <span>
+                                  Consultation Date &amp; Timings: {formatLaymanDateTime(course.createdAt)}
+                                </span>
+                              </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleOpenCourse(course, 'doctor')}
-                              style={{
-                                padding: '9px 12px',
-                                borderRadius: '10px',
-                                backgroundColor: '#FFFFFF',
-                                color: '#0F766E',
-                                border: '1.5px solid #99F6E4',
-                                fontSize: '12.5px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <span>👨‍⚕️</span>
-                              <span>Doctor Details</span>
-                            </button>
+                              {/* 3 Dedicated Action Buttons: Prescription & Tests, Doctor Profile, Advice */}
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                                  gap: '8px',
+                                  marginTop: '2px',
+                                }}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCourse(course, 'prescription')}
+                                  style={{
+                                    padding: '9px 12px',
+                                    borderRadius: '10px',
+                                    backgroundColor: '#004D40',
+                                    color: '#FFFFFF',
+                                    fontSize: '12.5px',
+                                    fontWeight: '700',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    boxShadow: '0 2px 4px rgba(0, 77, 64, 0.2)',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  <span>💊</span>
+                                  <span>Prescription &amp; Tests</span>
+                                </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleOpenCourse(course, 'advice')}
-                              style={{
-                                padding: '9px 12px',
-                                borderRadius: '10px',
-                                backgroundColor: '#FFFFFF',
-                                color: '#1E40AF',
-                                border: '1.5px solid #BFDBFE',
-                                fontSize: '12.5px',
-                                fontWeight: '700',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                transition: 'all 0.15s ease',
-                              }}
-                            >
-                              <span>💡</span>
-                              <span>Advice</span>
-                            </button>
-                          </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCourse(course, 'doctor')}
+                                  style={{
+                                    padding: '9px 12px',
+                                    borderRadius: '10px',
+                                    backgroundColor: '#FFFFFF',
+                                    color: '#0F766E',
+                                    border: '1.5px solid #99F6E4',
+                                    fontSize: '12.5px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  <span>👨‍⚕️</span>
+                                  <span>Doctor Profile</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCourse(course, 'advice')}
+                                  style={{
+                                    padding: '9px 12px',
+                                    borderRadius: '10px',
+                                    backgroundColor: '#FFFFFF',
+                                    color: '#1E40AF',
+                                    border: '1.5px solid #BFDBFE',
+                                    fontSize: '12.5px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.15s ease',
+                                  }}
+                                >
+                                  <span>💡</span>
+                                  <span>Advice</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -2230,8 +2161,7 @@ export default function HealthRecordsScreen() {
           })}
         </nav>
 
-        {/* Aarogya Flow Footer branding */}
-        <AyushmanFooter brandFirst={true} variant="stacked" style={{ padding: '16px 20px', flexShrink: 0, width: '100%', borderTop: '1px solid #F1F5F9' }} />
+{/* Minimal layout - no cluttered footer */}
       </div>
 
       {/* QR Referral Modal */}
@@ -2417,11 +2347,11 @@ export default function HealthRecordsScreen() {
                 </div>
               </div>
 
-              {/* 2. Responsive 4-Button Navigation Tabs */}
+              {/* 2. Responsive 3-Button Navigation Tabs */}
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                   gap: '8px',
                   backgroundColor: '#F1F5F9',
                   padding: '6px',
@@ -2449,31 +2379,7 @@ export default function HealthRecordsScreen() {
                   }}
                 >
                   <span>💊</span>
-                  <span>Prescription</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCourseDetailTab('tests')}
-                  style={{
-                    padding: '9px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: courseDetailTab === 'tests' ? '#B45309' : 'transparent',
-                    color: courseDetailTab === 'tests' ? '#FFFFFF' : '#334155',
-                    fontWeight: '700',
-                    fontSize: '12.5px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: courseDetailTab === 'tests' ? '0 2px 4px rgba(180,83,9,0.2)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>🧪</span>
-                  <span>Lab Tests</span>
+                  <span>Prescription &amp; Tests</span>
                 </button>
 
                 <button
@@ -2497,7 +2403,7 @@ export default function HealthRecordsScreen() {
                   }}
                 >
                   <span>👨‍⚕️</span>
-                  <span>Doctor Details</span>
+                  <span>Doctor Profile</span>
                 </button>
 
                 <button
@@ -2698,6 +2604,22 @@ export default function HealthRecordsScreen() {
                       </div>
                     </div>
 
+                    {/* Authorized Diagnostic Laboratory Investigations (Merged Inside Prescription) */}
+                    <div style={{ marginTop: '16px', backgroundColor: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: '10px', padding: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '18px' }}>🧪</span>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Ordered Lab Tests &amp; Diagnostic Investigations
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#78350F' }}>
+                        {labText}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#B45309', marginTop: '6px' }}>
+                        👉 Authorized by {doctorName}. Present this prescription at {hospitalName} Diagnostic Laboratory for priority sample collection.
+                      </div>
+                    </div>
+
                     {/* Doctor Digital Signature Stamp */}
                     <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ fontSize: '11px', color: '#64748B', maxWidth: '380px' }}>
@@ -2744,58 +2666,7 @@ export default function HealthRecordsScreen() {
                 </div>
               )}
 
-              {/* 4. VIEW 2: LAB TESTS */}
-              {courseDetailTab === 'tests' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1.5px solid #FCD34D',
-                      borderRadius: '12px',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '18px' }}>🧪</span>
-                      <div>
-                        <div style={{ fontSize: '15px', fontWeight: '800', color: '#92400E' }}>
-                          Diagnostic Laboratory Investigations
-                        </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          Authorized and ordered by {doctorName}
-                        </div>
-                      </div>
-                    </div>
 
-                    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '14px', marginTop: '10px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#92400E', textTransform: 'uppercase', display: 'block' }}>
-                        Ordered Test Panel
-                      </span>
-                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#78350F', marginTop: '4px' }}>
-                        {labText}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#B45309', marginTop: '6px' }}>
-                        👉 Please present this document at the Hospital Central Diagnostic Pathology Lab (Room 102) for sample collection.
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '12px' }}>
-                      <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Facility</span>
-                        <strong style={{ fontSize: '12.5px', color: '#0F172A' }}>{hospitalName} Pathology Lab</strong>
-                      </div>
-                      <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Status</span>
-                        <strong style={{ fontSize: '12.5px', color: '#059669' }}>Authorized &bull; Sample Collection Ready</strong>
-                      </div>
-                      <div style={{ background: '#F8FAFC', padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Preparation</span>
-                        <strong style={{ fontSize: '12.5px', color: '#B45309' }}>Fasting recommended (10-12 hours)</strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* 5. VIEW 3: DOCTOR DETAILS */}
               {courseDetailTab === 'doctor' && (

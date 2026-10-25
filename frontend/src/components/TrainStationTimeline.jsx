@@ -150,7 +150,7 @@ export default function TrainStationTimeline({
                   transition: 'all 0.2s ease',
                 }}
                 onClick={() => toggleStation(stationId)}
-                title={isActive ? 'Active Station (Green Dot)' : 'Inactive Station (Red Dot)'}
+                title={isActive ? 'Active Consultation Checkpoint' : 'Completed Checkpoint'}
               />
 
               {/* Right Column: Station Card with Marking Point & Dropdown */}
@@ -206,21 +206,19 @@ export default function TrainStationTimeline({
                       </strong>
                     </div>
 
-                    {/* Status Dot with Label */}
+                    {/* Status Dot */}
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                       <span
                         style={{
-                          width: '8px',
-                          height: '8px',
+                          width: '9px',
+                          height: '9px',
                           borderRadius: '50%',
                           backgroundColor: isActive ? '#16A34A' : '#DC2626',
                           display: 'inline-block',
                           boxShadow: isActive ? '0 0 0 2px rgba(22, 163, 74, 0.25)' : 'none',
                         }}
+                        title={isActive ? 'Active' : 'Completed'}
                       />
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: isActive ? '#15803D' : '#991B1B' }}>
-                        {isActive ? 'Active Station' : 'Inactive Station'}
-                      </span>
                     </div>
                   </div>
 
@@ -533,6 +531,32 @@ export default function TrainStationTimeline({
                               </div>
                             );
                           })
+                        )}
+
+                        {/* Ordered Lab Tests & Diagnostics Merged Directly in Prescription */}
+                        {((notes.clinicalNotes && notes.clinicalNotes.toLowerCase().includes('investigation')) || (notes.plan && notes.plan.toLowerCase().includes('investigation')) || stn.labTests) && (
+                          <div
+                            style={{
+                              marginTop: '8px',
+                              backgroundColor: '#FFFBEB',
+                              border: '1.5px solid #FDE68A',
+                              borderRadius: '10px',
+                              padding: '12px 14px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                              <span style={{ fontSize: '16px' }}>🧪</span>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Ordered Diagnostic Tests &amp; Investigations
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '13px', fontWeight: '800', color: '#78350F' }}>
+                              {stn.labTests || 'CBC (Complete Blood Count), Blood Glucose, Urinalysis'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#B45309', marginTop: '2px' }}>
+                              👉 Please present prescription at hospital diagnostic lab for sample collection.
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}

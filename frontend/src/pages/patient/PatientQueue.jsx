@@ -390,7 +390,7 @@ export default function PatientQueue() {
         </div>
       )}
 
-      {/* 2. Active Care Stations (Continuation Journey Train Line) */}
+      {/* 2. Care History Journey (Continuation Journey Train Line) */}
       <div
         style={{
           backgroundColor: '#FFFFFF',
@@ -429,7 +429,7 @@ export default function PatientQueue() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
-                  Active Care Stations
+                  Care History Journey
                 </h2>
                 <span
                   style={{
@@ -446,11 +446,11 @@ export default function PatientQueue() {
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#16A34A', display: 'inline-block' }} />
-                  {activeStations.length} Active
+                  {activeStations.length} Checkpoints
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>
-                Ongoing continuation care train journey with hospital checkpoints
+                Ongoing continuation care journey with hospital checkpoints
               </div>
             </div>
           </div>
