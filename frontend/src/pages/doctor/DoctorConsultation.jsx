@@ -154,9 +154,11 @@ export default function DoctorConsultation() {
   // Smart Medicine Search & Variant Selector Modal State (Image 3)
   const [smartSearchIndex, setSmartSearchIndex] = useState(null);
   const [selectedRowIndex, setSelectedRowIndex] = useState(0);
-  const [activeDrugModal, setActiveDrugModal] = useState(null); // Selected drug object
+  const [activeDrugModal, setActiveDrugModal] = useState(null); // { drug, targetIdx }
   const [variantTab, setVariantTab] = useState('All');
   const [drugSearchQuery, setDrugSearchQuery] = useState('');
+  const [liveDrugResults, setLiveDrugResults] = useState([]);
+  const drugSearchTimer = useRef(null);
 
   // Investigations & Labs State
   const [selectedLabs, setSelectedLabs] = useState(['CBC (Complete Blood Count)']);
@@ -444,6 +446,7 @@ export default function DoctorConsultation() {
       setSmartSearchIndex(next.length - 1);
       return next;
     });
+    setLiveDrugResults([]);
   }
 
   function updatePrescriptionField(idx, field, value) {
@@ -452,43 +455,71 @@ export default function DoctorConsultation() {
     );
   }
 
+  function handleMedicineInputChange(idx, value) {
+    setSelectedRowIndex(idx);
+    setSmartSearchIndex(idx);
+    updatePrescriptionField(idx, 'medicineName', value);
+
+    if (drugSearchTimer.current) clearTimeout(drugSearchTimer.current);
+    const q = (value || '').trim();
+    if (q.length >= 2) {
+      drugSearchTimer.current = setTimeout(async () => {
+        try {
+          const res = await drugApi.search(q);
+          const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+          setLiveDrugResults(list);
+        } catch (err) {
+          setLiveDrugResults([]);
+        }
+      }, 200);
+    } else {
+      setLiveDrugResults([]);
+    }
+  }
+
   function removePrescriptionRow(idx) {
     setPrescriptions((prev) => prev.filter((_, i) => i !== idx));
+    if (smartSearchIndex === idx) setSmartSearchIndex(null);
   }
 
   // Variant / Drug selector action
-  function applyMedicineVariant(variant, drug) {
-    const targetIdx = selectedRowIndex !== null ? selectedRowIndex : (smartSearchIndex !== null ? smartSearchIndex : 0);
-    if (!variant || !drug) return;
+  function applyMedicineVariant(variant, drug, explicitIdx = null) {
+    const targetIdx = explicitIdx !== null
+      ? explicitIdx
+      : (selectedRowIndex !== null ? selectedRowIndex : (smartSearchIndex !== null ? smartSearchIndex : 0));
+    if (!variant && !drug) return;
 
-    const brandName = variant?.brand ? String(variant.brand).split(',')[0].trim() : '';
-    const genericName = drug?.generic ? String(drug.generic).split('(')[0].trim() : (drug?.name || 'Medicine');
-    const medDisplayName = brandName ? `${genericName} (${brandName})` : genericName;
+    const brandName = variant?.brand
+      ? String(variant.brand).split(',')[0].trim()
+      : (drug?.brandName || drug?.brand || '');
+    const genericName = drug?.generic
+      ? String(drug.generic).split('(')[0].trim()
+      : (drug?.genericName || drug?.name || 'Medicine');
+    const medDisplayName = brandName ? `${genericName} (${brandName})` : (drug?.name || genericName);
 
     setPrescriptions((prev) => {
-      // If array is empty or targetIdx out of bounds, extend or replace
       const list = prev.length === 0 ? [{}] : [...prev];
-      const actualIdx = targetIdx < list.length ? targetIdx : 0;
+      const actualIdx = (targetIdx >= 0 && targetIdx < list.length) ? targetIdx : (list.length - 1);
       return list.map((p, i) =>
         i === actualIdx
           ? {
               ...p,
               medicineName: medDisplayName,
-              strength: variant?.strength || p.strength || '500 mg',
-              dose: variant?.dose || p.dose || '1 tablet',
-              route: variant?.route || p.route || 'Oral',
-              frequency: variant?.freq || variant?.frequency || p.frequency || 'BD (Twice daily)',
-              duration: variant?.duration || p.duration || '5 days',
-              quantity: parseInt(variant?.qty) || parseInt(p.quantity) || 10,
+              strength: variant?.strength || drug?.strength || p.strength || '500 mg',
+              dose: variant?.dose || drug?.defaultDosage || p.dose || '1 tablet',
+              route: variant?.route || (variant?.formulation === 'Injection' || drug?.form === 'injection' ? 'IV Infusion' : 'Oral'),
+              frequency: variant?.freq || variant?.frequency || drug?.defaultFrequency || p.frequency || 'BD (Twice daily)',
+              duration: variant?.duration || (drug?.defaultDurationDays ? `${drug.defaultDurationDays} days` : null) || p.duration || '5 days',
+              quantity: parseInt(variant?.qty) || (drug?.defaultDurationDays ? drug.defaultDurationDays * 2 : null) || parseInt(p.quantity) || 10,
               refills: parseInt(variant?.refills) || 0,
-              instructions: variant?.instructions || p.instructions || 'After meals',
+              instructions: variant?.instructions || drug?.defaultInstructions || p.instructions || 'After meals',
             }
           : p
       );
     });
     setActiveDrugModal(null);
     setSmartSearchIndex(null);
-    toast.success(`Selected ${medDisplayName} ${variant?.strength || ''}`);
+    toast.success(`Selected ${medDisplayName}`);
   }
 
   // Investigation Tags toggling
@@ -1307,12 +1338,16 @@ export default function DoctorConsultation() {
                 <tbody>
                   {prescriptions.map((rx, idx) => {
                     const filterQuery = (rx.medicineName || '').toLowerCase().trim();
-                    const filteredMeds = COMMON_MEDICINES.filter(m =>
+                    const filteredCommon = COMMON_MEDICINES.filter(m =>
                       !filterQuery ||
-                      m.generic.toLowerCase().includes(filterQuery) ||
-                      m.category.toLowerCase().includes(filterQuery) ||
-                      m.variants.some(v => v.brand.toLowerCase().includes(filterQuery))
+                      (m.generic || '').toLowerCase().includes(filterQuery) ||
+                      (m.category || '').toLowerCase().includes(filterQuery) ||
+                      (m.variants || []).some(v => (v.brand || '').toLowerCase().includes(filterQuery))
                     );
+                    const filteredLive = liveDrugResults.filter(ld =>
+                      !filteredCommon.some(cm => (cm.generic || '').toLowerCase().includes((ld.genericName || ld.name || '').toLowerCase()))
+                    );
+                    const totalFound = filteredCommon.length + filteredLive.length;
 
                     return (
                       <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
@@ -1322,16 +1357,12 @@ export default function DoctorConsultation() {
                             <input
                               type="text"
                               value={rx.medicineName}
-                              onChange={(e) => {
-                                setSelectedRowIndex(idx);
-                                setSmartSearchIndex(idx);
-                                updatePrescriptionField(idx, 'medicineName', e.target.value);
-                              }}
+                              onChange={(e) => handleMedicineInputChange(idx, e.target.value)}
                               onFocus={() => {
                                 setSelectedRowIndex(idx);
                                 setSmartSearchIndex(idx);
                               }}
-                              placeholder="Type medicine (e.g. Paracetamol)..."
+                              placeholder="Type medicine (e.g. Paracetamol, Dolo, Augmentin)..."
                               style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px', fontWeight: 600 }}
                             />
                             {/* Smart Autocomplete Dropdown - Kept Fully Visible Over Card & Table */}
@@ -1342,90 +1373,176 @@ export default function DoctorConsultation() {
                                   top: '100%',
                                   left: 0,
                                   zIndex: 9999,
-                                  width: '380px',
+                                  width: '420px',
                                   backgroundColor: '#FFFFFF',
                                   border: '1.5px solid #25D366',
                                   borderRadius: '8px',
                                   boxShadow: '0 14px 32px rgba(0,0,0,0.18)',
-                                  maxHeight: '280px',
+                                  maxHeight: '300px',
                                   overflowY: 'auto',
                                   marginTop: '4px',
                                 }}
                               >
                                 <div style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 800, color: '#166534', backgroundColor: '#F0FDF4', borderBottom: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span>AarogyaFlow Drug Registry ({filteredMeds.length})</span>
+                                  <span>AarogyaFlow Drug Registry ({totalFound} items)</span>
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); setSmartSearchIndex(null); }}
+                                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setSmartSearchIndex(null); }}
                                     style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#15803D', fontWeight: 800, fontSize: '12px' }}
                                   >
                                     ✕ Close
                                   </button>
                                 </div>
-                                {filteredMeds.map((drug, dIdx) => (
-                                  <div
-                                    key={dIdx}
-                                    style={{
-                                      padding: '10px 12px',
-                                      borderBottom: '1px solid #F1F5F9',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      gap: '8px',
-                                      transition: 'background 0.15s ease',
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F0FDF4'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
-                                  >
+
+                                {filteredCommon.map((drug, dIdx) => {
+                                  const primaryVariant = drug.variants?.[0] || {
+                                    formulation: 'Tablet',
+                                    strength: '500 mg',
+                                    brand: drug.generic,
+                                    dose: '1 tablet',
+                                    route: 'Oral',
+                                    freq: 'BD (Twice daily)',
+                                    duration: '5 days',
+                                    qty: 10,
+                                  };
+                                  return (
                                     <div
-                                      onClick={() => {
-                                        setSelectedRowIndex(idx);
-                                        const primaryVariant = drug.variants?.[0] || {
-                                          formulation: 'Tablet',
-                                          strength: '500 mg',
-                                          brand: drug.generic,
-                                          dose: '1 tablet',
-                                          route: 'Oral',
-                                          freq: 'BD (Twice daily)',
-                                          duration: '5 days',
-                                          qty: 10,
-                                        };
-                                        applyMedicineVariant(primaryVariant, drug);
+                                      key={`common-${dIdx}`}
+                                      style={{
+                                        padding: '10px 12px',
+                                        borderBottom: '1px solid #F1F5F9',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        transition: 'background 0.15s ease',
                                       }}
-                                      style={{ flex: 1 }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F0FDF4'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        applyMedicineVariant(primaryVariant, drug, idx);
+                                      }}
                                     >
-                                      <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>
-                                        {drug.generic}
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>
+                                          {drug.generic}
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#166534', marginTop: '2px' }}>
+                                          {drug.category} &bull; {primaryVariant.formulation} {primaryVariant.strength}
+                                        </div>
                                       </div>
-                                      <div style={{ fontSize: '11px', color: '#166534', marginTop: '2px' }}>
-                                        {drug.category} &bull; {drug.variants?.[0]?.formulation || 'Tablet'} {drug.variants?.[0]?.strength || ''}
+
+                                      <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                          type="button"
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            applyMedicineVariant(primaryVariant, drug, idx);
+                                          }}
+                                          style={{
+                                            padding: '4px 9px',
+                                            borderRadius: '6px',
+                                            border: '1px solid #86EFAC',
+                                            backgroundColor: '#DCFCE7',
+                                            color: '#15803D',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          Select
+                                        </button>
+                                        {drug.variants?.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setSelectedRowIndex(idx);
+                                              setActiveDrugModal({ drug, targetIdx: idx });
+                                              setSmartSearchIndex(null);
+                                            }}
+                                            style={{
+                                              padding: '4px 8px',
+                                              borderRadius: '6px',
+                                              border: '1px solid #CBD5E1',
+                                              backgroundColor: '#F8FAFC',
+                                              color: '#475569',
+                                              fontSize: '10.5px',
+                                              fontWeight: 600,
+                                              cursor: 'pointer',
+                                            }}
+                                          >
+                                            Options ({drug.variants.length})
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
+                                  );
+                                })}
 
-                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                {filteredLive.map((liveDrug, lIdx) => {
+                                  const synthVariant = {
+                                    formulation: liveDrug.form || 'Tablet',
+                                    strength: liveDrug.strength || '500 mg',
+                                    brand: liveDrug.brandName || liveDrug.name,
+                                    dose: liveDrug.defaultDosage || '1 tablet',
+                                    route: liveDrug.form === 'injection' ? 'IV Infusion' : 'Oral',
+                                    freq: liveDrug.defaultFrequency || 'BD (Twice daily)',
+                                    duration: `${liveDrug.defaultDurationDays || 5} days`,
+                                    qty: (liveDrug.defaultDurationDays || 5) * 2,
+                                    instructions: liveDrug.defaultInstructions || 'After meals',
+                                  };
+                                  return (
+                                    <div
+                                      key={`live-${lIdx}`}
+                                      style={{
+                                        padding: '10px 12px',
+                                        borderBottom: '1px solid #F1F5F9',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: '8px',
+                                        transition: 'background 0.15s ease',
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        applyMedicineVariant(synthVariant, liveDrug, idx);
+                                      }}
+                                    >
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <span>{liveDrug.name || liveDrug.genericName}</span>
+                                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px', backgroundColor: '#E0F2FE', color: '#0284C7' }}>
+                                            REGISTRY
+                                          </span>
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                          {liveDrug.genericName ? `${liveDrug.genericName} • ` : ''}{liveDrug.form || 'Tablet'} {liveDrug.strength || ''}
+                                        </div>
+                                      </div>
+
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          setSelectedRowIndex(idx);
-                                          const primaryVariant = drug.variants?.[0] || {
-                                            formulation: 'Tablet',
-                                            strength: '500 mg',
-                                            brand: drug.generic,
-                                            dose: '1 tablet',
-                                            route: 'Oral',
-                                            freq: 'BD (Twice daily)',
-                                            duration: '5 days',
-                                            qty: 10,
-                                          };
-                                          applyMedicineVariant(primaryVariant, drug);
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          applyMedicineVariant(synthVariant, liveDrug, idx);
                                         }}
                                         style={{
                                           padding: '4px 9px',
                                           borderRadius: '6px',
-                                          border: '1px solid #86EFAC',
-                                          backgroundColor: '#DCFCE7',
-                                          color: '#15803D',
+                                          border: '1px solid #93C5FD',
+                                          backgroundColor: '#DBEAFE',
+                                          color: '#1E40AF',
                                           fontSize: '11px',
                                           fontWeight: 700,
                                           cursor: 'pointer',
@@ -1433,32 +1550,15 @@ export default function DoctorConsultation() {
                                       >
                                         Select
                                       </button>
-                                      {drug.variants?.length > 1 && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedRowIndex(idx);
-                                            setActiveDrugModal(drug);
-                                            setSmartSearchIndex(null);
-                                          }}
-                                          style={{
-                                            padding: '4px 8px',
-                                            borderRadius: '6px',
-                                            border: '1px solid #CBD5E1',
-                                            backgroundColor: '#F8FAFC',
-                                            color: '#475569',
-                                            fontSize: '10.5px',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                          }}
-                                        >
-                                          Options ({drug.variants.length})
-                                        </button>
-                                      )}
                                     </div>
+                                  );
+                                })}
+
+                                {totalFound === 0 && (
+                                  <div style={{ padding: '16px', textAlign: 'center', color: '#64748B', fontSize: '12px' }}>
+                                    No medicines matched "{filterQuery}". You can enter custom instructions directly.
                                   </div>
-                                ))}
+                                )}
                               </div>
                             )}
                           </div>
@@ -1891,59 +1991,84 @@ export default function DoctorConsultation() {
       )}
 
       {/* SMART MEDICINE VARIANT SELECTOR MODAL (Image 3) */}
-      {activeDrugModal && (
-        <Modal title={activeDrugModal.generic} onClose={() => setActiveDrugModal(null)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ fontSize: '12.5px', color: '#166534', fontWeight: 600 }}>
-              {activeDrugModal.category}
-            </div>
+      {activeDrugModal && (() => {
+        const modalDrug = activeDrugModal.drug || activeDrugModal;
+        const targetRow = activeDrugModal.targetIdx ?? selectedRowIndex ?? 0;
+        const rawVariants = Array.isArray(modalDrug?.variants) && modalDrug.variants.length > 0
+          ? modalDrug.variants
+          : [
+              {
+                formulation: modalDrug?.form || 'Tablet',
+                strength: modalDrug?.strength || '500 mg',
+                brand: modalDrug?.brandName || modalDrug?.name || 'Standard',
+                dose: modalDrug?.defaultDosage || '1 tablet',
+                route: modalDrug?.form === 'injection' ? 'IV Infusion' : 'Oral',
+                freq: modalDrug?.defaultFrequency || 'BD (Twice daily)',
+                duration: `${modalDrug?.defaultDurationDays || 5} days`,
+                qty: (modalDrug?.defaultDurationDays || 5) * 2,
+                instructions: modalDrug?.defaultInstructions || 'After meals',
+              }
+            ];
 
-            {/* Formulation Variant Filter Tabs (Image 3) */}
-            <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px', flexWrap: 'wrap' }}>
-              {['All', 'Tablet', 'Syrup', 'Injection', 'Drop', 'Suppository'].map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setVariantTab(tab)}
-                  style={{
-                    padding: '4px 12px',
-                    borderRadius: '9999px',
-                    border: variantTab === tab ? '1.5px solid #25D366' : '1px solid #CBD5E1',
-                    backgroundColor: variantTab === tab ? '#DCFCE7' : '#FFFFFF',
-                    color: variantTab === tab ? '#15803D' : '#475569',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
+        const filteredVariants = rawVariants.filter((v) =>
+          variantTab === 'All' || (v?.formulation || '').toLowerCase().includes(variantTab.toLowerCase())
+        );
 
-            {/* Available Variants Table (Image 3) */}
-            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '11px' }}>
-                    <th style={{ padding: '6px 8px' }}>Formulation</th>
-                    <th style={{ padding: '6px 8px' }}>Strength</th>
-                    <th style={{ padding: '6px 8px' }}>Brand Examples</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeDrugModal.variants
-                    .filter((v) => variantTab === 'All' || v.formulation.toLowerCase().includes(variantTab.toLowerCase()))
-                    .map((v, vIdx) => (
+        return (
+          <Modal title={modalDrug?.generic || modalDrug?.genericName || modalDrug?.name || 'Medicine Details'} onClose={() => setActiveDrugModal(null)}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ fontSize: '12.5px', color: '#166534', fontWeight: 600 }}>
+                {modalDrug?.category || modalDrug?.brandName || 'Formulation Variants & Guidelines'}
+              </div>
+
+              {/* Formulation Variant Filter Tabs (Image 3) */}
+              <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px', flexWrap: 'wrap' }}>
+                {['All', 'Tablet', 'Syrup', 'Injection', 'Drop', 'Suppository'].map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setVariantTab(tab)}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: '9999px',
+                      border: variantTab === tab ? '1.5px solid #25D366' : '1px solid #CBD5E1',
+                      backgroundColor: variantTab === tab ? '#DCFCE7' : '#FFFFFF',
+                      color: variantTab === tab ? '#15803D' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Available Variants Table (Image 3) */}
+              <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '11px' }}>
+                      <th style={{ padding: '6px 8px' }}>Formulation</th>
+                      <th style={{ padding: '6px 8px' }}>Strength</th>
+                      <th style={{ padding: '6px 8px' }}>Brand Examples</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredVariants.map((v, vIdx) => (
                       <tr key={vIdx} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '8px', fontWeight: 700, color: '#0F172A' }}>{v.formulation}</td>
-                        <td style={{ padding: '8px' }}>{v.strength}</td>
-                        <td style={{ padding: '8px', color: '#475569' }}>{v.brand}</td>
+                        <td style={{ padding: '8px', fontWeight: 700, color: '#0F172A' }}>{v?.formulation || 'Tablet'}</td>
+                        <td style={{ padding: '8px' }}>{v?.strength || '-'}</td>
+                        <td style={{ padding: '8px', color: '#475569' }}>{v?.brand || modalDrug?.brandName || '-'}</td>
                         <td style={{ padding: '8px', textAlign: 'right' }}>
                           <Button
                             size="sm"
-                            onClick={() => applyMedicineVariant(v, activeDrugModal)}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              applyMedicineVariant(v, modalDrug, targetRow);
+                            }}
                             style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontSize: '11.5px', padding: '3px 10px', fontWeight: 700 }}
                           >
                             Select
@@ -1951,24 +2076,27 @@ export default function DoctorConsultation() {
                         </td>
                       </tr>
                     ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Dosage Guidelines Callout Box (Image 3) */}
-            <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Info size={16} color="#2563EB" />
-              <span>{activeDrugModal.adultDose}</span>
-            </div>
+              {/* Dosage Guidelines Callout Box (Image 3) */}
+              {(modalDrug?.adultDose || modalDrug?.defaultInstructions) && (
+                <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Info size={16} color="#2563EB" />
+                  <span>{modalDrug.adultDose || `${modalDrug.name}: ${modalDrug.defaultInstructions}`}</span>
+                </div>
+              )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-              <Button size="sm" variant="ghost" onClick={() => setActiveDrugModal(null)}>
-                Cancel
-              </Button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                <Button size="sm" variant="ghost" onClick={() => setActiveDrugModal(null)}>
+                  Cancel
+                </Button>
+              </div>
             </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* PRESCRIPTION PREVIEW MODAL */}
       {showPrescriptionPreview && (

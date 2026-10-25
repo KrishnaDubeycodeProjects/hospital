@@ -44,9 +44,15 @@ export class ErrorBoundary extends React.Component {
             <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: '0 0 8px' }}>
               Something went wrong loading this screen
             </h2>
-            <p style={{ fontSize: '13.5px', color: '#64748B', lineHeight: 1.5, margin: '0 0 20px' }}>
-              {this.state.error?.message || 'An unexpected rendering error occurred. Please refresh or return to the main dashboard.'}
+            <p style={{ fontSize: '13.5px', color: '#64748B', lineHeight: 1.5, margin: '0 0 16px' }}>
+              {this.state.error?.message || (typeof this.state.error === 'string' ? this.state.error : 'An unexpected error occurred. Please refresh or navigate back.')}
             </p>
+            {this.state.error?.stack && (
+              <details style={{ textAlign: 'left', marginBottom: '16px', background: '#F1F5F9', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', color: '#475569', overflowX: 'auto', maxHeight: '120px' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 700, color: '#0369A1' }}>View Error Details</summary>
+                <pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{this.state.error.stack}</pre>
+              </details>
+            )}
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button
                 type="button"

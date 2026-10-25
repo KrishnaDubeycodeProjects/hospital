@@ -111,7 +111,9 @@ function DrugInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
                 borderBottom: '1px solid #f1f5f9',
                 fontSize: '13px',
               }}
-              onMouseDown={() => {
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 onSelectSuggestion(s);
                 setOpen(false);
               }}
@@ -210,7 +212,9 @@ function LabInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
                 borderBottom: '1px solid #f1f5f9',
                 fontSize: '13px',
               }}
-              onMouseDown={() => {
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 onSelectSuggestion(s);
                 setOpen(false);
               }}
@@ -434,6 +438,24 @@ export default function DoctorServeEncounter() {
   function updatePrescription(idx, field, value) {
     setPrescriptions((prev) =>
       prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item))
+    );
+  }
+
+  function applyFullPrescription(idx, drug) {
+    if (!drug) return;
+    setPrescriptions((prev) =>
+      prev.map((item, i) =>
+        i === idx
+          ? {
+              ...item,
+              drugName: drug.name || drug.genericName || item.drugName,
+              dosage: drug.strength || drug.defaultDosage || item.dosage || '500mg',
+              frequency: drug.defaultFrequency || item.frequency || 'BD (1-0-1)',
+              durationDays: drug.defaultDurationDays || item.durationDays || 5,
+              instructions: drug.defaultInstructions || item.instructions || 'After meals',
+            }
+          : item
+      )
     );
   }
 
@@ -1144,12 +1166,7 @@ export default function DoctorServeEncounter() {
                         value={rx.drugName}
                         onChange={(val) => updatePrescription(idx, 'drugName', val)}
                         onSelectSuggestion={(drug) => {
-                          updatePrescription(idx, 'drugName', drug.name);
-                          if (drug.strength) updatePrescription(idx, 'dosage', drug.strength);
-                          if (drug.defaultDosage && !drug.strength) updatePrescription(idx, 'dosage', drug.defaultDosage);
-                          if (drug.defaultFrequency) updatePrescription(idx, 'frequency', drug.defaultFrequency);
-                          if (drug.defaultDurationDays) updatePrescription(idx, 'durationDays', drug.defaultDurationDays);
-                          if (drug.defaultInstructions) updatePrescription(idx, 'instructions', drug.defaultInstructions);
+                          applyFullPrescription(idx, drug);
                         }}
                       />
                       <Input
