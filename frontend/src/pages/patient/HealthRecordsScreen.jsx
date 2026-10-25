@@ -131,6 +131,35 @@ function parseVitalsFromSummary(text = '') {
   };
 }
 
+// Helper to map family member to their corresponding clinical sample bundle if DB records are not yet added
+function getMemberFallbackData(member, memberIndex = 0) {
+  if (!member) return RAW_FAMILY_MEMBERS[0] || null;
+  const rel = (member.relationship || member.relation || '').toLowerCase().trim();
+  const name = (member.name || '').toLowerCase().trim();
+
+  // Try direct name match first
+  const nameMatch = RAW_FAMILY_MEMBERS.find(
+    (rm) => rm.name.toLowerCase().includes(name) || name.includes(rm.name.toLowerCase())
+  );
+  if (nameMatch) return nameMatch;
+
+  // Relationship-based mapping
+  if (rel === 'self' || rel === 'head') {
+    return RAW_FAMILY_MEMBERS[0]; // Primary Self bundle
+  }
+  if (rel.includes('wife') || rel.includes('mother') || rel.includes('spouse') || rel.includes('female')) {
+    return RAW_FAMILY_MEMBERS[1] || RAW_FAMILY_MEMBERS[0]; // Spouse/Mother bundle
+  }
+  if (rel.includes('father') || rel.includes('husband') || rel.includes('parent')) {
+    return RAW_FAMILY_MEMBERS[2] || RAW_FAMILY_MEMBERS[0]; // Father bundle
+  }
+  if (rel.includes('son') || rel.includes('daughter') || rel.includes('child') || rel.includes('brother') || rel.includes('sister')) {
+    return RAW_FAMILY_MEMBERS[3] || RAW_FAMILY_MEMBERS[0]; // Child/Sibling bundle
+  }
+
+  return RAW_FAMILY_MEMBERS[memberIndex % RAW_FAMILY_MEMBERS.length];
+}
+
 export default function HealthRecordsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -373,22 +402,26 @@ export default function HealthRecordsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePhone]);
 
-  // Selected Member Object
+  // Selected Member Object (null when 'all' is selected, or active member)
   const selectedMember = useMemo(() => {
-    if (!familyMembers.length) return null;
-    return familyMembers.find((m) => m.id === selectedMemberId) || familyMembers[0];
-  }, [familyMembers, selectedMemberId]);
+    if (!familyMembers.length || filterMemberId === 'all') return null;
+    return familyMembers.find((m) => String(m.id) === String(filterMemberId)) || null;
+  }, [familyMembers, filterMemberId]);
 
   // Filtered Documents from DB based on selected member or all (Only authentic documents and reports)
   const rawMemberDocuments = useMemo(() => {
-    const isAll = filterMemberId === 'all' || !selectedMember;
-    const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
-    const isSelfOrHead = selectedMember
-      ? (selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head')
-      : true;
+    const isAll = filterMemberId === 'all';
+    const targetMembers = isAll
+      ? familyMembers
+      : familyMembers.filter((m) => String(m.id) === String(filterMemberId));
 
+    // 1. Try DB Documents
     const dbFiltered = documents.filter((doc) => {
       if (isAll) return true;
+      if (doc.familyMemberId && String(doc.familyMemberId) === String(filterMemberId)) return true;
+      if (!selectedMember) return false;
+      const memberName = selectedMember.name.toLowerCase().trim();
+      const isSelfOrHead = selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head';
       if (!doc.patientName) return isSelfOrHead;
       const docName = doc.patientName.toLowerCase().trim();
       return docName === memberName || memberName.includes(docName) || docName.includes(memberName);
@@ -396,33 +429,32 @@ export default function HealthRecordsScreen() {
 
     if (dbFiltered.length > 0) return dbFiltered;
 
-    // Match canonical members from RAW_FAMILY_MEMBERS (ONLY documents/reports, NOT prescriptions)
-    const rawMatches = isAll
-      ? RAW_FAMILY_MEMBERS
-      : RAW_FAMILY_MEMBERS.filter(
-          (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
-        );
+    // 2. Fallback to sample documents for the target member(s)
+    const fallbackDocs = [];
+    const membersToProcess = targetMembers.length > 0 ? targetMembers : (familyMembers.length > 0 ? familyMembers : [{ id: 'primary-self', name: 'Self', relationship: 'Self' }]);
 
-    const fallbackList = [];
-    rawMatches.forEach((rm) => {
-      (rm.documents || []).forEach((doc) => {
-        fallbackList.push({
-          id: doc.id,
-          docType: doc.docType || 'report',
-          fileName: doc.fileName || `${doc.title.replace(/\s+/g, '_')}.pdf`,
-          patientName: rm.name,
-          patientAge: rm.age,
-          hospitalName: doc.facility || 'District Diagnostic Labs',
-          createdAt: doc.date || '12 Sep 2026',
-          reportDetails: doc,
+    membersToProcess.forEach((m, idx) => {
+      const sample = getMemberFallbackData(m, idx);
+      if (sample && Array.isArray(sample.documents)) {
+        sample.documents.forEach((d) => {
+          fallbackDocs.push({
+            id: `${m.id || idx}-${d.id}`,
+            docType: d.docType || 'report',
+            fileName: d.fileName || `${d.title.replace(/\s+/g, '_')}.pdf`,
+            patientName: m.name,
+            patientAge: m.age || 28,
+            hospitalName: d.facility || 'District Diagnostic Labs',
+            createdAt: d.date || '12 Sep 2026',
+            reportDetails: d,
+          });
         });
-      });
+      }
     });
 
-    return fallbackList;
-  }, [selectedMember, filterMemberId, documents]);
+    return fallbackDocs;
+  }, [familyMembers, filterMemberId, selectedMember, documents]);
 
-  // Apply search query filter
+  // Apply search query filter to documents
   const memberDocuments = useMemo(() => {
     if (!searchQuery.trim()) return rawMemberDocuments;
     const q = searchQuery.toLowerCase().trim();
@@ -432,21 +464,25 @@ export default function HealthRecordsScreen() {
       (doc.doctorName && doc.doctorName.toLowerCase().includes(q)) ||
       (doc.hospitalName && doc.hospitalName.toLowerCase().includes(q)) ||
       (doc.diagnosis && doc.diagnosis.toLowerCase().includes(q)) ||
-      (doc.docType && doc.docType.toLowerCase().includes(q))
+      (doc.docType && doc.docType.toLowerCase().includes(q)) ||
+      (doc.reportDetails?.title && doc.reportDetails.title.toLowerCase().includes(q))
     );
   }, [rawMemberDocuments, searchQuery]);
 
   // Filtered Courses from DB based on selected member or all, with verified sample fallback
   const rawMemberCourses = useMemo(() => {
-    const isAll = filterMemberId === 'all' || !selectedMember;
-    const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
-    const isSelfOrHead = selectedMember
-      ? (selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head')
-      : true;
+    const isAll = filterMemberId === 'all';
+    const targetMembers = isAll
+      ? familyMembers
+      : familyMembers.filter((m) => String(m.id) === String(filterMemberId));
 
+    // 1. Try DB Courses
     const dbFiltered = courses.filter((c) => {
       if (isAll) return true;
-      if (c.familyMemberId && c.familyMemberId === selectedMember.id) return true;
+      if (c.familyMemberId && String(c.familyMemberId) === String(filterMemberId)) return true;
+      if (!selectedMember) return false;
+      const memberName = selectedMember.name.toLowerCase().trim();
+      const isSelfOrHead = selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head';
       if (!c.patientName) return isSelfOrHead;
       const cName = c.patientName.toLowerCase().trim();
       return cName === memberName || memberName.includes(cName) || cName.includes(memberName);
@@ -454,56 +490,83 @@ export default function HealthRecordsScreen() {
 
     if (dbFiltered.length > 0) return dbFiltered;
 
-    const rawMatches = isAll
-      ? RAW_FAMILY_MEMBERS
-      : RAW_FAMILY_MEMBERS.filter(
-          (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
-        );
-
+    // 2. Fallback to sample courses for target member(s)
     const fallbackCourses = [];
-    rawMatches.forEach((rm) => {
-      (rm.courses || []).forEach((c) => {
-        fallbackCourses.push({
-          id: c.id,
-          title: c.title,
-          courseType: c.courseType,
-          diagnosis: c.diagnosis,
-          status: c.status,
-          doctorName: c.doctor,
-          patientName: rm.name,
-          startDate: c.startDate,
-          encounters: c.encounters || [],
+    const membersToProcess = targetMembers.length > 0 ? targetMembers : (familyMembers.length > 0 ? familyMembers : [{ id: 'primary-self', name: 'Self', relationship: 'Self' }]);
+
+    membersToProcess.forEach((m, idx) => {
+      const sample = getMemberFallbackData(m, idx);
+      if (sample && Array.isArray(sample.courses)) {
+        sample.courses.forEach((c) => {
+          fallbackCourses.push({
+            id: `${m.id || idx}-${c.id}`,
+            title: c.title,
+            courseType: c.courseType,
+            diagnosis: c.diagnosis,
+            status: c.status,
+            doctorName: c.doctor,
+            patientName: m.name,
+            startDate: c.startDate,
+            encounters: c.encounters || [],
+            prescriptions: sample.prescriptions || [],
+          });
         });
-      });
+      }
     });
 
     return fallbackCourses;
-  }, [selectedMember, filterMemberId, courses]);
+  }, [familyMembers, filterMemberId, selectedMember, courses]);
 
-  // Apply search query filter
+  // Apply search query filter to courses (Search title, diagnosis, doctor, patient, hospital, and MEDICINES)
   const memberCourses = useMemo(() => {
     if (!searchQuery.trim()) return rawMemberCourses;
     const q = searchQuery.toLowerCase().trim();
-    return rawMemberCourses.filter((c) =>
-      (c.title && c.title.toLowerCase().includes(q)) ||
-      (c.diagnosis && c.diagnosis.toLowerCase().includes(q)) ||
-      (c.patientName && c.patientName.toLowerCase().includes(q)) ||
-      (c.doctorName && c.doctorName.toLowerCase().includes(q)) ||
-      (c.startedByDoctorName && c.startedByDoctorName.toLowerCase().includes(q)) ||
-      (c.startedAtHospitalName && c.startedAtHospitalName.toLowerCase().includes(q))
-    );
-  }, [rawMemberCourses, searchQuery]);
+    return rawMemberCourses.filter((c) => {
+      const inTitle = c.title && c.title.toLowerCase().includes(q);
+      const inDiag = c.diagnosis && c.diagnosis.toLowerCase().includes(q);
+      const inPatient = c.patientName && c.patientName.toLowerCase().includes(q);
+      const inDoctor = (c.doctorName && c.doctorName.toLowerCase().includes(q)) ||
+                       (c.startedByDoctorName && c.startedByDoctorName.toLowerCase().includes(q));
+      const inHospital = (c.hospitalName && c.hospitalName.toLowerCase().includes(q)) ||
+                         (c.startedAtHospitalName && c.startedAtHospitalName.toLowerCase().includes(q));
+
+      // Prescribed medicine search
+      const inRx = (c.prescriptions || []).some((p) =>
+        (p.medicineName && p.medicineName.toLowerCase().includes(q)) ||
+        (p.dosage && p.dosage.toLowerCase().includes(q)) ||
+        (p.instructions && p.instructions.toLowerCase().includes(q))
+      );
+
+      // Encounters and timeline medicines
+      const tl = courseTimelinesMap[c.id];
+      const encounters = tl?.encounters || c.encounters || [];
+      const inEnc = encounters.some((enc) =>
+        (enc.doctorName && enc.doctorName.toLowerCase().includes(q)) ||
+        (enc.hospitalName && enc.hospitalName.toLowerCase().includes(q)) ||
+        (enc.chiefComplaint && enc.chiefComplaint.toLowerCase().includes(q)) ||
+        (enc.clinicalNotes && enc.clinicalNotes.toLowerCase().includes(q)) ||
+        (enc.prescriptions || []).some((p) =>
+          (p.medicineName && p.medicineName.toLowerCase().includes(q))
+        )
+      );
+
+      return inTitle || inDiag || inPatient || inDoctor || inHospital || inRx || inEnc;
+    });
+  }, [rawMemberCourses, searchQuery, courseTimelinesMap]);
 
   // Filtered Referrals from DB based on selected member or all, with verified sample fallback
   const rawMemberReferrals = useMemo(() => {
-    const isAll = filterMemberId === 'all' || !selectedMember;
-    const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
-    const isSelfOrHead = selectedMember
-      ? (selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head')
-      : true;
+    const isAll = filterMemberId === 'all';
+    const targetMembers = isAll
+      ? familyMembers
+      : familyMembers.filter((m) => String(m.id) === String(filterMemberId));
 
+    // 1. Try DB Referrals
     const dbFiltered = referrals.filter((r) => {
       if (isAll) return true;
+      if (!selectedMember) return false;
+      const memberName = selectedMember.name.toLowerCase().trim();
+      const isSelfOrHead = selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head';
       if (!r.patientName) return isSelfOrHead;
       const rName = r.patientName.toLowerCase().trim();
       return rName === memberName || memberName.includes(rName) || rName.includes(memberName);
@@ -511,33 +574,33 @@ export default function HealthRecordsScreen() {
 
     if (dbFiltered.length > 0) return dbFiltered;
 
-    const rawMatches = isAll
-      ? RAW_FAMILY_MEMBERS
-      : RAW_FAMILY_MEMBERS.filter(
-          (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
-        );
-
+    // 2. Fallback to sample referrals for target member(s)
     const fallbackRefs = [];
-    rawMatches.forEach((rm) => {
-      (rm.referrals || []).forEach((r) => {
-        fallbackRefs.push({
-          id: r.id,
-          toHospitalName: r.toHospital,
-          targetDepartment: r.department,
-          reason: r.reason,
-          priorityTier: r.priority,
-          status: r.status,
-          validUntil: r.validUntil,
-          patientName: rm.name,
-          referringDoctorName: r.doctor,
+    const membersToProcess = targetMembers.length > 0 ? targetMembers : (familyMembers.length > 0 ? familyMembers : [{ id: 'primary-self', name: 'Self', relationship: 'Self' }]);
+
+    membersToProcess.forEach((m, idx) => {
+      const sample = getMemberFallbackData(m, idx);
+      if (sample && Array.isArray(sample.referrals)) {
+        sample.referrals.forEach((r) => {
+          fallbackRefs.push({
+            id: `${m.id || idx}-${r.id}`,
+            toHospitalName: r.toHospital,
+            targetDepartment: r.department,
+            reason: r.reason,
+            priorityTier: r.priority,
+            status: r.status,
+            validUntil: r.validUntil,
+            patientName: m.name,
+            referringDoctorName: r.doctor,
+          });
         });
-      });
+      }
     });
 
     return fallbackRefs;
-  }, [selectedMember, filterMemberId, referrals]);
+  }, [familyMembers, filterMemberId, selectedMember, referrals]);
 
-  // Apply search query filter
+  // Apply search query filter to referrals
   const memberReferrals = useMemo(() => {
     if (!searchQuery.trim()) return rawMemberReferrals;
     const q = searchQuery.toLowerCase().trim();
@@ -546,26 +609,26 @@ export default function HealthRecordsScreen() {
       (r.targetDepartment && r.targetDepartment.toLowerCase().includes(q)) ||
       (r.reason && r.reason.toLowerCase().includes(q)) ||
       (r.patientName && r.patientName.toLowerCase().includes(q)) ||
-      (r.referringDoctorName && r.referringDoctorName.toLowerCase().includes(q))
+      (r.referringDoctorName && r.referringDoctorName.toLowerCase().includes(q)) ||
+      (r.priorityTier && r.priorityTier.toLowerCase().includes(q))
     );
   }, [rawMemberReferrals, searchQuery]);
 
   // Filtered OPD Token & Visit History based on selected member or all
   const rawMemberVisits = useMemo(() => {
-    if (filterMemberId === 'all' || !selectedMember) return visitHistory;
+    const isAll = filterMemberId === 'all';
+    if (isAll || !selectedMember) return visitHistory;
     const memberName = selectedMember.name.toLowerCase().trim();
-    const isSelfOrHead =
-      selectedMember.relationship?.toLowerCase() === 'self' ||
-      selectedMember.relationship?.toLowerCase() === 'head';
+    const isSelfOrHead = selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head';
 
     return visitHistory.filter((v) => {
       if (!v.name) return isSelfOrHead;
       const vName = v.name.toLowerCase().trim();
       return vName === memberName || memberName.includes(vName) || vName.includes(memberName);
     });
-  }, [selectedMember, filterMemberId, visitHistory]);
+  }, [filterMemberId, selectedMember, visitHistory]);
 
-  // Apply search query filter
+  // Apply search query filter to visit history
   const memberVisits = useMemo(() => {
     if (!searchQuery.trim()) return rawMemberVisits;
     const q = searchQuery.toLowerCase().trim();
@@ -577,47 +640,6 @@ export default function HealthRecordsScreen() {
       (String(v.tokenNumber || v.dailyNumber || v.id).includes(q))
     );
   }, [rawMemberVisits, searchQuery]);
-
-  // Handle uploading document for a chosen family member
-  const handleUploadSubmit = async (e) => {
-    e.preventDefault();
-    if (!uploadForm.file) {
-      toast.error('Please choose a file to upload.');
-      return;
-    }
-
-    const targetMember = familyMembers.find((m) => String(m.id) === String(uploadForm.memberId)) || selectedMember;
-    const targetName = targetMember ? targetMember.name : (uploadForm.patientName || 'Family Member');
-    const targetAge = targetMember && targetMember.age ? targetMember.age : (uploadForm.patientAge ? Number(uploadForm.patientAge) : 24);
-
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', uploadForm.file);
-      fd.append('docType', uploadForm.docType);
-      fd.append('patientName', targetName);
-      if (targetAge) fd.append('patientAge', targetAge);
-      if (uploadForm.hospitalId) fd.append('hospitalId', uploadForm.hospitalId);
-
-      await patientApi.uploadDocument(fd);
-      toast.success(`Document uploaded for ${targetName} to database.`);
-      setShowUpload(false);
-      setUploadForm({
-        file: null,
-        docType: 'prescription',
-        memberId: '',
-        patientName: '',
-        patientAge: '',
-        hospitalId: '',
-      });
-      // Refresh DB data
-      loadDatabaseData();
-    } catch (err) {
-      toast.error('Upload failed: ' + err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
 
   // Open Document File or Digital Slip Modal
   const handleViewDocument = async (docOrId) => {
@@ -1114,7 +1136,10 @@ export default function HealthRecordsScreen() {
                   >
                     <button
                       type="button"
-                      onClick={() => setFilterMemberId('all')}
+                      onClick={() => {
+                        setFilterMemberId('all');
+                        setSelectedMemberId(null);
+                      }}
                       style={{
                         flexShrink: 0,
                         padding: '6px 14px',
@@ -1135,12 +1160,15 @@ export default function HealthRecordsScreen() {
                     </button>
 
                     {familyMembers.map((m) => {
-                      const isSel = filterMemberId === m.id;
+                      const isSel = String(filterMemberId) === String(m.id);
                       return (
                         <button
                           key={m.id}
                           type="button"
-                          onClick={() => setFilterMemberId(m.id)}
+                          onClick={() => {
+                            setFilterMemberId(m.id);
+                            setSelectedMemberId(m.id);
+                          }}
                           style={{
                             flexShrink: 0,
                             padding: '6px 14px',
