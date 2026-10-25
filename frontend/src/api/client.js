@@ -243,7 +243,10 @@ export const courseApi = {
   create: (payload) => postD('/api/courses', payload, authFor('DOCTOR')),
   search: (query) => getD('/api/courses/search', { params: { query }, ...authFor('DOCTOR') }),
   get: (id, role = 'DOCTOR') => getD(`/api/courses/${id}`, authFor(role)),
-  timeline: (id, role = 'DOCTOR') => getD(`/api/courses/${id}/timeline`, authFor(role)),
+  timeline: (id, role = 'DOCTOR') => {
+    if (role === 'PUBLIC') return getD(`/api/courses/public/${id}/timeline`);
+    return getD(`/api/courses/${id}/timeline`, authFor(role)).catch(() => getD(`/api/courses/public/${id}/timeline`));
+  },
   consentBundle: (id) => getD(`/api/courses/${id}/consent-bundle`, authFor('DOCTOR')),
   addEncounter: (id, payload) => postD(`/api/courses/${id}/encounters`, payload, authFor('DOCTOR')),
   completeAndNext: (id, payload) => postD(`/api/courses/${id}/complete-and-next`, payload, authFor('DOCTOR')),

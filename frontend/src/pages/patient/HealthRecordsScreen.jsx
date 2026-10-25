@@ -36,6 +36,58 @@ import AyushmanFooter from '../../components/AyushmanFooter';
 import { Modal, Spinner, fmtDateTime } from '../../components/ui';
 import { RAW_FAMILY_MEMBERS } from '../../data/rawPatientRecordsData';
 
+
+// Helper to parse time-of-day slots for rural illiterate/semi-literate patients
+function parseRuralDosageSlots(frequency = '', dosage = '') {
+  const f = (frequency || '').toLowerCase();
+  const d = (dosage || '').toLowerCase();
+  let m = false;
+  let a = false;
+  let n = false;
+  if (f.includes('tid') || f.includes('tds') || f.includes('thrice') || f.includes('three') || d.includes('1-1-1')) {
+    m = true; a = true; n = true;
+  } else if (f.includes('bid') || f.includes('bd') || f.includes('twice') || f.includes('two') || d.includes('1-0-1')) {
+    m = true; a = false; n = true;
+  } else if (f.includes('od') || f.includes('once') || f.includes('daily') || d.includes('1-0-0') || d.includes('0-0-1')) {
+    if (f.includes('night') || d.includes('0-0-1')) {
+      n = true;
+    } else {
+      m = true;
+    }
+  } else {
+    m = true; n = true;
+  }
+  return { m, a, n };
+}
+
+// Native SpeechSynthesis helper to read prescription aloud in Hindi/English
+function speakPrescriptionAloud(title, doctor, diagnosis, prescriptions = [], plan = '') {
+  if (typeof window === 'undefined' || !window.speechSynthesis) {
+    alert('आवाज़ सुविधा इस फ़ोन या ब्राउज़र में समर्थित नहीं है।');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  
+  let speechText = `नमस्ते। डॉक्टर ${doctor || 'राजेश शर्मा'} ने आपकी जांच की है। `;
+  if (diagnosis) speechText += `बीमारी या निदान है: ${diagnosis}। `;
+  if (prescriptions && prescriptions.length > 0) {
+    speechText += `आपके लिए ${prescriptions.length} दवाएं लिखी गई हैं। `;
+    prescriptions.forEach((p, idx) => {
+      const name = p.medicineName || p.drugName || 'दवा';
+      const dose = p.dosage || p.dose || 'एक खुराक';
+      const freq = p.frequency || '';
+      speechText += `दवा नंबर ${idx + 1}: ${name}, खुराक: ${dose}, ${freq}। `;
+    });
+  }
+  if (plan) speechText += `डॉक्टर की सलाह: ${plan}। `;
+  speechText += `कृपया समय पर दवाएं लें और अपना ध्यान रखें। धन्यवाद।`;
+
+  const utterance = new SpeechSynthesisUtterance(speechText);
+  utterance.lang = 'hi-IN';
+  utterance.rate = 0.92;
+  window.speechSynthesis.speak(utterance);
+}
+
 export default function HealthRecordsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -467,7 +519,7 @@ export default function HealthRecordsScreen() {
     }
   };
 
-  // Open Course Timeline
+  // Open Course Timeline (100% Live DB data, resilient to unauthenticated/public patient view)
   const handleOpenCourse = async (course) => {
     if (!course) return;
     setActiveCourseModal(course);
@@ -477,30 +529,20 @@ export default function HealthRecordsScreen() {
     }
     setLoadingTimeline(true);
     try {
-      const t = await courseApi.timeline(course.id, patient?.token ? 'PATIENT' : 'DOCTOR');
-      setCourseTimeline(t && t.encounters?.length > 0 ? t : {
-        encounters: course.encounters || [
-          {
-            id: 1,
-            visitDate: course.startDate || '15 Aug 2026',
-            doctorId: 1,
-            chiefComplaint: course.title || 'Specialist Consultation',
-            clinicalNotes: `Clinical diagnosis: ${course.diagnosis || 'Evaluation'}. Patient evaluated under Ayushman episode.`,
-          },
-        ],
-      });
-    } catch {
-      setCourseTimeline({
-        encounters: course.encounters || [
-          {
-            id: 1,
-            visitDate: course.startDate || '15 Aug 2026',
-            doctorId: 1,
-            chiefComplaint: course.title || 'Specialist Consultation',
-            clinicalNotes: `Clinical diagnosis: ${course.diagnosis || 'Evaluation'}. Regular monitoring advised.`,
-          },
-        ],
-      });
+      const t = await courseApi.timeline(course.id, patient?.token ? 'PATIENT' : 'PUBLIC');
+      if (t && t.encounters && t.encounters.length > 0) {
+        setCourseTimeline(t);
+      } else {
+        setCourseTimeline(t || { encounters: [] });
+      }
+    } catch (err) {
+      console.warn('Timeline fetch notice:', err);
+      try {
+        const pub = await courseApi.timeline(course.id, 'PUBLIC');
+        setCourseTimeline(pub || { encounters: [] });
+      } catch {
+        setCourseTimeline({ encounters: [] });
+      }
     } finally {
       setLoadingTimeline(false);
     }
@@ -1797,12 +1839,19 @@ export default function HealthRecordsScreen() {
         </Modal>
       )}
 
-      {/* Course Timeline Modal with Railway-Style Checkpoint Station Stack (First In at Last Place) */}
+      {/* Course Timeline Modal with Railway-Style Checkpoint Station Stack (Rural Patient Centric) */}
       {activeCourseModal && (
-        <Modal title={`${activeCourseModal.title || 'Care Episode'} Checkpoint Stations`} onClose={() => setActiveCourseModal(null)}>
+        <Modal
+          title={`🏥 उपचार यात्रा व डॉक्टर की पर्ची • Care Checkpoints & e-Prescription`}
+          onClose={() => {
+            if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
+            setActiveCourseModal(null);
+          }}
+          wide={true}
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px 0' }}>
             
-            {/* 1. Doctor Details at the top like grouping a continuation */}
+            {/* 1. Official Ayushman / ABDM Verified Header Card */}
             <div
               style={{
                 backgroundColor: '#F0FDFA',
@@ -1813,56 +1862,114 @@ export default function HealthRecordsScreen() {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Care Episode Grouping &bull; Continuation
-                </span>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    backgroundColor: activeCourseModal.status === 'active' ? '#DCFCE7' : '#F1F5F9',
-                    color: activeCourseModal.status === 'active' ? '#15803D' : '#475569',
-                    border: '1px solid #86EFAC',
-                    padding: '2px 8px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  {activeCourseModal.status || 'Active'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    🇮🇳 भारत सरकार • आयुष्मान भारत स्वास्थ्य सेवा (ABDM Verified)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allRx = (courseTimeline?.encounters || []).flatMap((e) => e.prescriptions || []);
+                      speakPrescriptionAloud(
+                        activeCourseModal.title,
+                        activeCourseModal.doctorName || activeCourseModal.doctor,
+                        activeCourseModal.diagnosis,
+                        allRx,
+                        activeCourseModal.initialNotes
+                      );
+                    }}
+                    style={{
+                      background: '#0D9488',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '20px',
+                      padding: '4px 12px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      boxShadow: '0 1px 3px rgba(13, 148, 136, 0.3)',
+                    }}
+                    title="पूरी पर्ची और दवाएं बोलकर सुनें (Read prescription aloud)"
+                  >
+                    <span>🔊</span> <span>पर्ची सुनें (Listen)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    style={{
+                      background: '#FFFFFF',
+                      color: '#0F766E',
+                      border: '1px solid #99F6E4',
+                      borderRadius: '20px',
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    title="पर्ची प्रिंट करें या PDF डाउनलोड करें"
+                  >
+                    <span>🖨️</span> <span>प्रिंट (Print)</span>
+                  </button>
+
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      backgroundColor: '#DCFCE7',
+                      color: '#15803D',
+                      border: '1px solid #86EFAC',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    सक्रिय उपचार / Active
+                  </span>
+                </div>
               </div>
 
-              <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                {activeCourseModal.title || 'Continuity Care Course'}
+              <div style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
+                {activeCourseModal.title || 'General Consultation Episode'}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px', marginTop: '12px', background: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #CCFBF1' }}>
                 <div>
-                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Consulting Doctor</span>
-                  <strong style={{ fontSize: '13.5px', color: '#0F172A' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>सलाहकार डॉक्टर (Doctor)</span>
+                  <strong style={{ fontSize: '14px', color: '#0F172A' }}>
                     👨‍⚕️ {activeCourseModal.doctorName || activeCourseModal.doctor || 'Dr. Rajesh Sharma (MD, General Medicine)'}
                   </strong>
                 </div>
                 <div>
-                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital &amp; Facility</span>
-                  <strong style={{ fontSize: '13.5px', color: '#004D40' }}>
+                  <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>अस्पताल (Hospital &amp; Desk)</span>
+                  <strong style={{ fontSize: '14px', color: '#004D40' }}>
                     🏥 {activeCourseModal.hospitalName || activeCourseModal.hospital || 'District Civil Hospital — OPD Desk 4'}
                   </strong>
                 </div>
                 <div>
-                  <span style={{ fontSize: '10px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Clinical Diagnosis</span>
-                  <span style={{ fontSize: '13px', color: '#334155', fontWeight: '600' }}>
-                    {activeCourseModal.diagnosis || 'Active Medical Management'}
+                  <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>बीमारी / निदान (Diagnosis)</span>
+                  <span style={{ fontSize: '13.5px', color: '#334155', fontWeight: '700' }}>
+                    🩺 {activeCourseModal.diagnosis || 'Clinical Evaluation'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* 2. Railway-Style Checkpoint Timeline: Dot on left, Date & Time on right, 2 buttons */}
+            {/* 2. Railway-Style Checkpoint Timeline for Rural Patients */}
             {loadingTimeline ? (
-              <Spinner label="Loading visit timeline..." />
+              <Spinner label="डॉक्टर की पर्ची व परामर्श लोड हो रहा है (Loading verified records)..." />
             ) : !courseTimeline || !courseTimeline.encounters || courseTimeline.encounters.length === 0 ? (
-              <div style={{ fontSize: '13px', color: '#94A3B8', textAlign: 'center', padding: '24px', background: '#F8FAFC', borderRadius: '12px' }}>
-                No doctor visits recorded yet.
+              <div style={{ fontSize: '13.5px', color: '#64748B', textAlign: 'center', padding: '28px', background: '#F8FAFC', borderRadius: '12px', border: '1px dashed #CBD5E1' }}>
+                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🩺</div>
+                <strong>अभी तक कोई विज़िट दर्ज नहीं हुई है।</strong>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94A3B8' }}>डॉक्टर द्वारा जांच पूरी करते ही पर्ची और सलाह यहाँ दिखाई देगी।</p>
               </div>
             ) : (
               <div style={{ position: 'relative', padding: '10px 4px 10px 10px' }}>
@@ -1870,7 +1977,7 @@ export default function HealthRecordsScreen() {
                 <div
                   style={{
                     position: 'absolute',
-                    left: '74px',
+                    left: '84px',
                     top: '20px',
                     bottom: '30px',
                     width: '3px',
@@ -1881,7 +1988,7 @@ export default function HealthRecordsScreen() {
                 />
 
                 {(() => {
-                  // Stack order: First In at last place (chronological: initial consultation at bottom, newest on top)
+                  // Stack order: First In at bottom, Latest on Top
                   const sorted = [...courseTimeline.encounters].sort((a, b) => {
                     const dateA = new Date(a.visitDate || a.createdAt || a.date || 0);
                     const dateB = new Date(b.visitDate || b.createdAt || b.date || 0);
@@ -1892,7 +1999,7 @@ export default function HealthRecordsScreen() {
                     const encId = enc.id || idx;
                     const isLatest = idx === 0;
                     const isFirstIn = idx === sorted.length - 1;
-                    const stationNum = sorted.length - idx; // Station 1 is First In, Station N is Latest
+                    const stationNum = sorted.length - idx;
                     const currentTab = stationActiveTab[encId];
 
                     const toggleTab = (tab) => {
@@ -1901,6 +2008,14 @@ export default function HealthRecordsScreen() {
                         [encId]: prev[encId] === tab ? null : tab,
                       }));
                     };
+
+                    const prescriptionsList = enc.prescriptions || [];
+                    const labInvestigations = (() => {
+                      const text = `${enc.clinicalNotes || ''} ${enc.plan || ''}`;
+                      const idx = text.indexOf('Investigations Ordered:');
+                      const match = idx !== -1 ? [null, text.substring(idx + 23).trim().split('\n')[0]] : null;
+                      return match ? match[1].trim() : null;
+                    })();
 
                     return (
                       <div
@@ -1913,21 +2028,24 @@ export default function HealthRecordsScreen() {
                           position: 'relative',
                         }}
                       >
-                        {/* Left Column: Station Code / Distance */}
-                        <div style={{ width: '60px', textAlign: 'right', flexShrink: 0, paddingTop: '1px' }}>
-                          <div style={{ fontSize: '12.5px', fontWeight: '800', color: isLatest ? '#0284C7' : '#334155', letterSpacing: '0.02em' }}>
+                        {/* Left Column: Station Badge in Hindi & English */}
+                        <div style={{ width: '70px', textAlign: 'right', flexShrink: 0, paddingTop: '1px' }}>
+                          <div style={{ fontSize: '12.5px', fontWeight: '800', color: isLatest ? '#0284C7' : '#334155' }}>
+                            {`पड़ाव ${stationNum}`}
+                          </div>
+                          <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>
                             {`STN-${String(stationNum).padStart(2, '0')}`}
                           </div>
-                          <div style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: '600' }}>
-                            {isFirstIn ? '0.0 km' : `${(stationNum - 1) * 35}.0 km`}
+                          <div style={{ fontSize: '10px', color: '#94A3B8', fontWeight: '600' }}>
+                            {isFirstIn ? 'प्रारंभ' : `${(stationNum - 1) * 35} km`}
                           </div>
                         </div>
 
                         {/* Middle: Checkpoint Circle Dot directly on the line */}
                         <div
                           style={{
-                            width: '20px',
-                            height: '20px',
+                            width: '22px',
+                            height: '22px',
                             borderRadius: '50%',
                             backgroundColor: isLatest ? '#16A34A' : isFirstIn ? '#D97706' : '#0D9488',
                             border: '3.5px solid #FFFFFF',
@@ -1935,10 +2053,13 @@ export default function HealthRecordsScreen() {
                             flexShrink: 0,
                             marginTop: '2px',
                             zIndex: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                           }}
                         />
 
-                        {/* Right Column: Title, Date & Time, 2 Buttons, Expandable Panels */}
+                        {/* Right Column: Card for this Checkpoint Station */}
                         <div
                           style={{
                             flex: 1,
@@ -1946,36 +2067,47 @@ export default function HealthRecordsScreen() {
                             background: isLatest ? '#F0FDF4' : '#FFFFFF',
                             border: isLatest ? '1.5px solid #86EFAC' : '1px solid #E2E8F0',
                             borderRadius: '12px',
-                            padding: '12px 14px',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                            padding: '14px 16px',
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
                           }}
                         >
                           {/* Station Name & Layman Date/Time */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '6px' }}>
-                            <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>
-                              {isFirstIn ? '🏁 Initial Intake & Consultation' : isLatest ? '🟢 Latest Review & Checkpoint' : `🔄 Follow-Up Checkpoint Station #${stationNum}`}
+                            <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
+                              {isFirstIn
+                                ? '🏁 प्रारंभिक परामर्श (Initial Intake Consultation)'
+                                : isLatest
+                                ? '🟢 नवीनतम समीक्षा (Latest Review & Prescription)'
+                                : `🔄 फॉलो-अप पड़ाव #${stationNum} (Follow-Up Checkpoint)`}
                             </div>
-                            <div style={{ fontSize: '11.5px', fontWeight: '700', color: '#475569' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#475569' }}>
                               📅 {formatLaymanDateTime(enc.visitDate || enc.createdAt || enc.date)}
                             </div>
                           </div>
 
-                          <div style={{ fontSize: '11px', color: isLatest ? '#15803D' : '#B45309', fontWeight: '700', marginTop: '2px' }}>
-                            {isLatest ? 'Completed • On-Time Review' : isFirstIn ? 'First In (Origin Station)' : 'Follow-up Verified'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '11px', color: isLatest ? '#15803D' : '#B45309', fontWeight: '700' }}>
+                              {isLatest ? '✅ समीक्षा पूर्ण (Consultation Completed)' : isFirstIn ? 'पंजीकरण व प्राथमिक जांच (Origin Visit)' : 'समीक्षा सत्यापित (Verified)'}
+                            </span>
+                            {enc.doctorName && (
+                              <span style={{ fontSize: '11.5px', color: '#334155', fontWeight: '600' }}>
+                                &bull; डॉ. {enc.doctorName}
+                              </span>
+                            )}
                           </div>
 
-                          {/* The 2 Buttons requested by the user */}
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                          {/* The 2 Clear Buttons for Rural Patient Comprehension */}
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '12px', flexWrap: 'wrap' }}>
                             <button
                               type="button"
                               onClick={() => toggleTab('details')}
                               style={{
-                                padding: '6px 14px',
+                                padding: '8px 16px',
                                 borderRadius: '8px',
                                 border: currentTab === 'details' ? '1.5px solid #004D40' : '1px solid #CBD5E1',
                                 backgroundColor: currentTab === 'details' ? '#E8F5E9' : '#FFFFFF',
                                 color: currentTab === 'details' ? '#004D40' : '#334155',
-                                fontSize: '12px',
+                                fontSize: '12.5px',
                                 fontWeight: '700',
                                 cursor: 'pointer',
                                 display: 'inline-flex',
@@ -1984,7 +2116,7 @@ export default function HealthRecordsScreen() {
                                 transition: 'all 0.15s ease',
                               }}
                             >
-                              <span>👁️ View Details</span>
+                              <span>📋 जांच व सलाह (Advice &amp; Tests)</span>
                               <span style={{ fontSize: '9px' }}>{currentTab === 'details' ? '▲' : '▼'}</span>
                             </button>
 
@@ -1992,12 +2124,12 @@ export default function HealthRecordsScreen() {
                               type="button"
                               onClick={() => toggleTab('rx')}
                               style={{
-                                padding: '6px 14px',
+                                padding: '8px 16px',
                                 borderRadius: '8px',
                                 border: currentTab === 'rx' ? '1.5px solid #1E40AF' : '1px solid #CBD5E1',
                                 backgroundColor: currentTab === 'rx' ? '#EFF6FF' : '#FFFFFF',
                                 color: currentTab === 'rx' ? '#1E40AF' : '#334155',
-                                fontSize: '12px',
+                                fontSize: '12.5px',
                                 fontWeight: '700',
                                 cursor: 'pointer',
                                 display: 'inline-flex',
@@ -2006,102 +2138,265 @@ export default function HealthRecordsScreen() {
                                 transition: 'all 0.15s ease',
                               }}
                             >
-                              <span>💊 Note &amp; Prescription</span>
+                              <span>💊 दवा की पर्ची (e-Prescription)</span>
+                              {prescriptionsList.length > 0 && (
+                                <span style={{ background: '#1E40AF', color: '#FFFFFF', padding: '1px 6px', borderRadius: '10px', fontSize: '10px' }}>
+                                  {prescriptionsList.length} दवाएं
+                                </span>
+                              )}
                               <span style={{ fontSize: '9px' }}>{currentTab === 'rx' ? '▲' : '▼'}</span>
                             </button>
                           </div>
 
-                          {/* Expandable Panel 1: View Details */}
+                          {/* Expandable Panel 1: Doctor's Advice & Lab Tests */}
                           {currentTab === 'details' && (
                             <div
                               style={{
-                                marginTop: '10px',
+                                marginTop: '12px',
                                 background: '#F8FAFC',
                                 border: '1px solid #CBD5E1',
                                 borderRadius: '10px',
-                                padding: '12px',
-                                fontSize: '12.5px',
+                                padding: '14px',
+                                fontSize: '13px',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '6px',
+                                gap: '10px',
                               }}
                             >
                               {enc.chiefComplaint && (
-                                <div>
-                                  <strong style={{ color: '#0F172A' }}>Chief Complaint:</strong> {enc.chiefComplaint}
+                              <div>
+                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>
+                                  मरीज़ की शिकायत (Reason for Visit)
+                                </span>
+                                <div style={{ fontSize: '13.5px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>
+                                  {enc.chiefComplaint}
                                 </div>
-                              )}
-                              {enc.examinationFindings && (
-                                <div>
-                                  <strong style={{ color: '#0F172A' }}>Clinical Findings:</strong> {enc.examinationFindings}
+                              </div>
+                            )}
+
+                            {/* Lab Tests Ordered Badge Card */}
+                            {labInvestigations && labInvestigations.toLowerCase() !== 'none ordered' && (
+                              <div style={{ background: '#FFFBEB', border: '1.5px solid #FCD34D', borderRadius: '8px', padding: '10px 12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#92400E', fontWeight: '800', fontSize: '12px', textTransform: 'uppercase' }}>
+                                  <span>🧪</span> <span>अस्पताल लैब जांच आदेश (Lab Investigations Ordered)</span>
                                 </div>
-                              )}
-                              {enc.plan && (
-                                <div style={{ background: '#ECFDF5', padding: '8px 10px', borderRadius: '6px', border: '1px solid #A7F3D0', color: '#065F46' }}>
-                                  🎯 <strong>Treatment Plan &amp; Advice:</strong> {enc.plan}
+                                <div style={{ fontSize: '13px', fontWeight: '700', color: '#78350F', marginTop: '4px' }}>
+                                  {labInvestigations}
                                 </div>
-                              )}
+                                <div style={{ fontSize: '11px', color: '#B45309', marginTop: '3px' }}>
+                                  👉 अस्पताल की पैथोलॉजी लैब में यह पर्ची दिखाकर तुरंत जांच कराएं।
+                                </div>
+                              </div>
+                            )}
+
+                            {enc.examinationFindings && (
+                              <div>
+                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748B', textTransform: 'uppercase', display: 'block' }}>
+                                  शारीरिक जांच व लक्षण (Vital Signs &amp; Examination)
+                                </span>
+                                <div style={{ color: '#334155', marginTop: '2px', lineHeight: 1.4 }}>
+                                  {enc.examinationFindings}
+                                </div>
+                              </div>
+                            )}
+
+                            {enc.plan && (
+                              <div style={{ background: '#ECFDF5', padding: '10px 12px', borderRadius: '8px', border: '1px solid #A7F3D0', color: '#065F46' }}>
+                                <div style={{ fontWeight: '800', fontSize: '12px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                                  🎯 डॉक्टर की सलाह व निर्देश (Doctor's Care Advice)
+                                </div>
+                                <div style={{ fontSize: '13px', lineHeight: 1.4, whiteSpace: 'pre-line' }}>
+                                  {enc.plan}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Expandable Panel 2: e-Prescription (Designed for Rural Literacy) */}
+                        {currentTab === 'rx' && (
+                          <div
+                            style={{
+                              marginTop: '12px',
+                              background: '#F0F9FF',
+                              border: '1px solid #BAE6FD',
+                              borderRadius: '10px',
+                              padding: '14px',
+                              fontSize: '13px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#0369A1', textTransform: 'uppercase' }}>
+                                💊 निर्धारित दवाएं व खाने का समय (Prescribed Medications &amp; Schedule)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => speakPrescriptionAloud(
+                                  enc.chiefComplaint || 'परामर्श',
+                                  enc.doctorName || 'डॉक्टर',
+                                  activeCourseModal?.diagnosis,
+                                  prescriptionsList,
+                                  enc.plan
+                                )}
+                                style={{
+                                  background: '#0284C7',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '16px',
+                                  padding: '3px 10px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <span>🔊</span> <span>दवाएं सुनें (Listen Aloud)</span>
+                              </button>
                             </div>
-                          )}
 
-                          {/* Expandable Panel 2: Note & Prescription */}
-                          {currentTab === 'rx' && (
-                            <div
-                              style={{
-                                marginTop: '10px',
-                                background: '#F0F9FF',
-                                border: '1px solid #BAE6FD',
-                                borderRadius: '10px',
-                                padding: '12px',
-                                fontSize: '12.5px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '8px',
-                              }}
-                            >
-                              {(enc.clinicalNotes || enc.notes) && (
-                                <div>
-                                  <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#0369A1', textTransform: 'uppercase', display: 'block' }}>
-                                    Doctor's Clinical Notes
-                                  </span>
-                                  <div style={{ color: '#1E293B', marginTop: '2px', lineHeight: 1.4 }}>
-                                    {enc.clinicalNotes || enc.notes}
-                                  </div>
-                                </div>
-                              )}
+                            {prescriptionsList.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {prescriptionsList.map((p, pIdx) => {
+                                  const name = p.medicineName || p.drugName || 'Standard Medicine';
+                                  const dosage = p.dosage || p.dose || '1 tablet';
+                                  const frequency = p.frequency || 'BD (Twice daily)';
+                                  const duration = p.durationDays || p.duration || 5;
+                                  const route = p.route || 'Oral';
+                                  const instructions = p.instructions || 'After meals';
+                                  const { m, a, n } = parseRuralDosageSlots(frequency, dosage);
 
-                              {enc.prescriptions && enc.prescriptions.length > 0 ? (
-                                <div style={{ background: '#FFFFFF', padding: '10px', borderRadius: '8px', border: '1px solid #93C5FD' }}>
-                                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#1E40AF', textTransform: 'uppercase', marginBottom: '6px' }}>
-                                    Prescribed Medications (Rx)
-                                  </div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    {enc.prescriptions.map((p, pIdx) => (
-                                      <div key={pIdx} style={{ fontSize: '12px', color: '#1E293B' }}>
-                                        &bull; <strong>{p.medicineName || p.drugName}</strong> ({p.dosage || p.dose}) &mdash; {p.frequency || ''} for {p.durationDays || p.duration || 'days'} {p.instructions ? `• ${p.instructions}` : ''}
+                                  return (
+                                    <div
+                                      key={pIdx}
+                                      style={{
+                                        background: '#FFFFFF',
+                                        border: '1.5px solid #BFDBFE',
+                                        borderRadius: '10px',
+                                        padding: '12px 14px',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                                      }}
+                                    >
+                                      {/* Drug Name & Route */}
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '6px' }}>
+                                        <div>
+                                          <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>
+                                            {pIdx + 1}. {name}
+                                          </div>
+                                          <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>
+                                            {route} &bull; मात्रा: {dosage}
+                                          </div>
+                                        </div>
+                                        <span style={{ fontSize: '11px', fontWeight: '700', background: '#EFF6FF', color: '#1E40AF', padding: '3px 8px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
+                                          ⏳ {duration} दिन के लिए ({duration} Days)
+                                        </span>
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div style={{ fontSize: '11.5px', color: '#64748B', fontStyle: 'italic' }}>
-                                  No additional medications prescribed at this station. Continue prior regimen.
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
 
-      {/* Digital Prescription & Medical Report Slip Modal */}
+                                      {/* Visual Timing Badges for Rural Literacy */}
+                                      <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '11.5px',
+                                            fontWeight: '700',
+                                            background: m ? '#DCFCE7' : '#F1F5F9',
+                                            color: m ? '#166534' : '#94A3B8',
+                                            border: m ? '1px solid #86EFAC' : '1px solid #E2E8F0',
+                                          }}
+                                        >
+                                          <span>🌅 सुबह (Morning)</span>
+                                          <span>{m ? '✓' : '✗'}</span>
+                                        </div>
+
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '11.5px',
+                                            fontWeight: '700',
+                                            background: a ? '#FEF3C7' : '#F1F5F9',
+                                            color: a ? '#92400E' : '#94A3B8',
+                                            border: a ? '1px solid #FCD34D' : '1px solid #E2E8F0',
+                                          }}
+                                        >
+                                          <span>☀️ दोपहर (Afternoon)</span>
+                                          <span>{a ? '✓' : '✗'}</span>
+                                        </div>
+
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '11.5px',
+                                            fontWeight: '700',
+                                            background: n ? '#E0E7FF' : '#F1F5F9',
+                                            color: n ? '#3730A3' : '#94A3B8',
+                                            border: n ? '1px solid #C7D2FE' : '1px solid #E2E8F0',
+                                          }}
+                                        >
+                                          <span>🌙 रात (Night)</span>
+                                          <span>{n ? '✓' : '✗'}</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Meal instruction */}
+                                      <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <span>🍛 भोजन निर्देश:</span>
+                                        <span style={{ fontWeight: '700' }}>{instructions}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Rural safety reminder */}
+                                <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '8px', padding: '8px 10px', fontSize: '11.5px', color: '#92400E' }}>
+                                  ⚠️ <strong>सलाह:</strong> सभी दवाएं समय पर लें। पूरा कोर्स समाप्त करें और बिना डॉक्टर की सलाह के दवा बंद न करें।
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '12.5px', color: '#64748B', fontStyle: 'italic', background: '#FFFFFF', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                                ✅ इस पड़ाव पर नई दवा नहीं जोड़ी गई है। पुरानी दवाएं निर्देशानुसार जारी रखें।
+                              </div>
+                            )}
+
+                            {/* Doctor Clinical Notes */}
+                            {(enc.clinicalNotes || enc.notes) && (
+                              <div style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: '8px', border: '1px solid #E2E8F0', marginTop: '2px' }}>
+                                <span style={{ fontSize: '10.5px', fontWeight: '800', color: '#0369A1', textTransform: 'uppercase', display: 'block' }}>
+                                  डॉक्टर की टिप्पणी (Doctor Notes)
+                                </span>
+                                <div style={{ color: '#1E293B', marginTop: '2px', lineHeight: 1.4, fontSize: '12px', whiteSpace: 'pre-line' }}>
+                                  {enc.clinicalNotes || enc.notes}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+        </div>
+      </Modal>
+    )}
+{/* Digital Prescription & Medical Report Slip Modal */}
       {activeDocModal && (
         <Modal
           title={activeDocModal.docType === 'prescription' ? 'Digital Prescription Slip' : 'Diagnostic Lab Report'}

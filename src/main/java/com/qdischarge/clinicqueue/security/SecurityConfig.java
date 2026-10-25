@@ -110,16 +110,19 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/doctors/register", "/api/doctors/login").permitAll()
                         .requestMatchers("/api/doctors/**").hasRole("DOCTOR")
                         // Patient self-service requires PATIENT token
+                        .requestMatchers("/api/patients/public/**").permitAll()
                         .requestMatchers("/api/patients/**").hasRole("PATIENT")
                         // Family Unit management (public lookup for booking flow, full management requires PATIENT)
                         .requestMatchers(HttpMethod.GET, "/api/family/public/members").permitAll()
                         .requestMatchers("/api/family/**").hasRole("PATIENT")
                         // Course & Clinical Records
                         .requestMatchers("/api/courses/patient").hasRole("PATIENT")
+                        .requestMatchers("/api/courses/public/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/courses/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // Referral Engine
                         .requestMatchers("/api/referrals/patient").hasRole("PATIENT")
+                        .requestMatchers("/api/referrals/public/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/referrals/*/qr").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")

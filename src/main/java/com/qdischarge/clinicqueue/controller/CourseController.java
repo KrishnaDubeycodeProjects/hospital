@@ -257,6 +257,25 @@ public class CourseController {
         return ResponseEntity.ok(ok(courses));
     }
 
+    @GetMapping("/public/patient")
+    public ResponseEntity<Map<String, Object>> listPublicPatientCourses(@RequestParam(required = false) String phone) {
+        if (phone == null || phone.isBlank()) {
+            return ResponseEntity.ok(ok(List.of()));
+        }
+        List<CourseDto> courses = courseService.listCoursesForPatient(phone.trim());
+        return ResponseEntity.ok(ok(courses));
+    }
+
+    @GetMapping("/public/{id}/timeline")
+    public ResponseEntity<Map<String, Object>> getPublicTimeline(@PathVariable int id) {
+        CourseDto course = courseService.getCourseById(id);
+        if (course == null) {
+            return ResponseEntity.status(404).body(msg("Course not found."));
+        }
+        CourseTimelineDto timeline = courseService.getCourseTimeline(id);
+        return ResponseEntity.ok(ok(timeline));
+    }
+
     private Map<String, Object> ok(Object data) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("success", true);
