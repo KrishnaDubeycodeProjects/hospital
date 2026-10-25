@@ -138,10 +138,12 @@ export const queueApi = {
   missed: (hospitalId, category) => getD('/api/queue/missed', { params: { hospitalId, category }, ...authFor('ADMIN') }),
   reserved: (hospitalId, category) => getD('/api/queue/reserved', { params: { hospitalId, category }, ...authFor('ADMIN') }),
   frozen: (hospitalId, category) => getD('/api/queue/frozen', { params: { hospitalId, category }, ...authFor('ADMIN') }),
-  unfreeze: (id) => postD(`/api/queue/unfreeze/${id}`, {}, authFor('ADMIN')),
+  unfreeze: (id, counterId) =>
+    postD(`/api/queue/unfreeze/${id}`, {}, { params: counterId ? { counterId } : {}, ...authFor(getToken('ADMIN') ? 'ADMIN' : 'DOCTOR') }),
   missedSearch: (query, hospitalId, category) =>
     getD('/api/queue/missed/search', { params: { query, hospitalId, category }, ...authFor('ADMIN') }),
-  requeueMissed: (id) => postD(`/api/queue/missed/${id}/requeue`, {}, authFor('ADMIN')),
+  requeueMissed: (id, counterId) =>
+    postD(`/api/queue/missed/${id}/requeue`, {}, { params: counterId ? { counterId } : {}, ...authFor(getToken('ADMIN') ? 'ADMIN' : 'DOCTOR') }),
   rejectMissed: (id) => postD(`/api/queue/missed/${id}/reject`, {}, authFor('ADMIN')),
 };
 

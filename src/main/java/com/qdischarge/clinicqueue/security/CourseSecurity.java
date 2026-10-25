@@ -69,45 +69,46 @@ public class CourseSecurity {
                 return true;
             }
 
+            if (hospitalId == null) {
+                log.warn("Access Denied: Doctor {} has no affiliated hospital", doctorId);
+                return false;
+            }
+
             // 2. Active referral check
-            if (hospitalId != null) {
-                Integer referralCount = jdbc.queryForObject(
-                        """
-                        SELECT COUNT(*) FROM course_referrals
-                        WHERE course_id = :courseId
-                          AND (to_hospital_id = :hospitalId OR referred_doctor_id = :doctorId)
-                          AND status IN ('issued', 'booked')
-                        """,
-                        Map.of("courseId", courseId, "hospitalId", hospitalId, "doctorId", doctorId),
-                        Integer.class);
-                if (referralCount != null && referralCount > 0) {
-                    return true;
-                }
+            Integer referralCount = jdbc.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM course_referrals
+                    WHERE course_id = :courseId
+                      AND (to_hospital_id = :hospitalId OR referred_doctor_id = :doctorId)
+                      AND status IN ('issued', 'booked')
+                    """,
+                    Map.of("courseId", courseId, "hospitalId", hospitalId, "doctorId", doctorId),
+                    Integer.class);
+            if (referralCount != null && referralCount > 0) {
+                return true;
+            }
 
-                // 3. Active consent / access grant check for this doctor
-                Integer grantCount = jdbc.queryForObject(
-                        """
-                        SELECT COUNT(*) FROM access_grants ag
-                        JOIN courses c ON ag.patient_phone = c.patient_phone
-                        WHERE c.id = :courseId
-                          AND ag.doctor_id = :doctorId
-                          AND ag.revoked_at IS NULL
-                        """,
-                        Map.of("courseId", courseId, "doctorId", doctorId),
-                        Integer.class);
-                if (grantCount != null && grantCount > 0) {
-                    return true;
-                }
+            // 3. Active consent / access grant check for this doctor
+            Integer grantCount = jdbc.queryForObject(
+                    """
+                    SELECT COUNT(*) FROM access_grants ag
+                    JOIN courses c ON ag.patient_phone = c.patient_phone
+                    WHERE c.id = :courseId
+                      AND ag.doctor_id = :doctorId
+                      AND ag.revoked_at IS NULL
+                    """,
+                    Map.of("courseId", courseId, "doctorId", doctorId),
+                    Integer.class);
+            if (grantCount != null && grantCount > 0) {
+                return true;
+            }
 
-                // 4. Hospital facility check: doctors at the hospital where the course is conducted
-                Integer hospCount = jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM courses WHERE id = :courseId AND (started_at_hospital_id = :hospitalId OR started_at_hospital_id IS NULL)",
-                        Map.of("courseId", courseId, "hospitalId", hospitalId),
-                        Integer.class);
-                if (hospCount != null && hospCount > 0) {
-                    return true;
-                }
-            } else {
+            // 4. Hospital facility check: doctors at the hospital where the course is conducted
+            Integer hospCount = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM courses WHERE id = :courseId AND started_at_hospital_id = :hospitalId",
+                    Map.of("courseId", courseId, "hospitalId", hospitalId),
+                    Integer.class);
+            if (hospCount != null && hospCount > 0) {
                 return true;
             }
         }

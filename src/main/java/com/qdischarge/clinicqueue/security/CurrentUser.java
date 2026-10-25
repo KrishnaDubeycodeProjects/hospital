@@ -70,15 +70,8 @@ public class CurrentUser {
 
     public String getAshaPhone() {
         JwtService.DecodedToken decoded = get();
-        if (decoded != null && decoded.subject() != null && !decoded.subject().isBlank()) {
+        if (decoded != null && "ASHA".equals(decoded.role()) && decoded.subject() != null && !decoded.subject().isBlank()) {
             return decoded.subject();
-        }
-        var attrs = RequestContextHolder.getRequestAttributes();
-        if (attrs instanceof ServletRequestAttributes sra) {
-            String header = sra.getRequest().getHeader("X-ASHA-Phone");
-            if (header != null && !header.isBlank()) {
-                return header.trim();
-            }
         }
         return null;
     }
@@ -86,7 +79,7 @@ public class CurrentUser {
     public String requireAshaPhone() {
         String phone = getAshaPhone();
         if (phone == null || phone.isBlank()) {
-            return "+919876543210";
+            throw new IllegalStateException("Unauthenticated ASHA session: valid Bearer token required.");
         }
         return phone;
     }

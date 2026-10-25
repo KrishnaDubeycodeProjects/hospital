@@ -25,7 +25,6 @@ const ROLES = [
   { key: 'patient', label: 'Patient', icon: UserCheck },
   { key: 'doctor', label: 'Doctor', icon: Stethoscope },
   { key: 'admin', label: 'Staff', icon: Building2 },
-  { key: 'asha', label: 'ASHA', icon: Users },
 ];
 
 export default function Login() {
@@ -45,23 +44,7 @@ export default function Login() {
               <ArrowLeft size={16} />
               <span>Back to Home</span>
             </Link>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '11.5px',
-                color: '#15803D',
-                backgroundColor: '#DCFCE7',
-                border: '1px solid #86EFAC',
-                padding: '4px 10px',
-                borderRadius: '9999px',
-                fontWeight: 700,
-              }}
-            >
-              <ShieldCheck size={13} />
-              <span>ABDM Verified</span>
-            </div>
+
           </div>
 
           {/* Clean Center Brand Header */}
@@ -79,6 +62,9 @@ export default function Login() {
               Ayushman Digital Health Portal &bull; Care Closer. Healthier Tomorrow.
             </p>
           </div>
+
+          {/* 1-Click Demo Quick Access Above Form */}
+          <DemoCredentialsQuickBar activeRole={role} redirectTarget={redirectTarget} />
 
           {/* Main Auth Card */}
           <div className="pro-auth-card">
@@ -106,28 +92,22 @@ export default function Login() {
             {role === 'patient' && <OtpAuthForm kind="patient" />}
             {role === 'doctor' && <OtpAuthForm kind="doctor" />}
             {role === 'admin' && <AdminAuthForm />}
-            {role === 'asha' && <AshaAuthForm />}
+            
           </div>
 
-          {/* Quick Evaluator Access Bar */}
-          <DemoCredentialsQuickBar />
 
-          {/* Security & Compliance Footer */}
+
+          {/* Tagline Footer */}
           <div
             style={{
-              marginTop: '20px',
+              marginTop: '16px',
               textAlign: 'center',
-              fontSize: '11.5px',
-              color: '#94A3B8',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              flexWrap: 'wrap',
+              fontSize: '12px',
+              color: '#64748B',
+              fontWeight: 500,
             }}
           >
-            <Lock size={12} />
-            <span>256-Bit SSL Encrypted &bull; National Health Authority Standards &bull; ABDM Compliant</span>
+            Care closer. Healthier tomorrow.
           </div>
         </div>
       </main>
@@ -150,7 +130,7 @@ function OtpAuthForm({ kind }) {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [sandboxOtp, setSandboxOtp] = useState('');
+  
   const [doctorName, setDoctorName] = useState('');
   const inputRefs = useRef([]);
   const { login } = useAuth();
@@ -188,10 +168,7 @@ function OtpAuthForm({ kind }) {
     try {
       const res = await otpApi.send(fullPhone);
       // Capture OTP returned by backend in test/sandbox mode
-      const receivedOtp = res?.otp || (typeof res?.message === 'string' && res.message.match(/\b\d{6}\b/) ? res.message.match(/\b\d{6}\b/)[0] : '');
-      if (receivedOtp) {
-        setSandboxOtp(receivedOtp);
-      }
+      
       toast.success(res?.message || 'Verification OTP dispatched to your WhatsApp and SMS!');
       setStage('otp');
       setResendTimer(30);
@@ -487,26 +464,7 @@ function OtpAuthForm({ kind }) {
             </button>
           </div>
 
-          {/* Sandbox Helper Pill (Discreet for testing) */}
-          {sandboxOtp && (
-            <div className="pro-sandbox-pill">
-              <div>
-                <span>Demo OTP: </span>
-                <span className="pro-sandbox-code">{sandboxOtp}</span>
-              </div>
-              <button
-                type="button"
-                className="pro-sandbox-btn"
-                onClick={() => {
-                  const arr = sandboxOtp.split('');
-                  setDigits(arr);
-                  triggerVerify(sandboxOtp);
-                }}
-              >
-                Auto-Fill Code
-              </button>
-            </div>
-          )}
+          
         </div>
       )}
 
@@ -740,15 +698,14 @@ function AshaAuthForm() {
 /**
  * Discreet Demo / Evaluation Quick-Fill Bar (Mobile-Responsive Wrap)
  */
-function DemoCredentialsQuickBar() {
+function DemoCredentialsQuickBar({ activeRole, redirectTarget }) {
   const { login } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
   async function loginAsDemoPatient() {
-    toast.success('Auto-filling demo patient (Ramesh Kumar)...');
+    toast.success('1-Click Demo: Signing in as Ramesh Kumar...');
     try {
-      await fetch('/api/test/patient/seed?phone=%2B919100000099', { method: 'POST' });
       const res = await otpApi.verify('+919100000099', '123456');
       login('PATIENT', res.token);
       toast.success('Signed in as Ramesh Kumar (Demo)');
@@ -759,7 +716,7 @@ function DemoCredentialsQuickBar() {
   }
 
   async function loginAsDemoDoctor() {
-    toast.success('Auto-filling demo doctor (Dr. Rajesh Sharma)...');
+    toast.success('1-Click Demo: Signing in as Dr. Rajesh Sharma...');
     try {
       await otpApi.verify('+919888877777', '123456');
       const docRes = await doctorApi.login('+919888877777');
@@ -772,7 +729,7 @@ function DemoCredentialsQuickBar() {
   }
 
   async function loginAsDemoStaff() {
-    toast.success('Auto-filling staff admin credentials...');
+    toast.success('1-Click Demo: Signing in as Staff Admin...');
     try {
       const res = await queueApi.login('admin', 'admin123');
       login('ADMIN', res.token);

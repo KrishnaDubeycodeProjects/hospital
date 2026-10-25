@@ -60,7 +60,12 @@ public final class MedicalCategory {
         if (name == null) {
             return null;
         }
-        String trimmed = name.trim();
+        String decoded = name;
+        try {
+            decoded = java.net.URLDecoder.decode(name, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
+        String trimmed = decoded.trim();
         for (String c : ALL) {
             if (c.equalsIgnoreCase(trimmed)) {
                 return c;

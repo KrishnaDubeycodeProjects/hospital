@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 const columns = [
   { key: 'id', header: 'Visit ID' },
   { key: 'name', header: 'Name', render: (r) => r.name || '—' },
+  { key: 'hospitalName', header: 'Selected Hospital', render: (r) => r.hospitalName || 'AarogyaFlow Main' },
   { key: 'age', header: 'Age', render: (r) => r.age ?? '—' },
   { key: 'category', header: 'Department', render: (r) => r.category || '—' },
   { key: 'servedAt', header: 'Served', render: (r) => fmtDateTime(r.servedAt) },

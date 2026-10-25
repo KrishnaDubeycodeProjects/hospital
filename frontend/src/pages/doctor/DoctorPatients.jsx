@@ -382,24 +382,33 @@ export default function DoctorPatients() {
                     </span>
                   }
                 >
-                  {!selectedPatient.documents || selectedPatient.documents.length === 0 ? (
-                    <EmptyState
-                      title="No documents uploaded yet for this patient."
-                      hint="Click 'Upload Report / Rx' above to attach a prescription or diagnostic report."
-                    />
-                  ) : (
-                    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <Table
-                      columns={[
-                        { 
-                          key: 'fileName', 
-                          header: 'Document Title',
-                          render: (d) => (
-                            <span style={{ fontWeight: 600, color: '#0f172a', minWidth: '220px', display: 'inline-block' }}>
-                              {d.fileName}
-                            </span>
-                          )
-                        },
+                  {(() => {
+                    const sortedDocs = [...(selectedPatient.documents || [])].sort((a, b) => {
+                      const tA = new Date(a.createdAt || a.uploadedAt || 0).getTime();
+                      const tB = new Date(b.createdAt || b.uploadedAt || 0).getTime();
+                      return tB - tA;
+                    });
+                    if (sortedDocs.length === 0) {
+                      return (
+                        <EmptyState
+                          title="No documents uploaded yet for this patient."
+                          hint="Click 'Upload Report / Rx' above to attach a prescription or diagnostic report."
+                        />
+                      );
+                    }
+                    return (
+                      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                      <Table
+                        columns={[
+                          { 
+                            key: 'fileName', 
+                            header: 'Document Title (Reverse Timeline)',
+                            render: (d) => (
+                              <span style={{ fontWeight: 600, color: '#0f172a', minWidth: '220px', display: 'inline-block' }}>
+                                {d.fileName}
+                              </span>
+                            )
+                          },
                         {
                           key: 'docType',
                           header: 'Type',
@@ -462,10 +471,11 @@ export default function DoctorPatients() {
                           ),
                         },
                       ]}
-                      rows={selectedPatient.documents}
+                      rows={sortedDocs}
                     />
                     </div>
-                  )}
+                    );
+                  })()}
                 </Card>
               </div>
             )}

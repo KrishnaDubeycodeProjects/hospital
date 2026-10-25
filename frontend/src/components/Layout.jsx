@@ -6,27 +6,26 @@ import AyushmanFooter from './AyushmanFooter';
 
 const NAV = {
   admin: [
-    { to: '/admin', label: 'Live Queue', icon: '📊', end: true },
-    { to: '/admin/counters', label: 'Counters', icon: '🔢' },
-    { to: '/admin/missed', label: 'Missed Queue', icon: '❌' },
-    { to: '/admin/history', label: 'Visit History', icon: '📜' },
-    { to: '/admin/hospitals', label: 'Hospitals', icon: '🏛️' },
-    { to: '/admin/asha', label: 'ASHA & CHO Hub', icon: '👥' },
+    { to: '/admin', label: 'Live Queue', end: true },
+    { to: '/admin/counters', label: 'Counters' },
+    { to: '/admin/missed', label: 'Missed Queue' },
+    { to: '/admin/history', label: 'Visit History' },
+    { to: '/admin/hospitals', label: 'Hospitals' },
   ],
   patient: [
-    { to: '/patient', label: 'My Queue', icon: '🎟️', end: true },
-    { to: '/patient/family', label: 'Family & ABHA', icon: '👥' },
-    { to: '/patient/records', label: 'Records Hub', icon: '📋' },
-    { to: '/patient/access', label: 'Doctor Access', icon: '🔑' },
+    { to: '/patient', label: 'My Queue', end: true },
+    { to: '/patient/family', label: 'Family & ABHA' },
+    { to: '/patient/records', label: 'Records Hub' },
+    { to: '/patient/access', label: 'Doctor Access' },
   ],
   doctor: [
-    { to: '/doctor', label: 'My Profile', icon: '👤', end: true },
-    { to: '/doctor/consultation', label: 'Patient Queue', icon: '👥' },
-    { to: '/doctor/serve', label: 'Consultation', icon: '🩺' },
-    { to: '/doctor/courses', label: 'Treatments & Visits', icon: '📋' },
-    { to: '/doctor/referrals', label: 'Referrals', icon: '🏥' },
-    { to: '/doctor/patients', label: 'My Patients', icon: '🧑‍⚕️' },
-    { to: '/doctor/access', label: 'Patient Records Access', icon: '🔑' },
+    { to: '/doctor', label: 'My Profile', end: true },
+    { to: '/doctor/consultation', label: 'Patient Queue' },
+    { to: '/doctor/serve', label: 'Consultation' },
+    { to: '/doctor/courses', label: 'Treatments & Visits' },
+    { to: '/doctor/referrals', label: 'Referrals' },
+    { to: '/doctor/patients', label: 'My Patients' },
+    { to: '/doctor/access', label: 'Patient Records Access' },
   ],
 };
 
@@ -61,7 +60,7 @@ export function RoleShell({ role }) {
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar opdx-sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
+      <aside className={`sidebar opdx-sidebar ${menuOpen ? 'sidebar-open' : ''}`} style={{ backgroundColor: '#FFFFFF', borderRight: '1px solid #E2E8F0' }}>
         {/* Brand Header */}
         <div className="sidebar-brand">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -92,7 +91,7 @@ export function RoleShell({ role }) {
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: '#ffffff', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.02em' }}>
+                <span style={{ color: '#0F172A', fontWeight: '800', fontSize: '16px', letterSpacing: '-0.02em' }}>
                   Aarogya Flow
                 </span>
                 <span
@@ -124,14 +123,13 @@ export function RoleShell({ role }) {
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={() => setMenuOpen(false)}
             >
-              <span style={{ fontSize: '16px', marginRight: '6px' }}>{item.icon}</span>
               <span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
         {/* User Session Footer (OPD Exit) */}
-        <div className="sidebar-foot" style={{ borderTop: '1px solid #1E293B', padding: '14px 16px' }}>
+        <div className="sidebar-foot" style={{ borderTop: '1px solid #E2E8F0', padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <div
               style={{
@@ -151,10 +149,10 @@ export function RoleShell({ role }) {
               {role === 'doctor' ? 'DR' : role === 'admin' ? 'AD' : 'PT'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#F1F5F9', wordBreak: 'break-word' }}>
+              <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#0F172A', wordBreak: 'break-word' }}>
                 {identityLabel}
               </div>
-              <div style={{ fontSize: '11px', color: '#94A3B8' }}>{role.toUpperCase()} SESSION</div>
+              <div style={{ fontSize: '11px', color: '#94A3B8' }}>{role === 'admin' ? 'Admin' : (role.charAt(0).toUpperCase() + role.slice(1))}</div>
             </div>
           </div>
 
@@ -178,10 +176,7 @@ export function RoleShell({ role }) {
               {ROLE_TITLE[role]}
             </span>
           </div>
-          <NavLink to="/" className="topbar-home" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>←</span>
-            <span>Public Services</span>
-          </NavLink>
+          
         </header>
         <main className="app-content" style={{ flex: 1 }}>
           <Outlet />

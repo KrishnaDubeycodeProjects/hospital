@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, PhoneCall, CheckCircle2, Lock } from 'lucide-react';
+import { PhoneCall } from 'lucide-react';
 
 export default function AyushmanFooter({
   className = '',
@@ -34,7 +34,7 @@ export default function AyushmanFooter({
             gap: '8px 16px',
           }}
         >
-          {/* Left Brand & Accreditation */}
+          {/* Left Brand & Tagline */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <div
               style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
@@ -48,23 +48,22 @@ export default function AyushmanFooter({
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              <strong style={{ color: '#0F4C3A', fontWeight: 800, fontSize: '13px', letterSpacing: '-0.01em' }}>
+              <strong style={{ color: '#0F172A', fontWeight: 800, fontSize: '13px', letterSpacing: '-0.01em' }}>
                 Aarogya Flow
               </strong>
             </div>
 
             <span style={{ color: '#CBD5E1', display: 'inline-block' }}>|</span>
 
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#475569', fontSize: '11.5px' }}>
-              <ShieldCheck size={13} style={{ color: '#15803D' }} />
-              <span>ABDM &amp; Ayushman Bharat Verified</span>
+            <span style={{ color: '#475569', fontSize: '11.5px', fontWeight: 500 }}>
+              Care closer. Healthier tomorrow.
             </span>
           </div>
 
           {/* Right Status, Emergency & Copyright */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '11.5px' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#15803D', fontWeight: 600 }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16A34A', display: 'inline-block' }} />
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#16A34A', fontWeight: 600 }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#25D366', display: 'inline-block' }} />
               <span>OPD Active</span>
             </span>
 
@@ -122,7 +121,7 @@ function AboutModal({ onClose }) {
               alt="Aarogya Flow"
               style={{ width: '24px', height: '24px', objectFit: 'contain' }}
             />
-            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F4C3A', margin: 0 }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
               Aarogya Flow Platform
             </h3>
           </div>
@@ -145,17 +144,12 @@ function AboutModal({ onClose }) {
         </div>
 
         <p style={{ fontSize: '13px', color: '#475569', lineHeight: 1.55, margin: '0 0 14px' }}>
-          Aarogya Flow is a smart outpatient hospital queue automation and patient continuum platform integrated with Ayushman Bharat Digital Mission (ABDM), live WhatsApp OPD token tracking, and ASHA community health coordination.
+          Aarogya Flow is a smart outpatient hospital queue automation and patient continuum platform integrated with live WhatsApp OPD token tracking and real-time appointment management.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', color: '#166534', backgroundColor: '#F0FDF4', padding: '10px 12px', borderRadius: '8px', border: '1px solid #BBF7D0', marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <CheckCircle2 size={13} />
-            <span>256-Bit SSL Encrypted Healthcare Infrastructure</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <CheckCircle2 size={13} />
-            <span>ABDM M1, M2 &amp; M3 Standard Compliant</span>
+            <span>Care closer. Healthier tomorrow.</span>
           </div>
         </div>
 
@@ -164,7 +158,7 @@ function AboutModal({ onClose }) {
           onClick={onClose}
           style={{
             width: '100%',
-            backgroundColor: '#0F4C3A',
+            backgroundColor: '#25D366',
             color: '#ffffff',
             border: 'none',
             borderRadius: '8px',

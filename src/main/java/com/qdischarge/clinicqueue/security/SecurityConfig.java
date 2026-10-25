@@ -93,38 +93,48 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/counters/**").hasRole("ADMIN")
                         // Admin or Doctor pushes a called-but-absent patient back in their own queue (exponential backoff).
                         .requestMatchers(HttpMethod.POST, "/api/queue/*/no-show").hasAnyRole("ADMIN", "DOCTOR")
+                        // Webhook callback endpoints
+                        .requestMatchers("/webhook", "/webhook/**").permitAll()
                         // Public auth endpoints: OTP and ABHA address login flows
                         .requestMatchers("/api/auth/otp/**", "/api/auth/abha/**").permitAll()
+                        // Staff admin login
+                        .requestMatchers(HttpMethod.POST, "/api/queue/login").permitAll()
+                        // Public queue display & booking queries
+                        .requestMatchers(HttpMethod.GET, "/api/queue", "/api/queue/current", "/api/queue/position/**", "/api/queue/token/**", "/api/queue/travel-range", "/api/queue/frozen", "/api/queue/qr/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/queue", "/api/queue/*/location").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/hospitals", "/api/hospitals/*", "/api/hospitals/*/departments", "/api/hospitals/*/time-slots").permitAll()
+                        .requestMatchers("/api/location/**").permitAll()
                         // Doctor registration/login prove identity via OTP (see OtpController), not a
                         // doctor JWT yet -- everything else a doctor does needs the token that returns.
                         .requestMatchers(HttpMethod.POST, "/api/doctors/register", "/api/doctors/login").permitAll()
                         .requestMatchers("/api/doctors/**").hasRole("DOCTOR")
-                        // Every /api/patients/** action is self-service on the caller's own phone
-                        // number (identified from the token, see CurrentUser) -- there's no "public"
-                        // patient endpoint here, login *is* OtpController's /verify.
-                        .requestMatchers("/api/patients/public/**").permitAll()
+                        // Patient self-service requires PATIENT token
                         .requestMatchers("/api/patients/**").hasRole("PATIENT")
                         // Family Unit management (public lookup for booking flow, full management requires PATIENT)
-                        .requestMatchers("/api/family/public/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/family/public/members").permitAll()
                         .requestMatchers("/api/family/**").hasRole("PATIENT")
                         // Course & Clinical Records
-                        .requestMatchers("/api/courses/public/**").permitAll()
                         .requestMatchers("/api/courses/patient").hasRole("PATIENT")
                         .requestMatchers(HttpMethod.POST, "/api/courses/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // Referral Engine
-                        .requestMatchers("/api/referrals/public/**").permitAll()
                         .requestMatchers("/api/referrals/patient").hasRole("PATIENT")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/*/qr").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
+                        // ASHA worker & community workflows
+                        .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").permitAll()
+                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**", "/api/sync/**", "/api/anm/**", "/api/cho/**").hasAnyRole("ASHA", "ADMIN", "DOCTOR", "PATIENT")
+                        // Test seeding endpoints accessible to ADMIN and DOCTOR
+                        .requestMatchers("/api/test/**").hasAnyRole("ADMIN", "DOCTOR")
                         // Drugs & ABDM open/utility APIs
                         .requestMatchers("/api/drugs/**").permitAll()
                         .requestMatchers("/api/abdm/check-address", "/api/abdm/status", "/api/abdm/kyc/**", "/api/abdm/enroll/**", "/api/abdm/callback", "/api/abdm/consent/**", "/api/abdm/patients/**").permitAll()
                         .requestMatchers("/api/abdm/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
-                        .anyRequest().permitAll())
+                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico", "/asha/**", "/static/**").permitAll()
+                        .anyRequest().authenticated())
                 .addFilterBefore(rateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -138,7 +148,7 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("*"));

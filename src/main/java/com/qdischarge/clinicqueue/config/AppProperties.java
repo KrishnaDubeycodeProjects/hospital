@@ -1,7 +1,9 @@
 package com.qdischarge.clinicqueue.config;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.Assert;
 
 /**
  * Typed view of the "app.*" configuration keys defined in application.yml,
@@ -51,6 +53,7 @@ public class AppProperties {
     // --- WhatsApp providers ---
     private String waProvider = "meta";
     private String metaAccessToken;
+    private String metaAppSecret;
     private String metaPhoneNumberId;
     private String metaApiVersion = "v25.0";
     /** Phone number of the WhatsApp bot (e.g. 919876543210) used for wa.me redirects in WebViews. */
@@ -117,10 +120,21 @@ public class AppProperties {
     private String ekaClientSecret;
     private String ekaBaseUrl;
     private int ekaTokenRefreshBufferSeconds = 300;
+    private boolean abdmMockMode = false;
 
     // --- Secure Document Storage ---
     private String storageUploadDir = "./storage/documents";
     private int storageMaxFileSizeMb = 10;
     private String storageAllowedTypes = "application/pdf,image/jpeg,image/png";
+
+    @PostConstruct
+    public void validateSecrets() {
+        String activeProfile = System.getProperty("spring.profiles.active", System.getenv("SPRING_PROFILES_ACTIVE"));
+        if (activeProfile != null && (activeProfile.contains("prod") || activeProfile.contains("production"))) {
+            Assert.hasText(metaAccessToken, "FATAL: META_ACCESS_TOKEN environment variable must be set in production.");
+            Assert.hasText(jwtSecret, "FATAL: JWT_SECRET environment variable must be set in production.");
+            Assert.hasText(webhookVerifyToken, "FATAL: WEBHOOK_VERIFY_TOKEN environment variable must be set in production.");
+        }
+    }
 }
 

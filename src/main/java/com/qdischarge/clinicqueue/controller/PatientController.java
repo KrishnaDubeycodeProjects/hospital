@@ -43,12 +43,6 @@ public class PatientController {
         return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(currentUser.requirePatientPhone())));
     }
 
-    /** Public lookup for token-booking history with phone parameter. */
-    @GetMapping("/public/history")
-    public ResponseEntity<Map<String, Object>> publicHistory(@RequestParam String phone) {
-        return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(phone)));
-    }
-
     /** Fetches complete historical medical records from Eka Care / ABDM network for this patient. */
     @GetMapping("/abdm-history")
     public ResponseEntity<Map<String, Object>> abdmHistory() {
@@ -100,14 +94,6 @@ public class PatientController {
         return ResponseEntity.ok(ok(patientDocumentService.listForPatient(currentUser.requirePatientPhone())));
     }
 
-    @GetMapping("/public/documents")
-    public ResponseEntity<Map<String, Object>> publicDocuments(@RequestParam(name = "phone", required = false) String phone) {
-        if (phone == null || phone.trim().isBlank()) {
-            return ResponseEntity.badRequest().body(msg("Phone number parameter is required."));
-        }
-        return ResponseEntity.ok(ok(patientDocumentService.listForPatient(phone.trim())));
-    }
-
     @GetMapping("/documents/{id}/file")
     public ResponseEntity<?> documentFile(@PathVariable int id) {
         String phone = currentUser.requirePatientPhone();
@@ -118,7 +104,7 @@ public class PatientController {
         PatientDocumentService.FileContent file = patientDocumentService.getFile(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName()).build().toString())
                 .body(file.data());
     }
 

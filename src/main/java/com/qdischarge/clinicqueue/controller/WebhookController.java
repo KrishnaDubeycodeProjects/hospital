@@ -56,6 +56,7 @@ public class WebhookController {
     private final com.qdischarge.clinicqueue.service.PatientDocumentService patientDocumentService;
     private final com.qdischarge.clinicqueue.service.WebhookDeduplicationService webhookDeduplicationService;
     private final com.qdischarge.clinicqueue.service.TestEnvironmentService testEnvironmentService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     private static final Pattern REVOKE_COMMAND = Pattern.compile("^revoke\\s+(\\d+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern DIGIPIN_PATTERN = Pattern.compile("^[A-Z0-9]{10}$");
@@ -77,7 +78,8 @@ public class WebhookController {
             }
         }
         String finalUrl = sb.toString();
-        log.info("🌐 Built Webview URL: {}", finalUrl);
+        log.debug("🌐 Built Webview URL: {}", finalUrl);
+        log.info("🌐 Prepared Webview redirect for path: {}", relativePath);
         return finalUrl;
     }
 
@@ -97,10 +99,62 @@ public class WebhookController {
         return ResponseEntity.badRequest().build();
     }
 
+    private boolean isValidMetaSignature(byte[] payload, String signatureHeader, String appSecret) {
+        if (signatureHeader == null || !signatureHeader.startsWith("sha256=")) {
+            return false;
+        }
+        String expectedHash = signatureHeader.substring(7);
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(
+                    appSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKey);
+            byte[] hmacBytes = mac.doFinal(payload != null ? payload : new byte[0]);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hmacBytes) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return java.security.MessageDigest.isEqual(
+                    expectedHash.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    hexString.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            log.error("Signature calculation error: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public ResponseEntity<String> receive(JsonNode requestBody) {
+        return processWebhookPayload(requestBody != null ? requestBody : MissingNode.getInstance());
+    }
+
     @PostMapping(value = {"", "/", "/whatsapp"}, produces = MediaType.TEXT_PLAIN_VALUE)
-    public ResponseEntity<String> receive(@RequestBody(required = false) JsonNode requestBody) {
-        JsonNode body = requestBody != null ? requestBody : MissingNode.getInstance();
-        log.info("📩 INCOMING WEBHOOK PAYLOAD: {}", body);
+    public ResponseEntity<String> receive(
+            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signatureHeader,
+            @RequestBody(required = false) byte[] rawPayload) {
+        String appSecret = appProperties.getMetaAppSecret();
+        if (appSecret != null && !appSecret.isBlank()) {
+            if (signatureHeader == null || !isValidMetaSignature(rawPayload, signatureHeader, appSecret)) {
+                log.warn("⛔ Rejected incoming Meta webhook: invalid X-Hub-Signature-256");
+                return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).body("INVALID_SIGNATURE");
+            }
+        }
+
+        JsonNode body = MissingNode.getInstance();
+        if (rawPayload != null && rawPayload.length > 0) {
+            try {
+                body = objectMapper.readTree(rawPayload);
+            } catch (Exception e) {
+                log.warn("Failed to parse incoming webhook JSON: {}", e.getMessage());
+                return ResponseEntity.ok("EVENT_RECEIVED");
+            }
+        }
+        return processWebhookPayload(body);
+    }
+
+    private ResponseEntity<String> processWebhookPayload(JsonNode body) {
+        log.debug("📩 Incoming webhook payload: {}", body);
 
         String fromPhone = "";
         String pushName = "Patient";
@@ -131,6 +185,7 @@ public class WebhookController {
 
         String rawFrom = message.path("from").asText("");
         fromPhone = rawFrom.startsWith("+") ? rawFrom : "+" + rawFrom;
+        log.info("📩 Inbound WhatsApp webhook message: id={}, from={}, type={}", messageId, com.qdischarge.clinicqueue.util.PhoneNormalizer.mask(fromPhone), message.path("type").asText(""));
         pushName = value.path("contacts").path(0).path("profile").path("name").asText("Patient");
 
         String tmpMessage = "";

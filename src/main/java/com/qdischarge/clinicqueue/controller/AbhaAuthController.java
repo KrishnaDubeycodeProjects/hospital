@@ -62,7 +62,9 @@ public class AbhaAuthController {
 
         String phone = profile.getPhone();
         if (phone == null || phone.isBlank()) {
-            phone = "+919876543210";
+            body.put("success", false);
+            body.put("message", "ABHA profile does not have an associated phone number. Please update your phone number in the ABHA registry.");
+            return ResponseEntity.status(400).body(body);
         }
 
         String relationship = request.resolvedRelationship();

@@ -46,19 +46,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 authentication.setDetails(decoded);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } else {
-            String ashaHeader = request.getHeader("X-ASHA-Phone");
-            if (ashaHeader != null && !ashaHeader.isBlank()) {
-                String cleanPhone = ashaHeader.trim();
-                if (!cleanPhone.startsWith("+") && cleanPhone.length() == 10) {
-                    cleanPhone = "+91" + cleanPhone;
-                }
-                var decoded = new JwtService.DecodedToken(cleanPhone, "ASHA", null);
-                var authentication = new UsernamePasswordAuthenticationToken(
-                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA")));
-                authentication.setDetails(decoded);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            }
         }
 
         filterChain.doFilter(request, response);

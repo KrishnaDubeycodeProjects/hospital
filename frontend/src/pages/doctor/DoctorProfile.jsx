@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { doctorApi } from '../../api/client';
-import { Button, Card, Field, Input, Spinner, Table } from '../../components/ui';
+import { doctorApi, hospitalApi } from '../../api/client';
+import { Button, Card, Field, Input, Select, Spinner, Table } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { Stethoscope, Phone, Building2, Calendar, ShieldCheck, Hash, UserCheck } from 'lucide-react';
+import { Stethoscope, Phone, Building2, ShieldCheck, Hash, UserCheck, Layers } from 'lucide-react';
 
 export default function DoctorProfile() {
   const { setDoctorProfile } = useAuth();
@@ -11,6 +11,9 @@ export default function DoctorProfile() {
   const [slots, setSlots] = useState(null);
   const [hospitalCode, setHospitalCode] = useState('');
   const [joining, setJoining] = useState(false);
+  const [editingCounter, setEditingCounter] = useState(false);
+  const [selectedCounterId, setSelectedCounterId] = useState('1');
+  const [updatingCounter, setUpdatingCounter] = useState(false);
   const toast = useToast();
 
   async function load() {
@@ -18,6 +21,9 @@ export default function DoctorProfile() {
       const profile = await doctorApi.me();
       setMe(profile);
       setDoctorProfile(profile);
+      if (profile?.counterId) {
+        setSelectedCounterId(String(profile.counterId));
+      }
       const mySlots = await doctorApi.myTimeSlots();
       setSlots(mySlots);
     } catch (err) {
@@ -45,6 +51,30 @@ export default function DoctorProfile() {
     }
   }
 
+  async function handleUpdateCounter(e) {
+    if (e) e.preventDefault();
+    if (!me?.hospitalId) {
+      toast.error('Please join a hospital before assigning a counter.');
+      return;
+    }
+    setUpdatingCounter(true);
+    try {
+      // Update counter via hospital location assignment endpoint
+      const slug = me.hospitalUriSlug || 'main';
+      await hospitalApi.assignDoctorLocation(slug, me.id, {
+        counterId: parseInt(selectedCounterId) || 1,
+        category: me.category || 'General Medicine / Internal Medicine',
+      });
+      toast.success(`Assigned to Counter #${selectedCounterId} successfully.`);
+      setEditingCounter(false);
+      load();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update counter assignment');
+    } finally {
+      setUpdatingCounter(false);
+    }
+  }
+
   if (!me) return <Spinner label="Loading doctor profile..." />;
 
   return (
@@ -52,7 +82,7 @@ export default function DoctorProfile() {
       <div className="card-head">
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Stethoscope size={28} color="#0284c7" />
+            <Stethoscope size={28} color="#25D366" />
             Doctor Profile
           </h1>
           <p className="muted-text">
@@ -60,9 +90,9 @@ export default function DoctorProfile() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#DCFCE7', color: '#15803D' }}>
             <ShieldCheck size={14} />
-            Verified Doctor
+            Verified Practitioner
           </span>
         </div>
       </div>
@@ -81,7 +111,7 @@ export default function DoctorProfile() {
                 DOC-{me.id}
               </div>
               <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '2px' }}>
-                Share with hospital reception to link your room
+                Assigned identification across all OPD counters
               </div>
             </div>
           </div>
@@ -95,8 +125,8 @@ export default function DoctorProfile() {
               <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', fontFamily: 'monospace', marginTop: '2px' }}>
                 {me.phone ? (me.phone.startsWith('+') ? me.phone : `+91 ${me.phone}`) : '+91 98888 77777'}
               </div>
-              <div style={{ fontSize: '11.5px', color: '#16A34A', marginTop: '2px', fontWeight: 600 }}>
-                WhatsApp OTP Enabled
+              <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                Direct clinical notifications enabled
               </div>
             </div>
           </div>
@@ -105,18 +135,64 @@ export default function DoctorProfile() {
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', flexShrink: 0 }}>
               <Building2 size={20} />
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Hospital / Clinic</div>
               <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', marginTop: '2px' }}>
                 {me.hospitalName || 'Not Linked Yet'}
               </div>
-              <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '2px' }}>
-                {me.category ? `Counter ${me.counterId || '1'} (${me.category})` : 'Join code required'}
+              <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                {me.category ? `Department: ${me.category}` : 'General OPD'}
               </div>
             </div>
           </div>
 
         </div>
+
+        {/* Multi-Counter Station Configuration */}
+        {me.hospitalId && (
+          <div style={{ marginTop: '16px', padding: '14px 16px', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16A34A' }}>
+                <Layers size={18} />
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#166534' }}>
+                  Assigned Station: Counter #{me.counterId || 1}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#15803D' }}>
+                  Multi-counter queue assignment. Patients called from your console will be directed to this counter.
+                </div>
+              </div>
+            </div>
+
+            {editingCounter ? (
+              <form onSubmit={handleUpdateCounter} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  value={selectedCounterId}
+                  onChange={(e) => setSelectedCounterId(e.target.value)}
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #86EFAC', fontSize: '13px', fontWeight: 700 }}
+                >
+                  <option value="1">Counter 1</option>
+                  <option value="2">Counter 2</option>
+                  <option value="3">Counter 3</option>
+                  <option value="4">Counter 4</option>
+                  <option value="5">Counter 5</option>
+                  <option value="6">Counter 6</option>
+                </select>
+                <Button size="sm" type="submit" loading={updatingCounter} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}>
+                  Save Counter
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditingCounter(false)}>
+                  Cancel
+                </Button>
+              </form>
+            ) : (
+              <Button size="sm" variant="secondary" onClick={() => setEditingCounter(true)} style={{ fontWeight: 700 }}>
+                Change Counter
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
 
       {!me.hospitalId && (
@@ -126,7 +202,7 @@ export default function DoctorProfile() {
             <Field label="Hospital Code">
               <Input value={hospitalCode} onChange={(e) => setHospitalCode(e.target.value.toUpperCase())} placeholder="e.g. AIIMS-01" required />
             </Field>
-            <Button type="submit" loading={joining}>
+            <Button type="submit" loading={joining} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff' }}>
               Join Hospital
             </Button>
           </form>
@@ -138,15 +214,15 @@ export default function DoctorProfile() {
           <Table
             columns={[
               { key: 'slotDate', header: 'Duty Date' },
-              { key: 'startTime', header: 'Reporting Time' },
+              { key: 'startTime', header: 'Start Time' },
               { key: 'endTime', header: 'End Time' },
-              { key: 'category', header: 'Department', render: (r) => r.category || 'General Medicine' },
+              { key: 'status', header: 'Shift Status' },
             ]}
             rows={slots}
-            emptyText="No active duty schedule for today."
+            emptyText="No scheduled duty shifts registered for this week."
           />
         ) : (
-          <Spinner label="Loading schedule..." />
+          <p className="muted-text">No active time slots found.</p>
         )}
       </Card>
     </div>

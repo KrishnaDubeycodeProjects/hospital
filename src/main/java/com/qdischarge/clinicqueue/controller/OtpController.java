@@ -37,9 +37,6 @@ public class OtpController {
     public ResponseEntity<Map<String, Object>> send(@Valid @RequestBody OtpSendRequest request) {
         OtpService.OtpResult result = otpService.sendOtp(request.phone());
         Map<String, Object> body = body(result.success(), result.message());
-        if (result.code() != null) {
-            body.put("otp", result.code());
-        }
         return ResponseEntity.status(result.success() ? 200 : 502).body(body);
     }
 

@@ -85,8 +85,12 @@ public class OtpService {
     }
 
     public OtpResult sendOtp(String phone) {
+        String cleanPhone = phone != null ? phone.trim() : "";
+        if (!cleanPhone.startsWith("+") && cleanPhone.length() == 10) {
+            cleanPhone = "+91" + cleanPhone;
+        }
         // Generate and store local OTP code so verification is fast, reliable, and available for WhatsApp
-        String code = generateAndStoreLocalOtp(phone);
+        String code = generateAndStoreLocalOtp(cleanPhone);
 
         // 1. Send via WhatsApp Cloud API
         try {
@@ -111,7 +115,7 @@ public class OtpService {
             }
         }
 
-        return new OtpResult(true, "OTP verification code sent via WhatsApp and SMS!", code);
+        return new OtpResult(true, "OTP verification code sent via WhatsApp and SMS!");
     }
 
     public OtpResult verifyOtp(String phone, String code) {
@@ -258,7 +262,9 @@ public class OtpService {
                 .formatted(appProperties.getTwilioAccountSid());
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("To", phone);
-        if (appProperties.getTwilioMessagingServiceSid() != null && !appProperties.getTwilioMessagingServiceSid().isBlank()) {
+        if (appProperties.getTwilioCallerNumber() != null && !appProperties.getTwilioCallerNumber().isBlank()) {
+            body.add("From", appProperties.getTwilioCallerNumber());
+        } else if (appProperties.getTwilioMessagingServiceSid() != null && !appProperties.getTwilioMessagingServiceSid().isBlank()) {
             body.add("MessagingServiceSid", appProperties.getTwilioMessagingServiceSid());
         }
         body.add("Body", "Your AarogyaFlow verification code is " + code + " (valid " + appProperties.getOtpTtlMinutes() + " minutes).");

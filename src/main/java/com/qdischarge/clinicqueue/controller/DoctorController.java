@@ -15,6 +15,7 @@ import com.qdischarge.clinicqueue.service.HospitalService;
 import com.qdischarge.clinicqueue.service.PatientDocumentService;
 import com.qdischarge.clinicqueue.service.QrCodeService;
 import com.qdischarge.clinicqueue.service.TimeSlotService;
+import com.qdischarge.clinicqueue.util.PhoneNormalizer;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -195,13 +196,14 @@ public class DoctorController {
             return ResponseEntity.status(404).body(msg("Document not found."));
         }
         List<String> allowedPhones = accessService.listActivePatientPhonesForDoctor(doctorId);
-        if (!allowedPhones.contains(meta.getPatientPhone())) {
+        boolean hasAccess = allowedPhones.stream().anyMatch(p -> PhoneNormalizer.matches(p, meta.getPatientPhone()));
+        if (!hasAccess) {
             return ResponseEntity.status(403).body(msg("You don't currently have access to this patient's records."));
         }
         PatientDocumentService.FileContent file = patientDocumentService.getFile(docId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(file.contentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.fileName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.inline().filename(file.fileName()).build().toString())
                 .body(file.data());
     }
 
@@ -215,7 +217,8 @@ public class DoctorController {
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
         int doctorId = currentUser.requireDoctorId();
         List<String> allowedPhones = accessService.listActivePatientPhonesForDoctor(doctorId);
-        if (!allowedPhones.contains(patientPhone)) {
+        boolean hasAccess = allowedPhones.stream().anyMatch(p -> PhoneNormalizer.matches(p, patientPhone));
+        if (!hasAccess) {
             return ResponseEntity.status(403).body(msg("You don't currently have active access to this patient's records."));
         }
         try {

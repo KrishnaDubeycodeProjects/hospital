@@ -30,6 +30,7 @@ public class TokenHistoryDto {
     private String gender;
     private String category;
     private Integer hospitalId;
+    private String hospitalName;
     private Integer counterId;
     private LocalDateTime createdAt;
     private LocalDateTime servedAt;

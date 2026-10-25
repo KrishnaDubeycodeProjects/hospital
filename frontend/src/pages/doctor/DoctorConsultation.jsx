@@ -1,215 +1,110 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { courseApi, doctorApi, drugApi, hospitalApi, queueApi } from '../../api/client';
-import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea, fmtDateTime, fmtMinutes } from '../../components/ui';
+import { client, courseApi, doctorApi, drugApi, hospitalApi, queueApi, referralApi } from '../../api/client';
+import { Button, Card, Field, Input, Modal, Select, Spinner, Textarea, fmtDateTime } from '../../components/ui';
 import { useToast } from '../../context/ToastContext';
+import {
+  Stethoscope,
+  Pill,
+  FileText,
+  Activity,
+  Plus,
+  Trash2,
+  Send,
+  Building2,
+  AlertTriangle,
+  User,
+  Clock,
+  CheckCircle2,
+  Layers,
+  BarChart3,
+  Search,
+  X,
+  ChevronDown,
+  Info
+} from 'lucide-react';
 
-function DrugInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
-  const [query, setQuery] = useState(value || '');
-  const [suggestions, setSuggestions] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+// Comprehensive drug registry with formulation variants (AarogyaFlow Drug Registry)
+const COMMON_MEDICINES = [
+  {
+    generic: 'Paracetamol (Acetaminophen)',
+    category: 'Analgesic • Antipyretic',
+    adultDose: 'Adults: 500-1000 mg every 4-6 hours (max 4 g/day)',
+    variants: [
+      { formulation: 'Tablet', strength: '500 mg', brand: 'Crocin, Dolo, Calpol, P-500', dose: '1 tablet', route: 'Oral', freq: 'TDS (3 times daily)', duration: '5 days', qty: 15, refills: 0 },
+      { formulation: 'Tablet (Dispersible)', strength: '650 mg', brand: 'Crocin Advance, Dolo-650', dose: '1 tablet', route: 'Oral', freq: 'SOS / TDS', duration: '5 days', qty: 10, refills: 0 },
+      { formulation: 'Syrup', strength: '125 mg/5 ml', brand: 'Calpol, Dolo Suspension', dose: '5 ml', route: 'Oral', freq: 'TDS (3 times daily)', duration: '3 days', qty: 1, refills: 0 },
+      { formulation: 'Syrup (Pediatric)', strength: '250 mg/5 ml', brand: 'Calpol 250', dose: '5 ml', route: 'Oral', freq: 'TDS (3 times daily)', duration: '3 days', qty: 1, refills: 0 },
+      { formulation: 'Injection', strength: '150 mg/ml', brand: 'Perfalgan, Neomol', dose: '1 vial (IV)', route: 'IV Infusion', freq: 'Stat / BD', duration: '1 day', qty: 1, refills: 0 },
+      { formulation: 'Suppository', strength: '125 mg', brand: 'Calpol Suppository', dose: '1 suppository', route: 'Rectal', freq: 'SOS', duration: '2 days', qty: 2, refills: 0 }
+    ]
+  },
+  {
+    generic: 'Amoxicillin + Clavulanic Acid',
+    category: 'Broad-Spectrum Antibacterial',
+    adultDose: 'Adults: 625 mg twice daily after meals for 5-7 days',
+    variants: [
+      { formulation: 'Tablet', strength: '625 mg', brand: 'Augmentin, Clavam, Moxikind-CV', dose: '1 tablet', route: 'Oral', freq: 'BD (Twice daily)', duration: '5 days', qty: 10, refills: 0 },
+      { formulation: 'Tablet', strength: '375 mg', brand: 'Augmentin 375, Clavam 375', dose: '1 tablet', route: 'Oral', freq: 'TDS (3 times daily)', duration: '5 days', qty: 15, refills: 0 },
+      { formulation: 'Dry Syrup', strength: '228.5 mg/5 ml', brand: 'Augmentin Duo Suspension', dose: '5 ml', route: 'Oral', freq: 'BD (Twice daily)', duration: '5 days', qty: 1, refills: 0 },
+      { formulation: 'Injection', strength: '1.2 g', brand: 'Augmentin IV, Clavam IV', dose: '1.2 g IV', route: 'IV Slow', freq: 'BD (Twice daily)', duration: '3 days', qty: 3, refills: 0 }
+    ]
+  },
+  {
+    generic: 'Pantoprazole',
+    category: 'Proton Pump Inhibitor (Anti-ulcer)',
+    adultDose: 'Adults: 40 mg once daily morning before breakfast (empty stomach)',
+    variants: [
+      { formulation: 'Tablet', strength: '40 mg', brand: 'Pan-40, Pantocid, Pantodac', dose: '1 tablet', route: 'Oral', freq: 'OD (Once daily, fasting)', duration: '14 days', qty: 14, refills: 0 },
+      { formulation: 'Capsule (DSR)', strength: '40 mg + 30 mg SR', brand: 'Pan-D, Pantocid-DSR', dose: '1 capsule', route: 'Oral', freq: 'OD (Before food)', duration: '10 days', qty: 10, refills: 0 },
+      { formulation: 'Injection', strength: '40 mg', brand: 'Pan IV, Pantocid IV', dose: '40 mg IV', route: 'IV Push', freq: 'OD (Once daily)', duration: '2 days', qty: 2, refills: 0 }
+    ]
+  },
+  {
+    generic: 'Azithromycin',
+    category: 'Macrolide Antibiotic',
+    adultDose: 'Adults: 500 mg once daily 1 hour before or 2 hours after meals',
+    variants: [
+      { formulation: 'Tablet', strength: '500 mg', brand: 'Azee 500, Azithral 500, Zady', dose: '1 tablet', route: 'Oral', freq: 'OD (Once daily)', duration: '3 days', qty: 3, refills: 0 },
+      { formulation: 'Tablet', strength: '250 mg', brand: 'Azee 250, Azithral 250', dose: '1 tablet', route: 'Oral', freq: 'OD (Once daily)', duration: '5 days', qty: 5, refills: 0 },
+      { formulation: 'Suspension', strength: '200 mg/5 ml', brand: 'Azee 200, Azithral Liquid', dose: '5 ml', route: 'Oral', freq: 'OD (Once daily)', duration: '3 days', qty: 1, refills: 0 }
+    ]
+  },
+  {
+    generic: 'Cetirizine',
+    category: 'Antihistamine • Anti-allergic',
+    adultDose: 'Adults: 10 mg once daily at bedtime',
+    variants: [
+      { formulation: 'Tablet', strength: '10 mg', brand: 'Cetzine, Alerid, Zyrtec', dose: '1 tablet', route: 'Oral', freq: 'HS (At bedtime)', duration: '5 days', qty: 5, refills: 0 },
+      { formulation: 'Syrup', strength: '5 mg/5 ml', brand: 'Cetzine Syrup, Alerid Syrup', dose: '5 ml', route: 'Oral', freq: 'HS (At bedtime)', duration: '5 days', qty: 1, refills: 0 }
+    ]
+  },
+  {
+    generic: 'Metformin',
+    category: 'Biguanide • Antidiabetic',
+    adultDose: 'Adults: 500 mg once or twice daily with or after meals',
+    variants: [
+      { formulation: 'Tablet', strength: '500 mg', brand: 'Glycomet, Glyciphage', dose: '1 tablet', route: 'Oral', freq: 'BD (With meals)', duration: '30 days', qty: 60, refills: 2 },
+      { formulation: 'Tablet (SR)', strength: '1000 mg', brand: 'Glycomet-SR 1000', dose: '1 tablet', route: 'Oral', freq: 'OD (With dinner)', duration: '30 days', qty: 30, refills: 2 }
+    ]
+  }
+];
 
-  useEffect(() => {
-    setQuery(value || '');
-  }, [value]);
-
-  useEffect(() => {
-    if (!query || query.length < 2) {
-      setSuggestions([]);
-      setOpen(false);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await drugApi.search(query);
-        setSuggestions(res || []);
-        setOpen((res || []).length > 0);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <Input
-        placeholder="Search medicines (e.g. Paracetamol)"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          onChange(e.target.value);
-        }}
-        onFocus={() => suggestions.length > 0 && setOpen(true)}
-      />
-      {open && suggestions.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            zIndex: 60,
-            background: '#ffffff',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            maxHeight: '220px',
-            overflowY: 'auto',
-          }}
-        >
-          {suggestions.map((s, sIdx) => (
-            <div
-              key={sIdx}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                borderBottom: '1px solid #f1f5f9',
-                fontSize: '13px',
-              }}
-              onMouseDown={() => {
-                onSelectSuggestion(s);
-                setOpen(false);
-              }}
-            >
-              <div style={{ fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{s.name}</span>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    color: s.isNlem ? '#059669' : '#0284c7',
-                    background: s.isNlem ? '#d1fae5' : '#e0f2fe',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    fontWeight: 700,
-                  }}
-                >
-                  {s.isNlem ? 'NLEM ESSENTIAL' : 'EKA CARE LIVE'}
-                </span>
-              </div>
-              {s.genericName && (
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  {s.genericName} {s.form ? `• ${s.form}` : ''} {s.strength ? `• ${s.strength}` : ''}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LabInputWithLiveRegistry({ value, onChange, onSelectSuggestion }) {
-  const [query, setQuery] = useState(value || '');
-  const [suggestions, setSuggestions] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setQuery(value || '');
-  }, [value]);
-
-  useEffect(() => {
-    if (!query || query.length < 2) {
-      setSuggestions([]);
-      setOpen(false);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await drugApi.searchLabs(query);
-        setSuggestions(res || []);
-        setOpen((res || []).length > 0);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <Input
-        placeholder="Search lab tests (e.g. Blood Test, CBC, Sugar, Urine)"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          onChange(e.target.value);
-        }}
-        onFocus={() => suggestions.length > 0 && setOpen(true)}
-      />
-      {open && suggestions.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            zIndex: 60,
-            background: '#ffffff',
-            border: '1px solid var(--border)',
-            borderRadius: '6px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            maxHeight: '220px',
-            overflowY: 'auto',
-          }}
-        >
-          {suggestions.map((s, sIdx) => (
-            <div
-              key={sIdx}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                borderBottom: '1px solid #f1f5f9',
-                fontSize: '13px',
-              }}
-              onMouseDown={() => {
-                onSelectSuggestion(s);
-                setOpen(false);
-              }}
-            >
-              <div style={{ fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{s.name}</span>
-                <span
-                  style={{
-                    fontSize: '10px',
-                    color: s.isLive ? '#0284c7' : '#059669',
-                    background: s.isLive ? '#e0f2fe' : '#d1fae5',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    fontWeight: 700,
-                  }}
-                >
-                  {s.isLive ? 'EKA CARE LIVE LAB' : 'STANDARD LAB'}
-                </span>
-              </div>
-              {(s.commonName || s.category) && (
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  {s.category ? `${s.category} ` : ''} {s.sampleType ? `• ${s.sampleType}` : ''} {s.defaultTurnaroundHours ? `• Turnaround: ~${s.defaultTurnaroundHours}h` : ''}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// Lab tests grouped by clinical domain
+const LAB_GROUPS = {
+  Hematology: ['CBC (Complete Blood Count)', 'ESR', 'Peripheral Smear', 'Hemoglobin (Hb%)'],
+  Biochemistry: ['Fasting Blood Sugar (FBS)', 'Postprandial Sugar (PPBS)', 'HbA1c', 'Lipid Profile', 'Liver Function Tests (LFT)', 'Kidney Function Tests (KFT / RFT)', 'Serum Electrolytes'],
+  Endocrine: ['Thyroid Profile (T3, T4, TSH)', 'Serum Uric Acid', 'Serum Calcium', 'Vitamin D3'],
+  Radiology: ['X-Ray Chest (PA View)', 'USG Abdomen & Pelvis', 'ECG (12 Lead)', 'Echocardiogram (2D Echo)'],
+  Urine: ['Urine Routine & Microscopic', 'Urine Culture & Sensitivity']
+};
 
 function formatTokenLabel(t, fallbackIndex = null) {
   if (!t) return '-';
   if (t.tokenCode && !t.tokenCode.includes('null')) return t.tokenCode;
   if (t.dailyNumber) return `AF-${String(t.dailyNumber).padStart(2, '0')}`;
-  if (fallbackIndex != null) return `Buffer #${fallbackIndex + 1}`;
-  return 'Buffer Token';
+  if (fallbackIndex != null) return `Token #${fallbackIndex + 1}`;
+  return 'Patient Token';
 }
 
 export default function DoctorConsultation() {
@@ -218,48 +113,74 @@ export default function DoctorConsultation() {
   const [currentQueue, setCurrentQueue] = useState(null);
   const [activeToken, setActiveToken] = useState(null);
   const [hospitals, setHospitals] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionBusy, setActionBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState('consult'); // 'consult' | 'stats'
 
-  // Encounter form state
-  const [courseId, setCourseId] = useState('');
+  // Clinical Assessment (Image 2)
   const [chiefComplaint, setChiefComplaint] = useState('');
-  const [clinicalNotes, setClinicalNotes] = useState('');
-  const [examinationFindings, setExaminationFindings] = useState('');
-  const [plan, setPlan] = useState('');
-  
-  // Prescriptions list state
+  const [medicalHistory, setMedicalHistory] = useState('');
+  const [diagnosis, setDiagnosis] = useState('');
+
+  // Examination & Vitals (Image 2)
+  const [bp, setBp] = useState('120/80');
+  const [pulse, setPulse] = useState('76');
+  const [temp, setTemp] = useState('98.6');
+  const [spo2, setSpo2] = useState('99');
+  const [weight, setWeight] = useState('65');
+  const [examFindings, setExamFindings] = useState('');
+
+  // Prescriptions List (Image 2 & 3)
   const [prescriptions, setPrescriptions] = useState([
-    { drugName: 'Paracetamol', dosage: '500mg', frequency: 'TDS (1-1-1)', durationDays: 3, instructions: 'After meals' }
+    {
+      medicineName: 'Paracetamol (Crocin)',
+      strength: '500 mg',
+      dose: '1 tablet',
+      route: 'Oral',
+      frequency: 'TDS (3 times daily)',
+      duration: '5 days',
+      quantity: 15,
+      refills: 0,
+      instructions: 'After meals',
+      indication: 'Fever / body pain',
+      prn: false,
+    }
   ]);
 
-  // Lab orders state (Eka Care Medical DB & standard diagnostics)
-  const [labOrders, setLabOrders] = useState([]);
+  // Smart Medicine Search & Variant Selector Modal State (Image 3)
+  const [smartSearchIndex, setSmartSearchIndex] = useState(null);
+  const [activeDrugModal, setActiveDrugModal] = useState(null); // Selected drug object
+  const [variantTab, setVariantTab] = useState('All');
+  const [drugSearchQuery, setDrugSearchQuery] = useState('');
 
-  function addLabOrderRow(testName = '', instructions = '') {
-    setLabOrders((prev) => [...prev, { testName, instructions }]);
-  }
+  // Investigations & Labs State
+  const [selectedLabs, setSelectedLabs] = useState(['CBC (Complete Blood Count)']);
+  const [customLabQuery, setCustomLabQuery] = useState('');
 
-  function updateLabOrder(index, field, value) {
-    setLabOrders((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
-    );
-  }
+  // Advice & Follow-up State
+  const [adviceNotes, setAdviceNotes] = useState('Drink adequate water, maintain light diet, rest adequately.');
+  const [reviewDate, setReviewDate] = useState('');
 
-  function removeLabOrderRow(index) {
-    setLabOrders((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  // Referral state
+  // Referral State
   const [enableReferral, setEnableReferral] = useState(false);
-  const [targetHospitalId, setTargetHospitalId] = useState('');
-  const [targetDepartment, setTargetDepartment] = useState('General Medicine');
+  const [referralHospitalId, setReferralHospitalId] = useState('');
+  const [referralDept, setReferralDept] = useState('');
+  const [referralDocName, setReferralDocName] = useState(''); // Optional per requirement
+  const [referralValidity, setReferralValidity] = useState('7 days');
   const [referralReason, setReferralReason] = useState('');
-  const [priorityTier, setPriorityTier] = useState('urgent_7d');
 
-  // Result dialog
-  const [completedResult, setCompletedResult] = useState(null);
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  // Test Environment State
+  const [testModeOpen, setTestModeOpen] = useState(false);
+  const [testPatientName, setTestPatientName] = useState('Ramesh Kumar');
+  const [testPatientAge, setTestPatientAge] = useState('28');
+  const [testPatientGender, setTestPatientGender] = useState('male');
+  const [testPatientPhone, setTestPatientPhone] = useState('+919100000099');
+  const [testTargetStatus, setTestTargetStatus] = useState('waiting');
+  const [testCreating, setTestCreating] = useState(false);
+
+  // Sign & Complete Modal
+  const [showSignedModal, setShowSignedModal] = useState(false);
+  const [savingEncounter, setSavingEncounter] = useState(false);
   const toast = useToast();
 
   async function loadData() {
@@ -268,14 +189,14 @@ export default function DoctorConsultation() {
       try {
         me = await doctorApi.me();
         if (me) setProfile(me);
-      } catch (e) {
-        console.warn('Doctor profile load note:', e);
-      }
+      } catch (e) {}
+
       const effectiveHospId = me?.hospitalId || profile?.hospitalId || 1;
-      const effectiveCategory = me?.category || profile?.category || 'General Medicine';
+      const effectiveCategory = me?.category || profile?.category || 'General Medicine / Internal Medicine';
 
       const q = await queueApi.getQueue(effectiveHospId, effectiveCategory);
       setCurrentQueue(q);
+
       try {
         const cur = await queueApi.current(effectiveHospId, effectiveCategory);
         setActiveToken(cur);
@@ -283,8 +204,11 @@ export default function DoctorConsultation() {
 
       const hospList = await hospitalApi.list();
       setHospitals(hospList || []);
+
+      const cats = await hospitalApi.categories();
+      setDepartments(Array.isArray(cats) ? cats : cats?.data || []);
     } catch (err) {
-      toast.error(err.message || 'Failed loading doctor consultation data.');
+      console.warn('Load note:', err);
     } finally {
       setLoading(false);
     }
@@ -294,1354 +218,1065 @@ export default function DoctorConsultation() {
     loadData();
     const timer = setInterval(() => {
       const effectiveHospId = profile?.hospitalId || 1;
-      const effectiveCategory = profile?.category || 'General Medicine';
+      const effectiveCategory = profile?.category || 'General Medicine / Internal Medicine';
       queueApi.getQueue(effectiveHospId, effectiveCategory).then(setCurrentQueue).catch(() => {});
       queueApi.current(effectiveHospId, effectiveCategory).then(setActiveToken).catch(() => {});
-    }, 3500);
+    }, 5000);
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.hospitalId, profile?.category]);
 
-  const [showQueueBoard, setShowQueueBoard] = useState(true);
-
-  // Doctor Test Environment Sandbox State
-  const [testModeOpen, setTestModeOpen] = useState(false);
-  const [testPatientName, setTestPatientName] = useState('Ramesh Kumar');
-  const [testPatientAge, setTestPatientAge] = useState('28');
-  const [testPatientGender, setTestPatientGender] = useState('male');
-  const [testPatientPhone, setTestPatientPhone] = useState('+919100000099');
-  const [testDistanceKm, setTestDistanceKm] = useState('18.5');
-  const [testTravelMinutes, setTestTravelMinutes] = useState('45');
-  const [testTargetStatus, setTestTargetStatus] = useState('waiting');
-  const [testSelectedTokenId, setTestSelectedTokenId] = useState('');
-  const [testCreating, setTestCreating] = useState(false);
-
+  // Test Environment Injection using client.post
   async function handleAddTestPatient(overrideStatus = null) {
     const effectiveHospId = profile?.hospitalId || 1;
-    const effectiveCategory = profile?.category || 'General Medicine';
+    const effectiveCategory = profile?.category || 'General Medicine / Internal Medicine';
     setTestCreating(true);
     const targetStatus = overrideStatus || testTargetStatus || 'waiting';
     try {
-      const resp = await fetch('/api/test/queue/inject', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: testPatientName || 'Demo Patient',
-          age: parseInt(testPatientAge) || 30,
-          gender: testPatientGender || 'male',
-          phone: testPatientPhone || '+919100000099',
-          category: effectiveCategory,
-          hospitalId: effectiveHospId,
-          status: targetStatus,
-          distanceKm: testDistanceKm ? parseFloat(testDistanceKm) : (targetStatus === 'frozen' ? 18.5 : 2.5),
-          travelMinutes: testTravelMinutes ? parseInt(testTravelMinutes) : (targetStatus === 'frozen' ? 45 : 10),
-        }),
+      const res = await client.post('/api/test/queue/inject', {
+        name: testPatientName || 'Demo Patient',
+        age: parseInt(testPatientAge) || 30,
+        gender: testPatientGender || 'male',
+        phone: testPatientPhone || '+919100000099',
+        category: effectiveCategory,
+        hospitalId: effectiveHospId,
+        status: targetStatus,
+        distanceKm: targetStatus === 'frozen' ? 18.5 : 2.5,
+        travelMinutes: targetStatus === 'frozen' ? 45 : 10,
       });
-      const data = await resp.json();
-      if (data.success) {
-        const displayLabel = data.data?.tokenCode || (data.data?.dailyNumber ? `Token #${data.data.dailyNumber}` : 'Buffer Token');
-        toast.success(`Patient ${displayLabel} (${testPatientName}) added to queue as ${targetStatus.toUpperCase()}!`);
-        if (data.data?.id) {
-          setTestSelectedTokenId(String(data.data.id));
-        }
-        setShowQueueBoard(true);
-        await loadData();
-      } else {
-        toast.error(data.message || 'Failed to inject test patient');
-      }
+
+      const displayLabel = res?.data?.tokenCode || (res?.data?.dailyNumber ? `Token #${res.data.dailyNumber}` : 'Patient');
+      toast.success(`Patient ${displayLabel} added to queue as ${targetStatus.toUpperCase()}!`);
+      loadData();
     } catch (err) {
-      toast.error(err.message || 'Failed to inject test patient');
+      toast.error(err.message || 'Failed injecting test patient');
     } finally {
       setTestCreating(false);
     }
   }
 
+  // Universal Unfreeze & Requeue bound to this doctor's counter
   async function handleUnfreeze(tokenId) {
-    if (!tokenId) {
-      toast.error('Please select a token to unfreeze');
-      return;
-    }
+    if (!tokenId) return;
     try {
-      const res = await queueApi.unfreeze(tokenId);
-      const code = res?.data?.tokenCode || (res?.data?.dailyNumber ? `Token #${res.data.dailyNumber}` : `Token #${tokenId}`);
-      toast.success(`${code} unfrozen & moved to Active FIFO queue!`);
-      await loadData();
-    } catch (err) {
-      toast.error(err.message || 'Failed to unfreeze token');
-    }
-  }
-
-  async function handleDirectCheckIn(tokenId) {
-    if (!tokenId) {
-      toast.error('Please select a token to check in');
-      return;
-    }
-    try {
-      const resp = await fetch('/api/queue/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokenId: parseInt(tokenId) }),
-      });
-      const data = await resp.json();
-      if (data.success) {
-        toast.success(data.message || `Token #${tokenId} checked in and verified successfully!`);
-        loadData();
-      } else {
-        toast.error(data.message || 'Verification failed');
-      }
-    } catch (err) {
-      toast.error(err.message || 'Failed to check in token');
-    }
-  }
-
-  async function handleQuickStatusChange(tokenId, status) {
-    if (!tokenId) {
-      toast.error('Please select a token');
-      return;
-    }
-    try {
-      await queueApi.updateStatus(tokenId, status);
-      toast.success(`Token #${tokenId} status changed to ${status}!`);
+      const counterId = profile?.counterId || 1;
+      await queueApi.unfreeze(tokenId, counterId);
+      toast.success(`Token #${tokenId} unfrozen and assigned to your Counter #${counterId}!`);
       loadData();
     } catch (err) {
-      toast.error(err.message || 'Status update failed');
-    }
-  }
-
-  async function handleCallPatient(tokenId) {
-    try {
-      await queueApi.updateStatus(tokenId, 'serving');
-      toast.success(`Patient #${tokenId} called into chair! Redirecting to Serving Console...`);
-      navigate(`/doctor/serve/${tokenId}`);
-    } catch (err) {
-      toast.error(err.message || 'Failed to call patient.');
-    }
-  }
-
-  async function handleNoShow(tokenId) {
-    try {
-      await queueApi.noShow(tokenId);
-      toast.success(`Patient #${tokenId} demoted exponentially.`);
-      loadData();
-    } catch (err) {
-      toast.error(err.message || 'Failed to push back patient.');
+      toast.error(err.message || 'Failed unfreezing token');
     }
   }
 
   async function handleRequeue(tokenId) {
+    if (!tokenId) return;
     try {
-      await queueApi.requeueMissed(tokenId);
-      toast.success(`Patient #${tokenId} requeued to front.`);
+      const counterId = profile?.counterId || 1;
+      await queueApi.requeueMissed(tokenId, counterId);
+      toast.success(`Token #${tokenId} requeued to front of your Counter #${counterId}!`);
       loadData();
     } catch (err) {
-      toast.error(err.message || 'Failed to requeue patient.');
+      toast.error(err.message || 'Failed requeuing token');
     }
   }
 
+  // Prescription Table Actions
   function addPrescriptionRow() {
     setPrescriptions((prev) => [
       ...prev,
-      { drugName: '', dosage: '', frequency: 'BD (1-0-1)', durationDays: 5, instructions: '' }
+      {
+        medicineName: '',
+        strength: '500 mg',
+        dose: '1 tablet',
+        route: 'Oral',
+        frequency: 'BD (Twice daily)',
+        duration: '5 days',
+        quantity: 10,
+        refills: 0,
+        instructions: 'After meals',
+        indication: '',
+        prn: false,
+      }
     ]);
+  }
+
+  function updatePrescriptionField(idx, field, value) {
+    setPrescriptions((prev) =>
+      prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p))
+    );
   }
 
   function removePrescriptionRow(idx) {
     setPrescriptions((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function updatePrescription(idx, field, value) {
+  // Variant selector action
+  function applyMedicineVariant(variant, drug) {
+    if (smartSearchIndex === null) return;
     setPrescriptions((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item))
+      prev.map((p, i) =>
+        i === smartSearchIndex
+          ? {
+              ...p,
+              medicineName: `${drug.generic.split('(')[0].trim()} (${variant.brand.split(',')[0].trim()})`,
+              strength: variant.strength,
+              dose: variant.dose,
+              route: variant.route,
+              frequency: variant.freq,
+              duration: variant.duration,
+              quantity: variant.qty,
+              refills: variant.refills,
+              instructions: 'After meals',
+            }
+          : p
+      )
+    );
+    setActiveDrugModal(null);
+    setSmartSearchIndex(null);
+    toast.success(`Applied formulation: ${variant.brand.split(',')[0]} ${variant.strength}`);
+  }
+
+  // Investigation Tags toggling
+  function toggleLabTest(testName) {
+    setSelectedLabs((prev) =>
+      prev.includes(testName) ? prev.filter((t) => t !== testName) : [...prev, testName]
     );
   }
 
-  async function handleCompleteAndNext(e) {
-    e.preventDefault();
-    if (!chiefComplaint.trim()) {
-      toast.error('Please enter the Chief Complaint.');
-      return;
+  function addCustomLab() {
+    if (!customLabQuery.trim()) return;
+    if (!selectedLabs.includes(customLabQuery.trim())) {
+      setSelectedLabs((prev) => [...prev, customLabQuery.trim()]);
     }
+    setCustomLabQuery('');
+  }
 
-    let targetCourseId = courseId;
-
-    setActionBusy(true);
+  // Save / Sign & Send Prescription to Patient
+  async function handleSignAndSend() {
+    setSavingEncounter(true);
     try {
-      // 1. If no course ID is entered, create one automatically
+      // 1. Create or link care course
+      let targetCourseId = activeToken?.courseId || courseId;
       if (!targetCourseId) {
         const newCourse = await courseApi.create({
-          patientPhone: activeToken?.phone || '+919999999999',
-          patientName: activeToken?.name || 'Walk-in Patient',
-          title: `Consultation - ${chiefComplaint.slice(0, 30)}`,
+          patientPhone: activeToken?.phone || '+919100000099',
+          title: `Care Episode - ${chiefComplaint.slice(0, 32) || 'Consultation'}`,
           courseType: 'acute',
-          targetDepartment: profile?.category || 'General Medicine',
-          primaryDiagnosis: chiefComplaint,
         });
         targetCourseId = newCourse.id;
-        setCourseId(newCourse.id);
       }
 
-      // 2. Prepare payload for Complete & Next
-      const validLabs = labOrders.filter((l) => l.testName && l.testName.trim());
-      const effectivePlan = validLabs.length > 0
-        ? [plan, `Diagnostic Labs Ordered: ${validLabs.map((l) => l.testName + (l.instructions ? ' [' + l.instructions + ']' : '')).join(', ')}`].filter(Boolean).join(' | ')
-        : plan;
-
+      // 2. Add clinical encounter
       const payload = {
-        currentTokenId: activeToken?.id || null,
-        chiefComplaint,
-        clinicalNotes,
-        examinationFindings,
-        plan: effectivePlan,
-        prescriptions: prescriptions.filter((p) => p.drugName && p.drugName.trim()),
+        chiefComplaint: chiefComplaint || 'Consultation',
+        clinicalNotes: `Assessment: ${clinicalNotes || 'Examined'}\nHistory: ${medicalHistory || 'None reported'}\nDiagnosis: ${diagnosis || 'Clinical evaluation'}\nVitals: BP ${bp}, Pulse ${pulse}, Temp ${temp}°F, SpO2 ${spo2}%, Weight ${weight}kg\nFindings: ${examFindings || 'Clear'}\nAdvice: ${adviceNotes}`,
+        prescriptions: prescriptions.map((p) => ({
+          drugName: `${p.medicineName} ${p.strength}`,
+          dosage: p.dose,
+          frequency: p.frequency,
+          durationDays: parseInt(p.duration) || 5,
+          instructions: p.instructions,
+        })),
         referral: enableReferral
           ? {
-              toHospitalId: Number(targetHospitalId),
-              targetDepartment: targetDepartment || 'General Medicine',
+              toHospitalId: parseInt(referralHospitalId) || 1,
+              toCategory: referralDept || 'General Medicine',
               reason: referralReason || chiefComplaint,
-              priorityTier,
+              priorityTier: 'urgent_7d',
             }
           : null,
       };
 
-      if (enableReferral && !targetHospitalId) {
-        toast.error('Please choose a destination hospital for the referral.');
-        setActionBusy(false);
-        return;
+      await courseApi.addEncounter(targetCourseId, payload);
+
+      // 3. Complete token in queue
+      if (activeToken?.id) {
+        await queueApi.updateStatus(activeToken.id, 'completed', 'DOCTOR');
       }
 
-      const res = await courseApi.completeAndNext(targetCourseId, payload);
-      setCompletedResult(res);
-      toast.success(res.message || 'Consultation completed! Patient notified via WhatsApp.');
-
-      // Reset form
-      setChiefComplaint('');
-      setClinicalNotes('');
-      setExaminationFindings('');
-      setPlan('');
-      setCourseId('');
-      setLabOrders([]);
-      setEnableReferral(false);
-      setReferralReason('');
-
-      // Reload queue
+      setShowSignedModal(true);
+      toast.success('e-Prescription signed & dispatched to patient on WhatsApp!');
       loadData();
     } catch (err) {
-      toast.error(err.message || 'Error processing consultation.');
+      toast.error(err.message || 'Failed to complete consultation');
     } finally {
-      setActionBusy(false);
+      setSavingEncounter(false);
     }
-  }
-
-  if (loading) return <Spinner label="Loading consultation console..." />;
-
-  if (!profile?.hospitalId) {
-    return (
-      <div className="stack-lg">
-        <h1>Doctor Consultation Room</h1>
-        <Card title="Hospital Affiliation Required">
-          <p className="muted-text">
-            You must be linked to a hospital before opening the consultation workbench.
-          </p>
-          <Button variant="primary" onClick={() => window.location.assign('/doctor')}>
-            Go to Profile & Join Hospital
-          </Button>
-        </Card>
-      </div>
-    );
   }
 
   return (
     <div className="stack-lg">
-      <div className="card-head">
+      {/* Top Header & Breadcrumb */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1>Doctor Consultation Room</h1>
-          <p className="muted-text">
-            {profile.hospitalName} &bull; Counter {profile.counterId || '1'} ({profile.category || 'General'})
+          <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>Consultations</span>
+            <span>/</span>
+            <span style={{ color: '#0F172A' }}>Clinical Notes &amp; Prescription</span>
+          </div>
+          <h1 style={{ margin: '4px 0 0', fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>
+            Clinical Notes &amp; Prescription
+          </h1>
+          <p className="muted-text" style={{ margin: '2px 0 0', fontSize: '13px' }}>
+            Complete the encounter and issue an authenticated digital prescription
           </p>
         </div>
-        <div className="row-gap">
+
+        {/* Tab & Action Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', background: '#F1F5F9', padding: '4px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('consult')}
+              style={{
+                border: 'none',
+                background: activeTab === 'consult' ? '#FFFFFF' : 'transparent',
+                color: activeTab === 'consult' ? '#0F172A' : '#64748B',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: activeTab === 'consult' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              }}
+            >
+              Consultation Console
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('stats')}
+              style={{
+                border: 'none',
+                background: activeTab === 'stats' ? '#FFFFFF' : 'transparent',
+                color: activeTab === 'stats' ? '#0F172A' : '#64748B',
+                padding: '6px 14px',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: activeTab === 'stats' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <BarChart3 size={14} color="#25D366" />
+              <span>Station Stats</span>
+            </button>
+          </div>
+
           <Button
             size="sm"
             variant={testModeOpen ? 'primary' : 'secondary'}
             onClick={() => setTestModeOpen(!testModeOpen)}
-            style={{
-              backgroundColor: testModeOpen ? '#059669' : '#F0FDF4',
-              color: testModeOpen ? '#ffffff' : '#166534',
-              border: '1px solid #BBF7D0',
-              fontWeight: 700,
-            }}
+            style={{ fontWeight: 700, fontSize: '12.5px' }}
           >
             🧪 {testModeOpen ? 'Test Sandbox Active' : 'Test Environment'}
           </Button>
-          <span className="badge badge-green">Live Counter Active</span>
         </div>
       </div>
 
       {/* 🧪 Doctor Test Environment Sandbox */}
       {testModeOpen && (
-        <div
-          style={{
-            backgroundColor: '#F0FDF4',
-            border: '2px solid #86EFAC',
-            borderRadius: '12px',
-            padding: '18px 20px',
-            boxShadow: '0 4px 12px rgba(22, 163, 74, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', borderBottom: '1px solid #BBF7D0', paddingBottom: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '20px' }}>🧪</span>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#166534' }}>
-                  Doctor Queue Sandbox & Simulation Control
-                </h3>
-                <span style={{ fontSize: '12px', color: '#15803D' }}>
-                  Inject test patients, select & reserve custom tokens, trigger 1-click check-ins, or manipulate queue states.
-                </span>
-              </div>
+        <div style={{ backgroundColor: '#F0FDF4', border: '1.5px solid #86EFAC', borderRadius: '12px', padding: '16px 20px', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <div style={{ fontWeight: 800, fontSize: '14px', color: '#166534' }}>
+              🧪 Universal Sandbox &bull; Inject Patient into Current Counter
             </div>
+            <Button size="sm" variant="ghost" onClick={() => setTestModeOpen(false)} style={{ color: '#DC2626' }}>
+              Close Sandbox
+            </Button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+            <Input value={testPatientName} onChange={(e) => setTestPatientName(e.target.value)} placeholder="Patient Name" />
+            <Input value={testPatientAge} onChange={(e) => setTestPatientAge(e.target.value)} placeholder="Age" type="number" />
+            <Input value={testPatientPhone} onChange={(e) => setTestPatientPhone(e.target.value)} placeholder="Phone (+91...)" />
+            <Select value={testTargetStatus} onChange={(e) => setTestTargetStatus(e.target.value)}>
+              <option value="waiting">Waiting (Immediate FIFO)</option>
+              <option value="frozen">Frozen (Commute Buffer)</option>
+              <option value="missed">Missed Turn</option>
+            </Select>
             <Button
               size="sm"
-              variant="danger"
-              onClick={() => setTestModeOpen(false)}
-              style={{ fontWeight: 700 }}
+              loading={testCreating}
+              onClick={() => handleAddTestPatient(testTargetStatus)}
+              style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}
             >
-              ❌ Exit Test Mode
+              + Add to Queue
             </Button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
-            {/* Box 1: Add Test Patient */}
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '14px' }}>
-              <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#166534', marginBottom: '10px' }}>
-                ➕ Add / Inject Test Patient
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <Input
-                  value={testPatientName}
-                  onChange={(e) => setTestPatientName(e.target.value)}
-                  placeholder="Patient Name"
-                  style={{ fontSize: '13px' }}
-                />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <Input
-                    value={testPatientAge}
-                    onChange={(e) => setTestPatientAge(e.target.value)}
-                    placeholder="Age"
-                    type="number"
-                    style={{ fontSize: '13px' }}
-                  />
-                  <Select
-                    value={testPatientGender}
-                    onChange={(e) => setTestPatientGender(e.target.value)}
-                    style={{ fontSize: '13px' }}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </Select>
-                </div>
-                <Input
-                  value={testPatientPhone}
-                  onChange={(e) => setTestPatientPhone(e.target.value)}
-                  placeholder="Phone (+91...)"
-                  style={{ fontSize: '13px' }}
-                />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  <Input
-                    value={testDistanceKm}
-                    onChange={(e) => setTestDistanceKm(e.target.value)}
-                    placeholder="Distance (km, e.g. 18.5)"
-                    type="number"
-                    step="0.1"
-                    style={{ fontSize: '13px' }}
-                    title="Distance in km"
-                  />
-                  <Input
-                    value={testTravelMinutes}
-                    onChange={(e) => setTestTravelMinutes(e.target.value)}
-                    placeholder="Travel (min, e.g. 45)"
-                    type="number"
-                    style={{ fontSize: '13px' }}
-                    title="Estimated travel time in minutes"
-                  />
-                </div>
-                <Select
-                  value={testTargetStatus}
-                  onChange={(e) => setTestTargetStatus(e.target.value)}
-                  style={{ fontSize: '13px', fontWeight: 600 }}
-                >
-                  <option value="waiting">🔵 Initial State: Waiting in Clinic</option>
-                  <option value="frozen">❄️ Initial State: Distant Patient (Traveling)</option>
-                  <option value="reserved">🟡 Initial State: Arriving Soon</option>
-                  <option value="serving">🪑 Initial State: In Consultation</option>
-                  <option value="missed">🔴 Initial State: Missed Turn</option>
-                </Select>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  loading={testCreating}
-                  onClick={() => handleAddTestPatient(testTargetStatus)}
-                  style={{ width: '100%', fontWeight: 700, fontSize: '12px', marginTop: '2px' }}
-                >
-                  ➕ Add to Queue ({testTargetStatus.toUpperCase()})
-                </Button>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '2px' }}>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    loading={testCreating}
-                    onClick={() => handleAddTestPatient('waiting')}
-                    style={{ fontSize: '11px', fontWeight: 700, border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', color: '#1e40af' }}
-                  >
-                    🔵 Waiting
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    loading={testCreating}
-                    onClick={() => handleAddTestPatient('frozen')}
-                    style={{ fontSize: '11px', fontWeight: 700, border: '1px solid #99f6e4', backgroundColor: '#f0fdfa', color: '#0f766e' }}
-                  >
-                    ❄️ Frozen
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    loading={testCreating}
-                    onClick={() => handleAddTestPatient('reserved')}
-                    style={{ fontSize: '11px', fontWeight: 700, border: '1px solid #fde68a', backgroundColor: '#fffbeb', color: '#92400e' }}
-                  >
-                    🟡 Reserved
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Box 2: Select Token & 1-Click Actions */}
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '14px' }}>
-              <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#166534', marginBottom: '10px' }}>
-                🎯 Select Token & 1-Click Actions
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <Select
-                  value={testSelectedTokenId}
-                  onChange={(e) => setTestSelectedTokenId(e.target.value)}
-                  style={{ fontSize: '13px' }}
-                >
-                  <option value="">-- Choose Token from Any Queue --</option>
-                  {(currentQueue?.frozen || []).map((t, idx) => (
-                    <option key={t.id} value={t.id}>
-                      ❄️ {formatTokenLabel(t, idx)} - {t.name} (Frozen Buffer - {t.distanceKm ? t.distanceKm + 'km' : 'Far'})
-                    </option>
-                  ))}
-                  {(currentQueue?.tokens?.filter((t) => t.status === 'waiting') || []).map((t, idx) => (
-                    <option key={t.id} value={t.id}>
-                      🔵 {formatTokenLabel(t, idx)} - {t.name} (Waiting FIFO - Pos #{t.queuePosition || idx + 1})
-                    </option>
-                  ))}
-                  {(currentQueue?.reserved || []).map((t, idx) => (
-                    <option key={t.id} value={t.id}>
-                      🟡 {formatTokenLabel(t, idx)} - {t.name} (Reserved Buffer)
-                    </option>
-                  ))}
-                  {(currentQueue?.missed || []).map((t, idx) => (
-                    <option key={t.id} value={t.id}>
-                      🔴 {formatTokenLabel(t, idx)} - {t.name} (Missed Queue)
-                    </option>
-                  ))}
-                </Select>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    disabled={!testSelectedTokenId}
-                    onClick={() => handleDirectCheckIn(testSelectedTokenId)}
-                    style={{ fontSize: '12px', fontWeight: 700 }}
-                  >
-                    ✅ 1-Click Check-In
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={!testSelectedTokenId}
-                    onClick={() => handleUnfreeze(testSelectedTokenId)}
-                    style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#E0F2FE', color: '#0369A1' }}
-                  >
-                    ⚡ Move to Waiting
-                  </Button>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!testSelectedTokenId}
-                  onClick={() => handleCallPatient(testSelectedTokenId)}
-                  style={{ width: '100%', fontSize: '12.5px', fontWeight: 700 }}
-                >
-                  📞 Call Selected Patient to Chair
-                </Button>
-              </div>
-            </div>
-
-            {/* Box 3: Quick Status Override */}
-            <div style={{ backgroundColor: '#ffffff', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '14px' }}>
-              <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#166534', marginBottom: '10px' }}>
-                🔄 Queue Status Transition Override
-              </div>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px' }}>
-                Quickly test edge cases and state machine transitions for Token #{testSelectedTokenId || activeToken?.id || '—'}:
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'waiting')}
-                  disabled={!testSelectedTokenId && !activeToken?.id}
-                  style={{ fontSize: '11.5px', border: '1px solid #cbd5e1' }}
-                >
-                  Set: Waiting
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'frozen')}
-                  disabled={!testSelectedTokenId && !activeToken?.id}
-                  style={{ fontSize: '11.5px', border: '1px solid #99f6e4', color: '#0f766e', backgroundColor: '#f0fdfa' }}
-                >
-                  Set: Frozen
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'serving')}
-                  disabled={!testSelectedTokenId && !activeToken?.id}
-                  style={{ fontSize: '11.5px', border: '1px solid #93c5fd', color: '#1d4ed8' }}
-                >
-                  Set: Serving
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'completed')}
-                  disabled={!testSelectedTokenId && !activeToken?.id}
-                  style={{ fontSize: '11.5px', border: '1px solid #86efac', color: '#15803d' }}
-                >
-                  Set: Completed
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'missed')}
-                  disabled={!testSelectedTokenId && !activeToken?.id}
-                  style={{ fontSize: '11.5px', border: '1px solid #fca5a5', color: '#b91c1c' }}
-                >
-                  Set: Missed
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleQuickStatusChange(testSelectedTokenId || activeToken?.id, 'reserved')}
-                  disabled={!testSelectedTokenId && !activeToken?.id}
-                  style={{ fontSize: '11.5px', border: '1px solid #fde68a', color: '#92400e' }}
-                >
-                  Set: Reserved
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       )}
 
-      {/* 🟢 Live Serving Patient Banner if active in chair */}
-      {activeToken && (
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #ecfdf5 0%, #e0f2fe 100%)',
-            border: '2px solid #10b981',
-            borderRadius: '12px',
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '28px' }}>🪑</span>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '15px', color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>PATIENT IN CONSULTATION: #{activeToken.dailyNumber || activeToken.queuePosition || 1} ({activeToken.name || 'Patient'})</span>
-                <span className="badge badge-green" style={{ fontSize: '11px', animation: 'pulse 1.5s infinite' }}>Serving Active</span>
-              </div>
-              <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
-                Phone: {activeToken.phone || '—'} &bull; Department: {activeToken.category || profile.category} &bull; Check-in: {fmtDateTime(activeToken.createdAt)}
-              </div>
+      {/* TAB 1: STATION STATS TAB */}
+      {activeTab === 'stats' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Waiting at Counter</div>
+            <div style={{ fontSize: '28px', fontWeight: 800, color: '#0F172A', marginTop: '6px' }}>
+              {(currentQueue?.tokens || []).filter((t) => t.status === 'waiting').length}
             </div>
+            <div style={{ fontSize: '11.5px', color: '#0284C7', marginTop: '4px' }}>Patients ready in lounge</div>
           </div>
-          <Button
-            size="md"
-            variant="primary"
-            onClick={() => navigate(`/doctor/serve/${activeToken.id}`)}
+
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Frozen / Buffer</div>
+            <div style={{ fontSize: '28px', fontWeight: 800, color: '#6B21A8', marginTop: '6px' }}>
+              {(currentQueue?.frozen || []).length + (currentQueue?.reserved || []).length}
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#6B21A8', marginTop: '4px' }}>Distant en route patients</div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Missed Patients</div>
+            <div style={{ fontSize: '28px', fontWeight: 800, color: '#EF4444', marginTop: '6px' }}>
+              {(currentQueue?.missed || []).length}
+            </div>
+            <div style={{ fontSize: '11.5px', color: '#EF4444', marginTop: '4px' }}>Available for priority requeue</div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: CONSULTATION CONSOLE (Images 2 & 3 AarogyaFlow Design) */}
+      {activeTab === 'consult' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Patient Info Strip (Image 2) */}
+          <div
             style={{
-              fontWeight: 800,
-              backgroundColor: '#10b981',
-              borderColor: '#10b981',
-              boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              border: '1px solid #E2E8F0',
+              padding: '16px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
             }}
           >
-            Open Consultation (Prescription & Records) →
-          </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '50%',
+                  backgroundColor: '#DCFCE7',
+                  color: '#15803D',
+                  fontWeight: 800,
+                  fontSize: '17px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {activeToken?.name ? activeToken.name.slice(0, 2).toUpperCase() : 'AS'}
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+                    {activeToken?.name || 'Ananya Sharma'}
+                  </h3>
+                  <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#F1F5F9', color: '#475569' }}>
+                    PID: {activeToken ? `AF-${activeToken.id}` : 'AF-10482'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '3px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <span>{activeToken?.age || '32'} years &bull; {activeToken?.gender || 'Female'}</span>
+                  <span>{activeToken?.phone || '+91 98888 77777'}</span>
+                  <span>Visit ID: VIS-2026-0104</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Allergies Warning Banner */}
+            <div
+              style={{
+                backgroundColor: '#FFF7ED',
+                border: '1px solid #FFEDD5',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#C2410C',
+                fontSize: '12.5px',
+                fontWeight: 600,
+              }}
+            >
+              <AlertTriangle size={15} color="#EA580C" />
+              <span>Allergies: Penicillin (Rash) &bull; Review Required</span>
+            </div>
+          </div>
+
+          {/* TWO-COLUMN TOP SECTION: Clinical Assessment & Examination & Vitals (Image 2) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+            
+            {/* Card 1: Clinical Assessment */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', color: '#166534', fontWeight: 800, fontSize: '14px' }}>
+                <FileText size={16} />
+                <span>Clinical Assessment</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Chief complaints / symptoms *
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={chiefComplaint}
+                    onChange={(e) => setChiefComplaint(e.target.value)}
+                    placeholder="e.g. Fever, cough, headache, or body pain for 2 days"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Relevant medical history
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={medicalHistory}
+                    onChange={(e) => setMedicalHistory(e.target.value)}
+                    placeholder="e.g. Known HTN, DM, previous surgeries, current medications, family history..."
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Diagnosis / provisional diagnosis
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '11px', color: '#94A3B8' }} />
+                    <input
+                      type="text"
+                      value={diagnosis}
+                      onChange={(e) => setDiagnosis(e.target.value)}
+                      placeholder="Search or enter diagnosis (e.g. Viral Fever, URTI, Hypertension)"
+                      style={{ width: '100%', padding: '8px 10px 8px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Examination & Vitals */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px', color: '#0369A1', fontWeight: 800, fontSize: '14px' }}>
+                <Activity size={16} />
+                <span>Examination &amp; Vitals</span>
+              </div>
+
+              {/* Vitals Numeric Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>BP (mmHg)</label>
+                  <input
+                    type="text"
+                    value={bp}
+                    onChange={(e) => setBp(e.target.value)}
+                    placeholder="120/80"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px', fontWeight: 700 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>Pulse (bpm)</label>
+                  <input
+                    type="text"
+                    value={pulse}
+                    onChange={(e) => setPulse(e.target.value)}
+                    placeholder="76"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px', fontWeight: 700 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>Temp (°F)</label>
+                  <input
+                    type="text"
+                    value={temp}
+                    onChange={(e) => setTemp(e.target.value)}
+                    placeholder="98.6"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px', fontWeight: 700 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>SpO2 (%)</label>
+                  <input
+                    type="text"
+                    value={spo2}
+                    onChange={(e) => setSpo2(e.target.value)}
+                    placeholder="99"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px', fontWeight: 700 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>Weight (kg)</label>
+                  <input
+                    type="text"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    placeholder="65"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13px', fontWeight: 700 }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Physical examination findings
+                </label>
+                <textarea
+                  rows={4}
+                  value={examFindings}
+                  onChange={(e) => setExamFindings(e.target.value)}
+                  placeholder="e.g. Conscious and oriented, no pallor, chest clear, S1S2 normal, abdomen soft..."
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* MIDDLE SECTION: Prescription (Rx) Table (Images 2 & 3) */}
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: 800, fontSize: '15px' }}>
+                  <Pill size={17} color="#25D366" />
+                  <span>Prescription (Rx)</span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>
+                  Specify medicine formulation, dose, route, and complete patient instructions
+                </div>
+              </div>
+
+              <Button
+                size="sm"
+                onClick={addPrescriptionRow}
+                style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={14} />
+                <span>Add Medicine</span>
+              </Button>
+            </div>
+
+            {/* Prescriptions Table Layout */}
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', minWidth: '940px', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700, fontSize: '11px', textAlign: 'left' }}>
+                    <th style={{ padding: '8px 10px', width: '32px' }}>#</th>
+                    <th style={{ padding: '8px 10px', minWidth: '220px' }}>Medicine &amp; Formulation *</th>
+                    <th style={{ padding: '8px 10px', width: '100px' }}>Strength</th>
+                    <th style={{ padding: '8px 10px', width: '100px' }}>Dose</th>
+                    <th style={{ padding: '8px 10px', width: '90px' }}>Route</th>
+                    <th style={{ padding: '8px 10px', width: '140px' }}>Frequency</th>
+                    <th style={{ padding: '8px 10px', width: '90px' }}>Duration</th>
+                    <th style={{ padding: '8px 10px', width: '80px' }}>Qty</th>
+                    <th style={{ padding: '8px 10px', minWidth: '160px' }}>Instructions</th>
+                    <th style={{ padding: '8px 10px', width: '36px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prescriptions.map((rx, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '10px 8px', fontWeight: 700, color: '#64748B' }}>{idx + 1}</td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type="text"
+                            value={rx.medicineName}
+                            onChange={(e) => updatePrescriptionField(idx, 'medicineName', e.target.value)}
+                            onFocus={() => setSmartSearchIndex(idx)}
+                            placeholder="Type medicine (e.g. Paracetamol)..."
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px', fontWeight: 600 }}
+                          />
+                          {/* Smart Autocomplete Dropdown */}
+                          {smartSearchIndex === idx && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                zIndex: 100,
+                                width: '360px',
+                                backgroundColor: '#FFFFFF',
+                                border: '1px solid #CBD5E1',
+                                borderRadius: '8px',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                                maxHeight: '260px',
+                                overflowY: 'auto',
+                                marginTop: '4px',
+                              }}
+                            >
+                              <div style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 800, color: '#64748B', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textTransform: 'uppercase' }}>
+                                Common Medicines &bull; AarogyaFlow Drug Registry
+                              </div>
+                              {COMMON_MEDICINES.map((drug, dIdx) => (
+                                <div
+                                  key={dIdx}
+                                  onClick={() => {
+                                    setActiveDrugModal(drug);
+                                  }}
+                                  style={{
+                                    padding: '10px 12px',
+                                    borderBottom: '1px solid #F1F5F9',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.15s ease',
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F0FDF4'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                                >
+                                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#0F172A' }}>
+                                    {drug.generic}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#166534', marginTop: '2px' }}>
+                                    {drug.category} &bull; {drug.variants.length} Formulations
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <input
+                          type="text"
+                          value={rx.strength}
+                          onChange={(e) => updatePrescriptionField(idx, 'strength', e.target.value)}
+                          placeholder="500 mg"
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <input
+                          type="text"
+                          value={rx.dose}
+                          onChange={(e) => updatePrescriptionField(idx, 'dose', e.target.value)}
+                          placeholder="1 tablet"
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <select
+                          value={rx.route}
+                          onChange={(e) => updatePrescriptionField(idx, 'route', e.target.value)}
+                          style={{ width: '100%', padding: '6px 4px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                        >
+                          <option value="Oral">Oral</option>
+                          <option value="IV Infusion">IV</option>
+                          <option value="IM">IM</option>
+                          <option value="Topical">Topical</option>
+                          <option value="Inhalation">Inhalation</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <select
+                          value={rx.frequency}
+                          onChange={(e) => updatePrescriptionField(idx, 'frequency', e.target.value)}
+                          style={{ width: '100%', padding: '6px 4px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                        >
+                          <option value="OD (Once daily)">OD (Once daily)</option>
+                          <option value="BD (Twice daily)">BD (Twice daily)</option>
+                          <option value="TDS (3 times daily)">TDS (3 times daily)</option>
+                          <option value="QID (4 times daily)">QID (4 times daily)</option>
+                          <option value="SOS (As needed)">SOS (As needed)</option>
+                          <option value="HS (At bedtime)">HS (At bedtime)</option>
+                        </select>
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <input
+                          type="text"
+                          value={rx.duration}
+                          onChange={(e) => updatePrescriptionField(idx, 'duration', e.target.value)}
+                          placeholder="5 days"
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <input
+                          type="number"
+                          value={rx.quantity}
+                          onChange={(e) => updatePrescriptionField(idx, 'quantity', e.target.value)}
+                          placeholder="15"
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '10px 8px' }}>
+                        <input
+                          type="text"
+                          value={rx.instructions}
+                          onChange={(e) => updatePrescriptionField(idx, 'instructions', e.target.value)}
+                          placeholder="After meals"
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                        {prescriptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removePrescriptionRow(idx)}
+                            style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                            title="Remove item"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* BOTTOM SECTION: Investigations & Labs (Left) and Advice & Follow-up / Referral (Right) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+            
+            {/* Left Card: Investigations & Labs (Image 2) */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ color: '#0369A1', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Activity size={16} />
+                  <span>Investigations &amp; Labs</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>Add required pathology &amp; radiology orders</span>
+              </div>
+
+              {/* Search Test Input */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                <input
+                  type="text"
+                  value={customLabQuery}
+                  onChange={(e) => setCustomLabQuery(e.target.value)}
+                  placeholder="Search test (e.g. Complete Blood Count, X-Ray Chest, ECG)"
+                  style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px' }}
+                />
+                <Button size="sm" onClick={addCustomLab} style={{ backgroundColor: '#0284C7', borderColor: '#0284C7', color: '#ffffff', fontWeight: 700 }}>
+                  + Add Test
+                </Button>
+              </div>
+
+              {/* Grouped Quick Add Tags (Image 2) */}
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: '6px' }}>
+                Quick Add Chips:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {Object.entries(LAB_GROUPS).flatMap(([category, tests]) => tests).slice(0, 10).map((test, tIdx) => {
+                  const isChecked = selectedLabs.includes(test);
+                  return (
+                    <button
+                      key={tIdx}
+                      type="button"
+                      onClick={() => toggleLabTest(test)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '9999px',
+                        border: isChecked ? '1px solid #25D366' : '1px solid #CBD5E1',
+                        backgroundColor: isChecked ? '#DCFCE7' : '#F8FAFC',
+                        color: isChecked ? '#15803D' : '#334155',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isChecked ? '✓ ' : '+ '}{test}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedLabs.length > 0 && (
+                <div style={{ marginTop: '14px', padding: '10px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '4px' }}>
+                    Ordered Investigations ({selectedLabs.length}):
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#14532D', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {selectedLabs.map((l, lIdx) => (
+                      <span key={lIdx} style={{ backgroundColor: '#FFFFFF', border: '1px solid #86EFAC', padding: '2px 8px', borderRadius: '4px' }}>
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Card: Advice, Follow-up & Referrals (Image 2) */}
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <div style={{ color: '#166534', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
+                <CheckCircle2 size={16} />
+                <span>Advice &amp; Follow-up</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Treatment &amp; lifestyle advice
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={adviceNotes}
+                    onChange={(e) => setAdviceNotes(e.target.value)}
+                    placeholder="e.g. Rest, plenty of fluids, balanced diet, avoid strenuous activity..."
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13px', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                      Review Date
+                    </label>
+                    <input
+                      type="date"
+                      value={reviewDate}
+                      onChange={(e) => setReviewDate(e.target.value)}
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12.5px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                      Referral (Optional)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEnableReferral(!enableReferral)}
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: enableReferral ? '1.5px solid #25D366' : '1px solid #CBD5E1',
+                        backgroundColor: enableReferral ? '#DCFCE7' : '#F8FAFC',
+                        color: enableReferral ? '#15803D' : '#64748B',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      {enableReferral ? '✓ Referral Active' : '+ Add Hospital Referral'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Referral Details Fields */}
+                {enableReferral && (
+                  <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Referral Details:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <select
+                        value={referralHospitalId}
+                        onChange={(e) => setReferralHospitalId(e.target.value)}
+                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                      >
+                        <option value="">Destination Hospital…</option>
+                        {hospitals.map((h) => (
+                          <option key={h.id} value={h.id}>{h.name}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={referralDept}
+                        onChange={(e) => setReferralDept(e.target.value)}
+                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                      >
+                        <option value="">Department…</option>
+                        {departments.map((d, dIdx) => (
+                          <option key={dIdx} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '8px' }}>
+                      <input
+                        type="text"
+                        value={referralDocName}
+                        onChange={(e) => setReferralDocName(e.target.value)}
+                        placeholder="Doctor Name (Optional for visit)"
+                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                      />
+                      <input
+                        type="text"
+                        value={referralValidity}
+                        onChange={(e) => setReferralValidity(e.target.value)}
+                        placeholder="Validity (e.g. 7 days)"
+                        style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                      />
+                    </div>
+
+                    <input
+                      type="text"
+                      value={referralReason}
+                      onChange={(e) => setReferralReason(e.target.value)}
+                      placeholder="Clinical reason for referral"
+                      style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '12px' }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Footer Bar (Image 2) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '14px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+              flexWrap: 'wrap',
+              gap: '12px',
+            }}
+          >
+            <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ShieldCheck size={14} color="#15803D" />
+              <span>A valid prescription must be authenticated by the prescriber before sending.</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Button size="sm" variant="secondary" onClick={() => toast.info('Draft consultation saved.')}>
+                Save Draft
+              </Button>
+              <Button
+                size="sm"
+                loading={savingEncounter}
+                onClick={handleSignAndSend}
+                style={{
+                  backgroundColor: '#25D366',
+                  borderColor: '#25D366',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                }}
+              >
+                <Send size={14} />
+                <span>Sign &amp; Send to Patient</span>
+              </Button>
+            </div>
+          </div>
+
         </div>
       )}
 
-      {/* Active Token Call Board - OPDX 4 Metric Cards */}
-      <div className="stat-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <div className="opdx-stat-card blue" style={{ position: 'relative' }}>
-          <div className="opdx-stat-title">In Chair</div>
-          <div className="opdx-stat-number">{activeToken ? `#${activeToken.dailyNumber || activeToken.id}` : '—'}</div>
-          <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a', marginTop: '4px' }}>
-            {activeToken ? `${activeToken.name || 'Walk-in'} (${activeToken.gender || 'M'}, ${activeToken.age || ''}y)` : 'No patient in chair'}
-          </div>
-          {activeToken && (
-            <div style={{ marginTop: '10px' }}>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => navigate(`/doctor/serve/${activeToken.id}`)}
-                style={{ width: '100%', fontWeight: 800, backgroundColor: '#0284c7', borderColor: '#0284c7' }}
-              >
-                🩺 Open Consultation
-              </Button>
-            </div>
-          )}
-        </div>
-
-        <div className="opdx-stat-card amber">
-          <div className="opdx-stat-title">Waiting</div>
-          <div className="opdx-stat-number">{currentQueue?.stats?.waiting ?? 0}</div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>In queue line</div>
-        </div>
-
-        <div className="opdx-stat-card green">
-          <div className="opdx-stat-title">Completed</div>
-          <div className="opdx-stat-number">{currentQueue?.stats?.completed ?? 0}</div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Consultations done</div>
-        </div>
-
-        <div className="opdx-stat-card red">
-          <div className="opdx-stat-title">Missed / No-Show</div>
-          <div className="opdx-stat-number">{currentQueue?.stats?.missed ?? 0}</div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Skipped tokens</div>
-        </div>
-      </div>
-
-      {/* 4-Section Live Queue Dashboard for Doctor */}
-      <Card
-        title="Live Patient Queue"
-        actions={
-          <div className="row-gap">
-            <Button size="sm" variant="ghost" onClick={() => setShowQueueBoard(!showQueueBoard)}>
-              {showQueueBoard ? 'Hide Queue ▲' : 'Show Queue ▼'}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={loadData}>
-              Refresh
-            </Button>
-          </div>
-        }
-      >
-        {showQueueBoard && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '14px', alignItems: 'start' }}>
-
-            {/* 1. ❄️ FROZEN / TRAVEL BUFFER QUEUE */}
-            <div style={{ background: '#f0fdfa', borderRadius: '10px', border: '1.5px solid #99f6e4', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ccfbf1', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#0f766e' }}>❄️ Traveling Patients (Distant)</span>
-                <span style={{ background: '#ccfbf1', color: '#0f766e', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
-                  {currentQueue?.frozen?.length ?? 0}
-                </span>
-              </div>
-              {(!currentQueue?.frozen || currentQueue.frozen.length === 0) ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: '#0d9488', fontSize: '12px' }}>
-                  No traveling patients waiting.
-                </div>
-              ) : (
-                currentQueue.frozen.map((t) => (
-                  <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #99f6e4', padding: '8px', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#0f766e' }}>{formatTokenLabel(t)}</strong>
-                      <span style={{ fontSize: '10px', color: '#0f766e', background: '#ccfbf1', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
-                        ❄️ Frozen Buffer
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
-                      {t.name || 'Patient'} {t.age ? `(${t.gender || 'M'}, ${t.age}y)` : ''}
-                    </div>
-                    <div style={{ color: '#0d9488', fontSize: '11px', marginTop: '2px', fontWeight: 500 }}>
-                      📍 {t.distanceKm != null ? `${t.distanceKm} km` : '18.5 km'} &bull; {t.travelMinutes != null ? `${t.travelMinutes}m ETA` : '45m buffer'}
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      <Button size="sm" variant="secondary" onClick={() => handleUnfreeze(t.id)} style={{ fontSize: '11px', backgroundColor: '#e0f2fe', color: '#0369a1', flex: '1 1 auto', padding: '4px 8px' }}>
-                        Unfreeze
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
-                        Call Patient
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
+      {/* SMART MEDICINE VARIANT SELECTOR MODAL (Image 3) */}
+      {activeDrugModal && (
+        <Modal title={activeDrugModal.generic} onClose={() => setActiveDrugModal(null)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontSize: '12.5px', color: '#166534', fontWeight: 600 }}>
+              {activeDrugModal.category}
             </div>
 
-            {/* 2. 🟡 RESERVED / BUFFER QUEUE */}
-            <div style={{ background: '#fffbeb', borderRadius: '10px', border: '1.5px solid #fde68a', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fef3c7', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#92400e' }}>🟡 Traveling / Arriving Soon</span>
-                <span style={{ background: '#fef3c7', color: '#92400e', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
-                  {currentQueue?.reserved?.length ?? 0}
-                </span>
-              </div>
-              {(!currentQueue?.reserved || currentQueue.reserved.length === 0) ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: '#b45309', fontSize: '12px' }}>
-                  No patients in travel buffer.
-                </div>
-              ) : (
-                currentQueue.reserved.map((t) => (
-                  <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #fde68a', padding: '8px', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#004D40' }}>{formatTokenLabel(t)}</strong>
-                      <span style={{ fontSize: '10px', color: '#92400e', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
-                        Buffer Active
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{t.name || 'Patient'}</div>
-                    <div style={{ color: '#78350f', fontSize: '11px', marginTop: '2px' }}>
-                      📍 En Route &bull; Priority check-in ready
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* 2. 🔵 ACTIVE FIFO QUEUE */}
-            <div style={{ background: '#eff6ff', borderRadius: '10px', border: '1.5px solid #bfdbfe', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #dbeafe', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#1e40af' }}>🔵 Waiting in Clinic</span>
-                <span style={{ background: '#dbeafe', color: '#1e40af', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
-                  {currentQueue?.tokens?.filter((t) => t.status === 'waiting').length ?? 0}
-                </span>
-              </div>
-              {(!currentQueue?.tokens || currentQueue.tokens.filter((t) => t.status === 'waiting').length === 0) ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: '#2563eb', fontSize: '12px' }}>
-                  No patients waiting.
-                </div>
-              ) : (
-                currentQueue.tokens.filter((t) => t.status === 'waiting').map((t, idx) => {
-                  const pos = t.queuePosition || (idx + 1);
-                  const isPos1 = pos === 1;
-                  return (
-                    <div
-                      key={t.id}
-                      style={{
-                        background: '#ffffff',
-                        borderRadius: '6px',
-                        border: isPos1 ? (t.isVerified ? '2px solid #10b981' : '2px dashed #f59e0b') : '1px solid #dbeafe',
-                        padding: '8px',
-                        fontSize: '12px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{
-                            fontWeight: 800,
-                            fontSize: '11px',
-                            background: isPos1 ? (t.isVerified ? '#d1fae5' : '#fef3c7') : '#f1f5f9',
-                            color: isPos1 ? (t.isVerified ? '#065f46' : '#92400e') : '#475569',
-                            padding: '1px 5px',
-                            borderRadius: '4px',
-                          }}>
-                            Pos #{pos}
-                          </span>
-                          <strong style={{ color: '#004D40' }}>{formatTokenLabel(t)}</strong>
-                        </div>
-                        {t.isVerified ? (
-                          <span style={{ fontSize: '10px', color: '#15803d', background: '#dcfce7', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
-                            Verified ✅
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '10px', color: '#b45309', background: '#fef3c7', padding: '1px 5px', borderRadius: '4px' }}>
-                            Unverified ⏳
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>
-                        {t.name || 'Patient'} {t.age ? `(${t.gender || 'M'}, ${t.age}y)` : ''}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                        <Button size="sm" variant={isPos1 ? 'primary' : 'secondary'} onClick={() => handleCallPatient(t.id)} style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
-                          Call Patient
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleNoShow(t.id)} title="Move to later" style={{ fontSize: '11px', flex: '1 1 auto', padding: '4px 8px' }}>
-                          Not Come Yet
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* 3. 🔴 MISSED QUEUE */}
-            <div style={{ background: '#fef2f2', borderRadius: '10px', border: '1.5px solid #fecaca', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #fee2e2', paddingBottom: '6px' }}>
-                <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#991b1b' }}>🔴 Missed Queue</span>
-                <span style={{ background: '#fee2e2', color: '#991b1b', fontWeight: 800, fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
-                  {currentQueue?.missed?.length ?? 0}
-                </span>
-              </div>
-              {(!currentQueue?.missed || currentQueue.missed.length === 0) ? (
-                <div style={{ padding: '16px', textAlign: 'center', color: '#dc2626', fontSize: '12px' }}>
-                  No missed patients.
-                </div>
-              ) : (
-                currentQueue.missed.map((t) => (
-                  <div key={t.id} style={{ background: '#ffffff', borderRadius: '6px', border: '1px solid #fecaca', padding: '8px', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ color: '#991b1b' }}>{formatTokenLabel(t)}</strong>
-                      <span style={{ fontSize: '10px', color: '#dc2626', background: '#fee2e2', padding: '1px 5px', borderRadius: '4px' }}>
-                        Missed
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{t.name || 'Patient'}</div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                      <Button size="sm" variant="secondary" onClick={() => handleRequeue(t.id)}>
-                        Requeue to Front
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-          </div>
-        )}
-      </Card>
-
-      {/* Clinical Documentation Workspace */}
-      <Card title="Clinical Notes & Prescription">
-        <form onSubmit={handleCompleteAndNext} className="stack-md">
-          <div className="field-row">
-            <Field label="Current Patient" hint="Patient in consultation">
-              <Input
-                type="text"
-                placeholder="Token ID (Auto-populated)"
-                value={activeToken ? `${formatTokenLabel(activeToken)} - ${activeToken.name || 'Patient'}` : ''}
-                readOnly
-              />
-            </Field>
-
-            <Field label="Visit ID (Optional)" hint="Leave blank to create a new visit record">
-              <Input
-                type="number"
-                placeholder="Auto-generate or enter Course ID"
-                value={courseId}
-                onChange={(e) => setCourseId(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <Field label="Main Health Concern / Symptoms *" hint="What the patient came in for">
-            <Input
-              value={chiefComplaint}
-              onChange={(e) => setChiefComplaint(e.target.value)}
-              placeholder="e.g. Fever, cough, headache, or body pain for 2 days"
-              required
-            />
-          </Field>
-
-          <div className="field-row">
-            <Field label="Doctor's Notes & Medical History">
-              <Textarea
-                rows={2}
-                value={clinicalNotes}
-                onChange={(e) => setClinicalNotes(e.target.value)}
-                placeholder="Brief history of present illness..."
-              />
-            </Field>
-
-            <Field label="Physical Checkup Findings">
-              <Textarea
-                rows={2}
-                value={examinationFindings}
-                onChange={(e) => setExaminationFindings(e.target.value)}
-                placeholder="BP 130/85, Pulse 82 bpm, S1S2 heard, clear chest..."
-              />
-            </Field>
-          </div>
-
-          <Field label="Doctor Advice & Treatment Plan">
-            <Input
-              value={plan}
-              onChange={(e) => setPlan(e.target.value)}
-              placeholder="Rest, plenty of water, follow-up in 5 days"
-            />
-          </Field>
-
-          {/* Rx Prescriptions Section */}
-          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Prescriptions (Medicines)</h4>
-                <p className="muted-text" style={{ margin: '2px 0 0', fontSize: '12px' }}>
-                  Standardized formulation, dosage, frequency, and instructions
-                </p>
-              </div>
-              <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionRow}>
-                + Add Medication
-              </Button>
-            </div>
-
-            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '6px' }}>
-              <div style={{ minWidth: '760px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1.2fr 0.8fr 2fr 36px', gap: '8px', padding: '0 4px 6px', fontSize: '11px', fontWeight: 700, color: '#475569', letterSpacing: '0.04em' }}>
-                  <span>MEDICATION & FORMULATION *</span>
-                  <span>DOSAGE</span>
-                  <span>FREQUENCY</span>
-                  <span>DAYS</span>
-                  <span>SPECIAL INSTRUCTIONS</span>
-                  <span></span>
-                </div>
-
-                {prescriptions.map((rx, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2.5fr 1fr 1.2fr 0.8fr 2fr 36px',
-                      gap: '8px',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <DrugInputWithLiveRegistry
-                      value={rx.drugName}
-                      onChange={(val) => updatePrescription(idx, 'drugName', val)}
-                      onSelectSuggestion={(drug) => {
-                        updatePrescription(idx, 'drugName', drug.name);
-                        if (drug.strength) updatePrescription(idx, 'dosage', drug.strength);
-                        if (drug.defaultDosage && !drug.strength) updatePrescription(idx, 'dosage', drug.defaultDosage);
-                        if (drug.defaultFrequency) updatePrescription(idx, 'frequency', drug.defaultFrequency);
-                        if (drug.defaultDurationDays) updatePrescription(idx, 'durationDays', drug.defaultDurationDays);
-                        if (drug.defaultInstructions) updatePrescription(idx, 'instructions', drug.defaultInstructions);
-                      }}
-                    />
-                    <Input
-                      placeholder="Dosage (500mg)"
-                      value={rx.dosage}
-                      onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
-                    />
-                    <Input
-                      placeholder="How often (e.g. Twice daily)"
-                      value={rx.frequency}
-                      onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Days"
-                      value={rx.durationDays}
-                      onChange={(e) => updatePrescription(idx, 'durationDays', Number(e.target.value))}
-                    />
-                    <Input
-                      placeholder="Instructions (After meals)"
-                      value={rx.instructions}
-                      onChange={(e) => updatePrescription(idx, 'instructions', e.target.value)}
-                    />
-                    {prescriptions.length > 1 && (
-                      <Button type="button" size="sm" variant="ghost" onClick={() => removePrescriptionRow(idx)} style={{ padding: '4px' }}>
-                        ✕
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Diagnostic Investigations / Lab Orders Section (Eka Care Live Medical DB) */}
-          <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Diagnostic Investigations & Labs</h4>
-                <p className="muted-text" style={{ margin: '2px 0 0', fontSize: '12px' }}>
-                  Standardized pathology and radiology orders backed by Eka Care Medical Database
-                </p>
-              </div>
-              <div className="row-gap">
-                <Button type="button" size="sm" variant="secondary" onClick={() => addLabOrderRow()}>
-                  + Add Lab Test
-                </Button>
-              </div>
-            </div>
-
-            {/* Quick Add Presets for Indian Rural Healthcare */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-              <span style={{ fontSize: '12px', color: '#64748b', alignSelf: 'center', marginRight: '4px' }}>Quick Add:</span>
-              {[
-                { name: 'Complete Blood Count (CBC)', note: 'Routine fever / infection panel' },
-                { name: 'Fasting Blood Sugar (FBS)', note: '10hr overnight fasting' },
-                { name: 'Lipid Profile', note: 'Dyslipidemia screening' },
-                { name: 'Liver Function Tests (LFT)', note: 'Hepatic workup' },
-                { name: 'Sputum for AFB', note: 'Suspected Tuberculosis (2 samples)' },
-                { name: 'Urine Routine & Microscopic', note: 'UTI screening' },
-              ].map((preset, pIdx) => (
+            {/* Formulation Variant Filter Tabs (Image 3) */}
+            <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid #E2E8F0', paddingBottom: '8px', flexWrap: 'wrap' }}>
+              {['All', 'Tablet', 'Syrup', 'Injection', 'Drop', 'Suppository'].map((tab) => (
                 <button
-                  key={pIdx}
+                  key={tab}
                   type="button"
-                  onClick={() => addLabOrderRow(preset.name, preset.note)}
+                  onClick={() => setVariantTab(tab)}
                   style={{
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    borderRadius: '12px',
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    border: variantTab === tab ? '1.5px solid #25D366' : '1px solid #CBD5E1',
+                    backgroundColor: variantTab === tab ? '#DCFCE7' : '#FFFFFF',
+                    color: variantTab === tab ? '#15803D' : '#475569',
+                    fontSize: '12px',
+                    fontWeight: 700,
                     cursor: 'pointer',
-                    color: '#334155',
-                    fontWeight: 600,
                   }}
                 >
-                  + {preset.name}
+                  {tab}
                 </button>
               ))}
             </div>
 
-            {labOrders.length === 0 ? (
-              <div style={{ padding: '12px', textAlign: 'center', background: '#f8fafc', borderRadius: '6px', color: '#94a3b8', fontSize: '13px' }}>
-                No diagnostic investigations added. Click "+ Add Lab Test" or use a Quick Add preset above.
-              </div>
-            ) : (
-              labOrders.map((lab, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '3fr 3fr auto',
-                    gap: '8px',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                  }}
-                >
-                  <LabInputWithLiveRegistry
-                    value={lab.testName}
-                    onChange={(val) => updateLabOrder(idx, 'testName', val)}
-                    onSelectSuggestion={(sug) => {
-                      updateLabOrder(idx, 'testName', sug.name);
-                      if (sug.instructions && !lab.instructions) {
-                        updateLabOrder(idx, 'instructions', sug.instructions);
-                      }
-                    }}
-                  />
-                  <Input
-                    placeholder="Instructions / Clinical indication (e.g. Fasting sample)"
-                    value={lab.instructions}
-                    onChange={(e) => updateLabOrder(idx, 'instructions', e.target.value)}
-                  />
-                  <Button type="button" size="sm" variant="ghost" onClick={() => removeLabOrderRow(idx)}>
-                    ✕
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Tiered Quota-Locked Referral */}
-          <div
-            style={{
-              marginTop: '16px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '16px',
-              background: enableReferral ? 'var(--secondary-tint)' : 'var(--surface-sunken)',
-            }}
-          >
-            <label className="checkbox-label" style={{ fontWeight: 700, fontSize: '15px' }}>
-              <input
-                type="checkbox"
-                checked={enableReferral}
-                onChange={(e) => setEnableReferral(e.target.checked)}
-              />
-              Refer Patient to Another Hospital (Specialist Transfer)
-            </label>
-
-            {enableReferral && (
-              <div className="stack-sm" style={{ marginTop: '14px' }}>
-                <div className="field-row">
-                  <Field label="Destination Hospital *">
-                    <Select
-                      value={targetHospitalId}
-                      onChange={(e) => setTargetHospitalId(e.target.value)}
-                      required={enableReferral}
-                    >
-                      <option value="">Select target hospital…</option>
-                      {hospitals
-                        .filter((h) => h.id !== profile.hospitalId)
-                        .map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.name} (Urgent Quota: {h.urgentReferralQuota ?? 5}/day)
-                          </option>
-                        ))}
-                    </Select>
-                  </Field>
-
-                  <Field label="Target Department">
-                    <Select value={targetDepartment} onChange={(e) => setTargetDepartment(e.target.value)}>
-                      <option value="Cardiology">Cardiology</option>
-                      <option value="Neurology">Neurology</option>
-                      <option value="Orthopedics">Orthopedics</option>
-                      <option value="Pediatrics">Pediatrics</option>
-                      <option value="General Surgery">General Surgery</option>
-                      <option value="General Medicine">General Medicine</option>
-                    </Select>
-                  </Field>
-
-                  <Field label="Urgency">
-                    <Select value={priorityTier} onChange={(e) => setPriorityTier(e.target.value)}>
-                      <option value="emergency_immediate">🚨 Emergency (Immediate 24h)</option>
-                      <option value="urgent_7d">⚡ Urgent (Strict 7-Day Quota)</option>
-                      <option value="routine_30d">📋 Routine (30 Days)</option>
-                    </Select>
-                  </Field>
-                </div>
-
-                <Field label="Reason for Transfer / Hospital Referral">
-                  <Input
-                    placeholder="e.g. Higher tertiary cardiac monitoring required"
-                    value={referralReason}
-                    onChange={(e) => setReferralReason(e.target.value)}
-                  />
-                </Field>
-              </div>
-            )}
-          </div>
-
-          {/* Atomic Complete & Next Action */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-            <Button
-              type="submit"
-              size="lg"
-              variant="primary"
-              loading={actionBusy}
-              style={{ minWidth: '240px', justifyContent: 'center' }}
-            >
-              ✓ Complete & Next Patient
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      {/* Completion Summary Dialog */}
-      {completedResult && (
-        <Modal
-          open={Boolean(completedResult)}
-          title="Consultation Successfully Finalized"
-          onClose={() => setCompletedResult(null)}
-        >
-          <div className="stack-md">
-            <div style={{ background: '#ecfdf5', padding: '14px', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
-              <div style={{ fontWeight: 700, color: '#047857' }}>
-                🎉 Patient Record Synchronized & WhatsApp Summary Dispatched
-              </div>
-              <div style={{ fontSize: '13px', color: '#065f46', marginTop: '4px' }}>
-                Prescriptions recorded, active queue token marked completed, and post-commit WhatsApp notification sent.
-              </div>
+            {/* Available Variants Table (Image 3) */}
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left', color: '#64748B', fontSize: '11px' }}>
+                    <th style={{ padding: '6px 8px' }}>Formulation</th>
+                    <th style={{ padding: '6px 8px' }}>Strength</th>
+                    <th style={{ padding: '6px 8px' }}>Brand Examples</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeDrugModal.variants
+                    .filter((v) => variantTab === 'All' || v.formulation.toLowerCase().includes(variantTab.toLowerCase()))
+                    .map((v, vIdx) => (
+                      <tr key={vIdx} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <td style={{ padding: '8px', fontWeight: 700, color: '#0F172A' }}>{v.formulation}</td>
+                        <td style={{ padding: '8px' }}>{v.strength}</td>
+                        <td style={{ padding: '8px', color: '#475569' }}>{v.brand}</td>
+                        <td style={{ padding: '8px', textAlign: 'right' }}>
+                          <Button
+                            size="sm"
+                            onClick={() => applyMedicineVariant(v, activeDrugModal)}
+                            style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontSize: '11.5px', padding: '3px 10px', fontWeight: 700 }}
+                          >
+                            Select
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* ABDM Official FHIR R4 Bundle Link */}
-            <div style={{ border: '1px solid #bae6fd', background: '#f0f9ff', borderRadius: '8px', padding: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, fontSize: '13px', color: '#0369a1' }}>
-                  📋 Digital Health Record Saved
-                </span>
-                <span style={{ fontSize: '10px', background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                  Ayushman Health Network
-                </span>
-              </div>
-              <div style={{ fontSize: '12px', color: '#0c4a6e', marginTop: '4px' }}>
-                Consultation summary and prescriptions saved to the patient's Ayushman health record.
-              </div>
-              {completedResult.encounter && (
-                <div style={{ marginTop: '8px' }}>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    type="button"
-                    onClick={() => {
-                      const cId = completedResult.course?.id || completedResult.encounter?.courseId || courseId || 1;
-                      window.open(`/api/abdm/courses/${cId}/encounters/${completedResult.encounter.id}/fhir`, '_blank');
-                    }}
-                  >
-                    📄 View Health Record Data (FHIR)
-                  </Button>
-                </div>
-              )}
+            {/* Dosage Guidelines Callout Box (Image 3) */}
+            <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Info size={16} color="#2563EB" />
+              <span>{activeDrugModal.adultDose}</span>
             </div>
 
-            {completedResult.referral && (
-              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' }}>
-                <div style={{ fontWeight: 700, fontSize: '14px' }}>
-                  🏥 Referral Issued: #{completedResult.referral.id}
-                </div>
-                <div className="muted-text" style={{ fontSize: '13px' }}>
-                  Destination: {completedResult.referral.toHospitalName || 'Apex Hospital'} &bull; Tier: {completedResult.referral.priorityTier}
-                </div>
-                <div style={{ marginTop: '8px' }}>
-                  <img
-                    src={referralApi.qrUrl(completedResult.referral.id)}
-                    alt="Referral QR"
-                    style={{ width: '130px', height: '130px', border: '1px solid #e2e8f0', borderRadius: '6px' }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <Button
-              variant="primary"
-              className="full-width"
-              onClick={() => setCompletedResult(null)}
-            >
-              Continue with Next Patient
-            </Button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+              <Button size="sm" variant="ghost" onClick={() => setActiveDrugModal(null)}>
+                Cancel
+              </Button>
+            </div>
           </div>
         </Modal>
       )}
 
-      {/* Quick Prescription & Consultation Modal for Patient in Chair */}
-      {showPrescriptionModal && (
-        <Modal
-          open={showPrescriptionModal}
-          title={`Prescription & Care Plan: ${activeToken ? (activeToken.name || 'Patient') : 'Patient in Chair'}`}
-          onClose={() => setShowPrescriptionModal(false)}
-        >
-          <div className="stack-md" style={{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
-            <div style={{ background: '#F0FDF4', padding: '12px 14px', borderRadius: '10px', border: '1px solid #BBF7D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <strong style={{ color: '#166534', fontSize: '14px' }}>
-                  Patient: {activeToken?.name || 'Walk-in'} ({activeToken?.gender || 'M'}, {activeToken?.age || '28'}y)
-                </strong>
-                <div style={{ fontSize: '11.5px', color: '#15803D', marginTop: '2px' }}>
-                  Queue Token #{activeToken?.dailyNumber || activeToken?.id || '—'} &bull; Phone: {activeToken?.phone || '+91 9100000099'}
-                </div>
-              </div>
-              <span className="badge badge-green">In Chair</span>
+      {/* SUCCESS CONFIRMATION MODAL */}
+      {showSignedModal && (
+        <Modal title="Prescription Dispatched Successfully" onClose={() => setShowSignedModal(false)}>
+          <div style={{ textAlign: 'center', padding: '16px 10px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+              <CheckCircle2 size={28} />
             </div>
-
-            <form
-              onSubmit={(e) => {
-                setShowPrescriptionModal(false);
-                handleCompleteAndNext(e);
+            <h3 style={{ margin: '0 0 6px', fontSize: '17px', fontWeight: 800, color: '#0F172A' }}>
+              e-Prescription &amp; Record Synchronized
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748B', lineHeight: 1.5 }}>
+              The digital prescription has been logged to the patient's care timeline and sent directly to their WhatsApp.
+            </p>
+            <Button
+              onClick={() => {
+                setShowSignedModal(false);
+                // Reset form
+                setChiefComplaint('');
+                setDiagnosis('');
               }}
-              className="stack-md"
+              style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, padding: '8px 24px' }}
             >
-              <Field label="Main Health Concern / Symptoms *" hint="What the patient came in for">
-                <Input
-                  value={chiefComplaint}
-                  onChange={(e) => setChiefComplaint(e.target.value)}
-                  placeholder="e.g. Mild fever, dry cough, throat irritation for 2 days"
-                  required
-                />
-              </Field>
-
-              <div className="field-row">
-                <Field label="Doctor's Notes">
-                  <Textarea
-                    rows={2}
-                    value={clinicalNotes}
-                    onChange={(e) => setClinicalNotes(e.target.value)}
-                    placeholder="Patient reports symptom onset 48 hours ago..."
-                  />
-                </Field>
-
-                <Field label="Physical Checkup Findings">
-                  <Textarea
-                    rows={2}
-                    value={examinationFindings}
-                    onChange={(e) => setExaminationFindings(e.target.value)}
-                    placeholder="BP 120/80, SpO2 98%, chest clear..."
-                  />
-                </Field>
-              </div>
-
-              {/* Rx Prescriptions Section */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>Prescription (Rx)</h4>
-                  <Button type="button" size="sm" variant="secondary" onClick={addPrescriptionRow}>
-                    + Add Medicine
-                  </Button>
-                </div>
-
-                {prescriptions.map((rx, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
-                      gap: '6px',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <DrugInputWithLiveRegistry
-                      value={rx.drugName}
-                      onChange={(val) => updatePrescription(idx, 'drugName', val)}
-                      onSelectSuggestion={(drug) => {
-                        updatePrescription(idx, 'drugName', drug.name);
-                        if (drug.strength) updatePrescription(idx, 'dosage', drug.strength);
-                      }}
-                    />
-                    <Input
-                      placeholder="Dose (500mg)"
-                      value={rx.dosage}
-                      onChange={(e) => updatePrescription(idx, 'dosage', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Freq (1-0-1)"
-                      value={rx.frequency}
-                      onChange={(e) => updatePrescription(idx, 'frequency', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Days (3)"
-                      type="number"
-                      value={rx.durationDays}
-                      onChange={(e) => updatePrescription(idx, 'durationDays', Number(e.target.value))}
-                    />
-                    <Button type="button" size="sm" variant="ghost" onClick={() => removePrescriptionRow(idx)}>
-                      ✕
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <Field label="Doctor Advice & Instructions">
-                <Input
-                  value={plan}
-                  onChange={(e) => setPlan(e.target.value)}
-                  placeholder="Drink warm water, rest for 2 days, review if fever persists"
-                />
-              </Field>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
-                <Button type="button" variant="ghost" onClick={() => setShowPrescriptionModal(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" loading={actionBusy}>
-                  ✓ Save Prescription & Complete Visit
-                </Button>
-              </div>
-            </form>
+              Ready for Next Patient
+            </Button>
           </div>
         </Modal>
       )}

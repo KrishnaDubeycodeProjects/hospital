@@ -790,7 +790,7 @@ public class QueueManagerService {
             double vacancyMinutes = computeDepartmentVacancyMinutes(resolvedHospitalId, canonicalCategory);
             int activeAhead = countActiveDepartmentPatients(resolvedHospitalId, canonicalCategory);
             // Patient #1 (0 active ahead) is ready immediately, so NEVER freeze!
-            if (activeAhead > 0) {
+            if (activeAhead > 0 || vacancyMinutes > 0) {
                 java.time.LocalDateTime projectedVacancyTime = java.time.LocalDateTime.now().plusSeconds((long) (vacancyMinutes * 60));
                 if (projectedVacancyTime.isBefore(targetArrivalTime)) {
                     isFrozen = true;
@@ -1037,8 +1037,7 @@ public class QueueManagerService {
 
         Integer waitingCount = jdbc.queryForObject(
                 """
-                SELECT COUNT(*)::int FROM tokens
-                WHERE status = 'waiting'
+                SELECT COUNT(*)::int FROM tokens WHERE status = 'waiting'
                   AND hospital_id IS NOT DISTINCT FROM :hospitalId
                   AND category IS NOT DISTINCT FROM :category
                 """, params, Integer.class);
@@ -1135,20 +1134,32 @@ public class QueueManagerService {
     /** Manually releases/unfreezes a frozen token into the main waiting queue. */
     @Transactional(rollbackFor = Exception.class)
     public TokenDto manualUnfreezeToken(int id) {
+        return manualUnfreezeToken(id, null);
+    }
+
+    public TokenDto manualUnfreezeToken(int id, Integer counterId) {
         TokenDto existing = getRaw(id);
         if (existing == null || !"frozen".equals(existing.getStatus())) {
             return null;
         }
         Integer dailyNumber = nextDailyNumber(existing.getHospitalId(), existing.getCategory());
+        Map<String, Object> params = new HashMap<>();
+        params.put("dailyNumber", dailyNumber);
+        params.put("id", id);
+        String counterSql = "";
+        if (counterId != null && counterId > 0) {
+            counterSql = ", counter_id = :counterId";
+            params.put("counterId", counterId);
+        }
         jdbc.update(
                 """
                 UPDATE tokens
-                SET status = 'waiting', daily_number = :dailyNumber, priority_rank = NULL
+                SET status = 'waiting', daily_number = :dailyNumber, priority_rank = NULL""" + counterSql + """
                 WHERE id = :id AND status = 'frozen'
                 """,
-                Map.of("dailyNumber", dailyNumber, "id", id));
+                params);
         renumberQueuePositions(existing.getHospitalId(), existing.getCategory());
-        log.info("🔓 Manually unfreezed Token id {} by admin. Assigned sequential Token #{}", id, dailyNumber);
+        log.info("🔓 Manually unfreezed Token id {}. Assigned sequential Token #{} counter {}", id, dailyNumber, counterId);
         TokenDto updated = getTokenDetails(String.valueOf(id));
         if (updated != null) {
             sendTokenUnfrozenNotification(updated);
@@ -1480,7 +1491,7 @@ public class QueueManagerService {
         }
         List<String> phones = List.of(p, digits, "+91" + digits, "91" + digits);
         return jdbc.query(
-                "SELECT * FROM token_history WHERE phone IN (:phones) ORDER BY completed_at DESC NULLS LAST, id DESC",
+                "SELECT th.*, h.name AS hospital_name FROM token_history th LEFT JOIN hospitals h ON h.id = th.hospital_id WHERE th.phone IN (:phones) ORDER BY th.completed_at DESC NULLS LAST, th.id DESC",
                 Map.of("phones", phones), TOKEN_HISTORY_ROW_MAPPER);
     }
 
@@ -1827,6 +1838,10 @@ public class QueueManagerService {
 
     /** Puts a missed token back into the waiting queue of its own department, at the very front (position #1). */
     public TokenDto requeueMissedToFront(int id) {
+        return requeueMissedToFront(id, null);
+    }
+
+    public TokenDto requeueMissedToFront(int id, Integer counterId) {
         TokenDto missed = getRaw(id);
         if (missed == null) {
             return null;
@@ -1842,15 +1857,24 @@ public class QueueManagerService {
                 scopeParams, Double.class);
         double newRank = Math.min(minRank == null ? 0.0 : minRank, 0.0) - 1;
 
+        Map<String, Object> updateParams = new HashMap<>();
+        updateParams.put("id", id);
+        updateParams.put("rank", newRank);
+        String counterSql = "";
+        if (counterId != null && counterId > 0) {
+            counterSql = ", counter_id = :counterId";
+            updateParams.put("counterId", counterId);
+        }
+
         List<TokenDto> rows = jdbc.query(
                 """
                 UPDATE tokens
                 SET status = 'waiting', priority_rank = :rank,
                     missed_at = NULL, served_at = NULL, completed_at = NULL, rejected_at = NULL,
-                    notified_ready_at = NULL
+                    notified_ready_at = NULL""" + counterSql + """
                 WHERE id = :id AND status = 'missed'
                 RETURNING *
-                """, Map.of("id", id, "rank", newRank), TOKEN_ROW_MAPPER);
+                """, updateParams, TOKEN_ROW_MAPPER);
 
         if (rows.isEmpty()) {
             return null;
@@ -2160,11 +2184,15 @@ public class QueueManagerService {
     }
 
     private String buildWebviewUrl(String relativePath, String phone, Map<String, String> extraParams) {
-        String token = jwtService.generatePatientToken(phone);
-        String base = appProperties.getFrontendUrl() + relativePath;
+        String token = jwtService != null ? jwtService.generatePatientToken(phone) : "";
+        if (token == null) token = "";
+        String frontend = (appProperties != null && appProperties.getFrontendUrl() != null)
+                ? appProperties.getFrontendUrl()
+                : "https://hospital-ten-blond.vercel.app";
+        String base = frontend + relativePath;
         StringBuilder sb = new StringBuilder(base);
         sb.append("?token=").append(java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8));
-        sb.append("&phone=").append(java.net.URLEncoder.encode(phone, java.nio.charset.StandardCharsets.UTF_8));
+        sb.append("&phone=").append(java.net.URLEncoder.encode(phone != null ? phone : "", java.nio.charset.StandardCharsets.UTF_8));
         if (extraParams != null) {
             for (Map.Entry<String, String> entry : extraParams.entrySet()) {
                 if (entry.getValue() != null && !entry.getValue().isBlank()) {

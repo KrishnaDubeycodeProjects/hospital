@@ -74,15 +74,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
+    private static final java.util.Set<String> TRUSTED_LOCAL_PROXIES = java.util.Set.of("127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "localhost");
+
     private String clientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            String candidate = xForwardedFor.split(",")[0].trim();
-            if (candidate.matches("^[0-9a-fA-F.:]+$")) {
-                return candidate;
+        String remoteAddr = request.getRemoteAddr();
+        // Only trust X-Forwarded-For if request comes directly from a local reverse proxy or private subnet
+        if (remoteAddr != null && (TRUSTED_LOCAL_PROXIES.contains(remoteAddr)
+                || remoteAddr.startsWith("10.")
+                || remoteAddr.startsWith("192.168.")
+                || remoteAddr.matches("^172\\.(1[6-9]|2[0-9]|3[0-1])\\..*"))) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+                String candidate = xForwardedFor.split(",")[0].trim();
+                if (candidate.matches("^[0-9a-fA-F.:]+$")) {
+                    return candidate;
+                }
             }
         }
-        return request.getRemoteAddr();
+        return remoteAddr != null ? remoteAddr : "unknown";
     }
 
     private void writeTooManyRequests(HttpServletResponse response) throws IOException {

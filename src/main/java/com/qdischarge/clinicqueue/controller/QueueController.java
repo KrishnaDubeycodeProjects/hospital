@@ -253,9 +253,10 @@ public class QueueController {
 
     /** Manually releases/unfreezes a frozen token into the main waiting queue. */
     @PostMapping("/unfreeze/{id}")
-    public ResponseEntity<Map<String, Object>> unfreezeToken(@PathVariable int id) {
+    public ResponseEntity<Map<String, Object>> unfreezeToken(@PathVariable int id,
+                                                             @RequestParam(required = false) Integer counterId) {
         try {
-            TokenDto token = queueManagerService.manualUnfreezeToken(id);
+            TokenDto token = queueManagerService.manualUnfreezeToken(id, counterId);
             if (token == null) {
                 return ResponseEntity.status(404).body(msg("Token not found or not in frozen state."));
             }
@@ -281,8 +282,9 @@ public class QueueController {
     }
 
     @PostMapping("/missed/{id}/requeue")
-    public ResponseEntity<Map<String, Object>> requeueMissed(@PathVariable int id) {
-        TokenDto token = queueManagerService.requeueMissedToFront(id);
+    public ResponseEntity<Map<String, Object>> requeueMissed(@PathVariable int id,
+                                                             @RequestParam(required = false) Integer counterId) {
+        TokenDto token = queueManagerService.requeueMissedToFront(id, counterId);
         if (token == null) {
             return ResponseEntity.status(404).body(msg("Token not found in the missed queue."));
         }

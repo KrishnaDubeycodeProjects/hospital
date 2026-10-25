@@ -224,7 +224,7 @@ public class EkaCareAbdmService {
      * Verifies the OTP sent during KYC/Login initialization and returns citizen details.
      */
     public AbdmResult verifyLoginOtp(String txnId, String otp) {
-        if (!isConfigured() || (txnId != null && txnId.startsWith("mock-"))) {
+        if (!isConfigured() || (appProperties.isAbdmMockMode() && txnId != null && txnId.startsWith("mock-"))) {
             log.info("ℹ️ Verifying mock ABDM OTP for txnId: {}", txnId);
             Map<String, Object> mockData = new LinkedHashMap<>();
             mockData.put("verified", true);
@@ -246,20 +246,20 @@ public class EkaCareAbdmService {
         }
         if (!rawRes.success() || rawRes.data() == null) {
             String err = rawRes.error() != null ? rawRes.error() : "";
-            // Handle known NHA/Eka sandbox issues gracefully (expired txn, address already exists, sandbox quota)
-            if (err.contains("PhrAddress already exists") || err.contains("Transaction has expired")
-                    || err.contains("ABDM-9999") || err.contains("Invalid Transaction Id") || rawRes.status() >= 400) {
-                log.warn("⚠️ ABDM Gateway verification returned ({}: {}). Providing sandbox verified citizen profile to unblock patient.",
+            // Handle known NHA/Eka sandbox issues only when mock mode is explicitly enabled
+            if (appProperties.isAbdmMockMode() && (err.contains("PhrAddress already exists") || err.contains("Transaction has expired")
+                    || err.contains("ABDM-9999") || err.contains("Invalid Transaction Id") || rawRes.status() >= 400)) {
+                log.warn("⚠️ ABDM Gateway verification returned ({}: {}). Providing sandbox verified citizen profile (Mock Mode enabled).",
                         rawRes.status(), err);
                 Map<String, Object> fallbackData = new LinkedHashMap<>();
                 fallbackData.put("verified", true);
-                fallbackData.put("name", "Kavish Ahuja");
-                fallbackData.put("gender", "MALE");
-                fallbackData.put("age", 24);
+                fallbackData.put("name", "Sandbox Test Citizen");
+                fallbackData.put("gender", "OTHER");
+                fallbackData.put("age", 25);
                 fallbackData.put("dob", "2000-01-01");
-                fallbackData.put("abhaNumber", "91-1234-5678-9012");
-                fallbackData.put("abhaAddress", "kavishahuja@abdm");
-                fallbackData.put("mobile", "+919876543210");
+                fallbackData.put("abhaNumber", "91-0000-0000-0000");
+                fallbackData.put("abhaAddress", "sandbox.citizen@abdm");
+                fallbackData.put("mobile", "");
                 return new AbdmResult(true, 200, fallbackData, null);
             }
             return rawRes;

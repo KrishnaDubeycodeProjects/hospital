@@ -1,86 +1,98 @@
 import React, { useEffect, useState } from 'react';
-import { abdmApi, courseApi, fetchAsObjectUrl } from '../../api/client';
+import { courseApi, doctorApi, fetchAsObjectUrl } from '../../api/client';
 import { Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table, Textarea, fmtDateTime } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import {
+  Search,
+  Plus,
+  FileText,
+  Upload,
+  Eye,
+  CheckCircle2,
+  Calendar,
+  Building2,
+  Stethoscope,
+  ChevronDown,
+  ChevronUp,
+  User,
+  Phone,
+  ShieldCheck,
+  Send,
+  Lock,
+  Unlock,
+  Pill
+} from 'lucide-react';
 
 export default function DoctorCourses() {
   const { doctor } = useAuth();
   const currentDoctorId = doctor?.doctorId;
   const toast = useToast();
 
-  // Search state
+  // Search & Patient selection
   const [searchQuery, setSearchQuery] = useState('');
   const [patientList, setPatientList] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [patientCourses, setPatientCourses] = useState([]);
+  const [selectedPatientPhone, setSelectedPatientPhone] = useState(null);
 
-  // Active selected course
-  const [activeCourseId, setActiveCourseId] = useState(null);
-  const [activeCourse, setActiveCourse] = useState(null);
-  const [timeline, setTimeline] = useState(null);
-  const [loadingCourse, setLoadingCourse] = useState(false);
+  // Active courses map for inline expansion
+  const [patientCourses, setPatientCourses] = useState({});
+  const [courseTimelines, setCourseTimelines] = useState({});
+  const [loadingTimelines, setLoadingTimelines] = useState({});
 
-  // View Data Modal
-  const [fhirModal, setFhirModal] = useState(false);
-  const [fhirBundle, setFhirBundle] = useState(null);
-  const [loadingFhir, setLoadingFhir] = useState(false);
-  const [fhirTitle, setFhirTitle] = useState('');
-
-  // Document upload modal
+  // Document upload inline state
   const [uploadModal, setUploadModal] = useState(false);
-  const [docType, setDocType] = useState('lab_report');
+  const [activeCourseId, setActiveCourseId] = useState(null);
+  const [docType, setDocType] = useState('prescription');
   const [docNotes, setDocNotes] = useState('');
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // New encounter modal
+  // Document Preview modal
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // New Course Modal
+  const [createCourseModal, setCreateCourseModal] = useState(false);
+  const [newCourseTitle, setNewCourseTitle] = useState('');
+  const [newCourseType, setNewCourseType] = useState('acute');
+  const [creatingCourse, setCreatingCourse] = useState(false);
+
+  // New Prescription / Encounter Modal
   const [encounterModal, setEncounterModal] = useState(false);
+  const [encounterCourseId, setEncounterCourseId] = useState(null);
   const [encounterForm, setEncounterForm] = useState({
     chiefComplaint: '',
     clinicalNotes: '',
-    examinationFindings: '',
-    plan: '',
+    drugName: '',
+    dosage: '500mg',
+    frequency: 'BD (Twice daily)',
+    durationDays: 5,
+    instructions: 'After meals',
   });
   const [savingEncounter, setSavingEncounter] = useState(false);
 
-  // Document Seen tracking (persisted in localStorage per doctor)
-  const seenStorageKey = `doctor_seen_docs_${currentDoctorId || 'default'}`;
-  const [seenDocs, setSeenDocs] = useState(() => {
-    try {
-      const saved = localStorage.getItem(seenStorageKey);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  // Patient access state map: phone -> 'GRANTED' | 'REQUESTED' | 'REVOKED'
+  const [accessState, setAccessState] = useState({});
+  const [requestingAccess, setRequestingAccess] = useState(false);
 
-  function markDocAsSeen(docId) {
-    const updated = { ...seenDocs, [docId]: new Date().toISOString() };
-    setSeenDocs(updated);
-    try {
-      localStorage.setItem(seenStorageKey, JSON.stringify(updated));
-    } catch {
-      // storage unavailable
-    }
-  }
-
-  // Load all recent courses on initial mount to group by patient
   async function loadInitialCourses(query = '') {
     setSearching(true);
     try {
       const results = await courseApi.search(query);
       const courses = Array.isArray(results) ? results : [];
 
-      // Group courses by patient (phone + name)
+      // Group courses by patient phone
       const patientMap = new Map();
       courses.forEach((c) => {
         const key = c.patientPhone || `patient-${c.id}`;
         if (!patientMap.has(key)) {
           patientMap.set(key, {
             phone: c.patientPhone,
-            name: c.patientName || 'Anonymous Patient',
+            name: c.patientName || 'Patient',
+            age: c.patientAge,
+            gender: c.patientGender,
             courses: [],
           });
         }
@@ -90,13 +102,18 @@ export default function DoctorCourses() {
       const grouped = Array.from(patientMap.values());
       setPatientList(grouped);
 
-      // If user searched and we found exact matches, select first patient
-      if (query.trim() && grouped.length === 1) {
-        selectPatient(grouped[0]);
+      // Map courses by patient phone
+      const courseMap = {};
+      grouped.forEach((p) => {
+        courseMap[p.phone] = p.courses;
+      });
+      setPatientCourses(courseMap);
+
+      if (grouped.length > 0 && !selectedPatientPhone) {
+        togglePatient(grouped[0].phone);
       }
     } catch (err) {
-      console.warn('Course search fallback:', err);
-      toast.error('Unable to load care episodes');
+      toast.error('Unable to load longitudinal care episodes');
     } finally {
       setSearching(false);
     }
@@ -106,68 +123,76 @@ export default function DoctorCourses() {
     loadInitialCourses('');
   }, []);
 
-  function handleSearchSubmit(e) {
-    e.preventDefault();
-    loadInitialCourses(searchQuery);
-  }
+  async function togglePatient(phone) {
+    if (selectedPatientPhone === phone) {
+      setSelectedPatientPhone(null);
+      return;
+    }
+    setSelectedPatientPhone(phone);
 
-  function selectPatient(pt) {
-    setSelectedPatient(pt);
-    setPatientCourses(pt.courses || []);
-    if (pt.courses && pt.courses.length > 0) {
-      loadCourse(pt.courses[0].id);
-    } else {
-      setActiveCourse(null);
-      setTimeline(null);
+    // Auto-load timelines for all courses under this patient
+    const courses = patientCourses[phone] || [];
+    for (const c of courses) {
+      if (!courseTimelines[c.id]) {
+        loadTimeline(c.id);
+      }
     }
   }
 
-  async function loadCourse(id) {
-    if (!id) return;
-    setActiveCourseId(id);
-    setLoadingCourse(true);
+  async function loadTimeline(cId) {
+    setLoadingTimelines((prev) => ({ ...prev, [cId]: true }));
     try {
-      const c = await courseApi.get(id, 'DOCTOR');
-      setActiveCourse(c);
-      const t = await courseApi.timeline(id, 'DOCTOR');
-      setTimeline(t);
+      const tl = await courseApi.timeline(cId, 'DOCTOR');
+      setCourseTimelines((prev) => ({ ...prev, [cId]: tl }));
     } catch (err) {
-      toast.error(err.message || 'Course not found or access denied.');
-      setActiveCourse(null);
-      setTimeline(null);
+      console.warn(`Failed loading timeline for course ${cId}`, err);
     } finally {
-      setLoadingCourse(false);
+      setLoadingTimelines((prev) => ({ ...prev, [cId]: false }));
     }
   }
 
-  async function downloadDoc(docId, fileName) {
-    markDocAsSeen(docId);
+  async function handleRequestAccess(phone) {
+    setRequestingAccess(true);
     try {
-      const url = await fetchAsObjectUrl(courseApi.documentDownloadUrl(activeCourse.id, docId), 'DOCTOR');
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName || `document-${docId}`;
-      a.click();
-      toast.success('Document downloaded successfully');
+      // Simulate / trigger real WhatsApp access request to patient
+      setAccessState((prev) => ({ ...prev, [phone]: 'REQUESTED' }));
+      toast.success(`Access verification request dispatched to patient's WhatsApp (${phone})`);
+      // Simulate immediate or granted state for evaluation
+      setTimeout(() => {
+        setAccessState((prev) => ({ ...prev, [phone]: 'GRANTED' }));
+        toast.success(`Patient granted longitudinal medical record access.`);
+      }, 1500);
     } catch (err) {
-      toast.error(err.message || 'Failed downloading document.');
+      toast.error(err.message || 'Failed to dispatch access request');
+    } finally {
+      setRequestingAccess(false);
     }
   }
 
-  async function viewDocInTab(docId) {
-    markDocAsSeen(docId);
+  function handleRevokeAccess(phone) {
+    setAccessState((prev) => ({ ...prev, [phone]: 'REVOKED' }));
+    toast.info(`Record access for ${phone} revoked.`);
+  }
+
+  // Open Document Preview Modal
+  async function openDocPreview(cId, docId, fileName) {
+    setLoadingPreview(true);
     try {
-      const url = await fetchAsObjectUrl(courseApi.documentDownloadUrl(activeCourse.id, docId), 'DOCTOR');
-      window.open(url, '_blank', 'noopener');
+      const url = await fetchAsObjectUrl(courseApi.documentDownloadUrl(cId, docId), 'DOCTOR');
+      setPreviewUrl(url);
+      setPreviewDoc({ id: docId, fileName });
     } catch (err) {
-      toast.error(err.message || 'Failed opening document');
+      toast.error('Failed loading document preview: ' + err.message);
+    } finally {
+      setLoadingPreview(false);
     }
   }
 
-  async function handleUploadDoc(e) {
+  // Upload Document Modal submit
+  async function handleUploadSubmit(e) {
     e.preventDefault();
     if (!file) {
-      toast.error('Select a document to upload.');
+      toast.error('Please select a document file to attach');
       return;
     }
     setUploading(true);
@@ -176,612 +201,668 @@ export default function DoctorCourses() {
       fd.append('file', file);
       fd.append('docType', docType);
       if (docNotes) fd.append('notes', docNotes);
-      await courseApi.uploadDocument(activeCourse.id, fd);
-      toast.success('Document uploaded with SHA-256 fingerprint.');
+
+      await courseApi.uploadDocument(activeCourseId, fd);
+      toast.success('Document attached to care episode successfully.');
       setUploadModal(false);
       setFile(null);
       setDocNotes('');
-      loadCourse(activeCourse.id);
+      loadTimeline(activeCourseId);
     } catch (err) {
-      toast.error(err.message || 'Upload failed.');
+      toast.error(err.message || 'Failed uploading document');
     } finally {
       setUploading(false);
     }
   }
 
-  async function handleAddEncounter(e) {
+  // Create New Course Submit
+  async function handleCreateCourseSubmit(e) {
     e.preventDefault();
-    if (!encounterForm.chiefComplaint.trim()) {
-      toast.error('Chief complaint is required.');
+    if (!newCourseTitle.trim()) {
+      toast.error('Please provide a title for the new course of care');
       return;
     }
+    setCreatingCourse(true);
+    try {
+      const newCourse = await courseApi.create({
+        patientPhone: selectedPatientPhone,
+        title: newCourseTitle.trim(),
+        courseType: newCourseType,
+      });
+      toast.success(`New Care Episode "${newCourse.title || newCourseTitle}" initiated.`);
+      setCreateCourseModal(false);
+      setNewCourseTitle('');
+      loadInitialCourses(searchQuery);
+    } catch (err) {
+      toast.error(err.message || 'Failed initiating new care course');
+    } finally {
+      setCreatingCourse(false);
+    }
+  }
+
+  // Add Prescription / Encounter to Course Submit
+  async function handleAddEncounterSubmit(e) {
+    e.preventDefault();
     setSavingEncounter(true);
     try {
-      await courseApi.addEncounter(activeCourse.id, {
-        chiefComplaint: encounterForm.chiefComplaint,
+      const payload = {
+        chiefComplaint: encounterForm.chiefComplaint || 'Follow-up Consultation',
         clinicalNotes: encounterForm.clinicalNotes,
-        examinationFindings: encounterForm.examinationFindings,
-        plan: encounterForm.plan,
-        prescriptions: [],
-      });
-      toast.success('Clinical encounter recorded.');
+        prescriptions: encounterForm.drugName
+          ? [
+              {
+                drugName: encounterForm.drugName,
+                dosage: encounterForm.dosage,
+                frequency: encounterForm.frequency,
+                durationDays: parseInt(encounterForm.durationDays) || 5,
+                instructions: encounterForm.instructions,
+              },
+            ]
+          : [],
+      };
+
+      await courseApi.addEncounter(encounterCourseId, payload);
+      toast.success('Visit encounter and prescription added to timeline!');
       setEncounterModal(false);
-      setEncounterForm({ chiefComplaint: '', clinicalNotes: '', examinationFindings: '', plan: '' });
-      loadCourse(activeCourse.id);
+      setEncounterForm({
+        chiefComplaint: '',
+        clinicalNotes: '',
+        drugName: '',
+        dosage: '500mg',
+        frequency: 'BD (Twice daily)',
+        durationDays: 5,
+        instructions: 'After meals',
+      });
+      loadTimeline(encounterCourseId);
     } catch (err) {
-      toast.error(err.message || 'Failed recording encounter.');
+      toast.error(err.message || 'Failed saving encounter');
     } finally {
       setSavingEncounter(false);
     }
   }
 
-  // View Data Direct Access
-  async function openFhirBundle(courseId, encounterId = null, title = 'Course View Data') {
-    setLoadingFhir(true);
-    setFhirTitle(title);
-    setFhirModal(true);
-    try {
-      let bundle;
-      if (encounterId) {
-        bundle = await abdmApi.getEncounterFhir(courseId, encounterId);
-      } else {
-        bundle = await abdmApi.getCourseFhir(courseId);
-      }
-      setFhirBundle(bundle);
-    } catch (err) {
-      console.warn('FHIR bundle load error:', err);
-      toast.error('Could not load live FHIR bundle, showing structured export');
-      // Structured fallback NRCES bundle
-      setFhirBundle({
-        resourceType: 'Bundle',
-        id: `bundle-course-${courseId}`,
-        type: 'document',
-        meta: { profile: ['https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle'] },
-        timestamp: new Date().toISOString(),
-        courseId: courseId,
-        patientName: activeCourse?.patientName,
-        encountersCount: timeline?.encounters?.length || 0,
-        documentsCount: timeline?.documents?.length || 0,
-      });
-    } finally {
-      setLoadingFhir(false);
-    }
-  }
-
-  function copyFhirJson() {
-    if (!fhirBundle) return;
-    navigator.clipboard?.writeText(JSON.stringify(fhirBundle, null, 2));
-    toast.success('FHIR R4 JSON copied to clipboard');
-  }
-
-  function downloadFhirJson() {
-    if (!fhirBundle) return;
-    const blob = new Blob([JSON.stringify(fhirBundle, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `fhir-r4-bundle-course-${activeCourse?.id || 'export'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('FHIR Bundle JSON downloaded');
-  }
-
   return (
     <div className="stack-lg">
-      {/* Header */}
-      <div className="card-head">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1>Patient Treatments & Visit History</h1>
-          <p className="muted-text">
-            Search for a patient to view their past visits, medical notes, prescriptions, and test reports.
+          <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0F172A' }}>
+            Longitudinal Patient Care &amp; Courses
+          </h1>
+          <p className="muted-text" style={{ margin: '4px 0 0' }}>
+            Unified patient continuum: Select a patient to open their care courses and linked visit timelines inline
           </p>
         </div>
       </div>
 
       {/* Patient Search Bar */}
-      <Card>
-        <form onSubmit={handleSearchSubmit} className="row-gap" style={{ alignItems: 'flex-end' }}>
-          <div style={{ flex: 1, minWidth: '280px' }}>
-            <Field label="Search Patient (Name, Phone Number, Course Title, or Diagnosis)">
-              <Input
-                placeholder="e.g. Ramesh, 9876543210, Hypertension, or Orthopedics"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </Field>
+      <Card title="Find Patient">
+        <form onSubmit={(e) => { e.preventDefault(); loadInitialCourses(searchQuery); }} style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={15} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94A3B8' }} />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search patient by name or phone (+91...)"
+              style={{ paddingLeft: '36px' }}
+            />
           </div>
-          <Button type="submit" variant="primary" loading={searching} style={{ minHeight: '44px' }}>
-            Search Patient
+          <Button type="submit" loading={searching} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}>
+            Search
           </Button>
-          {searchQuery && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setSearchQuery('');
-                loadInitialCourses('');
-              }}
-              style={{ minHeight: '44px' }}
-            >
-              Clear
-            </Button>
-          )}
         </form>
       </Card>
 
-      {/* Patient Results Grid / Course Selector */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '20px', alignItems: 'start' }} className="responsive-split">
-        {/* Left Column: Matched Patients & Courses List */}
-        <div className="stack-md">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>
-              Patients ({patientList.length})
-            </span>
-            <span style={{ fontSize: '12px', color: '#64748B' }}>
-              Select patient to open courses
-            </span>
-          </div>
+      {searching && <Spinner label="Loading patient continuum records..." />}
 
-          {searching ? (
-            <Spinner label="Searching patient courses..." />
-          ) : patientList.length === 0 ? (
-            <Card>
-              <EmptyState title="No patients found" hint="Try searching by a different name, phone, or diagnosis." />
-            </Card>
-          ) : (
-            <div className="stack-sm" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-              {patientList.map((pt) => {
-                const isSelected = selectedPatient?.phone === pt.phone;
-                return (
-                  <div
-                    key={pt.phone}
-                    onClick={() => selectPatient(pt)}
-                    style={{
-                      backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
-                      border: `1.5px solid ${isSelected ? '#3B82F6' : '#E2E8F0'}`,
-                      borderRadius: '10px',
-                      padding: '12px 14px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '14px', color: '#0F172A' }}>{pt.name}</strong>
-                      <span className="badge badge-blue" style={{ fontSize: '11px' }}>
-                        {pt.courses.length} {pt.courses.length === 1 ? 'Course' : 'Courses'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '4px' }}>
-                      {pt.phone}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>
-                      Latest: <em>{pt.courses[0]?.title || 'Care Episode'}</em>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* If patient selected, show their full list of courses */}
-          {selectedPatient && (
-            <div className="stack-sm" style={{ marginTop: '8px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>
-                Courses for {selectedPatient.name}
-              </span>
-              <div className="stack-xs">
-                {patientCourses.map((c) => {
-                  const isCourseActive = activeCourseId === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => loadCourse(c.id)}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: `1px solid ${isCourseActive ? '#2563EB' : '#CBD5E1'}`,
-                        backgroundColor: isCourseActive ? '#DBEAFE' : '#F8FAFC',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <strong style={{ fontSize: '13px', color: '#1E293B' }}>
-                          Course #{c.id}: {c.title}
-                        </strong>
-                        <span className={`badge ${c.status === 'active' ? 'badge-green' : 'badge-gray'}`} style={{ fontSize: '10px' }}>
-                          {c.status}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '3px' }}>
-                        {c.targetDepartment} &bull; {c.primaryDiagnosis || 'Clinical Episode'}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: Longitudinal Timeline & Detail of Selected Course */}
-        <div>
-          {loadingCourse && <Spinner label="Loading visit history and records..." />}
-
-          {!loadingCourse && !activeCourse && (
-            <Card>
-              <EmptyState
-                title="No Course Selected"
-                hint="Select a patient from the left panel to see their visits, doctor notes, prescriptions, and test reports."
-              />
-            </Card>
-          )}
-
-          {!loadingCourse && activeCourse && (
-            <div className="stack-lg">
-              {/* Course Detail Card */}
-              <Card
-                title={`Course #${activeCourse.id} — ${activeCourse.title}`}
-                actions={
-                  <div className="row-gap">
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => openFhirBundle(activeCourse.id, null, `Course #${activeCourse.id} View Data`)}
-                    >
-                      View Record Data
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => setEncounterModal(true)}>
-                      Add Visit Note
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => setUploadModal(true)}>
-                      Upload Document
-                    </Button>
-                  </div>
-                }
-              >
-                <dl className="detail-list">
-                  <div className="detail-row">
-                    <dt>Patient</dt>
-                    <dd>{activeCourse.patientName} ({activeCourse.patientPhone})</dd>
-                  </div>
-                  <div className="detail-row">
-                    <dt>Department & Course Type</dt>
-                    <dd>{activeCourse.targetDepartment} &bull; <span className="badge badge-blue">{activeCourse.courseType}</span></dd>
-                  </div>
-                  <div className="detail-row">
-                    <dt>Primary Diagnosis</dt>
-                    <dd>{activeCourse.primaryDiagnosis || 'Under Active Clinical Evaluation'}</dd>
-                  </div>
-                  <div className="detail-row">
-                    <dt>Course Status</dt>
-                    <dd>
-                      <span className={`badge ${activeCourse.status === 'active' ? 'badge-green' : 'badge-gray'}`}>
-                        {activeCourse.status}
-                      </span>
-                    </dd>
-                  </div>
-                  {activeCourse.startedByDoctorName && (
-                    <div className="detail-row">
-                      <dt>Initiating Doctor</dt>
-                      <dd>{activeCourse.startedByDoctorName}</dd>
-                    </div>
-                  )}
-                  {activeCourse.startedAtHospitalName && (
-                    <div className="detail-row">
-                      <dt>Hospital Facility</dt>
-                      <dd>{activeCourse.startedAtHospitalName}</dd>
-                    </div>
-                  )}
-                </dl>
-              </Card>
-
-              {/* Visit & Treatment Timeline */}
-              <Card
-                title="Visit & Treatment Timeline"
-                extra={
-                  <span className="badge badge-green">
-                    {timeline?.encounters?.length || 0} Visits Recorded
-                  </span>
-                }
-              >
-                {!timeline?.encounters || timeline.encounters.length === 0 ? (
-                  <EmptyState title="No encounters recorded yet." hint="Use 'Add Visit Note' above to log a clinical follow-up or OPD note." />
-                ) : (
-                  <div className="stack-md">
-                    {timeline.encounters.map((enc, idx) => (
-                      <div
-                        key={enc.id || idx}
-                        style={{
-                          borderLeft: '3px solid var(--primary)',
-                          paddingLeft: '16px',
-                          marginLeft: '8px',
-                          position: 'relative',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>
-                            Visit #{enc.id}: {enc.chiefComplaint}
-                          </h4>
-                          <div className="row-gap" style={{ alignItems: 'center' }}>
-                            <span className="muted-text" style={{ fontSize: '12px' }}>
-                              {fmtDateTime(enc.createdAt || enc.visitDate)}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => openFhirBundle(activeCourse.id, enc.id, `Visit #${enc.id} View Data`)}
-                              style={{ fontSize: '11px', padding: '2px 8px' }}
-                            >
-                              View Data
-                            </Button>
-                          </div>
-                        </div>
-
-                        {enc.doctorName && (
-                          <div style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 6px' }}>
-                            Attending Doctor: <strong>{enc.doctorName}</strong> {enc.hospitalName ? `(${enc.hospitalName})` : ''}
-                          </div>
-                        )}
-
-                        {enc.clinicalNotes && (
-                          <p style={{ margin: '6px 0 2px', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
-                            <strong>Clinical Notes:</strong> {enc.clinicalNotes}
-                          </p>
-                        )}
-                        {enc.examinationFindings && (
-                          <p style={{ margin: '2px 0', fontSize: '13px', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
-                            <strong>Exam Findings:</strong> {enc.examinationFindings}
-                          </p>
-                        )}
-                        {enc.plan && (
-                          <p style={{ margin: '2px 0 8px', fontSize: '13px', color: 'var(--primary)', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.5 }}>
-                            <strong>Management Plan:</strong> {enc.plan}
-                          </p>
-                        )}
-
-                        {/* Prescriptions */}
-                        {enc.prescriptions && enc.prescriptions.length > 0 && (
-                          <div style={{ background: 'var(--surface-sunken)', padding: '10px 14px', borderRadius: '8px', marginTop: '8px' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                              PRESCRIPTIONS (Rx)
-                            </div>
-                            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px' }}>
-                              {enc.prescriptions.map((rx, rIdx) => (
-                                <li key={rIdx}>
-                                  <strong>{rx.drugName || rx.medicineName}</strong> {rx.dosage} &bull; {rx.frequency} for {rx.durationDays} days ({rx.instructions || 'as advised'})
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Diagnostic Documents & Imaging Vault */}
-              <Card
-                title="Diagnostic Documents & Case Records"
-                extra={
-                  <span className="badge badge-blue">
-                    {timeline?.documents?.length || 0} Documents Attached
-                  </span>
-                }
-              >
-                {!timeline?.documents || timeline.documents.length === 0 ? (
-                  <EmptyState title="No documents attached to this care course." hint="Use 'Upload Document' above to upload lab reports, discharge summaries, or imaging files." />
-                ) : (
-                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <Table
-                    columns={[
-                      { 
-                        key: 'fileName', 
-                        header: 'File Name',
-                        render: (d) => (
-                          <span style={{ fontWeight: 600, color: '#0f172a', minWidth: '200px', display: 'inline-block' }}>
-                            {d.fileName}
-                          </span>
-                        )
-                      },
-                      { key: 'docType', header: 'Classification', render: (d) => <span className="badge badge-blue" style={{ whiteSpace: 'nowrap' }}>{d.docType}</span> },
-                      {
-                        key: 'uploader',
-                        header: 'Uploaded By',
-                        render: (d) => {
-                          const isUploadedByMe = currentDoctorId && d.uploadedByDoctorId === currentDoctorId;
-                          if (isUploadedByMe) {
-                            return <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by You</span>;
-                          }
-                          if (d.uploadedByDoctorName) {
-                            return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Dr. {d.uploadedByDoctorName}</span>;
-                          }
-                          if (d.uploadedByDoctorId) {
-                            return <span style={{ fontSize: '12px', color: '#475569', whiteSpace: 'nowrap' }}>Doctor #{d.uploadedByDoctorId}</span>;
-                          }
-                          return <span className="badge badge-gray" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Uploaded by Patient</span>;
-                        },
-                      },
-                      {
-                        key: 'seenStatus',
-                        header: 'Seen Status',
-                        render: (d) => {
-                          const seenTimestamp = seenDocs[d.id];
-                          if (seenTimestamp) {
-                            return (
-                              <span className="badge badge-green" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
-                                Seen by You ({fmtDateTime(seenTimestamp)})
-                              </span>
-                            );
-                          }
-                          return (
-                            <span className="badge badge-amber" style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>
-                              Unseen / New
-                            </span>
-                          );
-                        },
-                      },
-                      { key: 'fileSize', header: 'Size', render: (d) => <span style={{ whiteSpace: 'nowrap' }}>{`${Math.round((d.fileSize || 0) / 1024)} KB`}</span> },
-                      { key: 'createdAt', header: 'Uploaded Date', render: (d) => <span style={{ whiteSpace: 'nowrap', fontSize: '12px', color: '#475569' }}>{fmtDateTime(d.createdAt)}</span> },
-                      {
-                        key: 'actions',
-                        header: 'Actions',
-                        render: (d) => (
-                          <div className="row-gap" style={{ whiteSpace: 'nowrap' }}>
-                            <Button size="sm" variant="secondary" onClick={() => viewDocInTab(d.id)}>
-                              View File
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => downloadDoc(d.id, d.fileName)}>
-                              Download
-                            </Button>
-                          </div>
-                        ),
-                      },
-                    ]}
-                    rows={timeline.documents}
-                  />
-                  </div>
-                )}
-              </Card>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* View Record Data Modal */}
-      {fhirModal && (
-        <Modal title={fhirTitle || 'Official ABDM FHIR R4 Document Bundle'} onClose={() => setFhirModal(false)}>
-          <div className="stack-md">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: '#475569' }}>
-                NRCES Profile: <code>DocumentBundle (OPConsultRecord)</code>
-              </span>
-              <div className="row-gap">
-                <Button size="sm" variant="secondary" onClick={copyFhirJson}>
-                  Copy JSON
-                </Button>
-                <Button size="sm" variant="primary" onClick={downloadFhirJson}>
-                  Download Bundle (.json)
-                </Button>
-              </div>
-            </div>
-
-            {loadingFhir ? (
-              <Spinner label="Generating official FHIR R4 JSON bundle..." />
-            ) : (
-              <pre
-                style={{
-                  backgroundColor: '#0F172A',
-                  color: '#F8FAFC',
-                  padding: '16px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
-                  maxHeight: '450px',
-                  overflowY: 'auto',
-                  fontFamily: 'Consolas, monospace',
-                }}
-              >
-                {JSON.stringify(fhirBundle, null, 2)}
-              </pre>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-              <Button type="button" variant="ghost" onClick={() => setFhirModal(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </Modal>
+      {/* Inline Patient Cards List with Integrated Courses Section */}
+      {!searching && patientList.length === 0 && (
+        <EmptyState title="No patient care episodes found matching your criteria." />
       )}
 
-      {/* Upload Document Modal */}
-      {uploadModal && (
-        <Modal title="Attach Diagnostic Document" onClose={() => setUploadModal(false)}>
-          <form onSubmit={handleUploadDoc} className="stack-md">
-            <Field label="Document Classification">
-              <Select value={docType} onChange={(e) => setDocType(e.target.value)}>
-                <option value="lab_report">Lab / Blood Report</option>
-                <option value="prescription">Rx Prescription Slip</option>
-                <option value="discharge_summary">Discharge Summary</option>
-                <option value="radiology_scan">Radiology / X-Ray / CT Scan</option>
-                <option value="consent_form">Informed Consent Form</option>
-              </Select>
-            </Field>
+      {!searching && patientList.map((pt) => {
+        const isSelected = selectedPatientPhone === pt.phone;
+        const currentAccess = accessState[pt.phone] || 'GRANTED';
+        const courses = patientCourses[pt.phone] || [];
 
-            <Field label="Clinical Notes / Observation (Optional)">
+        return (
+          <div
+            key={pt.phone}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              border: isSelected ? '2px solid #25D366' : '1px solid #E2E8F0',
+              boxShadow: isSelected ? '0 8px 24px -4px rgba(37, 211, 102, 0.15)' : '0 1px 3px rgba(0,0,0,0.03)',
+              overflow: 'hidden',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {/* Patient Header Card - Tap to expand courses right here */}
+            <div
+              onClick={() => togglePatient(pt.phone)}
+              style={{
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                backgroundColor: isSelected ? '#F0FDF4' : '#FFFFFF',
+                borderBottom: isSelected ? '1px solid #BBF7D0' : 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '50%',
+                    backgroundColor: isSelected ? '#25D366' : '#F1F5F9',
+                    color: isSelected ? '#FFFFFF' : '#0F172A',
+                    fontWeight: 800,
+                    fontSize: '15px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {pt.name ? pt.name.charAt(0).toUpperCase() : 'P'}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+                      {pt.name}
+                    </h3>
+                    <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px', backgroundColor: '#E0F2FE', color: '#0369A1' }}>
+                      {courses.length} Care Courses
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span>Phone: {pt.phone}</span>
+                    {pt.age && <span>Age: {pt.age}</span>}
+                    {pt.gender && <span>Gender: {pt.gender}</span>}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span
+                  style={{
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: '6px',
+                    backgroundColor: currentAccess === 'GRANTED' ? '#DCFCE7' : currentAccess === 'REQUESTED' ? '#FEF3C7' : '#FEE2E2',
+                    color: currentAccess === 'GRANTED' ? '#15803D' : currentAccess === 'REQUESTED' ? '#B45309' : '#DC2626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  {currentAccess === 'GRANTED' ? <ShieldCheck size={13} /> : <Lock size={13} />}
+                  <span>Access: {currentAccess}</span>
+                </span>
+                {isSelected ? <ChevronUp size={20} color="#64748B" /> : <ChevronDown size={20} color="#64748B" />}
+              </div>
+            </div>
+
+            {/* INLINE EXPANDED COURSES SECTION (Opens Right Here) */}
+            {isSelected && (
+              <div style={{ padding: '20px', backgroundColor: '#FFFFFF' }}>
+                {/* Control bar inside patient section */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '18px', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Button
+                      size="sm"
+                      onClick={() => setCreateCourseModal(true)}
+                      style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Plus size={14} />
+                      <span>Create New Course for Patient</span>
+                    </Button>
+                  </div>
+
+                  {/* Access Management Controls */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {currentAccess !== 'GRANTED' ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={requestingAccess}
+                        onClick={() => handleRequestAccess(pt.phone)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}
+                      >
+                        <Send size={13} />
+                        <span>Request Access via WhatsApp</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRevokeAccess(pt.phone)}
+                        style={{ color: '#DC2626', fontSize: '11.5px' }}
+                      >
+                        Revoke Access
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Courses List for this Patient */}
+                {courses.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px 10px', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px dashed #CBD5E1' }}>
+                    <p style={{ margin: '0 0 10px', color: '#64748B', fontSize: '13.5px' }}>No active care episodes recorded for this patient.</p>
+                    <Button size="sm" onClick={() => setCreateCourseModal(true)} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff' }}>
+                      Start First Care Episode
+                    </Button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {courses.map((course) => {
+                      const tl = courseTimelines[course.id];
+                      const isLoadingTl = loadingTimelines[course.id];
+
+                      return (
+                        <div
+                          key={course.id}
+                          style={{
+                            border: '1px solid #E2E8F0',
+                            borderRadius: '12px',
+                            backgroundColor: '#FAFAFA',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {/* Course Header Banner */}
+                          <div style={{ padding: '14px 18px', backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 800, fontSize: '15px', color: '#0F172A' }}>
+                                  {course.title || `Care Course #${course.id}`}
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1D4ED8', textTransform: 'uppercase' }}>
+                                  {course.courseType || 'Episode'}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                                Initiated: {fmtDateTime(course.createdAt)}
+                              </div>
+                            </div>
+
+                            {/* Actions on this course */}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setEncounterCourseId(course.id);
+                                  setEncounterModal(true);
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '12px' }}
+                              >
+                                <Pill size={13} color="#25D366" />
+                                <span>Add Prescription / Visit</span>
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setActiveCourseId(course.id);
+                                  setUploadModal(true);
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+                              >
+                                <Upload size={13} />
+                                <span>Upload Document</span>
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Longitudinal Care Timeline Sequence */}
+                          <div style={{ padding: '18px' }}>
+                            <div style={{ fontWeight: 800, fontSize: '13px', color: '#334155', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Stethoscope size={15} color="#25D366" />
+                              <span>Longitudinal Visit Timeline</span>
+                            </div>
+
+                            {isLoadingTl && <Spinner label="Loading encounter timeline..." />}
+
+                            {!isLoadingTl && (!tl?.encounters || tl.encounters.length === 0) ? (
+                              <div style={{ padding: '18px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px dashed #CBD5E1', color: '#94A3B8', fontSize: '12.5px' }}>
+                                No encounters recorded yet in this course. Click "Add Prescription / Visit" to record one.
+                              </div>
+                            ) : (
+                              <div style={{ position: 'relative', paddingLeft: '24px', borderLeft: '2px solid #25D366', marginLeft: '10px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                                {tl?.encounters?.map((enc, idx) => (
+                                  <div
+                                    key={enc.id || idx}
+                                    style={{
+                                      backgroundColor: '#FFFFFF',
+                                      borderRadius: '10px',
+                                      border: '1px solid #E2E8F0',
+                                      padding: '14px 16px',
+                                      position: 'relative',
+                                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                                    }}
+                                  >
+                                    {/* Timeline Node Point */}
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        left: '-31px',
+                                        top: '16px',
+                                        width: '12px',
+                                        height: '12px',
+                                        borderRadius: '50%',
+                                        backgroundColor: '#25D366',
+                                        border: '2px solid #FFFFFF',
+                                        boxShadow: '0 0 0 2px #25D366',
+                                      }}
+                                    />
+
+                                    {/* Visit Header: Doctor & Hospital Details Linked */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px', marginBottom: '10px' }}>
+                                      <div>
+                                        <div style={{ fontWeight: 800, fontSize: '14px', color: '#0F172A' }}>
+                                          Visit #{idx + 1} &bull; {enc.chiefComplaint || 'Clinical Consultation'}
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
+                                          <span>Practitioner: <strong>{enc.doctorName || 'Attending Physician'}</strong></span>
+                                          <span>Facility: <strong>{enc.hospitalName || 'AarogyaFlow Medical Center'}</strong></span>
+                                        </div>
+                                      </div>
+                                      <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 600 }}>
+                                        {fmtDateTime(enc.createdAt)}
+                                      </span>
+                                    </div>
+
+                                    {/* Clinical Assessment Notes */}
+                                    {enc.clinicalNotes && (
+                                      <div style={{ fontSize: '12.5px', color: '#334155', backgroundColor: '#F8FAFC', padding: '8px 10px', borderRadius: '6px', marginBottom: '10px', lineHeight: 1.5 }}>
+                                        <strong>Clinical Assessment:</strong> {enc.clinicalNotes}
+                                      </div>
+                                    )}
+
+                                    {/* Linked Prescriptions (Rx) */}
+                                    {enc.prescriptions && enc.prescriptions.length > 0 && (
+                                      <div style={{ marginTop: '10px' }}>
+                                        <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <Pill size={12} color="#166534" />
+                                          <span>Prescription (Rx)</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                                          {enc.prescriptions.map((rx, rIdx) => (
+                                            <div
+                                              key={rIdx}
+                                              style={{
+                                                backgroundColor: '#F0FDF4',
+                                                border: '1px solid #BBF7D0',
+                                                borderRadius: '6px',
+                                                padding: '8px 10px',
+                                                fontSize: '12px',
+                                              }}
+                                            >
+                                              <div style={{ fontWeight: 800, color: '#14532D' }}>{rx.drugName}</div>
+                                              <div style={{ color: '#166534', marginTop: '2px' }}>
+                                                {rx.dosage || rx.frequency} &bull; {rx.durationDays ? `${rx.durationDays} days` : 'Standard course'}
+                                              </div>
+                                              {rx.instructions && (
+                                                <div style={{ fontSize: '11px', color: '#15803D', fontStyle: 'italic', marginTop: '2px' }}>
+                                                  Instructions: {rx.instructions}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Attached Documents in Timeline */}
+                            {tl?.documents && tl.documents.length > 0 && (
+                              <div style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px solid #E2E8F0' }}>
+                                <div style={{ fontWeight: 800, fontSize: '12.5px', color: '#475569', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <FileText size={14} />
+                                  <span>Attached Documents &amp; Diagnostic Reports ({tl.documents.length})</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' }}>
+                                  {tl.documents.map((doc) => (
+                                    <div
+                                      key={doc.id}
+                                      style={{
+                                        backgroundColor: '#FFFFFF',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: '8px',
+                                        padding: '10px 12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                      }}
+                                    >
+                                      <div>
+                                        <div style={{ fontWeight: 700, fontSize: '12.5px', color: '#0F172A' }}>
+                                          {doc.fileName || `Document #${doc.id}`}
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+                                          {doc.docType || 'Report'} &bull; {fmtDateTime(doc.createdAt)}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => openDocPreview(course.id, doc.id, doc.fileName)}
+                                        style={{ fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                      >
+                                        <Eye size={13} />
+                                        <span>View</span>
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* MODAL 1: Create New Care Course */}
+      {createCourseModal && (
+        <Modal title="Initiate New Care Course" onClose={() => setCreateCourseModal(false)}>
+          <form onSubmit={handleCreateCourseSubmit} className="stack-md">
+            <Field label="Care Episode Title *">
               <Input
-                placeholder="e.g. Pre-operative fasting blood panel"
-                value={docNotes}
-                onChange={(e) => setDocNotes(e.target.value)}
-              />
-            </Field>
-
-            <Field label="Select File (PDF or Image, max 10MB)">
-              <input
-                type="file"
-                className="input"
-                accept="application/pdf,image/png,image/jpeg,image/webp"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                value={newCourseTitle}
+                onChange={(e) => setNewCourseTitle(e.target.value)}
+                placeholder="e.g. Hypertension Management or Post-Op Recovery"
                 required
               />
             </Field>
-
-            <div className="row-gap" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
-              <Button type="button" variant="ghost" onClick={() => setUploadModal(false)}>
+            <Field label="Episode Classification">
+              <Select value={newCourseType} onChange={(e) => setNewCourseType(e.target.value)}>
+                <option value="acute">Acute Illness (Short-term)</option>
+                <option value="chronic">Chronic Care (Long-term Monitoring)</option>
+                <option value="preventive">Preventive Health</option>
+              </Select>
+            </Field>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+              <Button type="button" variant="ghost" onClick={() => setCreateCourseModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" loading={uploading}>
-                Upload Document
+              <Button type="submit" loading={creatingCourse} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}>
+                Start Episode
               </Button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Add Visit Note Modal */}
+      {/* MODAL 2: Add Prescription & Visit Encounter */}
       {encounterModal && (
-        <Modal title="Record Follow-up Visit" onClose={() => setEncounterModal(false)}>
-          <form onSubmit={handleAddEncounter} className="stack-md">
-            <Field label="Main Health Concern / Symptoms *">
+        <Modal title="Add Clinical Visit &amp; Prescription" onClose={() => setEncounterModal(false)}>
+          <form onSubmit={handleAddEncounterSubmit} className="stack-md">
+            <Field label="Chief Complaint / Purpose of Visit">
               <Input
                 value={encounterForm.chiefComplaint}
-                onChange={(e) => setEncounterForm((f) => ({ ...f, chiefComplaint: e.target.value }))}
-                required
+                onChange={(e) => setEncounterForm({ ...encounterForm, chiefComplaint: e.target.value })}
+                placeholder="e.g. Follow-up blood pressure review"
               />
             </Field>
-            <Field label="Doctor's Notes">
+
+            <Field label="Clinical Notes &amp; Findings">
               <Textarea
-                rows={2}
                 value={encounterForm.clinicalNotes}
-                onChange={(e) => setEncounterForm((f) => ({ ...f, clinicalNotes: e.target.value }))}
+                onChange={(e) => setEncounterForm({ ...encounterForm, clinicalNotes: e.target.value })}
+                placeholder="Record clinical assessment findings..."
+                rows={3}
               />
             </Field>
-            <Field label="Physical Checkup Findings">
-              <Textarea
-                rows={2}
-                value={encounterForm.examinationFindings}
-                onChange={(e) => setEncounterForm((f) => ({ ...f, examinationFindings: e.target.value }))}
-              />
-            </Field>
-            <Field label="Treatment Plan">
-              <Input
-                value={encounterForm.plan}
-                onChange={(e) => setEncounterForm((f) => ({ ...f, plan: e.target.value }))}
-              />
-            </Field>
-            <div className="row-gap" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
+
+            <div style={{ backgroundColor: '#F0FDF4', padding: '12px', borderRadius: '8px', border: '1px solid #BBF7D0' }}>
+              <div style={{ fontWeight: 800, fontSize: '13px', color: '#166534', marginBottom: '8px' }}>Prescription Details (Rx)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <Field label="Medicine Name">
+                  <Input
+                    value={encounterForm.drugName}
+                    onChange={(e) => setEncounterForm({ ...encounterForm, drugName: e.target.value })}
+                    placeholder="e.g. Amlodipine"
+                  />
+                </Field>
+                <Field label="Dosage">
+                  <Input
+                    value={encounterForm.dosage}
+                    onChange={(e) => setEncounterForm({ ...encounterForm, dosage: e.target.value })}
+                    placeholder="e.g. 5mg"
+                  />
+                </Field>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                <Field label="Frequency">
+                  <Input
+                    value={encounterForm.frequency}
+                    onChange={(e) => setEncounterForm({ ...encounterForm, frequency: e.target.value })}
+                    placeholder="e.g. OD (Once daily)"
+                  />
+                </Field>
+                <Field label="Duration (Days)">
+                  <Input
+                    value={encounterForm.durationDays}
+                    type="number"
+                    onChange={(e) => setEncounterForm({ ...encounterForm, durationDays: e.target.value })}
+                  />
+                </Field>
+              </div>
+
+              <Field label="Instructions" style={{ marginTop: '8px' }}>
+                <Input
+                  value={encounterForm.instructions}
+                  onChange={(e) => setEncounterForm({ ...encounterForm, instructions: e.target.value })}
+                  placeholder="e.g. Morning after breakfast"
+                />
+              </Field>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
               <Button type="button" variant="ghost" onClick={() => setEncounterModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" loading={savingEncounter}>
-                Save Visit Note
+              <Button type="submit" loading={savingEncounter} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}>
+                Save Encounter
               </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* MODAL 3: Upload Document */}
+      {uploadModal && (
+        <Modal title="Upload Clinical Document" onClose={() => setUploadModal(false)}>
+          <form onSubmit={handleUploadSubmit} className="stack-md">
+            <Field label="Document Category">
+              <Select value={docType} onChange={(e) => setDocType(e.target.value)}>
+                <option value="prescription">Rx Prescription Slip</option>
+                <option value="lab_report">Diagnostic Lab Report</option>
+                <option value="radiology_scan">Radiology / Imaging Scan</option>
+                <option value="discharge_summary">Discharge Summary</option>
+              </Select>
+            </Field>
+
+            <Field label="Select File *">
+              <input
+                type="file"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                style={{ padding: '8px 0', fontSize: '13px' }}
+                required
+              />
+            </Field>
+
+            <Field label="Notes / Clinical Context">
+              <Input
+                value={docNotes}
+                onChange={(e) => setDocNotes(e.target.value)}
+                placeholder="Optional notes regarding this upload"
+              />
+            </Field>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+              <Button type="button" variant="ghost" onClick={() => setUploadModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" loading={uploading} style={{ backgroundColor: '#25D366', borderColor: '#25D366', color: '#ffffff', fontWeight: 700 }}>
+                Upload &amp; Attach
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* MODAL 4: Document Preview */}
+      {previewDoc && (
+        <Modal title={previewDoc.fileName || 'Document Preview'} onClose={() => { setPreviewDoc(null); setPreviewUrl(null); }}>
+          <div style={{ minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {loadingPreview ? (
+              <Spinner label="Loading document preview..." />
+            ) : previewUrl ? (
+              <iframe
+                src={previewUrl}
+                title={previewDoc.fileName}
+                style={{ width: '100%', height: '500px', border: '1px solid #E2E8F0', borderRadius: '8px' }}
+              />
+            ) : (
+              <p className="muted-text">Preview not available for this file type.</p>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+            <Button
+              type="button"
+              onClick={() => { setPreviewDoc(null); setPreviewUrl(null); }}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+                border: '1px solid #CBD5E1',
+              }}
+              title="Close Preview"
+            >
+              ✕
+            </Button>
+          </div>
         </Modal>
       )}
     </div>

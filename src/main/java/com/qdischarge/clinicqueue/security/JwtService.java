@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Issues and validates signed, short-lived session tokens for all three
@@ -39,6 +40,7 @@ public class JwtService {
     public static final String ADMIN_ROLE = "ADMIN";
     public static final String PATIENT_ROLE = "PATIENT";
     public static final String DOCTOR_ROLE = "DOCTOR";
+    public static final String ASHA_ROLE = "ASHA";
 
     private final AppProperties appProperties;
     private SecretKey signingKey;
@@ -85,10 +87,15 @@ public class JwtService {
         return generateToken(phone, DOCTOR_ROLE, Map.of(DOCTOR_ID_CLAIM, doctorId));
     }
 
+    public String generateAshaToken(String phone) {
+        return generateToken(phone, ASHA_ROLE, Map.of());
+    }
+
     private String generateToken(String subject, String role, Map<String, Object> extraClaims) {
         Instant now = Instant.now();
         Instant expiry = now.plus(Duration.ofMinutes(appProperties.getJwtExpiryMinutes()));
         var builder = Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(subject)
                 .claim(ROLE_CLAIM, role)
                 .issuedAt(Date.from(now))
@@ -110,7 +117,7 @@ public class JwtService {
                     .parseSignedClaims(token)
                     .getPayload();
             String role = String.valueOf(claims.get(ROLE_CLAIM));
-            if (!ADMIN_ROLE.equals(role) && !PATIENT_ROLE.equals(role) && !DOCTOR_ROLE.equals(role)) {
+            if (!ADMIN_ROLE.equals(role) && !PATIENT_ROLE.equals(role) && !DOCTOR_ROLE.equals(role) && !ASHA_ROLE.equals(role)) {
                 return null;
             }
             Integer doctorId = claims.get(DOCTOR_ID_CLAIM, Integer.class);
