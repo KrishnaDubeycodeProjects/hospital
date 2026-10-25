@@ -166,9 +166,10 @@ export default function HealthRecordsScreen() {
   const [visitHistory, setVisitHistory] = useState([]);
   const [hospitals, setHospitals] = useState([]);
 
-  // Patient Selection States
+  // Search & Filter States (Fluid filtering, no switch gate)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterMemberId, setFilterMemberId] = useState('all');
   const [selectedMemberId, setSelectedMemberId] = useState(null);
-  const [hasConfirmedPatient, setHasConfirmedPatient] = useState(false);
 
   // Upload Document Modal State
   const [showUpload, setShowUpload] = useState(false);
@@ -378,15 +379,16 @@ export default function HealthRecordsScreen() {
     return familyMembers.find((m) => m.id === selectedMemberId) || familyMembers[0];
   }, [familyMembers, selectedMemberId]);
 
-  // Filtered Documents from DB based on selected member, with verified sample fallback
-  const memberDocuments = useMemo(() => {
-    if (!selectedMember) return [];
-    const memberName = selectedMember.name.toLowerCase().trim();
-    const isSelfOrHead =
-      selectedMember.relationship?.toLowerCase() === 'self' ||
-      selectedMember.relationship?.toLowerCase() === 'head';
+  // Filtered Documents from DB based on selected member or all, with verified sample fallback
+  const rawMemberDocuments = useMemo(() => {
+    const isAll = filterMemberId === 'all' || !selectedMember;
+    const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
+    const isSelfOrHead = selectedMember
+      ? (selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head')
+      : true;
 
     const dbFiltered = documents.filter((doc) => {
+      if (isAll) return true;
       if (!doc.patientName) return isSelfOrHead;
       const docName = doc.patientName.toLowerCase().trim();
       return docName === memberName || memberName.includes(docName) || docName.includes(memberName);
@@ -395,6 +397,7 @@ export default function HealthRecordsScreen() {
     // Merge digital e-prescriptions generated from doctor consultation courses
     const coursePrescriptions = courses
       .filter((c) => {
+        if (isAll) return true;
         if (c.familyMemberId && c.familyMemberId === selectedMember.id) return true;
         if (!c.patientName) return isSelfOrHead;
         const cName = c.patientName.toLowerCase().trim();
@@ -406,8 +409,8 @@ export default function HealthRecordsScreen() {
         isDigitalRx: true,
         docType: 'prescription',
         fileName: `e-Prescription — ${c.title || 'Doctor Consultation'}.pdf`,
-        patientName: c.patientName || selectedMember.name,
-        patientAge: selectedMember.age,
+        patientName: c.patientName || (selectedMember?.name) || 'Ramesh Kumar',
+        patientAge: selectedMember?.age || 28,
         doctorName: c.startedByDoctorName || 'Dr. Rajesh Sharma (MD)',
         hospitalName: c.startedAtHospitalName || 'District Civil Hospital',
         diagnosis: c.diagnosis || 'Clinical Evaluation',
@@ -420,45 +423,66 @@ export default function HealthRecordsScreen() {
     const combinedDocs = [...coursePrescriptions, ...dbFiltered];
     if (combinedDocs.length > 0) return combinedDocs;
 
-    // Match canonical member from RAW_FAMILY_MEMBERS
-    const rawMatch = RAW_FAMILY_MEMBERS.find(
-      (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
+    // Match canonical members from RAW_FAMILY_MEMBERS
+    const rawMatches = isAll
+      ? RAW_FAMILY_MEMBERS
+      : RAW_FAMILY_MEMBERS.filter(
+          (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
+        );
+
+    const fallbackList = [];
+    rawMatches.forEach((rm) => {
+      (rm.prescriptions || []).forEach((rx) => {
+        fallbackList.push({
+          id: rx.id,
+          docType: 'prescription',
+          fileName: rx.fileName || `${rx.title.replace(/\s+/g, '_')}.pdf`,
+          patientName: rm.name,
+          patientAge: rm.age,
+          createdAt: rx.date || '18 Sep 2026',
+          prescriptionDetails: rx,
+        });
+      });
+      (rm.documents || []).forEach((doc) => {
+        fallbackList.push({
+          id: doc.id,
+          docType: doc.docType || 'report',
+          fileName: doc.fileName || `${doc.title.replace(/\s+/g, '_')}.pdf`,
+          patientName: rm.name,
+          patientAge: rm.age,
+          createdAt: doc.date || '12 Sep 2026',
+          reportDetails: doc,
+        });
+      });
+    });
+
+    return fallbackList;
+  }, [selectedMember, filterMemberId, documents, courses]);
+
+  // Apply search query filter
+  const memberDocuments = useMemo(() => {
+    if (!searchQuery.trim()) return rawMemberDocuments;
+    const q = searchQuery.toLowerCase().trim();
+    return rawMemberDocuments.filter((doc) =>
+      (doc.fileName && doc.fileName.toLowerCase().includes(q)) ||
+      (doc.patientName && doc.patientName.toLowerCase().includes(q)) ||
+      (doc.doctorName && doc.doctorName.toLowerCase().includes(q)) ||
+      (doc.hospitalName && doc.hospitalName.toLowerCase().includes(q)) ||
+      (doc.diagnosis && doc.diagnosis.toLowerCase().includes(q)) ||
+      (doc.docType && doc.docType.toLowerCase().includes(q))
     );
+  }, [rawMemberDocuments, searchQuery]);
 
-    if (rawMatch) {
-      const rxDocs = (rawMatch.prescriptions || []).map((rx) => ({
-        id: rx.id,
-        docType: 'prescription',
-        fileName: rx.fileName || `${rx.title.replace(/\s+/g, '_')}.pdf`,
-        patientName: selectedMember.name,
-        patientAge: selectedMember.age,
-        createdAt: rx.date || '18 Sep 2026',
-        prescriptionDetails: rx,
-      }));
-      const repDocs = (rawMatch.documents || []).map((doc) => ({
-        id: doc.id,
-        docType: doc.docType || 'report',
-        fileName: doc.fileName || `${doc.title.replace(/\s+/g, '_')}.pdf`,
-        patientName: selectedMember.name,
-        patientAge: selectedMember.age,
-        createdAt: doc.date || '12 Sep 2026',
-        reportDetails: doc,
-      }));
-      return [...rxDocs, ...repDocs];
-    }
-
-    return [];
-  }, [selectedMember, documents]);
-
-  // Filtered Courses from DB based on selected member, with verified sample fallback
-  const memberCourses = useMemo(() => {
-    if (!selectedMember) return [];
-    const memberName = selectedMember.name.toLowerCase().trim();
-    const isSelfOrHead =
-      selectedMember.relationship?.toLowerCase() === 'self' ||
-      selectedMember.relationship?.toLowerCase() === 'head';
+  // Filtered Courses from DB based on selected member or all, with verified sample fallback
+  const rawMemberCourses = useMemo(() => {
+    const isAll = filterMemberId === 'all' || !selectedMember;
+    const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
+    const isSelfOrHead = selectedMember
+      ? (selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head')
+      : true;
 
     const dbFiltered = courses.filter((c) => {
+      if (isAll) return true;
       if (c.familyMemberId && c.familyMemberId === selectedMember.id) return true;
       if (!c.patientName) return isSelfOrHead;
       const cName = c.patientName.toLowerCase().trim();
@@ -467,36 +491,56 @@ export default function HealthRecordsScreen() {
 
     if (dbFiltered.length > 0) return dbFiltered;
 
-    const rawMatch = RAW_FAMILY_MEMBERS.find(
-      (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
+    const rawMatches = isAll
+      ? RAW_FAMILY_MEMBERS
+      : RAW_FAMILY_MEMBERS.filter(
+          (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
+        );
+
+    const fallbackCourses = [];
+    rawMatches.forEach((rm) => {
+      (rm.courses || []).forEach((c) => {
+        fallbackCourses.push({
+          id: c.id,
+          title: c.title,
+          courseType: c.courseType,
+          diagnosis: c.diagnosis,
+          status: c.status,
+          doctorName: c.doctor,
+          patientName: rm.name,
+          startDate: c.startDate,
+          encounters: c.encounters || [],
+        });
+      });
+    });
+
+    return fallbackCourses;
+  }, [selectedMember, filterMemberId, courses]);
+
+  // Apply search query filter
+  const memberCourses = useMemo(() => {
+    if (!searchQuery.trim()) return rawMemberCourses;
+    const q = searchQuery.toLowerCase().trim();
+    return rawMemberCourses.filter((c) =>
+      (c.title && c.title.toLowerCase().includes(q)) ||
+      (c.diagnosis && c.diagnosis.toLowerCase().includes(q)) ||
+      (c.patientName && c.patientName.toLowerCase().includes(q)) ||
+      (c.doctorName && c.doctorName.toLowerCase().includes(q)) ||
+      (c.startedByDoctorName && c.startedByDoctorName.toLowerCase().includes(q)) ||
+      (c.startedAtHospitalName && c.startedAtHospitalName.toLowerCase().includes(q))
     );
+  }, [rawMemberCourses, searchQuery]);
 
-    if (rawMatch && Array.isArray(rawMatch.courses) && rawMatch.courses.length > 0) {
-      return rawMatch.courses.map((c) => ({
-        id: c.id,
-        title: c.title,
-        courseType: c.courseType,
-        diagnosis: c.diagnosis,
-        status: c.status,
-        doctorName: c.doctor,
-        patientName: selectedMember.name,
-        startDate: c.startDate,
-        encounters: c.encounters || [],
-      }));
-    }
-
-    return [];
-  }, [selectedMember, courses]);
-
-  // Filtered Referrals from DB based on selected member, with verified sample fallback
-  const memberReferrals = useMemo(() => {
-    if (!selectedMember) return [];
-    const memberName = selectedMember.name.toLowerCase().trim();
-    const isSelfOrHead =
-      selectedMember.relationship?.toLowerCase() === 'self' ||
-      selectedMember.relationship?.toLowerCase() === 'head';
+  // Filtered Referrals from DB based on selected member or all, with verified sample fallback
+  const rawMemberReferrals = useMemo(() => {
+    const isAll = filterMemberId === 'all' || !selectedMember;
+    const memberName = selectedMember ? selectedMember.name.toLowerCase().trim() : '';
+    const isSelfOrHead = selectedMember
+      ? (selectedMember.relationship?.toLowerCase() === 'self' || selectedMember.relationship?.toLowerCase() === 'head')
+      : true;
 
     const dbFiltered = referrals.filter((r) => {
+      if (isAll) return true;
       if (!r.patientName) return isSelfOrHead;
       const rName = r.patientName.toLowerCase().trim();
       return rName === memberName || memberName.includes(rName) || rName.includes(memberName);
@@ -504,43 +548,72 @@ export default function HealthRecordsScreen() {
 
     if (dbFiltered.length > 0) return dbFiltered;
 
-    const rawMatch = RAW_FAMILY_MEMBERS.find(
-      (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
+    const rawMatches = isAll
+      ? RAW_FAMILY_MEMBERS
+      : RAW_FAMILY_MEMBERS.filter(
+          (rm) => rm.name.toLowerCase().includes(memberName) || memberName.includes(rm.name.toLowerCase())
+        );
+
+    const fallbackRefs = [];
+    rawMatches.forEach((rm) => {
+      (rm.referrals || []).forEach((r) => {
+        fallbackRefs.push({
+          id: r.id,
+          toHospitalName: r.toHospital,
+          targetDepartment: r.department,
+          reason: r.reason,
+          priorityTier: r.priority,
+          status: r.status,
+          validUntil: r.validUntil,
+          patientName: rm.name,
+          referringDoctorName: r.doctor,
+        });
+      });
+    });
+
+    return fallbackRefs;
+  }, [selectedMember, filterMemberId, referrals]);
+
+  // Apply search query filter
+  const memberReferrals = useMemo(() => {
+    if (!searchQuery.trim()) return rawMemberReferrals;
+    const q = searchQuery.toLowerCase().trim();
+    return rawMemberReferrals.filter((r) =>
+      (r.toHospitalName && r.toHospitalName.toLowerCase().includes(q)) ||
+      (r.targetDepartment && r.targetDepartment.toLowerCase().includes(q)) ||
+      (r.reason && r.reason.toLowerCase().includes(q)) ||
+      (r.patientName && r.patientName.toLowerCase().includes(q)) ||
+      (r.referringDoctorName && r.referringDoctorName.toLowerCase().includes(q))
     );
+  }, [rawMemberReferrals, searchQuery]);
 
-    if (rawMatch && Array.isArray(rawMatch.referrals) && rawMatch.referrals.length > 0) {
-      return rawMatch.referrals.map((r) => ({
-        id: r.id,
-        toHospitalName: r.toHospital,
-        targetDepartment: r.department,
-        reason: r.reason,
-        priorityTier: r.priority,
-        status: r.status,
-        validUntil: r.validUntil,
-        patientName: selectedMember.name,
-        referringDoctorName: r.doctor,
-      }));
-    }
-
-    return [];
-  }, [selectedMember, referrals]);
-
-  // Filtered OPD Token & Visit History based on selected member
-  const memberVisits = useMemo(() => {
-    if (!selectedMember) return visitHistory;
+  // Filtered OPD Token & Visit History based on selected member or all
+  const rawMemberVisits = useMemo(() => {
+    if (filterMemberId === 'all' || !selectedMember) return visitHistory;
     const memberName = selectedMember.name.toLowerCase().trim();
     const isSelfOrHead =
       selectedMember.relationship?.toLowerCase() === 'self' ||
       selectedMember.relationship?.toLowerCase() === 'head';
 
-    const dbFiltered = visitHistory.filter((v) => {
+    return visitHistory.filter((v) => {
       if (!v.name) return isSelfOrHead;
       const vName = v.name.toLowerCase().trim();
       return vName === memberName || memberName.includes(vName) || vName.includes(memberName);
     });
+  }, [selectedMember, filterMemberId, visitHistory]);
 
-    return dbFiltered;
-  }, [selectedMember, visitHistory]);
+  // Apply search query filter
+  const memberVisits = useMemo(() => {
+    if (!searchQuery.trim()) return rawMemberVisits;
+    const q = searchQuery.toLowerCase().trim();
+    return rawMemberVisits.filter((v) =>
+      (v.name && v.name.toLowerCase().includes(q)) ||
+      (v.doctorName && v.doctorName.toLowerCase().includes(q)) ||
+      (v.department && v.department.toLowerCase().includes(q)) ||
+      (v.hospitalName && v.hospitalName.toLowerCase().includes(q)) ||
+      (String(v.tokenNumber || v.dailyNumber || v.id).includes(q))
+    );
+  }, [rawMemberVisits, searchQuery]);
 
   // Handle uploading document for a chosen family member
   const handleUploadSubmit = async (e) => {
@@ -643,7 +716,7 @@ export default function HealthRecordsScreen() {
       return {
         bg: '#ECFDF5',
         color: '#059669',
-        border: isSelected ? '#004D40' : '#A7F3D0',
+        border: isSelected ? '#00A884' : '#A7F3D0',
         tagBg: '#DCFCE7',
         tagColor: '#166534',
       };
@@ -695,7 +768,7 @@ export default function HealthRecordsScreen() {
       to: '/patient',
       label: 'My Queue',
       icon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
           <line x1="8" y1="2" x2="8" y2="6" />
@@ -708,7 +781,7 @@ export default function HealthRecordsScreen() {
       to: '/patient/family',
       label: 'Family & ABHA',
       icon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -721,7 +794,7 @@ export default function HealthRecordsScreen() {
       label: 'Records Hub',
       isActive: location.pathname.startsWith('/patient/records') || location.pathname.startsWith('/records-select'),
       icon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           <line x1="12" y1="11" x2="12" y2="17" />
           <line x1="9" y1="14" x2="15" y2="14" />
@@ -732,7 +805,7 @@ export default function HealthRecordsScreen() {
       to: '/patient/access',
       label: 'Access',
       icon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
@@ -759,6 +832,8 @@ export default function HealthRecordsScreen() {
           display: 'flex',
           flexDirection: 'column',
           position: 'relative',
+          overflow: 'hidden',
+          overflowX: 'hidden',
         }}
       >
         {/* 1. Header & Navigation (Top App Bar) */}
@@ -778,9 +853,7 @@ export default function HealthRecordsScreen() {
           <button
             type="button"
             onClick={() => {
-              if (hasConfirmedPatient) {
-                setHasConfirmedPatient(false);
-              } else if (location.pathname !== '/patient') {
+              if (location.pathname !== '/patient') {
                 navigate('/patient');
               } else {
                 navigate(-1);
@@ -814,7 +887,7 @@ export default function HealthRecordsScreen() {
                 margin: 0,
                 fontSize: '18px',
                 fontWeight: '800',
-                color: '#004D40',
+                color: '#00A884',
                 letterSpacing: '-0.02em',
                 lineHeight: 1.2,
                 textAlign: 'center',
@@ -877,8 +950,8 @@ export default function HealthRecordsScreen() {
               whiteSpace: 'nowrap',
               padding: '8px 16px',
               borderRadius: '24px',
-              border: activeTab === 'documents' ? '1.5px solid #004D40' : '1px solid #E2E8F0',
-              backgroundColor: activeTab === 'documents' ? '#004D40' : '#FFFFFF',
+              border: activeTab === 'documents' ? '1.5px solid #00A884' : '1px solid #E2E8F0',
+              backgroundColor: activeTab === 'documents' ? '#00A884' : '#FFFFFF',
               color: activeTab === 'documents' ? '#FFFFFF' : '#475569',
               fontSize: '13px',
               fontWeight: activeTab === 'documents' ? '700' : '500',
@@ -907,8 +980,8 @@ export default function HealthRecordsScreen() {
               whiteSpace: 'nowrap',
               padding: '8px 16px',
               borderRadius: '24px',
-              border: activeTab === 'courses' ? '1.5px solid #004D40' : '1px solid #E2E8F0',
-              backgroundColor: activeTab === 'courses' ? '#004D40' : '#FFFFFF',
+              border: activeTab === 'courses' ? '1.5px solid #00A884' : '1px solid #E2E8F0',
+              backgroundColor: activeTab === 'courses' ? '#00A884' : '#FFFFFF',
               color: activeTab === 'courses' ? '#FFFFFF' : '#475569',
               fontSize: '13px',
               fontWeight: activeTab === 'courses' ? '700' : '500',
@@ -934,8 +1007,8 @@ export default function HealthRecordsScreen() {
               whiteSpace: 'nowrap',
               padding: '8px 16px',
               borderRadius: '24px',
-              border: activeTab === 'referrals' ? '1.5px solid #004D40' : '1px solid #E2E8F0',
-              backgroundColor: activeTab === 'referrals' ? '#004D40' : '#FFFFFF',
+              border: activeTab === 'referrals' ? '1.5px solid #00A884' : '1px solid #E2E8F0',
+              backgroundColor: activeTab === 'referrals' ? '#00A884' : '#FFFFFF',
               color: activeTab === 'referrals' ? '#FFFFFF' : '#475569',
               fontSize: '13px',
               fontWeight: activeTab === 'referrals' ? '700' : '500',
@@ -964,8 +1037,8 @@ export default function HealthRecordsScreen() {
               whiteSpace: 'nowrap',
               padding: '8px 16px',
               borderRadius: '24px',
-              border: activeTab === 'history' ? '1.5px solid #004D40' : '1px solid #E2E8F0',
-              backgroundColor: activeTab === 'history' ? '#004D40' : '#FFFFFF',
+              border: activeTab === 'history' ? '1.5px solid #00A884' : '1px solid #E2E8F0',
+              backgroundColor: activeTab === 'history' ? '#00A884' : '#FFFFFF',
               color: activeTab === 'history' ? '#FFFFFF' : '#475569',
               fontSize: '13px',
               fontWeight: activeTab === 'history' ? '700' : '500',
@@ -990,6 +1063,7 @@ export default function HealthRecordsScreen() {
           style={{
             flex: 1,
             overflowY: 'auto',
+            overflowX: 'hidden',
             padding: '16px 18px 24px',
             display: 'flex',
             flexDirection: 'column',
@@ -1000,471 +1074,144 @@ export default function HealthRecordsScreen() {
             <div style={{ padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
               <Spinner label="Loading health records from database..." />
             </div>
-          ) : !hasConfirmedPatient ? (
+          ) : (
             /* ===============================================================
-               STEP 1: PATIENT SELECTION SCREEN (Exact Prompt & Screenshot Spec)
+               SEARCH & FAMILY FILTER (No switch gate, fluid records hub)
                =============================================================== */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Title & Subtitle */}
-              <div>
-                <h2
-                  style={{
-                    fontSize: '24px',
-                    fontWeight: '800',
-                    color: '#0F172A',
-                    margin: '0 0 6px 0',
-                    letterSpacing: '-0.02em',
-                  }}
-                >
-                  {activeTab === 'courses' ? 'View Care History' : activeTab === 'referrals' ? 'View Referral Passes' : 'View Prescriptions'}
-                </h2>
-                <p style={{ fontSize: '13.5px', color: '#64748B', margin: 0 }}>
-                  Select a family member to view their {activeTab === 'courses' ? 'care history and progress.' : activeTab === 'referrals' ? 'hospital referral passes.' : 'prescriptions and records.'}
-                </p>
-              </div>
-
-              {/* Info Card: Full-width card with very light green background and subtle border */}
-              <div
-                style={{
-                  backgroundColor: '#F0FDF4',
-                  border: '1px solid #BBF7D0',
-                  borderRadius: '16px',
-                  padding: '14px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '14px',
-                }}
-              >
-                {/* Left: Green document icon */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Search & Filter Bar */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Search input with WhatsApp green magnifying glass icon and clear button */}
                 <div
                   style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '12px',
-                    backgroundColor: '#DCFCE7',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#15803D',
-                    flexShrink: 0,
+                    backgroundColor: '#FFFFFF',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '12px',
+                    padding: '9px 14px',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)',
                   }}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00A884" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search records, medicine, doctor, patient..."
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      flex: 1,
+                      fontSize: '13.5px',
+                      color: '#0F172A',
+                      backgroundColor: 'transparent',
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        border: 'none',
+                        background: '#E2E8F0',
+                        borderRadius: '50%',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        color: '#475569',
+                        lineHeight: 1,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
 
-                {/* Right: Bold Prescriptions and gray description */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#166534', letterSpacing: '-0.01em' }}>
-                    Prescriptions
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#15803D', marginTop: '2px', lineHeight: 1.35 }}>
-                    View, download and manage prescriptions for your family members.
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Family Member Selection List (Live from DB) */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {familyMembers.length === 0 ? (
+                {/* Horizontal Member Filter Chips */}
+                {familyMembers.length > 0 && (
                   <div
                     style={{
-                      padding: '24px',
-                      borderRadius: '16px',
-                      border: '1px dashed #CBD5E1',
-                      textAlign: 'center',
-                      color: '#64748B',
-                      fontSize: '13px',
+                      display: 'flex',
+                      gap: '8px',
+                      overflowX: 'auto',
+                      paddingBottom: '2px',
+                      scrollbarWidth: 'none',
+                      msOverflowStyle: 'none',
+                      WebkitOverflowScrolling: 'touch',
                     }}
                   >
-                    No family members found in DB for this phone. You can add one via Family & ABHA tab.
-                  </div>
-                ) : (
-                  familyMembers.map((member) => {
-                    const isSelected = selectedMemberId === member.id;
-                    const theme = getAvatarTheme(member, isSelected);
+                    <button
+                      type="button"
+                      onClick={() => setFilterMemberId('all')}
+                      style={{
+                        flexShrink: 0,
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        border: filterMemberId === 'all' ? '1.5px solid #00A884' : '1px solid #E2E8F0',
+                        backgroundColor: filterMemberId === 'all' ? '#00A884' : '#FFFFFF',
+                        color: filterMemberId === 'all' ? '#FFFFFF' : '#475569',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span>All Records</span>
+                    </button>
 
-                    return (
-                      <div
-                        key={member.id}
-                        onClick={() => setSelectedMemberId(member.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '14px 16px',
-                          borderRadius: '16px',
-                          backgroundColor: isSelected ? '#F0FDF4' : '#FFFFFF',
-                          border: isSelected ? '2px solid #004D40' : '1px solid #E2E8F0',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: isSelected ? '0 4px 12px rgba(0, 77, 64, 0.08)' : '0 1px 3px rgba(0,0,0,0.02)',
-                        }}
-                      >
-                        {/* Left: Avatar + Details */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          {/* Circular Avatar */}
-                          <div
-                            style={{
-                              width: '42px',
-                              height: '42px',
-                              borderRadius: '50%',
-                              backgroundColor: theme.bg,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: theme.color,
-                              flexShrink: 0,
-                            }}
-                          >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                              <circle cx="12" cy="7" r="4" />
-                            </svg>
-                          </div>
-
-                          {/* Center: Bold Name & Pill Tag */}
-                          <div>
-                            <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.01em' }}>
-                              {member.name}
-                            </div>
-                            <div style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: '700',
-                                  backgroundColor: theme.tagBg,
-                                  color: theme.tagColor,
-                                  padding: '2px 8px',
-                                  borderRadius: '9999px',
-                                  display: 'inline-block',
-                                }}
-                              >
-                                {member.relationship || 'Self'}
-                              </span>
-                              {member.age && (
-                                <span style={{ fontSize: '11.5px', color: '#94A3B8' }}>
-                                  • {member.age} yrs
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Right: Radio Button */}
-                        <div
+                    {familyMembers.map((m) => {
+                      const isSel = filterMemberId === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setFilterMemberId(m.id)}
                           style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            border: isSelected ? '2px solid #004D40' : '2px solid #CBD5E1',
+                            flexShrink: 0,
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            border: isSel ? '1.5px solid #00A884' : '1px solid #E2E8F0',
+                            backgroundColor: isSel ? '#00A884' : '#FFFFFF',
+                            color: isSel ? '#FFFFFF' : '#475569',
+                            cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#FFFFFF',
+                            gap: '4px',
                             transition: 'all 0.15s ease',
                           }}
                         >
-                          {isSelected && (
-                            <div
-                              style={{
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                backgroundColor: '#004D40',
-                              }}
-                            />
+                          <span>{m.name}</span>
+                          {m.relationship && (
+                            <span style={{ fontSize: '10.5px', opacity: isSel ? 0.9 : 0.65 }}>
+                              ({m.relationship})
+                            </span>
                           )}
-                        </div>
-                      </div>
-                    );
-                  })
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
-              {/* 4. Action: Full-width solid dark green Continue button */}
-              <button
-                type="button"
-                onClick={() => setHasConfirmedPatient(true)}
-                disabled={!selectedMember}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  borderRadius: '14px',
-                  backgroundColor: '#004D40',
-                  color: '#FFFFFF',
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  border: 'none',
-                  cursor: selectedMember ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  marginTop: '6px',
-                  boxShadow: '0 4px 12px rgba(0, 77, 64, 0.2)',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span>Continue</span>
-                <span style={{ fontSize: '18px' }}>→</span>
-              </button>
-            </div>
-          ) : (
-            /* ===============================================================
-               STEP 2: PATIENT'S DEDICATED DB RECORDS VIEW
-               =============================================================== */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Selected Patient Banner with Switch Button */}
-              <div
-                style={{
-                  backgroundColor: '#F8FAFC',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '16px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      backgroundColor: '#DCFCE7',
-                      color: '#166534',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: '800',
-                      fontSize: '14px',
-                    }}
-                  >
-                    {selectedMember?.name?.charAt(0) || 'P'}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
-                      {selectedMember?.name}
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                      {selectedMember?.relationship || 'Member'} • {selectedMember?.age ? `${selectedMember.age} yrs` : 'All ages'}
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setHasConfirmedPatient(false)}
-                  style={{
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: '20px',
-                    padding: '5px 12px',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    color: '#004D40',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  <span>Switch</span>
-                  <span>↺</span>
-                </button>
-              </div>
-
               {/* =============================================================
-                 TAB 1: DOCUMENTS / PRESCRIPTIONS FOR SELECTED MEMBER
+                 TAB 1: DOCUMENTS / PRESCRIPTIONS
                  ============================================================= */}
               {activeTab === 'documents' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {/* Upload Action Bar */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      backgroundColor: '#F0FDF4',
-                      border: '1px solid #BBF7D0',
-                      borderRadius: '14px',
-                      padding: '12px 14px',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: '800', color: '#166534' }}>
-                        Add Record for {selectedMember?.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#15803D' }}>
-                        Upload prescriptions or lab reports to database
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUploadForm((f) => ({
-                          ...f,
-                          memberId: selectedMember?.id || '',
-                          patientName: selectedMember?.name || '',
-                          patientAge: selectedMember?.age || '',
-                        }));
-                        setShowUpload(!showUpload);
-                      }}
-                      style={{
-                        backgroundColor: '#004D40',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '10px',
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {showUpload ? 'Cancel' : '+ Upload'}
-                    </button>
-                  </div>
-
-                  {/* Upload Form Accordion */}
-                  {showUpload && (
-                    <div
-                      style={{
-                        backgroundColor: '#FFFFFF',
-                        border: '1.5px solid #004D40',
-                        borderRadius: '16px',
-                        padding: '14px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                      }}
-                    >
-                      <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {/* Member Selector Dropdown */}
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                            PATIENT / FAMILY MEMBER
-                          </label>
-                          <select
-                            value={uploadForm.memberId}
-                            onChange={(e) => {
-                              const m = familyMembers.find((item) => String(item.id) === e.target.value);
-                              setUploadForm((f) => ({
-                                ...f,
-                                memberId: e.target.value,
-                                patientName: m ? m.name : f.patientName,
-                                patientAge: m && m.age ? m.age : f.patientAge,
-                              }));
-                            }}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              border: '1px solid #CBD5E1',
-                              fontSize: '13px',
-                              backgroundColor: '#FFFFFF',
-                            }}
-                          >
-                            {familyMembers.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} ({m.relationship || 'Self'}) {m.age ? `— ${m.age} yrs` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Document Type */}
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                            DOCUMENT TYPE
-                          </label>
-                          <select
-                            value={uploadForm.docType}
-                            onChange={(e) => setUploadForm((f) => ({ ...f, docType: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              border: '1px solid #CBD5E1',
-                              fontSize: '13px',
-                              backgroundColor: '#FFFFFF',
-                            }}
-                          >
-                            <option value="prescription">💊 Prescription</option>
-                            <option value="report">🔬 Diagnostic / Lab Report</option>
-                          </select>
-                        </div>
-
-                        {/* Hospital */}
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                            ISSUING HOSPITAL (OPTIONAL)
-                          </label>
-                          <select
-                            value={uploadForm.hospitalId}
-                            onChange={(e) => setUploadForm((f) => ({ ...f, hospitalId: e.target.value }))}
-                            style={{
-                              width: '100%',
-                              padding: '8px 10px',
-                              borderRadius: '8px',
-                              border: '1px solid #CBD5E1',
-                              fontSize: '13px',
-                              backgroundColor: '#FFFFFF',
-                            }}
-                          >
-                            <option value="">(None / External Clinic)</option>
-                            {hospitals.map((h) => (
-                              <option key={h.id} value={h.id}>
-                                {h.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* File Attachment */}
-                        <div>
-                          <label style={{ fontSize: '11px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                            ATTACH DOCUMENT FILE (PDF / IMAGE)
-                          </label>
-                          <input
-                            type="file"
-                            accept=".pdf,image/png,image/jpeg"
-                            onChange={(e) => setUploadForm((f) => ({ ...f, file: e.target.files[0] || null }))}
-                            required
-                            style={{
-                              width: '100%',
-                              padding: '6px',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '8px',
-                              fontSize: '12px',
-                            }}
-                          />
-                        </div>
-
-                        <button
-                          type="submit"
-                          disabled={uploading}
-                          style={{
-                            backgroundColor: '#004D40',
-                            color: '#FFFFFF',
-                            padding: '10px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            fontWeight: '700',
-                            fontSize: '13px',
-                            cursor: uploading ? 'wait' : 'pointer',
-                            marginTop: '4px',
-                          }}
-                        >
-                          {uploading ? 'Uploading to Database...' : 'Save to Health Records'}
-                        </button>
-                      </form>
-                    </div>
-                  )}
-
                   {/* Documents List from DB */}
                   {memberDocuments.length === 0 ? (
                     <div
@@ -1559,7 +1306,7 @@ export default function HealthRecordsScreen() {
                               type="button"
                               onClick={() => handleOpenCourse(doc.rawCourse)}
                               style={{
-                                backgroundColor: '#004D40',
+                                backgroundColor: '#00A884',
                                 border: 'none',
                                 borderRadius: '8px',
                                 padding: '6px 14px',
@@ -1570,7 +1317,7 @@ export default function HealthRecordsScreen() {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                boxShadow: '0 1px 3px rgba(0,77,64,0.2)',
+                                boxShadow: '0 1px 3px rgba(0, 168, 132,0.2)',
                               }}
                             >
                               <span>👁️</span>
@@ -1587,7 +1334,7 @@ export default function HealthRecordsScreen() {
                                 padding: '6px 12px',
                                 fontSize: '12px',
                                 fontWeight: '700',
-                                color: '#004D40',
+                                color: '#00A884',
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1638,8 +1385,8 @@ export default function HealthRecordsScreen() {
                       // Clean course title - keep title only, remove any 'Episode' or 'Care Episode' suffixes
                       const cleanTitle = (course.title || 'General Consultation').replace(/\s*(care\s*)?episode\s*/gi, '').trim() || 'General Consultation';
 
-                      // Accordion open state: first course open by default or tracked in openCourseIds
-                      const isCourseOpen = openCourseIds[course.id] !== undefined ? openCourseIds[course.id] : (cIdx === 0 || isActive);
+                      // Accordion open state: all courses OFF/collapsed by default
+                      const isCourseOpen = Boolean(openCourseIds[course.id]);
 
                       // Extract station journey checkpoints from loaded timeline
                       const tl = courseTimelinesMap[course.id];
@@ -1706,16 +1453,16 @@ export default function HealthRecordsScreen() {
                             },
                           ];
 
-                      // Currently selected station for this course (defaults to first station)
-                      const currentStationId = selectedStationMap[course.id] || stations[0]?.id;
-                      const selectedStation = stations.find((s) => s.id === currentStationId) || stations[0];
+                      // Currently selected station for this course (OFF by default until tapped)
+                      const currentStationId = selectedStationMap[course.id] || null;
+                      const selectedStation = stations.find((s) => s.id === currentStationId) || null;
 
                       return (
                         <div
                           key={course.id}
                           style={{
                             backgroundColor: '#FFFFFF',
-                            border: isActive ? '1.5px solid #004D40' : '1px solid #E2E8F0',
+                            border: isActive ? '1.5px solid #00A884' : '1px solid #E2E8F0',
                             borderRadius: '16px',
                             padding: '14px 16px',
                             display: 'flex',
@@ -1765,23 +1512,23 @@ export default function HealthRecordsScreen() {
                                 }}
                               >
                                 <span
+                                  title={isActive ? 'Active Course' : 'Completed Course'}
                                   style={{
-                                    width: '8px',
-                                    height: '8px',
+                                    width: '9px',
+                                    height: '9px',
                                     borderRadius: '50%',
-                                    backgroundColor: isActive ? '#16A34A' : '#DC2626',
-                                    boxShadow: isActive ? '0 0 0 2px rgba(22, 163, 74, 0.25)' : 'none',
+                                    backgroundColor: isActive ? '#00A884' : '#DC2626',
+                                    boxShadow: isActive ? '0 0 0 2px rgba(0, 168, 132, 0.25)' : 'none',
                                     display: 'inline-block',
                                   }}
                                 />
-                                <span>{isActive ? 'Active' : 'Inactive'}</span>
                               </span>
 
                               <span
                                 style={{
                                   fontSize: '13px',
                                   fontWeight: '800',
-                                  color: '#004D40',
+                                  color: '#00A884',
                                   padding: '4px',
                                   lineHeight: 1,
                                 }}
@@ -1801,105 +1548,121 @@ export default function HealthRecordsScreen() {
                                 onSelectStation={(stn) => setSelectedStationMap((prev) => ({ ...prev, [course.id]: stn.id }))}
                               />
 
-                              {/* Consultation Date & Timings directly above buttons (Linked to selected station!) */}
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '8px 12px',
-                                  backgroundColor: '#F0FDFA',
-                                  border: '1px solid #CCFBF1',
-                                  borderRadius: '8px',
-                                  fontSize: '12px',
-                                  fontWeight: '700',
-                                  color: '#0F766E',
-                                  marginTop: '2px',
-                                }}
-                              >
-                                <CalendarIcon size={14} color="#0D9488" />
-                                <span>
-                                  Consultation Date &amp; Timings: {formatLaymanDateTime(selectedStation?.date || course.createdAt)}
-                                </span>
-                              </div>
+                              {/* Linked Station Details & 3 Action Buttons (Prescription, Doctor Profile, Documents) */}
+                              {selectedStation ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                                  {/* Consultation Date & Timings directly above buttons */}
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '8px 12px',
+                                      backgroundColor: '#E8F8F5',
+                                      border: '1px solid #A7F3D0',
+                                      borderRadius: '8px',
+                                      fontSize: '12px',
+                                      fontWeight: '700',
+                                      color: '#047857',
+                                    }}
+                                  >
+                                    <CalendarIcon size={14} color="#00A884" />
+                                    <span>
+                                      Consultation Date &amp; Timings: {formatLaymanDateTime(selectedStation.date || course.createdAt)}
+                                    </span>
+                                  </div>
 
-                              {/* 3 Action Buttons (Linked to selected station: Prescription & Tests, Doctor Profile, View Documents) */}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '2px' }}>
-                                {/* Primary Action: Full Width */}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenStation(course, selectedStation, 'prescription')}
+                                  {/* Primary Action: Full Width */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenStation(course, selectedStation, 'prescription')}
+                                    style={{
+                                      width: '100%',
+                                      padding: '11px 16px',
+                                      borderRadius: '10px',
+                                      backgroundColor: '#00A884',
+                                      color: '#FFFFFF',
+                                      fontSize: '13px',
+                                      fontWeight: '800',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '8px',
+                                      boxShadow: '0 2px 6px rgba(0, 168, 132, 0.25)',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                  >
+                                    <span>💊</span>
+                                    <span>View Prescription &amp; Tests</span>
+                                  </button>
+
+                                  {/* Secondary Actions: 2 Columns */}
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenStation(course, selectedStation, 'doctor')}
+                                      style={{
+                                        padding: '9px 10px',
+                                        borderRadius: '10px',
+                                        backgroundColor: '#FFFFFF',
+                                        color: '#065F46',
+                                        border: '1.5px solid #A7F3D0',
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '5px',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      <span>👨‍⚕️</span>
+                                      <span>Doctor Profile</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenStation(course, selectedStation, 'documents')}
+                                      style={{
+                                        padding: '9px 10px',
+                                        borderRadius: '10px',
+                                        backgroundColor: '#FFFFFF',
+                                        color: '#B45309',
+                                        border: '1.5px solid #FDE68A',
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '5px',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      <span>📄</span>
+                                      <span>View Documents</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div
                                   style={{
-                                    width: '100%',
-                                    padding: '11px 16px',
-                                    borderRadius: '10px',
-                                    backgroundColor: '#004D40',
-                                    color: '#FFFFFF',
-                                    fontSize: '13px',
-                                    fontWeight: '800',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    boxShadow: '0 2px 6px rgba(0, 77, 64, 0.25)',
-                                    transition: 'all 0.15s ease',
+                                    padding: '10px 12px',
+                                    backgroundColor: '#F8FAFC',
+                                    borderRadius: '8px',
+                                    border: '1px dashed #CBD5E1',
+                                    fontSize: '12px',
+                                    color: '#64748B',
+                                    textAlign: 'center',
+                                    marginTop: '4px',
                                   }}
                                 >
-                                  <span>💊</span>
-                                  <span>View Prescription &amp; Tests</span>
-                                </button>
-
-                                {/* Secondary Actions: 2 Columns */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenStation(course, selectedStation, 'doctor')}
-                                    style={{
-                                      padding: '9px 10px',
-                                      borderRadius: '10px',
-                                      backgroundColor: '#FFFFFF',
-                                      color: '#0F766E',
-                                      border: '1.5px solid #CCFBF1',
-                                      fontSize: '12px',
-                                      fontWeight: '700',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '5px',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    <span>👨‍⚕️</span>
-                                    <span>Doctor Profile</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenStation(course, selectedStation, 'documents')}
-                                    style={{
-                                      padding: '9px 10px',
-                                      borderRadius: '10px',
-                                      backgroundColor: '#FFFFFF',
-                                      color: '#B45309',
-                                      border: '1.5px solid #FDE68A',
-                                      fontSize: '12px',
-                                      fontWeight: '700',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '5px',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    <span>📄</span>
-                                    <span>View Documents</span>
-                                  </button>
+                                  👆 Click any consultation station above to view its prescription, doctor, and documents.
                                 </div>
-                              </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1938,7 +1701,7 @@ export default function HealthRecordsScreen() {
                         key={slip.id}
                         style={{
                           backgroundColor: '#FFFFFF',
-                          border: '1.5px solid #004D40',
+                          border: '1.5px solid #00A884',
                           borderRadius: '16px',
                           padding: '14px',
                           display: 'flex',
@@ -1947,7 +1710,7 @@ export default function HealthRecordsScreen() {
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '13px', fontWeight: '800', color: '#004D40' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '800', color: '#00A884' }}>
                             Pass #{slip.id}
                           </span>
                           <span
@@ -1994,23 +1757,31 @@ export default function HealthRecordsScreen() {
                           onClick={() => setActiveSlipModal(slip)}
                           style={{
                             width: '100%',
-                            padding: '10px',
+                            padding: '11px 16px',
                             borderRadius: '10px',
-                            backgroundColor: '#004D40',
+                            backgroundColor: '#00A884',
                             color: '#FFFFFF',
                             fontSize: '13px',
                             fontWeight: '700',
                             border: 'none',
                             cursor: 'pointer',
-                            marginTop: '4px',
+                            marginTop: '6px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '6px',
+                            gap: '8px',
+                            boxShadow: '0 2px 6px rgba(0, 168, 132, 0.25)',
+                            transition: 'all 0.15s ease',
                           }}
                         >
-                          <span>🎟️</span>
-                          <span>View QR Admission Pass</span>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <rect x="3" y="4" width="18" height="16" rx="2" />
+                            <circle cx="8.5" cy="10" r="1.5" fill="#FFFFFF" />
+                            <line x1="13" y1="9" x2="18" y2="9" strokeWidth="2" />
+                            <line x1="13" y1="13" x2="18" y2="13" strokeWidth="2" />
+                            <line x1="6" y1="16" x2="18" y2="16" strokeWidth="2" />
+                          </svg>
+                          <span>View Admission Pass</span>
                         </button>
                       </div>
                     ))
@@ -2141,6 +1912,8 @@ export default function HealthRecordsScreen() {
             backgroundColor: '#FFFFFF',
             borderTop: '1px solid #F1F5F9',
             padding: '8px 10px 6px',
+            overflow: 'hidden',
+            overflowX: 'hidden',
           }}
         >
           {bottomTabs.map((tab) => {
@@ -2155,7 +1928,7 @@ export default function HealthRecordsScreen() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   gap: '3px',
-                  backgroundColor: active ? '#E8F5E9' : 'transparent',
+                  backgroundColor: active ? '#E8F8F5' : 'transparent',
                   border: 'none',
                   borderRadius: '12px',
                   padding: '6px 12px',
@@ -2168,7 +1941,7 @@ export default function HealthRecordsScreen() {
                   style={{
                     fontSize: '11px',
                     fontWeight: active ? '700' : '500',
-                    color: active ? '#004D40' : '#6B7280',
+                    color: active ? '#00A884' : '#6B7280',
                     letterSpacing: '-0.01em',
                   }}
                 >
@@ -2352,7 +2125,7 @@ export default function HealthRecordsScreen() {
                   </div>
                   <div>
                     <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital &amp; Desk</span>
-                    <strong style={{ fontSize: '13.5px', color: '#004D40' }}>
+                    <strong style={{ fontSize: '13.5px', color: '#00A884' }}>
                       🏥 {hospitalName}
                     </strong>
                   </div>
@@ -2383,7 +2156,7 @@ export default function HealthRecordsScreen() {
                     padding: '9px 12px',
                     borderRadius: '8px',
                     border: 'none',
-                    backgroundColor: courseDetailTab === 'prescription' ? '#004D40' : 'transparent',
+                    backgroundColor: courseDetailTab === 'prescription' ? '#00A884' : 'transparent',
                     color: courseDetailTab === 'prescription' ? '#FFFFFF' : '#334155',
                     fontWeight: '700',
                     fontSize: '12.5px',
@@ -2392,7 +2165,7 @@ export default function HealthRecordsScreen() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
-                    boxShadow: courseDetailTab === 'prescription' ? '0 2px 4px rgba(0,77,64,0.2)' : 'none',
+                    boxShadow: courseDetailTab === 'prescription' ? '0 2px 4px rgba(0, 168, 132,0.2)' : 'none',
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -2456,17 +2229,17 @@ export default function HealthRecordsScreen() {
                   <div
                     style={{
                       backgroundColor: '#FFFFFF',
-                      border: '2px solid #004D40',
+                      border: '2px solid #00A884',
                       borderRadius: '12px',
                       padding: '18px',
-                      boxShadow: '0 4px 12px rgba(0, 77, 64, 0.08)',
+                      boxShadow: '0 4px 12px rgba(0, 168, 132, 0.08)',
                     }}
                   >
                     {/* Document Top Bar */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', borderBottom: '2px solid #E2E8F0', paddingBottom: '12px' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '24px', fontWeight: '900', color: '#004D40', fontFamily: 'serif' }}>℞</span>
+                          <span style={{ fontSize: '24px', fontWeight: '900', color: '#00A884', fontFamily: 'serif' }}>℞</span>
                           <div>
                             <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
                               MEDICAL PRESCRIPTION SLIP (e-Rx)
@@ -2515,7 +2288,7 @@ export default function HealthRecordsScreen() {
 
                     {/* Prescribed Medications */}
                     <div style={{ marginTop: '14px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '800', color: '#004D40', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: '800', color: '#00A884', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span>💊</span>
                         <span>Prescribed Medicines ({activePrescriptions.length})</span>
                       </div>
@@ -2664,7 +2437,7 @@ export default function HealthRecordsScreen() {
                       onClick={() => window.print()}
                       style={{
                         padding: '10px 18px',
-                        backgroundColor: '#004D40',
+                        backgroundColor: '#00A884',
                         color: '#FFFFFF',
                         border: 'none',
                         borderRadius: '10px',
@@ -2674,7 +2447,7 @@ export default function HealthRecordsScreen() {
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
-                        boxShadow: '0 2px 4px rgba(0, 77, 64, 0.2)',
+                        boxShadow: '0 2px 4px rgba(0, 168, 132, 0.2)',
                       }}
                     >
                       <span>🖨️</span>
@@ -2732,7 +2505,7 @@ export default function HealthRecordsScreen() {
 
                       <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
                         <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital &amp; OPD Desk</span>
-                        <strong style={{ fontSize: '13px', color: '#004D40' }}>{hospitalName} &bull; Counter 4</strong>
+                        <strong style={{ fontSize: '13px', color: '#00A884' }}>{hospitalName} &bull; Counter 4</strong>
                       </div>
 
                       <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
@@ -2793,7 +2566,7 @@ export default function HealthRecordsScreen() {
                               marginTop: '12px',
                               padding: '8px 16px',
                               borderRadius: '8px',
-                              backgroundColor: '#004D40',
+                              backgroundColor: '#00A884',
                               color: '#FFFFFF',
                               border: 'none',
                               fontWeight: '700',
@@ -2845,7 +2618,7 @@ export default function HealthRecordsScreen() {
                                 style={{
                                   padding: '7px 14px',
                                   borderRadius: '8px',
-                                  backgroundColor: '#004D40',
+                                  backgroundColor: '#00A884',
                                   color: '#FFFFFF',
                                   border: 'none',
                                   fontSize: '12px',
@@ -2937,7 +2710,7 @@ export default function HealthRecordsScreen() {
                 </div>
 
                 <div style={{ background: '#F8FAFC', border: '1.5px solid #CBD5E1', borderRadius: '12px', padding: '14px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: '800', color: '#004D40', textTransform: 'uppercase', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '800', color: '#00A884', textTransform: 'uppercase', marginBottom: '8px' }}>
                     Rx Prescribed Medication
                   </div>
                   <div style={{ fontSize: '15px', fontWeight: '800', color: '#0F172A' }}>
@@ -3017,7 +2790,7 @@ export default function HealthRecordsScreen() {
                 }}
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: '#004D40',
+                  backgroundColor: '#00A884',
                   color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '10px',

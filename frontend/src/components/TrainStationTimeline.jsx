@@ -47,7 +47,7 @@ export default function TrainStationTimeline({
     );
   }
 
-  const activeSelectedId = selectedStationId || stations[0]?.id;
+  const activeSelectedId = selectedStationId;
 
   return (
     <div style={{ position: 'relative', padding: '4px 0 4px 2px' }}>
@@ -59,7 +59,7 @@ export default function TrainStationTimeline({
           top: '14px',
           bottom: '14px',
           width: '2.5px',
-          backgroundColor: '#10B981',
+          backgroundColor: '#00A884',
           borderRadius: '2px',
           zIndex: 0,
         }}
@@ -90,11 +90,11 @@ export default function TrainStationTimeline({
                   width: '20px',
                   height: '20px',
                   borderRadius: '50%',
-                  backgroundColor: isSelected ? '#004D40' : (isActive ? '#10B981' : '#DC2626'),
+                  backgroundColor: isSelected ? '#00A884' : (isActive ? '#00A884' : '#DC2626'),
                   border: isSelected ? '3.5px solid #FFFFFF' : '3px solid #FFFFFF',
                   boxShadow: isSelected
-                    ? '0 0 0 2px #004D40, 0 0 10px rgba(0, 77, 64, 0.4)'
-                    : (isActive ? '0 0 0 1.5px #10B981' : '0 0 0 1.5px #DC2626'),
+                    ? '0 0 0 2px #00A884, 0 0 10px rgba(0, 77, 64, 0.4)'
+                    : (isActive ? '0 0 0 1.5px #00A884' : '0 0 0 1.5px #DC2626'),
                   flexShrink: 0,
                   marginTop: '10px',
                   cursor: 'pointer',
@@ -107,7 +107,7 @@ export default function TrainStationTimeline({
                 title={isSelected ? 'Selected Consultation' : 'Click to select consultation'}
               >
                 {isSelected && (
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34D399' }} />
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#FFFFFF' }} />
                 )}
               </div>
 
@@ -117,8 +117,8 @@ export default function TrainStationTimeline({
                 style={{
                   flex: 1,
                   minWidth: 0,
-                  backgroundColor: isSelected ? '#F0FDFA' : '#FFFFFF',
-                  border: isSelected ? '1.5px solid #004D40' : '1px solid #E2E8F0',
+                  backgroundColor: isSelected ? '#E8F8F5' : '#FFFFFF',
+                  border: isSelected ? '1.5px solid #00A884' : '1px solid #E2E8F0',
                   borderRadius: '12px',
                   boxShadow: isSelected
                     ? '0 3px 10px rgba(0, 77, 64, 0.08)'
@@ -146,14 +146,14 @@ export default function TrainStationTimeline({
                       style={{
                         fontSize: '10.5px',
                         fontWeight: '700',
-                        backgroundColor: isSelected ? '#004D40' : '#E2E8F0',
+                        backgroundColor: isSelected ? '#00A884' : '#E2E8F0',
                         color: isSelected ? '#FFFFFF' : '#475569',
                         padding: '2px 7px',
                         borderRadius: '9999px',
                         transition: 'all 0.15s ease',
                       }}
                     >
-                      {isSelected ? 'Active ✓' : 'Select'}
+                      {isSelected ? '✓' : 'View'}
                     </span>
                   </div>
                 </div>

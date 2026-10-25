@@ -215,7 +215,7 @@ function PatientMobileShell({ session, onLogout }) {
       label: 'My Queue',
       end: true,
       renderIcon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
           <line x1="8" y1="2" x2="8" y2="6" />
@@ -228,7 +228,7 @@ function PatientMobileShell({ session, onLogout }) {
       to: '/patient/family',
       label: 'Family & ABHA',
       renderIcon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -240,7 +240,7 @@ function PatientMobileShell({ session, onLogout }) {
       to: '/patient/records',
       label: 'Records',
       renderIcon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           <line x1="12" y1="11" x2="12" y2="17" />
           <line x1="9" y1="14" x2="15" y2="14" />
@@ -251,7 +251,7 @@ function PatientMobileShell({ session, onLogout }) {
       to: '/patient/access',
       label: 'Access',
       renderIcon: (active) => (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#004D40' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#00A884' : '#6B7280'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
@@ -347,7 +347,7 @@ function PatientMobileShell({ session, onLogout }) {
                     cursor: 'pointer',
                     fontSize: '13px',
                     fontWeight: isActive ? '700' : '600',
-                    color: isActive ? '#004D40' : '#475569',
+                    color: isActive ? '#00A884' : '#475569',
                     transition: 'all 0.15s ease',
                   }}
                 >
@@ -444,7 +444,7 @@ function PatientMobileShell({ session, onLogout }) {
                 style={{
                   fontSize: '11px',
                   fontWeight: isActive ? '700' : '500',
-                  color: isActive ? '#004D40' : '#6B7280',
+                  color: isActive ? '#00A884' : '#6B7280',
                 }}
               >
                 {tab.label}

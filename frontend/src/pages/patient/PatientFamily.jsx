@@ -380,28 +380,7 @@ export default function PatientFamily() {
             {members ? `${members.length} registered members` : 'Manage your family members & ABHA IDs'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAddModal(true)}
-          style={{
-            backgroundColor: '#004D40',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '10px',
-            padding: '8px 14px',
-            fontSize: '13px',
-            fontWeight: '700',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            flexShrink: 0,
-            boxShadow: '0 2px 6px rgba(0, 77, 64, 0.15)',
-          }}
-        >
-          <span>+</span>
-          <span>Add Member</span>
-        </button>
+
       </div>
 
       {/* Gateway Live Status Pill */}
@@ -447,7 +426,7 @@ export default function PatientFamily() {
             type="button"
             onClick={() => setAddModal(true)}
             style={{
-              backgroundColor: '#004D40',
+              backgroundColor: '#00A884',
               color: '#ffffff',
               border: 'none',
               borderRadius: '10px',
@@ -494,7 +473,7 @@ export default function PatientFamily() {
                         flexShrink: 0,
                       }}
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="#004D40">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="#00A884">
                         <path d="M12 12c2.67 0 4.8-2.13 4.8-4.8S14.67 2.4 12 2.4 7.2 4.53 7.2 7.2 9.33 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
                       </svg>
                     </div>
@@ -580,7 +559,7 @@ export default function PatientFamily() {
                           onClick={() => openAbhaModal(m, 'manual')}
                           style={{
                             backgroundColor: '#F1F5F9',
-                            color: '#004D40',
+                            color: '#00A884',
                             border: '1px solid #CBD5E1',
                             borderRadius: '8px',
                             padding: '5px 10px',
@@ -777,9 +756,9 @@ export default function PatientFamily() {
                       style={{
                         padding: '8px 4px',
                         borderRadius: '10px',
-                        border: kycMethod === 'abha-number' ? '2px solid #004D40' : '1px solid #CBD5E1',
+                        border: kycMethod === 'abha-number' ? '2px solid #00A884' : '1px solid #CBD5E1',
                         backgroundColor: kycMethod === 'abha-number' ? '#F0FDF4' : '#FFFFFF',
-                        color: kycMethod === 'abha-number' ? '#004D40' : '#475569',
+                        color: kycMethod === 'abha-number' ? '#00A884' : '#475569',
                         fontWeight: kycMethod === 'abha-number' ? '800' : '600',
                         fontSize: '11.5px',
                         cursor: 'pointer',
@@ -794,9 +773,9 @@ export default function PatientFamily() {
                       style={{
                         padding: '8px 4px',
                         borderRadius: '10px',
-                        border: kycMethod === 'manual' ? '2px solid #004D40' : '1px solid #CBD5E1',
+                        border: kycMethod === 'manual' ? '2px solid #00A884' : '1px solid #CBD5E1',
                         backgroundColor: kycMethod === 'manual' ? '#F0FDF4' : '#FFFFFF',
-                        color: kycMethod === 'manual' ? '#004D40' : '#475569',
+                        color: kycMethod === 'manual' ? '#00A884' : '#475569',
                         fontWeight: kycMethod === 'manual' ? '800' : '600',
                         fontSize: '11.5px',
                         cursor: 'pointer',
@@ -888,7 +867,7 @@ export default function PatientFamily() {
                           flex: 2,
                           padding: '12px',
                           borderRadius: '12px',
-                          backgroundColor: '#004D40',
+                          backgroundColor: '#00A884',
                           color: '#FFFFFF',
                           fontWeight: '700',
                           fontSize: '13.5px',
@@ -948,7 +927,7 @@ export default function PatientFamily() {
                             borderRadius: '10px',
                             border: '1px solid #CBD5E1',
                             fontWeight: '700',
-                            color: '#004D40',
+                            color: '#00A884',
                             fontSize: '13px'
                           }}>
                             @abdm
@@ -968,7 +947,7 @@ export default function PatientFamily() {
                           flex: 2,
                           padding: '12px',
                           borderRadius: '12px',
-                          backgroundColor: kycMethod === 'enroll' ? '#16A34A' : '#004D40',
+                          backgroundColor: kycMethod === 'enroll' ? '#16A34A' : '#00A884',
                           color: '#FFFFFF',
                           fontWeight: '700',
                           fontSize: '13.5px',
@@ -1039,12 +1018,12 @@ export default function PatientFamily() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
                   <span style={{ color: '#64748B' }}>Didn't receive code?</span>
                   {resendTimer > 0 ? (
-                    <span style={{ color: '#004D40', fontWeight: '600' }}>Resend in {resendTimer}s</span>
+                    <span style={{ color: '#00A884', fontWeight: '600' }}>Resend in {resendTimer}s</span>
                   ) : (
                     <button
                       type="button"
                       onClick={handleSendKycOtp}
-                      style={{ border: 'none', background: 'none', color: '#004D40', fontWeight: '700', cursor: 'pointer', padding: 0 }}
+                      style={{ border: 'none', background: 'none', color: '#00A884', fontWeight: '700', cursor: 'pointer', padding: 0 }}
                     >
                       Resend OTP
                     </button>
@@ -1062,7 +1041,7 @@ export default function PatientFamily() {
                       flex: 2,
                       padding: '12px',
                       borderRadius: '12px',
-                      backgroundColor: '#004D40',
+                      backgroundColor: '#00A884',
                       color: '#FFFFFF',
                       fontWeight: '700',
                       fontSize: '13.5px',
@@ -1149,14 +1128,14 @@ export default function PatientFamily() {
                     background: '#F0FDF4',
                     padding: '12px',
                     borderRadius: '12px',
-                    border: '1.5px solid #004D40',
+                    border: '1.5px solid #00A884',
                   }}
                 >
                   <input
                     type="checkbox"
                     checked={applyVerifiedDetails}
                     onChange={(e) => setApplyVerifiedDetails(e.target.checked)}
-                    style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#004D40' }}
+                    style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#00A884' }}
                   />
                   <div style={{ fontSize: '12.5px', color: '#166534', lineHeight: 1.35 }}>
                     <strong>Apply official Government name, age & gender to this member</strong>
@@ -1178,7 +1157,7 @@ export default function PatientFamily() {
                       flex: 2,
                       padding: '12px',
                       borderRadius: '12px',
-                      backgroundColor: '#004D40',
+                      backgroundColor: '#00A884',
                       color: '#FFFFFF',
                       fontWeight: '700',
                       fontSize: '13.5px',
@@ -1195,6 +1174,36 @@ export default function PatientFamily() {
           </div>
         </Modal>
       )}
+
+      {/* Floating Add Member Button at Bottom (WhatsApp Style) */}
+      <button
+        type="button"
+        onClick={() => setAddModal(true)}
+        style={{
+          position: 'fixed',
+          bottom: '76px',
+          right: '20px',
+          width: '54px',
+          height: '54px',
+          borderRadius: '50%',
+          backgroundColor: '#00A884',
+          color: '#ffffff',
+          border: 'none',
+          boxShadow: '0 4px 14px rgba(0, 168, 132, 0.45)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 40,
+          fontSize: '28px',
+          fontWeight: '300',
+          lineHeight: 1,
+          transition: 'transform 0.15s ease',
+        }}
+        title="Add Household Member"
+      >
+        <span style={{ marginTop: '-2px' }}>+</span>
+      </button>
 
     </div>
   );
