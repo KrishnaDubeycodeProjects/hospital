@@ -340,6 +340,48 @@ export const abdmApi = {
 
 
 /** For <img>/<a> tags hitting a protected binary route (document/QR download) -- fetches with the Bearer header and hands back an object URL. */
+
+// --------------------------------------------------------------- ASHA & Community ----
+
+const ashaAuth = (phone = '9876543210') => {
+  const token = getToken('ADMIN') || getToken('DOCTOR') || getToken('PATIENT');
+  const headers = { 'X-ASHA-Phone': phone };
+  if (token) headers['Authorization'] = Bearer ;
+  return { headers };
+};
+
+export const ashaApi = {
+  getMe: (phone) => getD('/api/asha/me', ashaAuth(phone)),
+  getDashboard: (phone) => getD('/api/asha/dashboard', ashaAuth(phone)),
+  listFamilies: (phone, search, sort) => getD('/api/asha/families', { ...ashaAuth(phone), params: { search, sort } }),
+  getFamilyDetail: (id) => getD(/api/asha/families/, ashaAuth()),
+  getGridData: (phone, section) => getD('/api/asha/grid', { ...ashaAuth(phone), params: { section } }),
+  createFamily: (body, phone) => postD('/api/asha/families', body, ashaAuth(phone)),
+  addMember: (familyId, body) => postD(/api/asha/families//members, body, ashaAuth()),
+  updateMember: (familyId, memberId, body) => putD(/api/asha/families//members/, body, ashaAuth()),
+  deleteMember: (familyId, memberId) => delD(/api/asha/families//members/, ashaAuth()),
+  setVisitInterval: (familyId, intervalDays) => putD(/api/asha/families//visit-interval, { intervalDays }, ashaAuth()),
+};
+
+export const choApi = {
+  getAnalytics: () => getD('/api/cho/analytics', defaultAuth()),
+  getReferrals: () => getD('/api/cho/referrals', defaultAuth()),
+  approveReferral: (id) => postD(/api/cho/referrals//approve, {}, defaultAuth()),
+  saveTeleconsultAdvice: (referralId, payload) => postD(/api/cho/referrals//teleconsult, payload, defaultAuth()),
+};
+
+export const syncApi = {
+  upload: (payload, phone) => post('/api/sync/upload', payload, ashaAuth(phone)),
+  download: (since, phone) => get('/api/sync/download', { ...ashaAuth(phone), params: { since } }),
+  sendToAnm: (section, anmIdentifier, phone) => post('/api/sync/send-to-anm', { section, anmIdentifier }, ashaAuth(phone)),
+  simulateMissedReferral: (daysOverdue, houseNumber, referralReason, phone) =>
+    post('/api/followups/simulate-missed-referral', {}, {
+      ...ashaAuth(phone),
+      params: { daysOverdue, houseNumber, referralReason },
+    }),
+};
+
+
 export async function fetchAsObjectUrl(url, role) {
   const res = await client.get(url, { ...authFor(role), responseType: 'blob' });
   if (res.data && res.data.type === 'application/json') {

@@ -145,7 +145,13 @@ public class SyncService {
                     }
 
                     String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, created_at, updated_at) " +
-                            "VALUES (:familyId, :name, :dob::date, :age, :gender, :relationship, :phone, NOW(), NOW())";
+                            "VALUES (:familyId, :name, :dob::date, :age, :gender, :relationship, :phone, NOW(), NOW()) " +
+                            "ON CONFLICT (family_unit_id, name, relationship) DO UPDATE SET " +
+                            "dob = COALESCE(EXCLUDED.dob, clinicqueue.family_members.dob), " +
+                            "age = COALESCE(EXCLUDED.age, clinicqueue.family_members.age), " +
+                            "gender = COALESCE(EXCLUDED.gender, clinicqueue.family_members.gender), " +
+                            "phone = COALESCE(EXCLUDED.phone, clinicqueue.family_members.phone), " +
+                            "updated_at = NOW()";
                     jdbcTemplate.update(sql, new MapSqlParameterSource()
                             .addValue("familyId", famId)
                             .addValue("name", mem.get("name"))
@@ -309,10 +315,12 @@ public class SyncService {
 
     @Transactional
     public Map<String, Object> sendToAnm(String ashaPhone, String sectionFilter, String anmPhone) {
+        String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
         StringBuilder sql = new StringBuilder("UPDATE clinicqueue.survey_responses SET synced_to_anm = TRUE, target_anm_phone = :anmPhone, synced_at = NOW() " +
                 "WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND synced_to_anm = FALSE ");
         
         MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone)
+                .addValue("rawPhone", rawPhone)
                 .addValue("anmPhone", anmPhone);
                 
         if (sectionFilter != null && !"ALL".equals(sectionFilter)) {

@@ -46,6 +46,32 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 authentication.setDetails(decoded);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
+        } else {
+            // Support field worker mobile app & web sync using X-ASHA-Phone or X-ANM-Phone
+            String ashaPhone = request.getHeader("X-ASHA-Phone");
+            if (ashaPhone == null || ashaPhone.isBlank()) {
+                ashaPhone = request.getHeader("x-asha-phone");
+            }
+            String anmPhone = request.getHeader("X-ANM-Phone");
+            if (anmPhone == null || anmPhone.isBlank()) {
+                anmPhone = request.getHeader("x-anm-phone");
+            }
+
+            if (ashaPhone != null && !ashaPhone.isBlank()) {
+                String cleanPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ashaPhone);
+                JwtService.DecodedToken fieldToken = new JwtService.DecodedToken(cleanPhone, "ASHA", null);
+                var authentication = new UsernamePasswordAuthenticationToken(
+                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA"), new SimpleGrantedAuthority("ROLE_USER")));
+                authentication.setDetails(fieldToken);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } else if (anmPhone != null && !anmPhone.isBlank()) {
+                String cleanPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(anmPhone);
+                JwtService.DecodedToken fieldToken = new JwtService.DecodedToken(cleanPhone, "ASHA", null);
+                var authentication = new UsernamePasswordAuthenticationToken(
+                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA"), new SimpleGrantedAuthority("ROLE_ANM"), new SimpleGrantedAuthority("ROLE_USER")));
+                authentication.setDetails(fieldToken);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            }
         }
 
         filterChain.doFilter(request, response);

@@ -622,7 +622,7 @@ CREATE INDEX IF NOT EXISTS idx_sr_member ON survey_responses (family_member_id);
 CREATE INDEX IF NOT EXISTS idx_sr_asha ON survey_responses (asha_worker_phone);
 CREATE INDEX IF NOT EXISTS idx_sr_anm ON survey_responses (target_anm_phone, synced_to_anm);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sr_offline
-  ON survey_responses (offline_id) WHERE offline_id IS NOT NULL;
+  ON survey_responses (offline_id);
 
 CREATE TABLE IF NOT EXISTS follow_up_tasks (
   id                  SERIAL PRIMARY KEY,
@@ -642,7 +642,7 @@ CREATE TABLE IF NOT EXISTS follow_up_tasks (
 CREATE INDEX IF NOT EXISTS idx_ft_asha ON follow_up_tasks (asha_worker_phone, status);
 CREATE INDEX IF NOT EXISTS idx_ft_due ON follow_up_tasks (due_date, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ft_offline
-  ON follow_up_tasks (offline_id) WHERE offline_id IS NOT NULL;
+  ON follow_up_tasks (offline_id);
 
 -- Alterations for family_units in ASHA context
 ALTER TABLE family_units ADD COLUMN IF NOT EXISTS village_name VARCHAR(200);

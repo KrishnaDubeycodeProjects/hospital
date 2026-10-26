@@ -20,7 +20,7 @@ public class FollowUpController {
     private final FollowUpService followUpService;
     private final CurrentUser currentUser;
 
-    @GetMapping("/")
+    @GetMapping({"", "/"})
     public ResponseEntity<List<FollowUpTaskDto>> listFollowUps(@RequestParam(required = false) String status) {
         String phone = currentUser.requireAshaPhone();
         return ResponseEntity.ok(followUpService.listFollowUps(phone, status));

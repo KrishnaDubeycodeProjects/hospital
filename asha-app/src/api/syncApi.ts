@@ -196,6 +196,30 @@ export class SyncApi {
                 createdAt: mtg.createdAt || new Date().toISOString(),
               },
             });
+          } else if (item.action === 'CREATE_REFERRAL') {
+            const ref = item.payload || {};
+            followUps.push({
+              offlineId: ref.id || item.id,
+              familyUnitId: Number(ref.familyUnitId) || 1,
+              familyMemberId: Number(ref.familyMemberId) || 1,
+              taskType: 'REFERRAL_CONFIRMATION',
+              title: ref.title || `Referral: ${ref.name || 'Patient'}`,
+              description: ref.description || `Referral to CHO: ${ref.referralReason || ''}. Vitals: ${ref.vitals || ''}`,
+              dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+              status: 'PENDING',
+            });
+          } else if (item.action === 'APPROVE_REFERRAL') {
+            const app = item.payload || {};
+            followUps.push({
+              offlineId: app.taskId || item.id,
+              familyUnitId: 1,
+              familyMemberId: 1,
+              taskType: 'REFERRAL_CONFIRMATION',
+              title: 'CHO Referral Approved',
+              description: app.advice ? `CHO Advice: ${app.advice}` : 'Approved by CHO',
+              dueDate: new Date().toISOString().split('T')[0],
+              status: 'COMPLETED',
+            });
           } else if (item.action === 'SEND_TO_ANM') {
             anmSends.push(item);
           }

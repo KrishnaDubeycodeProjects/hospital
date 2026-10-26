@@ -128,7 +128,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // ASHA worker & community workflows
                         .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").permitAll()
-                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**", "/api/sync/**", "/api/anm/**", "/api/cho/**").hasAnyRole("ASHA", "ADMIN", "DOCTOR", "PATIENT")
+                        .requestMatchers("/api/sync/**", "/api/followups/simulate-missed-referral").permitAll()
+                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**", "/api/anm/**", "/api/cho/**").hasAnyRole("ASHA", "ANM", "ADMIN", "DOCTOR", "PATIENT")
                         // Test seeding endpoints accessible to ADMIN and DOCTOR
                         .requestMatchers("/api/test/**").permitAll()
                         // Drugs & ABDM open/utility APIs

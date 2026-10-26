@@ -81,7 +81,7 @@ public class SurveyService {
             updateMemberSql += " WHERE id = :memberId";
             jdbcTemplate.update(updateMemberSql, memberParams);
             
-            return getResponse(finalId);
+            return finalId != null ? getResponse(finalId) : null;
         } catch (Exception e) {
             log.error("Failed to submit response", e);
             throw new RuntimeException("Failed to submit response", e);
@@ -123,8 +123,10 @@ public class SurveyService {
     }
 
     private Integer getResponseIdByOfflineId(String offlineId) {
-        return jdbcTemplate.queryForObject("SELECT id FROM clinicqueue.survey_responses WHERE offline_id = :oid", 
-                new MapSqlParameterSource("oid", offlineId), Integer.class);
+        if (offlineId == null || offlineId.isBlank()) return null;
+        List<Integer> list = jdbcTemplate.query("SELECT id FROM clinicqueue.survey_responses WHERE offline_id = :oid LIMIT 1", 
+                new MapSqlParameterSource("oid", offlineId), (rs, rn) -> rs.getInt("id"));
+        return list.isEmpty() ? null : list.get(0);
     }
 
     private SurveyTemplateDto mapTemplate(ResultSet rs) throws SQLException {
