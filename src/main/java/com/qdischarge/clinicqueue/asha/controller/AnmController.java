@@ -63,4 +63,13 @@ public class AnmController {
             @RequestParam(required = false) String category) {
         return ResponseEntity.ok(anmService.getMemberForms(ashaPhone, memberId, category));
     }
+
+    @PostMapping({"/session", "/qr"})
+    public ResponseEntity<Map<String, Object>> createSession(@RequestBody(required = false) Map<String, String> body) {
+        String phone = currentUser.getAshaPhone();
+        String title = body != null ? body.get("title") : null;
+        String category = body != null ? body.get("category") : null;
+        String qrCode = body != null ? (body.get("qrCode") != null ? body.get("qrCode") : body.get("qrCodeValue")) : null;
+        return ResponseEntity.ok(anmService.createOrUpdateSession(phone, title, category, qrCode));
+    }
 }
