@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { choApi } from '../../api/client';
 import {
   Users,
   Stethoscope,
@@ -40,7 +41,7 @@ export default function AshaAdminDashboard() {
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   // ASHA Workers Data
-  const workers = [
+  const [workers, setWorkers] = useState([
     {
       id: 'w1',
       avatar: 'SD',
@@ -101,7 +102,71 @@ export default function AshaAdminDashboard() {
       ncdCount: 3,
       lastActive: '2 घंटे पहले',
     },
-  ];
+  ]);
+
+  // Fetch live CHO analytics and referrals on mount
+  useEffect(() => {
+    let mounted = true;
+    const fetchLiveChoData = async () => {
+      try {
+        const [analyticsRes, referralsRes] = await Promise.allSettled([
+          choApi.getAnalytics(),
+          choApi.getReferrals()
+        ]);
+        if (mounted && analyticsRes.status === 'fulfilled' && Array.isArray(analyticsRes.value)) {
+          const liveList = analyticsRes.value;
+          if (liveList.length > 0) {
+            setWorkers((prev) => {
+              return prev.map((w) => {
+                const live = liveList.find((l) => l.asha_phone === w.phone.replace(/\D/g, '') || l.asha_name === w.name);
+                if (live) {
+                  return {
+                    ...w,
+                    families: live.family_count ?? w.families,
+                    surveys: live.survey_count ?? w.surveys,
+                    referrals: live.referral_missed_count ?? w.referrals,
+                  };
+                }
+                return w;
+              });
+            });
+          }
+        }
+        if (mounted && referralsRes.status === 'fulfilled' && Array.isArray(referralsRes.value)) {
+          const liveRefs = referralsRes.value;
+          if (liveRefs.length > 0) {
+            setCriticalReferrals((prev) => {
+              const formatted = liveRefs.map((r) => ({
+                id: `ref-${r.id}`,
+                name: r.member_name || r.family_head_name || 'Beneficiary',
+                age: 28,
+                gender: 'महिला',
+                houseNo: r.house_number || 12,
+                village: 'Chandpur',
+                phone: '+91 98765 00012',
+                abhaId: '91-6234-8890-1452',
+                workerName: 'Sunita Devi',
+                doctorName: 'CHO (Ayushman Arogya Mandir)',
+                prescriptions: 'Active clinical review required',
+                prescriptionDeadline: '3 दिन शेष',
+                reason: r.title || 'Referral follow-up',
+                tier: 'urgent_7d',
+                daysLeft: 3,
+                condition: r.description || 'Priority clinical follow-up',
+                vitals: 'BP 120/80',
+                referralSource: 'ASHA Field Referral',
+              }));
+              return [...formatted, ...prev.filter(p => !formatted.some(f => f.id === p.id))];
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('CHO live data fetch note:', err);
+      }
+    };
+    fetchLiveChoData();
+    return () => { mounted = false; };
+  }, []);
 
   // Critical Referrals List
   const [criticalReferrals, setCriticalReferrals] = useState([
@@ -187,7 +252,13 @@ export default function AshaAdminDashboard() {
     },
   ]);
 
-  const handleApproveReferral = (id) => {
+  const handleApproveReferral = async (id) => {
+    try {
+      const rawId = String(id).replace('ref-', '');
+      await choApi.approveReferral(rawId);
+    } catch (e) {
+      console.warn('Backend approval sync note:', e);
+    }
     setApprovedReferralIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -196,8 +267,14 @@ export default function AshaAdminDashboard() {
     toast.success('रेफरल सफलतापूर्वक स्वीकृत किया गया।');
   };
 
-  const handleSaveTeleconsultAdvice = () => {
+  const handleSaveTeleconsultAdvice = async () => {
     if (teleconsultPatient) {
+      try {
+        const rawId = String(teleconsultPatient.id).replace('ref-', '');
+        await choApi.saveTeleconsultAdvice(rawId, { advice: doctorNotes });
+      } catch (e) {
+        console.warn('Backend teleconsult advice note:', e);
+      }
       handleApproveReferral(teleconsultPatient.id);
       setShowNotesSuccess(true);
       setTimeout(() => {

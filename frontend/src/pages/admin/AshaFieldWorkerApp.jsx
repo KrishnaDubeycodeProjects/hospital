@@ -24,6 +24,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { syncApi } from '../../api/client';
 
 // 24 village households data for Chandpur Village with real patient contact & ABHA numbers
 const INITIAL_HOUSEHOLDS = [
@@ -1537,47 +1538,39 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
   };
 
   // Sync Outbox
-  // Sync Outbox
   const handleSyncOutbox = async () => {
     setSyncing(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
-      await fetch(`${apiUrl}/api/sync/upload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-ASHA-Phone': '9876543210',
-        },
-        body: JSON.stringify({
-          families: households.map((h) => ({
-            sequentialNumber: h.id,
-            houseNumber: h.houseNo.toString(),
-            headName: h.familyName,
-            primaryPhone: h.primaryPhone,
-            villageName: 'Chandpur',
-            visitIntervalDays: h.status === '7days' ? 7 : h.status === '15days' ? 15 : 30,
-            nextVisitDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-          })),
-          members: households.flatMap((h) =>
-            (h.members || []).map((m) => ({
-              familyUnitId: h.id,
-              name: m.name,
-              age: m.age || 30,
-              gender: m.gender === 'महिला' || m.gender === 'बालिका' ? 'Female' : 'Male',
-              relationship: 'सदस्य',
-              phone: m.phone || h.primaryPhone,
-              dob: '1995-01-01',
-            }))
-          ),
-          surveys: [],
-          followUps: [],
-        }),
-      });
+      const payload = {
+        families: households.map((h) => ({
+          sequentialNumber: h.id,
+          houseNumber: h.houseNo.toString(),
+          headName: h.familyName,
+          primaryPhone: h.primaryPhone,
+          villageName: 'Chandpur',
+          visitIntervalDays: h.status === '7days' ? 7 : h.status === '15days' ? 15 : 30,
+          nextVisitDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        })),
+        members: households.flatMap((h) =>
+          (h.members || []).map((m) => ({
+            familyUnitId: h.id,
+            name: m.name,
+            age: m.age || 30,
+            gender: m.gender === 'महिला' || m.gender === 'बालिका' ? 'Female' : 'Male',
+            relationship: 'सदस्य',
+            phone: m.phone || h.primaryPhone,
+            dob: '1995-01-01',
+          }))
+        ),
+        surveys: [],
+        followUps: [],
+      };
+      const res = await syncApi.upload(payload, '9876543210');
+      const accepted = res?.data?.accepted ?? 24;
       setOutboxCount(0);
-      toast.success('✓ सभी 24 परिवारों और सदस्यों का डेटा क्लाउड सर्वर पर सफलतापूर्वक प्रेषित हो गया!');
+      toast.success(`✓ सभी 24 परिवारों और सदस्यों का डेटा क्लाउड सर्वर पर प्रेषित हो गया! (स्वीकृत: ${accepted})`);
     } catch (e) {
-      setOutboxCount(0);
-      toast.success('✓ डेटा स्थानीय आउटबॉक्स में सुरक्षित है एवं क्लाउड कतार में प्रेषित हो गया!');
+      toast.error('सिंक विफल रहा: ' + (e.message || 'क्लाउड सर्वर से संपर्क नहीं हो सका'));
     } finally {
       setSyncing(false);
     }

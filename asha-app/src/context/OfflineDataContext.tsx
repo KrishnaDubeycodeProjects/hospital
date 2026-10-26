@@ -380,6 +380,10 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       updatedAt: new Date().toISOString(),
     };
     const saved = await OfflineStorageService.saveAnmSession(newSession);
+    // Asynchronously register QR session with backend cloud API so ASHA can transfer records live
+    SyncApi.registerAnmSession(newSession.title, newSession.category, newSession.qrCodeValue, '9876543211').catch(e => {
+      console.warn('Backend session registration note:', e);
+    });
     await refreshData();
     return saved;
   };

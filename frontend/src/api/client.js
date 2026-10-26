@@ -345,8 +345,13 @@ export const abdmApi = {
 
 const ashaAuth = (phone = '9876543210') => {
   const token = getToken('ADMIN') || getToken('DOCTOR') || getToken('PATIENT');
-  const headers = { 'X-ASHA-Phone': phone };
-  if (token) headers['Authorization'] = Bearer ;
+  const headers = { 
+    'X-ASHA-Phone': phone,
+    'X-ANM-Phone': phone
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   return { headers };
 };
 
@@ -354,20 +359,29 @@ export const ashaApi = {
   getMe: (phone) => getD('/api/asha/me', ashaAuth(phone)),
   getDashboard: (phone) => getD('/api/asha/dashboard', ashaAuth(phone)),
   listFamilies: (phone, search, sort) => getD('/api/asha/families', { ...ashaAuth(phone), params: { search, sort } }),
-  getFamilyDetail: (id) => getD(/api/asha/families/, ashaAuth()),
+  getFamilyDetail: (id, phone) => getD(`/api/asha/families/${id}`, ashaAuth(phone)),
   getGridData: (phone, section) => getD('/api/asha/grid', { ...ashaAuth(phone), params: { section } }),
   createFamily: (body, phone) => postD('/api/asha/families', body, ashaAuth(phone)),
-  addMember: (familyId, body) => postD(/api/asha/families//members, body, ashaAuth()),
-  updateMember: (familyId, memberId, body) => putD(/api/asha/families//members/, body, ashaAuth()),
-  deleteMember: (familyId, memberId) => delD(/api/asha/families//members/, ashaAuth()),
-  setVisitInterval: (familyId, intervalDays) => putD(/api/asha/families//visit-interval, { intervalDays }, ashaAuth()),
+  addMember: (familyId, body, phone) => postD(`/api/asha/families/${familyId}/members`, body, ashaAuth(phone)),
+  updateMember: (familyId, memberId, body, phone) => putD(`/api/asha/families/${familyId}/members/${memberId}`, body, ashaAuth(phone)),
+  deleteMember: (familyId, memberId, phone) => delD(`/api/asha/families/${familyId}/members/${memberId}`, ashaAuth(phone)),
+  setVisitInterval: (familyId, intervalDays, phone) => putD(`/api/asha/families/${familyId}/visit-interval`, { intervalDays }, ashaAuth(phone)),
 };
 
 export const choApi = {
   getAnalytics: () => getD('/api/cho/analytics', defaultAuth()),
   getReferrals: () => getD('/api/cho/referrals', defaultAuth()),
-  approveReferral: (id) => postD(/api/cho/referrals//approve, {}, defaultAuth()),
-  saveTeleconsultAdvice: (referralId, payload) => postD(/api/cho/referrals//teleconsult, payload, defaultAuth()),
+  approveReferral: (id) => postD(`/api/cho/referrals/${id}/approve`, {}, defaultAuth()),
+  saveTeleconsultAdvice: (referralId, payload) => postD(`/api/cho/referrals/${referralId}/teleconsult`, payload, defaultAuth()),
+};
+
+export const anmApi = {
+  getMe: (phone) => getD('/api/anm/me', ashaAuth(phone)),
+  createSession: (body, phone) => postD('/api/anm/session', body, ashaAuth(phone)),
+  getIncomingData: (section, phone) => getD('/api/anm/data', { ...ashaAuth(phone), params: { section: section || 'ALL' } }),
+  listAshaWorkers: (phone) => getD('/api/anm/ashas', ashaAuth(phone)),
+  getMemberForms: (ashaPhone, memberId, category, anmPhone) =>
+    getD(`/api/anm/data/${ashaPhone}/members/${memberId}/forms`, { ...ashaAuth(anmPhone), params: { category } }),
 };
 
 export const syncApi = {
@@ -380,7 +394,6 @@ export const syncApi = {
       params: { daysOverdue, houseNumber, referralReason },
     }),
 };
-
 
 export async function fetchAsObjectUrl(url, role) {
   const res = await client.get(url, { ...authFor(role), responseType: 'blob' });

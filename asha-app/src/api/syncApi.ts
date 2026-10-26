@@ -32,6 +32,44 @@ export interface SyncResult {
 
 export class SyncApi {
   /**
+   * Register a newly created ANM QR session with the backend so ASHA workers can transfer records live
+   */
+  static async registerAnmSession(
+    title: string,
+    category: string,
+    qrCode: string,
+    anmPhone: string = '9876543211'
+  ): Promise<boolean> {
+    try {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/anm/session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-ANM-Phone': anmPhone,
+          ...NGROK_HEADERS,
+        },
+        body: JSON.stringify({ title, category, qrCode }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn('Could not register ANM session with backend:', e);
+      return false;
+    }
+  }
+
+  static async getAnmIncomingData(anmPhone: string = '9876543211'): Promise<any[]> {
+    try {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/anm/data?section=ALL`, {
+        headers: { 'X-ANM-Phone': anmPhone, ...NGROK_HEADERS },
+      });
+      if (res.ok) return await res.json();
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Check if backend cloud server is reachable (internet connectivity check)
    */
   static async pingServer(): Promise<boolean> {
@@ -375,7 +413,8 @@ export class SyncApi {
    */
   static async sendDataToAnm(
     sectionFilter: string = 'ALL',
-    anmPhoneOrCode: string = 'ANM-CHANDPUR-01'
+    anmPhoneOrCode: string = 'ANM-CHANDPUR-01',
+    ashaPhone: string = '9876543210'
   ): Promise<SyncResult> {
     const isOnline = await this.pingServer();
 
@@ -387,7 +426,7 @@ export class SyncApi {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-ASHA-Phone': '9876543210',
+              'X-ASHA-Phone': ashaPhone,
               ...NGROK_HEADERS,
             },
             body: JSON.stringify({
