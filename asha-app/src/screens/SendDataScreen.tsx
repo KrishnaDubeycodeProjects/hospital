@@ -38,6 +38,7 @@ import {
   Scan,
 } from 'lucide-react-native';
 import jsQR from 'jsqr';
+import { scanQrFromImageFile, parseQrIdentifier } from '../utils/qrScannerHelper';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
@@ -98,54 +99,24 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
     setSyncFeedback(res.message || '✓ सीएचओ एडमिन को सभी जावक रेफरल एवं सर्वे सफलतापूर्वक प्रेषित किए गए।');
   };
 
-  const handleQrImageFile = (e: any) => {
+  const handleQrImageFile = async (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
 
     setIsDecoding(true);
-    setScanStatusMessage('QR कोड स्कैन किया जा रहा है...');
+    setScanStatusMessage('QR कोड स्कैन किया जा रहा है (Multi-pass decoding)...');
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxDim = 800;
-        let targetW = img.width;
-        let targetH = img.height;
-        if (targetW > maxDim || targetH > maxDim) {
-          if (targetW > targetH) {
-            targetH = Math.round((targetH * maxDim) / targetW);
-            targetW = maxDim;
-          } else {
-            targetW = Math.round((targetW * maxDim) / targetH);
-            targetH = maxDim;
-          }
-        }
-        canvas.width = targetW;
-        canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          setIsDecoding(false);
-          setScanStatusMessage('स्कैनर प्रारंभ नहीं हो सका');
-          return;
-        }
-        ctx.drawImage(img, 0, 0, targetW, targetH);
-        const imageData = ctx.getImageData(0, 0, targetW, targetH);
-        const code = jsQR(imageData.data, targetW, targetH);
-
-        setIsDecoding(false);
-        if (code && code.data) {
-          setManualCode(code.data);
-          setScanStatusMessage(`✓ QR कोड पहचाना गया: ${code.data}. डेटा भेजा जा रहा है...`);
-          handleDirectScan(code.data);
-        } else {
-          setScanStatusMessage('⚠️ QR कोड नहीं मिला। कृपया फोटो स्पष्ट रूप से लें।');
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    try {
+      const decodedRaw = await scanQrFromImageFile(file);
+      const parsed = parseQrIdentifier(decodedRaw);
+      setIsDecoding(false);
+      setManualCode(parsed);
+      setScanStatusMessage(`✓ QR कोड पहचाना गया: ${parsed}. डेटा भेजा जा रहा है...`);
+      await handleDirectScan(parsed);
+    } catch (err: any) {
+      setIsDecoding(false);
+      setScanStatusMessage(err.message || '⚠️ QR कोड नहीं मिला। कृपया फोटो स्पष्ट रूप से लें।');
+    }
   };
 
   // Accurate counts for each clustered category
@@ -155,7 +126,8 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
   const ncdCount = members.filter((m) => m.hasChronicCondition || m.isNcdPatient).length || surveys.filter((s) => s.categoryCode === 'DISEASE').length;
 
   const handleDirectScan = async (codeToUse?: string) => {
-    const code = (codeToUse || manualCode).trim() || `ANM-QR-${selectedCluster}-SYNCED`;
+    const raw = (codeToUse || manualCode).trim();
+    const code = parseQrIdentifier(raw) || `ANM-QR-${selectedCluster}-SYNCED`;
     await sendToAnm(selectedCluster, code);
     onSuccess();
   };

@@ -1,5 +1,6 @@
 import { OfflineStorageService } from '../storage/OfflineStorageService';
 import { OutboxItem } from '../types/storage';
+import { parseQrIdentifier } from '../utils/qrScannerHelper';
 
 const CLOUD_API_URL = 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
 
@@ -291,7 +292,7 @@ export class SyncApi {
               },
               body: JSON.stringify({
                 section: anmItem.payload?.sectionFilter || 'ALL',
-                anmIdentifier: anmItem.payload?.anmPhoneOrCode || 'ANM-CHANDPUR-01',
+                anmIdentifier: parseQrIdentifier(anmItem.payload?.anmPhoneOrCode || 'ANM-CHANDPUR-01') || 'ANM-CHANDPUR-01',
               }),
             });
           } catch (anmErr) {
@@ -431,7 +432,7 @@ export class SyncApi {
             },
             body: JSON.stringify({
               section: sectionFilter,
-              anmIdentifier: anmPhoneOrCode,
+              anmIdentifier: parseQrIdentifier(anmPhoneOrCode) || anmPhoneOrCode,
             }),
           }
         );

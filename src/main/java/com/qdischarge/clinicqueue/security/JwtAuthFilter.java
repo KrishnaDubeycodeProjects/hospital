@@ -61,7 +61,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String cleanPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ashaPhone);
                 JwtService.DecodedToken fieldToken = new JwtService.DecodedToken(cleanPhone, "ASHA", null);
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA"), new SimpleGrantedAuthority("ROLE_USER")));
+                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA"), new SimpleGrantedAuthority("ROLE_ANM"), new SimpleGrantedAuthority("ROLE_USER")));
                 authentication.setDetails(fieldToken);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else if (anmPhone != null && !anmPhone.isBlank()) {

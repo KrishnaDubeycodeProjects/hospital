@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { parseQrIdentifier } from '../utils/qrScannerHelper';
 
 // API base URL resolution (in priority order):
 // 1. VITE_API_URL from .env.local  → used during local dev (http://localhost:8088 or ngrok)
@@ -387,7 +388,10 @@ export const anmApi = {
 export const syncApi = {
   upload: (payload, phone) => post('/api/sync/upload', payload, ashaAuth(phone)),
   download: (since, phone) => get('/api/sync/download', { ...ashaAuth(phone), params: { since } }),
-  sendToAnm: (section, anmIdentifier, phone) => post('/api/sync/send-to-anm', { section, anmIdentifier }, ashaAuth(phone)),
+  sendToAnm: (section, anmIdentifier, phone) => {
+    const cleanId = parseQrIdentifier(anmIdentifier) || anmIdentifier;
+    return post('/api/sync/send-to-anm', { section, anmIdentifier: cleanId }, ashaAuth(phone));
+  },
   simulateMissedReferral: (daysOverdue, houseNumber, referralReason, phone) =>
     post('/api/followups/simulate-missed-referral', {}, {
       ...ashaAuth(phone),

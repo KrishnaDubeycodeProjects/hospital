@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,8 @@ import {
   ClipboardList,
 } from 'lucide-react-native';
 import jsQR from 'jsqr';
+import { scanQrFromImageFile, parseQrIdentifier } from '../utils/qrScannerHelper';
+import { SyncApi } from '../api/syncApi';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 import { RealQrCode } from '../components/RealQrCode';
@@ -69,6 +71,29 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
   // Active Session QR Code Modal
   const [activeQrSession, setActiveQrSession] = useState<AnmSessionFolder | null>(null);
 
+  // Auto-sync incoming records from cloud backend on mount
+  useEffect(() => {
+    let mounted = true;
+    SyncApi.getAnmIncomingData('9876543211')
+      .then((incoming) => {
+        if (mounted && Array.isArray(incoming) && incoming.length > 0) {
+          // If any child vax surveys received
+          const vaxCount = incoming.filter((r) => r.categoryCode === 'CHILD' || r.categoryCode === 'CHILD_VAX').length;
+          const ancCount = incoming.filter((r) => r.categoryCode === 'PREGNANCY' || r.categoryCode === 'ANC').length;
+          const ncdCount = incoming.filter((r) => r.categoryCode === 'DISEASE' || r.categoryCode === 'NCD').length;
+
+          if (vaxCount > 0) receiveRecordsInAnmSession('CHILD_VAX', vaxCount);
+          if (ancCount > 0) receiveRecordsInAnmSession('ANC', ancCount);
+          if (ncdCount > 0) receiveRecordsInAnmSession('NCD', ncdCount);
+        }
+      })
+      .catch((err) => console.log('ANM cloud sync note:', err));
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Selected Session Drilldown Modal
   const [inspectedSession, setInspectedSession] = useState<AnmSessionFolder | null>(null);
 
@@ -104,42 +129,16 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
     }
   };
 
-  const handleAnmFileScan = (e: any) => {
+  const handleAnmFileScan = async (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxDim = 800;
-        let targetW = img.width;
-        let targetH = img.height;
-        if (targetW > maxDim || targetH > maxDim) {
-          if (targetW > targetH) {
-            targetH = Math.round((targetH * maxDim) / targetW);
-            targetW = maxDim;
-          } else {
-            targetW = Math.round((targetW * maxDim) / targetH);
-            targetH = maxDim;
-          }
-        }
-        canvas.width = targetW;
-        canvas.height = targetH;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, targetW, targetH);
-        const imageData = ctx.getImageData(0, 0, targetW, targetH);
-        const code = jsQR(imageData.data, targetW, targetH);
-        if (code?.data) {
-          handleProcessAshaPayload(code.data);
-        } else {
-          setAshaScanNotice('⚠️ QR कोड नहीं मिला। कृपया स्पष्ट फोटो लें।');
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
+    try {
+      setAshaScanNotice('QR कोड स्कैन किया जा रहा है (Multi-pass decoding)...');
+      const decoded = await scanQrFromImageFile(file);
+      await handleProcessAshaPayload(decoded);
+    } catch (err: any) {
+      setAshaScanNotice(err.message || '⚠️ QR कोड नहीं मिला। कृपया स्पष्ट फोटो लें।');
+    }
   };
 
   const handleCreateSession = async () => {

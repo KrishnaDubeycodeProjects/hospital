@@ -20,11 +20,18 @@ export const RealQrCode: React.FC<RealQrCodeProps> = ({
     let isMounted = true;
     setLoading(true);
 
-    QRCode.toDataURL(value, {
-      width: size * 2,
-      margin: 1,
+    const safeValue =
+      typeof value === 'string' && value.trim()
+        ? value.trim()
+        : typeof value === 'object' && value !== null
+        ? JSON.stringify(value)
+        : 'ANM-QR-SESSION-ACTIVE';
+
+    QRCode.toDataURL(safeValue, {
+      width: Math.max(size * 2, 400),
+      margin: 2, // 2 modules required for quiet zone per ISO/IEC QR standard
       color: {
-        dark: '#114B33',
+        dark: '#000000', // Pure black for 100% camera contrast and reliable binarization
         light: '#FFFFFF',
       },
       errorCorrectionLevel: 'M',
