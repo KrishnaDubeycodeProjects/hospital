@@ -7,7 +7,10 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "deploy": "eas build --platform android --profile preview --non-interactive",
+    "deploy:prod": "eas build --platform android --profile production --non-interactive",
+    "build:apk": "eas build --platform android --profile preview --non-interactive"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",
@@ -16,6 +19,7 @@
     "@types/qrcode": "^1.5.6",
     "expo": "~52.0.0",
     "expo-speech": "~13.0.1",
+    "expo-speech-recognition": "^58.0.1",
     "expo-status-bar": "~2.0.0",
     "jsqr": "^1.4.0",
     "lucide-react-native": "^0.475.0",

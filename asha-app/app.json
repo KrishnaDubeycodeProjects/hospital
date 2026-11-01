@@ -33,6 +33,9 @@
         "projectId": "dfe954de-c57e-41af-89bd-d80d97fde939"
       }
     },
-    "owner": "krishnacomp"
+    "owner": "krishnacomp",
+    "plugins": [
+      "expo-speech-recognition"
+    ]
   }
 }

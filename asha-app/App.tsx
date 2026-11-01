@@ -9,7 +9,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { Colors } from './src/theme/colors';
 import { FamilyMember } from './src/types/storage';
 import { OfflineVoiceModal } from './src/components/OfflineVoiceModal';
-import { VoiceRecognition } from './src/voice/speechEngine';
+import { VoiceRecognition, SpeechEngine } from './src/voice/speechEngine';
 
 // Auth Screens
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -320,6 +320,11 @@ const MainAppContent: React.FC = () => {
 
 const AppRootCoordinator: React.FC = () => {
   const { isAuthenticated, isLoading, authScreen } = useAuth();
+
+  React.useEffect(() => {
+    // Automatically trigger offline language model downloads in the background for rural users
+    SpeechEngine.initializeOfflineSpeech().catch(() => {});
+  }, []);
 
   if (isLoading) {
     return (

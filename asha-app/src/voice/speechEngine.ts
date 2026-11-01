@@ -1,10 +1,27 @@
 import { Platform } from 'react-native';
 import * as Speech from 'expo-speech';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
 // Zero-cost, 100% offline speech synthesis using Expo Speech (Native OS TTS) & Web Speech API
 export class SpeechEngine {
   private static isSpeakingNow = false;
   private static currentUtterance: any = null;
+
+  /**
+   * Silently trigger background download of offline language models (Hindi, Marathi, English)
+   * Designed specifically for rural field workers so they never have to manually configure settings.
+   */
+  static async initializeOfflineSpeech(): Promise<void> {
+    if (Platform.OS === 'android') {
+      try {
+        await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'hi-IN' }).catch(() => {});
+        await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'mr-IN' }).catch(() => {});
+        await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'en-IN' }).catch(() => {});
+      } catch (e) {
+        // Safe fallback on unsupported Android versions
+      }
+    }
+  }
 
   static async speak(
     text: string,
@@ -126,9 +143,8 @@ export type VoiceModalHandler = (
   onError: (err: string) => void
 ) => void;
 
-// 100% Offline-capable speech-to-text with Webkit Speech & Native Dialog Visualizer
+// 100% Offline-capable speech-to-text with Native Speech Recognition & Modal Visualizer
 export class VoiceRecognition {
-  private static recognition: any = null;
   private static modalHandler: VoiceModalHandler | null = null;
 
   static registerHandler(handler: VoiceModalHandler | null): void {
@@ -140,55 +156,34 @@ export class VoiceRecognition {
     onResult: (text: string) => void,
     onError: (err: string) => void
   ): void {
-    // 1. If native modal handler is registered, present interactive offline voice prompter
+    // 1. If modal handler is registered, present interactive voice prompter
     if (this.modalHandler) {
       this.modalHandler(lang, onResult, onError);
       return;
     }
 
-    // 2. Web browser Web Speech API
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-      if (SpeechRecognition) {
-        if (this.recognition) {
-          try {
-            this.recognition.abort();
-          } catch (e) {}
+    // 2. Direct native module fallback
+    ExpoSpeechRecognitionModule.requestPermissionsAsync()
+      .then((perm) => {
+        if (!perm.granted) {
+          onError('Microphone permission not granted');
+          return;
         }
-
-        const recognizer = new SpeechRecognition();
-        recognizer.lang = lang;
-        recognizer.continuous = false;
-        recognizer.interimResults = false;
-
-        recognizer.onresult = (event: any) => {
-          if (event.results && event.results[0] && event.results[0][0]) {
-            const transcript = event.results[0][0].transcript;
-            onResult(transcript);
-          }
-        };
-
-        recognizer.onerror = (event: any) => {
-          onError(event.error || 'Speech recognition failed');
-        };
-
-        recognizer.start();
-        this.recognition = recognizer;
-        return;
-      }
-    }
-
-    // 3. Fallback safe callback
-    onResult('सामान्य (Normal)');
+        ExpoSpeechRecognitionModule.start({
+          lang,
+          interimResults: true,
+          maxAlternatives: 1,
+          continuous: false,
+        });
+      })
+      .catch((err) => {
+        onError(err?.message || 'Speech recognition failed');
+      });
   }
 
   static stop(): void {
-    if (this.recognition) {
-      try {
-        this.recognition.stop();
-      } catch (e) {}
-    }
+    try {
+      ExpoSpeechRecognitionModule.stop();
+    } catch (e) {}
   }
 }
