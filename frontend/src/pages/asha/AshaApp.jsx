@@ -1,278 +1,256 @@
-import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Download, Smartphone, ArrowLeft, Activity, ShieldCheck, HeartPulse, Building2, CheckCircle2 } from 'lucide-react';
-import AshaFieldWorkerApp from '../admin/AshaFieldWorkerApp';
+import React, { useEffect, useState } from 'react';
+import { ExternalLink, Smartphone, Globe, ArrowLeft, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+const EXPO_INSTALL_URL = 'https://expo.dev/accounts/krishnacomp/projects/aarogya-flow/builds/3909839b-0b68-41d2-8905-0befe2a7f4fc';
+const EXPO_WEB_URL = 'https://dist-beta-lemon-24.vercel.app';
 
 export default function AshaApp() {
-  const navigate = useNavigate();
+  const [countdown, setCountdown] = useState(3);
+  const [autoRedirect, setAutoRedirect] = useState(true);
 
-  const handleDownloadApk = () => {
-    // Initiate direct download of the APK file
-    const link = document.createElement('a');
-    link.href = '/downloads/aarogya-flow-asha.apk';
-    link.setAttribute('download', 'AarogyaFlow-ASHA-v1.0.apk');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // Auto-redirect to Expo app
+  useEffect(() => {
+    if (!autoRedirect) return;
+
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else {
+      window.location.href = EXPO_WEB_URL;
+    }
+  }, [countdown, autoRedirect]);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
-      {/* 1. TOP DEDICATED APP HEADER */}
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 40,
-          backgroundColor: '#064e3b',
-          color: '#ffffff',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-          borderBottom: '2px solid #059669',
-        }}
-      >
-        <div
+    <div
+      style={{
+        minHeight: '100vh',
+        backgroundColor: '#0F172A',
+        color: '#FFFFFF',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px 16px',
+        fontFamily: 'Inter, system-ui, sans-serif',
+      }}
+    >
+      {/* Return to Hospital Portal Button */}
+      <div style={{ position: 'absolute', top: 20, left: 20 }}>
+        <Link
+          to="/"
           style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
-            padding: '12px 16px',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '12px',
+            gap: '8px',
+            color: '#94A3B8',
+            textDecoration: 'none',
+            fontSize: '14px',
+            fontWeight: '600',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            transition: 'all 0.15s ease',
           }}
         >
-          {/* Brand info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Link
-              to="/"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                color: '#a7f3d0',
-                textDecoration: 'none',
-                fontSize: '13px',
-                fontWeight: '600',
-                padding: '6px 10px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                transition: 'background-color 0.15s ease',
-              }}
-              title="Return to Aarogya Flow Hospital Portal"
-            >
-              <ArrowLeft size={16} />
-              <span>Hospital Portal</span>
-            </Link>
+          <ArrowLeft size={16} />
+          <span>Hospital Portal</span>
+        </Link>
+      </div>
 
-            <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                backgroundColor: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '3px',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.2)',
-              }}
-            >
-              <img
-                src="/aarogya_flow_icon_transparent_hd.png"
-                alt="Aarogya Flow"
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
-                }}
-              />
-            </div>
-
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '17px', fontWeight: '800', letterSpacing: '-0.02em', color: '#ffffff' }}>
-                  Aarogya Flow
-                </span>
-                <span
-                  style={{
-                    backgroundColor: '#10b981',
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    padding: '2px 8px',
-                    borderRadius: '9999px',
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  ASHA Field App
-                </span>
-              </div>
-              <div style={{ fontSize: '11px', color: '#a7f3d0' }}>
-                राष्ट्रीय स्वास्थ्य मिशन • सामुदायिक स्वास्थ्य कार्यकर्ता मॉड्यूल
-              </div>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {/* Download APK Button */}
-            <a
-              href="/downloads/aarogya-flow-asha.apk"
-              download="AarogyaFlow-ASHA-v1.0.apk"
-              onClick={(e) => {
-                // If direct link works, allow native download; also trigger programmatic helper
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 14px',
-                backgroundColor: '#fbbf24',
-                color: '#78350f',
-                fontWeight: '800',
-                fontSize: '13px',
-                borderRadius: '10px',
-                textDecoration: 'none',
-                boxShadow: '0 2px 8px rgba(251, 191, 36, 0.35)',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <Smartphone size={16} />
-              <span>Download Android APK (.apk)</span>
-              <Download size={14} />
-            </a>
-
-            {/* CHO Dashboard Link */}
-            <button
-              type="button"
-              onClick={() => navigate('/asha-dashboard')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                color: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                fontWeight: '700',
-                fontSize: '12px',
-                borderRadius: '10px',
-                cursor: 'pointer',
-              }}
-            >
-              <Building2 size={14} />
-              <span>CHO Dashboard (सीएचओ)</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* 2. PERSISTENT APK DOWNLOAD NOTIFICATION BANNER */}
+      {/* Main Redirection Card */}
       <div
         style={{
-          backgroundColor: '#fef3c7',
-          borderBottom: '1px solid #fde68a',
-          padding: '10px 16px',
+          width: '100%',
+          maxWidth: '520px',
+          backgroundColor: '#1E293B',
+          borderRadius: '20px',
+          padding: '36px 28px',
+          border: '1px solid #334155',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4)',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
         }}
       >
+        {/* Logo Badge with Aura */}
         <div
           style={{
-            maxWidth: '1280px',
-            margin: '0 auto',
+            width: '100px',
+            height: '100px',
+            borderRadius: '50px',
+            backgroundColor: '#FFFFFF',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '10px',
+            justifyContent: 'center',
+            marginBottom: '20px',
+            padding: '10px',
+            boxShadow: '0 0 30px rgba(16, 185, 129, 0.3)',
+            border: '3px solid #10B981',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                backgroundColor: '#fde68a',
-                color: '#92400e',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Smartphone size={18} />
-            </div>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: '800', color: '#92400e' }}>
-                Offline Android App (.apk) Ready for Mobile Field Visits
-              </div>
-              <div style={{ fontSize: '11px', color: '#b45309' }}>
-                Install on Android phones for zero-internet household surveys, maternal visit scheduling, and offline ANM QR data transmission.
-              </div>
-            </div>
-          </div>
+          <img
+            src="/aarogya_flow_icon_transparent_hd.png"
+            alt="Aarogya Flow Logo"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = '/aarogya_flow_icon_transparent.png';
+            }}
+          />
+        </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <a
-              href="/downloads/aarogya-flow-asha.apk"
-              download="AarogyaFlow-ASHA-v1.0.apk"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                backgroundColor: '#d97706',
-                color: '#ffffff',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: '700',
-                textDecoration: 'none',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              }}
-            >
-              <Download size={13} />
-              <span>Direct Download (.apk)</span>
-            </a>
+        <h1
+          style={{
+            fontSize: '24px',
+            fontWeight: '800',
+            color: '#FFFFFF',
+            margin: '0 0 6px',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          आरोग्य प्रवाह • AarogyaFlow
+        </h1>
+
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            backgroundColor: '#064E3B',
+            color: '#34D399',
+            padding: '4px 12px',
+            borderRadius: '9999px',
+            fontSize: '12px',
+            fontWeight: '700',
+            marginBottom: '16px',
+          }}
+        >
+          <ShieldCheck size={14} />
+          <span>राष्ट्रीय स्वास्थ्य मिशन (NHM) ASHA Portal</span>
+        </div>
+
+        <p
+          style={{
+            fontSize: '14px',
+            color: '#94A3B8',
+            lineHeight: 1.6,
+            margin: '0 0 24px',
+          }}
+        >
+          आशा कार्यकर्ता, एएनएम और सीएचओ के लिए समर्पित मोबाइल वर्कस्पेस पर रीडायरेक्ट किया जा रहा है...
+        </p>
+
+        {/* Countdown Badge */}
+        {autoRedirect && (
+          <div
+            style={{
+              marginBottom: '24px',
+              padding: '8px 16px',
+              borderRadius: '12px',
+              backgroundColor: '#0F172A',
+              border: '1px solid #334155',
+              fontSize: '13px',
+              color: '#38BDF8',
+              fontWeight: '600',
+            }}
+          >
+            स्वचालित रीडायरेक्शन: {countdown} सेकंड में...
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {/* Primary: Open Live Web App */}
+          <a
+            href={EXPO_WEB_URL}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              width: '100%',
+              padding: '14px 20px',
+              backgroundColor: '#10B981',
+              color: '#064E3B',
+              borderRadius: '12px',
+              fontWeight: '800',
+              fontSize: '15px',
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+              transition: 'transform 0.15s ease',
+            }}
+          >
+            <Globe size={18} />
+            <span>Open ASHA Web App Now</span>
+            <ExternalLink size={16} />
+          </a>
+
+          {/* Secondary: Install Android APK via Expo EAS */}
+          <a
+            href={EXPO_INSTALL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setAutoRedirect(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              width: '100%',
+              padding: '14px 20px',
+              backgroundColor: '#334155',
+              color: '#F8FAFC',
+              borderRadius: '12px',
+              fontWeight: '700',
+              fontSize: '14px',
+              textDecoration: 'none',
+              border: '1px solid #475569',
+              transition: 'background-color 0.15s ease',
+            }}
+          >
+            <Smartphone size={18} color="#38BDF8" />
+            <span>Install Standalone Android APK (Expo EAS)</span>
+            <ExternalLink size={16} />
+          </a>
+        </div>
+
+        {/* Feature List */}
+        <div
+          style={{
+            marginTop: '28px',
+            width: '100%',
+            borderTop: '1px solid #334155',
+            paddingTop: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            textAlign: 'left',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#CBD5E1' }}>
+            <CheckCircle2 size={14} color="#10B981" />
+            <span>100% ऑफ़लाइन डेटा सिंकिंग (Zero-Internet Survey & Sync)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#CBD5E1' }}>
+            <CheckCircle2 size={14} color="#10B981" />
+            <span>सीएचओ द्वारा अनुमोदित मोबाइल लॉगिन (Phone + OTP)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#CBD5E1' }}>
+            <CheckCircle2 size={14} color="#10B981" />
+            <span>एनएचएम प्रशिक्षण मॉड्यूल (NHM Training Curriculum)</span>
           </div>
         </div>
       </div>
 
-      {/* 3. MAIN ASHA FIELD WORKER CONTENT CONTAINER */}
-      <main
-        style={{
-          maxWidth: '1280px',
-          margin: '0 auto',
-          width: '100%',
-          padding: '16px',
-          flex: 1,
-        }}
-      >
-        <AshaFieldWorkerApp onSwitchRole={() => navigate('/asha-dashboard')} />
-      </main>
-
-      {/* 4. FOOTER */}
-      <footer
-        style={{
-          backgroundColor: '#ffffff',
-          borderTop: '1px solid #e2e8f0',
-          padding: '20px 16px',
-          marginTop: 'auto',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#047857', fontWeight: '700', fontSize: '13px' }}>
-            <ShieldCheck size={16} />
-            <span>Ayushman Bharat Digital Mission (ABDM) • Comprehensive Primary Health Care (CPHC)</span>
-          </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>
-            Aarogya Flow ASHA Field Platform • Offline Encrypted Storage • Android APK v1.0.0
-          </div>
-        </div>
-      </footer>
+      {/* Footer Info */}
+      <div style={{ marginTop: '24px', fontSize: '12px', color: '#64748B' }}>
+        राष्ट्रीय स्वास्थ्य मिशन • आयुष्मान भारत डिजिटल मिशन (ABDM)
+      </div>
     </div>
   );
 }

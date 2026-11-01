@@ -725,7 +725,7 @@ function AshaAuthForm() {
 
       <button
         type="button"
-        onClick={() => navigate('/asha')}
+        onClick={() => window.location.href = '/asha'}
         className="pro-primary-btn emerald"
         style={{ padding: '14px 18px' }}
       >

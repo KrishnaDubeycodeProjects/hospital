@@ -452,7 +452,7 @@ export default function Landing() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => navigate('/asha')}
+                  onClick={() => window.location.href = '/asha'}
                   style={{ width: '100%', padding: '9px', backgroundColor: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                 >
                   Launch ASHA App &rarr;
