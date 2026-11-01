@@ -122,12 +122,28 @@ export const OfflineVoiceModal: React.FC<VoiceModalProps> = ({
       }
 
       await ExpoSpeechRecognitionModule.stop();
-      ExpoSpeechRecognitionModule.start({
-        lang: lang || 'hi-IN',
-        interimResults: true,
-        maxAlternatives: 1,
-        continuous: false,
-      });
+      try {
+        ExpoSpeechRecognitionModule.start({
+          lang: lang || 'hi-IN',
+          interimResults: true,
+          maxAlternatives: 1,
+          continuous: false,
+          requiresOnDeviceRecognition: true,
+          androidIntentOptions: {
+            EXTRA_PREFER_OFFLINE: true,
+          },
+        });
+      } catch (onDeviceErr) {
+        ExpoSpeechRecognitionModule.start({
+          lang: lang || 'hi-IN',
+          interimResults: true,
+          maxAlternatives: 1,
+          continuous: false,
+          androidIntentOptions: {
+            EXTRA_PREFER_OFFLINE: true,
+          },
+        });
+      }
       setIsListening(true);
       setStatusText('बोलिए, सुन रहे हैं... (Speak now)');
     } catch (e) {

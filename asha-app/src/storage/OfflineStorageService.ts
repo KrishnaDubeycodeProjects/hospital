@@ -65,13 +65,17 @@ class OfflineStorageServiceImpl {
       const initialized = await AsyncStorage.getItem(STORAGE_KEYS.INITIALIZED);
       this.isInitialized = true;
       if (!initialized) {
-        let initialFamilies = SEED_FAMILIES;
-        let initialMembers = SEED_MEMBERS;
-        let initialFollowups = SEED_FOLLOWUPS;
-        let initialSurveys = SEED_SURVEYS;
+        const isDemoWorker = currentWorkerPhone === '9876543210';
+        let initialFamilies = isDemoWorker ? SEED_FAMILIES : [];
+        let initialMembers = isDemoWorker ? SEED_MEMBERS : [];
+        let initialFollowups = isDemoWorker ? SEED_FOLLOWUPS : [];
+        let initialSurveys = isDemoWorker ? SEED_SURVEYS : [];
+        let initialVaccinations = isDemoWorker ? SEED_CHILD_VACCINATIONS : [];
+        let initialMeetings = isDemoWorker ? SEED_MEETINGS : [];
+        let initialAnmSessions = isDemoWorker ? SEED_ANM_SESSIONS : [];
 
         // Graceful migration from legacy v5 for default demo worker
-        if (currentWorkerPhone === '9876543210') {
+        if (isDemoWorker) {
           try {
             const legacyFamilies = await AsyncStorage.getItem('@asha_families_v5');
             if (legacyFamilies) initialFamilies = JSON.parse(legacyFamilies);
@@ -89,17 +93,19 @@ class OfflineStorageServiceImpl {
           AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(initialMembers)),
           AsyncStorage.setItem(STORAGE_KEYS.SURVEYS, JSON.stringify(initialSurveys)),
           AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(initialFollowups)),
-          AsyncStorage.setItem(STORAGE_KEYS.VACCINATIONS, JSON.stringify(SEED_CHILD_VACCINATIONS)),
-          AsyncStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(SEED_MEETINGS)),
-          AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS)),
+          AsyncStorage.setItem(STORAGE_KEYS.VACCINATIONS, JSON.stringify(initialVaccinations)),
+          AsyncStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(initialMeetings)),
+          AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(initialAnmSessions)),
           AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify([])),
           AsyncStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true'),
         ]);
       } else {
-        // Ensure ANM sessions are initialized even if other keys exist
-        const existingSessions = await AsyncStorage.getItem(STORAGE_KEYS.ANM_SESSIONS);
-        if (!existingSessions) {
-          await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS));
+        if (currentWorkerPhone === '9876543210') {
+          // Ensure ANM sessions are initialized even if other keys exist
+          const existingSessions = await AsyncStorage.getItem(STORAGE_KEYS.ANM_SESSIONS);
+          if (!existingSessions) {
+            await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS));
+          }
         }
       }
     } catch (error) {
@@ -116,21 +122,23 @@ class OfflineStorageServiceImpl {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.FAMILIES);
       let parsed: FamilyUnit[] = raw ? JSON.parse(raw) : [];
-      if (parsed.length < 24) {
-        await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(SEED_FAMILIES));
-        return SEED_FAMILIES;
-      }
-      // Ensure only valid village houses 1 to 24 are included; remove any rogue/orphaned house numbers (e.g. 29)
-      if (parsed.some((f) => Number(f.houseNumber) > 24 || f.sequentialNumber > 24 || Number(f.houseNumber) === 29)) {
-        parsed = parsed.filter(
-          (f) => Number(f.houseNumber) >= 1 && Number(f.houseNumber) <= 24 && f.sequentialNumber <= 24
-        );
-        await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(parsed));
+      if (currentWorkerPhone === '9876543210') {
+        if (parsed.length < 24) {
+          await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(SEED_FAMILIES));
+          return SEED_FAMILIES;
+        }
+        // Ensure only valid village houses 1 to 24 are included; remove any rogue/orphaned house numbers (e.g. 29)
+        if (parsed.some((f) => Number(f.houseNumber) > 24 || f.sequentialNumber > 24 || Number(f.houseNumber) === 29)) {
+          parsed = parsed.filter(
+            (f) => Number(f.houseNumber) >= 1 && Number(f.houseNumber) <= 24 && f.sequentialNumber <= 24
+          );
+          await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(parsed));
+        }
       }
       return parsed;
     } catch (e) {
       console.error('Error reading families from storage:', e);
-      return SEED_FAMILIES;
+      return currentWorkerPhone === '9876543210' ? SEED_FAMILIES : [];
     }
   }
 
@@ -179,15 +187,17 @@ class OfflineStorageServiceImpl {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.MEMBERS);
       let members: FamilyMember[] = raw ? JSON.parse(raw) : [];
 
-      // Auto-heal / self-heal: guarantee all 24 houses have their complete members
-      const existingFamIds = new Set(members.map((m) => m.familyUnitId));
-      const missingSeedMembers = SEED_MEMBERS.filter((sm) => !existingFamIds.has(sm.familyUnitId));
-      if (missingSeedMembers.length > 0 || members.length < SEED_MEMBERS.length) {
-        const existingIds = new Set(members.map((m) => m.id));
-        const toAdd = SEED_MEMBERS.filter((sm) => !existingIds.has(sm.id));
-        if (toAdd.length > 0) {
-          members = [...members, ...toAdd];
-          await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+      // Auto-heal / self-heal ONLY for demo test number 9876543210
+      if (currentWorkerPhone === '9876543210') {
+        const existingFamIds = new Set(members.map((m) => m.familyUnitId));
+        const missingSeedMembers = SEED_MEMBERS.filter((sm) => !existingFamIds.has(sm.familyUnitId));
+        if (missingSeedMembers.length > 0 || members.length < SEED_MEMBERS.length) {
+          const existingIds = new Set(members.map((m) => m.id));
+          const toAdd = SEED_MEMBERS.filter((sm) => !existingIds.has(sm.id));
+          if (toAdd.length > 0) {
+            members = [...members, ...toAdd];
+            await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+          }
         }
       }
 
@@ -197,7 +207,7 @@ class OfflineStorageServiceImpl {
       return members;
     } catch (e) {
       console.error('Error reading members from storage:', e);
-      return SEED_MEMBERS;
+      return currentWorkerPhone === '9876543210' ? SEED_MEMBERS : [];
     }
   }
 
@@ -246,14 +256,14 @@ class OfflineStorageServiceImpl {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.SURVEYS);
       const parsed = raw ? JSON.parse(raw) : [];
-      if (parsed.length === 0) {
+      if (currentWorkerPhone === '9876543210' && parsed.length === 0) {
         await AsyncStorage.setItem(STORAGE_KEYS.SURVEYS, JSON.stringify(SEED_SURVEYS));
         return SEED_SURVEYS;
       }
       return parsed;
     } catch (e) {
       console.error('Error reading surveys from storage:', e);
-      return SEED_SURVEYS;
+      return currentWorkerPhone === '9876543210' ? SEED_SURVEYS : [];
     }
   }
 
@@ -614,14 +624,14 @@ class OfflineStorageServiceImpl {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.VACCINATIONS);
       const parsed: ChildVaccinationRecord[] = raw ? JSON.parse(raw) : [];
-      if (parsed.length === 0) {
+      if (currentWorkerPhone === '9876543210' && parsed.length === 0) {
         await AsyncStorage.setItem(STORAGE_KEYS.VACCINATIONS, JSON.stringify(SEED_CHILD_VACCINATIONS));
         return SEED_CHILD_VACCINATIONS;
       }
       return parsed;
     } catch (e) {
       console.error('Error reading vaccinations:', e);
-      return SEED_CHILD_VACCINATIONS;
+      return currentWorkerPhone === '9876543210' ? SEED_CHILD_VACCINATIONS : [];
     }
   }
 
@@ -655,14 +665,14 @@ class OfflineStorageServiceImpl {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.MEETINGS);
       const parsed: AshaMeetingRecord[] = raw ? JSON.parse(raw) : [];
-      if (parsed.length === 0) {
+      if (currentWorkerPhone === '9876543210' && parsed.length === 0) {
         await AsyncStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(SEED_MEETINGS));
         return SEED_MEETINGS;
       }
       return parsed;
     } catch (e) {
       console.error('Error reading meetings:', e);
-      return SEED_MEETINGS;
+      return currentWorkerPhone === '9876543210' ? SEED_MEETINGS : [];
     }
   }
 
@@ -768,10 +778,10 @@ class OfflineStorageServiceImpl {
       if (raw) {
         return JSON.parse(raw);
       }
-      return SEED_ANM_SESSIONS;
+      return currentWorkerPhone === '9876543210' ? SEED_ANM_SESSIONS : [];
     } catch (e) {
       console.error('Error reading ANM sessions from storage:', e);
-      return SEED_ANM_SESSIONS;
+      return currentWorkerPhone === '9876543210' ? SEED_ANM_SESSIONS : [];
     }
   }
 

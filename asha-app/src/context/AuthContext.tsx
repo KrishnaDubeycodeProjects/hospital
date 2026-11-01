@@ -42,6 +42,13 @@ interface AuthContextType {
   logout: () => Promise<void>;
   setRole: (role: UserRole) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  addWorkerByCho: (worker: {
+    name: string;
+    phone: string;
+    role: 'ASHA' | 'ANM';
+    village: string;
+    subcenter?: string;
+  }) => Promise<{ success: boolean; message: string }>;
 }
 
 const BACKEND_BASE_URL = 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
@@ -129,7 +136,88 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   setRole: () => {},
   updateProfile: () => {},
+  addWorkerByCho: async () => ({ success: false, message: '' }),
 });
+
+async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> {
+  const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
+
+  // 1. Direct saved profile key
+  try {
+    const raw = await AsyncStorage.getItem(`@asha_profile_${cleanDigits}_v6`);
+    if (raw) {
+      const p = JSON.parse(raw);
+      if (p && p.name && p.role) {
+        return {
+          ...p,
+          phone: '+91' + cleanDigits,
+        };
+      }
+    }
+  } catch {}
+
+  // 2. CHO authorized workers list
+  try {
+    const rawList = await AsyncStorage.getItem('@cho_authorized_workers_v6');
+    if (rawList) {
+      const list = JSON.parse(rawList);
+      const match = list.find((w: any) => (w.phone || '').replace(/[^0-9]/g, '').slice(-10) === cleanDigits);
+      if (match) {
+        const role: UserRole = match.role || 'ASHA';
+        return {
+          ...defaultProfiles[role],
+          name: match.name,
+          role,
+          roleTitle: role === 'ASHA' ? 'ASHA Worker (आशा कार्यकर्ता)' : 'Auxiliary Nurse Midwife (ANM)',
+          village: match.village || 'Chandpur',
+          phone: '+91' + cleanDigits,
+          ashaId: `${role}-${cleanDigits.slice(-4)}`,
+          assignedAnm: role === 'ASHA' ? 'Rekha Sharma (+91 98765 11111)' : 'District Health Administration',
+        };
+      }
+    }
+  } catch {}
+
+  // 3. Registered users registry
+  try {
+    const regRaw = await AsyncStorage.getItem('@asha_registered_users_registry_v6');
+    if (regRaw) {
+      const reg = JSON.parse(regRaw);
+      if (reg[cleanDigits]) {
+        return {
+          ...reg[cleanDigits],
+          phone: '+91' + cleanDigits,
+        };
+      }
+    }
+  } catch {}
+
+  // 4. Hardcoded demo profiles
+  if (PHONE_ROLES[cleanDigits]) {
+    const meta = PHONE_ROLES[cleanDigits];
+    return {
+      ...defaultProfiles[meta.role],
+      name: meta.name,
+      role: meta.role,
+      roleTitle: meta.title,
+      village: meta.village,
+      phone: '+91' + cleanDigits,
+      ashaId: meta.id,
+      assignedAnm: meta.anm,
+    };
+  }
+
+  // 5. Default profile for new unassigned phone
+  return {
+    ...defaultProfiles.ASHA,
+    name: `स्वास्थ्य कार्यकर्ता`,
+    role: 'ASHA',
+    roleTitle: 'ASHA Worker (आशा कार्यकर्ता)',
+    village: 'कार्यक्षेत्र गाँव',
+    phone: '+91' + cleanDigits,
+    ashaId: `ASHA-${cleanDigits.slice(-4)}`,
+  };
+}
 
 function normalizePhone(rawPhone: string): string {
   if (!rawPhone) return '';
@@ -251,43 +339,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success !== false) {
-        const receivedToken = data.token || 'demo-jwt-session-token-' + Date.now();
+        const receivedToken = data.token || 'jwt-session-token-' + Date.now();
         setToken(receivedToken);
 
         const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
-        const phoneProfileKey = `@asha_profile_${cleanDigits}_v6`;
-        const savedPhoneProfileRaw = await AsyncStorage.getItem(phoneProfileKey);
-
-        let profile: UserProfile;
-
-        if (savedPhoneProfileRaw) {
-          try {
-            profile = JSON.parse(savedPhoneProfileRaw);
-            profile.phone = cleanPhone;
-          } catch {
-            profile = { ...defaultProfiles.ASHA, phone: cleanPhone };
-          }
-        } else if (PHONE_ROLES[cleanDigits]) {
-          const meta = PHONE_ROLES[cleanDigits];
-          profile = {
-            ...defaultProfiles[meta.role],
-            name: meta.name,
-            role: meta.role,
-            roleTitle: meta.title,
-            village: meta.village,
-            phone: cleanPhone,
-            ashaId: meta.id,
-            assignedAnm: meta.anm,
-          };
-        } else {
-          // New phone: default to ASHA or check backend
-          profile = {
-            ...defaultProfiles.ASHA,
-            name: 'स्वास्थ्य कार्यकर्ता (Health Worker)',
-            phone: cleanPhone,
-            ashaId: `ASHA-${cleanDigits.slice(-4)}`,
-          };
-        }
+        let profile = await resolveProfileForPhone(cleanPhone);
 
         // Fetch user from DB if available to enrich details
         try {
@@ -318,7 +374,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await Promise.all([
           AsyncStorage.setItem(STORAGE_KEYS.TOKEN, receivedToken),
           AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile)),
-          AsyncStorage.setItem(phoneProfileKey, JSON.stringify(profile)),
+          AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(profile)),
         ]);
 
         return { success: true, message: `सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।` };
@@ -333,25 +389,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (cleanCode === '123456') {
         const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
         const fakeToken = 'offline-jwt-' + Date.now();
-        const meta = PHONE_ROLES[cleanDigits] || {
-          role: 'ASHA' as UserRole,
-          name: 'सुनीता देवी (Demo)',
-          title: 'ASHA Worker (आशा कार्यकर्ता)',
-          village: 'Chandpur Village',
-          id: 'ASHA-UP-VNS-042',
-          anm: 'Rekha Sharma (+91 98765 11111)',
-        };
-
-        const profile: UserProfile = {
-          ...defaultProfiles[meta.role],
-          name: meta.name,
-          role: meta.role,
-          roleTitle: meta.title,
-          village: meta.village,
-          phone: cleanPhone,
-          ashaId: meta.id,
-          assignedAnm: meta.anm,
-        };
+        const profile = await resolveProfileForPhone(cleanPhone);
 
         setStorageWorkerPhone(cleanPhone);
         setToken(fakeToken);
@@ -432,18 +470,109 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       assignedAnm: 'Rekha Sharma (+91 98765 11111)',
     };
 
+    const sessionToken = 'jwt-worker-' + cleanDigits + '-' + Date.now();
+    setToken(sessionToken);
     setStorageWorkerPhone(cleanPhone);
     setCurrentUser(newProfile);
     setIsAuthenticated(true);
     await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken),
       AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile)),
       AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(newProfile)),
     ]);
+
+    try {
+      const regRaw = await AsyncStorage.getItem('@asha_registered_users_registry_v6');
+      const regMap = regRaw ? JSON.parse(regRaw) : {};
+      regMap[cleanDigits] = newProfile;
+      await AsyncStorage.setItem('@asha_registered_users_registry_v6', JSON.stringify(regMap));
+    } catch {}
 
     return {
       success: true,
       message: 'पंजीकरण सफल! आपका खाता सक्रिय हो गया है।',
     };
+  };
+
+  /**
+   * CHO adds authorized ASHA or ANM worker to the portal
+   */
+  const addWorkerByCho = async (worker: {
+    name: string;
+    phone: string;
+    role: 'ASHA' | 'ANM';
+    village: string;
+    subcenter?: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    const cleanDigits = worker.phone.replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanDigits || cleanDigits.length < 10) {
+      return { success: false, message: 'कृपया वैध 10-अंकीय मोबाइल नंबर दर्ज करें।' };
+    }
+    if (!worker.name.trim()) {
+      return { success: false, message: 'कृपया कार्यकर्ता का नाम दर्ज करें।' };
+    }
+
+    const fullPhone = '+91' + cleanDigits;
+    const workerProfile: UserProfile = {
+      name: worker.name.trim(),
+      role: worker.role,
+      roleTitle: worker.role === 'ASHA' ? 'ASHA Worker (आशा कार्यकर्ता)' : 'Auxiliary Nurse Midwife (ANM)',
+      village: worker.village.trim() || 'सेक्टर क्षेत्र',
+      phone: fullPhone,
+      ashaId: `${worker.role}-${cleanDigits.slice(-4)}`,
+      assignedAnm: worker.role === 'ASHA' ? (currentUser.name ? `${currentUser.name} (${currentUser.phone})` : 'Rekha Sharma (+91 98765 11111)') : 'District Health Administration',
+      blockName: currentUser.blockName || 'Rampur Block',
+      districtName: currentUser.districtName || 'Varanasi',
+    };
+
+    try {
+      // 1. Save to CHO authorized workers list in local AsyncStorage
+      const rawList = await AsyncStorage.getItem('@cho_authorized_workers_v6');
+      let list = rawList ? JSON.parse(rawList) : [];
+      list = list.filter((w: any) => (w.phone || '').replace(/[^0-9]/g, '').slice(-10) !== cleanDigits);
+      list.unshift({
+        id: `w-${cleanDigits}`,
+        name: workerProfile.name,
+        phone: fullPhone,
+        role: workerProfile.role,
+        village: workerProfile.village,
+        subcenter: worker.subcenter || 'PHC Chandpur',
+        addedAt: new Date().toISOString(),
+      });
+      await AsyncStorage.setItem('@cho_authorized_workers_v6', JSON.stringify(list));
+
+      // 2. Persist direct profile key so worker can log in seamlessly
+      await AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(workerProfile));
+
+      // 3. Sync to PostgreSQL backend if online
+      try {
+        await fetch(`${BACKEND_BASE_URL}/api/asha/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ASHA-Phone': cleanDigits,
+            'ngrok-skip-browser-warning': '1',
+          },
+          body: JSON.stringify({
+            phone: cleanDigits,
+            name: workerProfile.name,
+            villageName: workerProfile.village,
+            blockName: workerProfile.blockName,
+            districtName: workerProfile.districtName,
+            anmPhone: currentUser.phone,
+          }),
+        });
+      } catch (e) {
+        console.warn('Backend sync for CHO worker registration:', e);
+      }
+
+      return {
+        success: true,
+        message: `${workerProfile.roleTitle} ${workerProfile.name} सफलतापूर्वक जोड़ा गया! अब वे अपने मोबाइल नंबर (${fullPhone}) से लॉगिन कर सकते हैं।`,
+      };
+    } catch (err: any) {
+      return { success: false, message: 'कार्यकर्ता जोड़ने में त्रुटि: ' + (err?.message || err) };
+    }
   };
 
   /**
@@ -516,6 +645,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         setRole,
         updateProfile,
+        addWorkerByCho,
       }}
     >
       {children}

@@ -169,12 +169,28 @@ export class VoiceRecognition {
           onError('Microphone permission not granted');
           return;
         }
-        ExpoSpeechRecognitionModule.start({
-          lang,
-          interimResults: true,
-          maxAlternatives: 1,
-          continuous: false,
-        });
+        try {
+          ExpoSpeechRecognitionModule.start({
+            lang,
+            interimResults: true,
+            maxAlternatives: 1,
+            continuous: false,
+            requiresOnDeviceRecognition: true,
+            androidIntentOptions: {
+              EXTRA_PREFER_OFFLINE: true,
+            },
+          });
+        } catch {
+          ExpoSpeechRecognitionModule.start({
+            lang,
+            interimResults: true,
+            maxAlternatives: 1,
+            continuous: false,
+            androidIntentOptions: {
+              EXTRA_PREFER_OFFLINE: true,
+            },
+          });
+        }
       })
       .catch((err) => {
         onError(err?.message || 'Speech recognition failed');

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   Modal,
   TextInput,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../theme/colors';
 import {
   Users,
@@ -28,11 +30,15 @@ import {
   Clock,
   ShieldCheck,
   Send,
+  UserPlus,
+  Plus,
 } from 'lucide-react-native';
+import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 
 export const ChoDashboardScreen: React.FC = () => {
+  const { addWorkerByCho } = useAuth();
   const { families, members, followUps, surveys, approveReferralByCho } = useOfflineData();
 
   // Active Tab: 'Overview' | 'Workers' | 'Referrals'
@@ -40,6 +46,65 @@ export const ChoDashboardScreen: React.FC = () => {
 
   // Selected ASHA Worker for drilldown modal
   const [selectedWorker, setSelectedWorker] = useState<any>(null);
+
+  // CHO Authorized Workers State
+  const [authorizedWorkers, setAuthorizedWorkers] = useState<any[]>([]);
+  const [showAddWorkerModal, setShowAddWorkerModal] = useState(false);
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerPhone, setNewWorkerPhone] = useState('');
+  const [newWorkerRole, setNewWorkerRole] = useState<'ASHA' | 'ANM'>('ASHA');
+  const [newWorkerVillage, setNewWorkerVillage] = useState('');
+  const [addWorkerLoading, setAddWorkerLoading] = useState(false);
+  const [addWorkerStatus, setAddWorkerStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const loadAuthorizedWorkers = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('@cho_authorized_workers_v6');
+      if (raw) {
+        setAuthorizedWorkers(JSON.parse(raw));
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadAuthorizedWorkers();
+  }, []);
+
+  const handleAddWorkerSubmit = async () => {
+    if (!newWorkerName.trim()) {
+      setAddWorkerStatus({ type: 'error', text: 'कृपया कार्यकर्ता का नाम दर्ज करें।' });
+      return;
+    }
+    const cleanDigits = newWorkerPhone.replace(/[^0-9]/g, '');
+    if (cleanDigits.length < 10) {
+      setAddWorkerStatus({ type: 'error', text: 'कृपया 10-अंकीय मान्य मोबाइल नंबर दर्ज करें।' });
+      return;
+    }
+
+    setAddWorkerLoading(true);
+    setAddWorkerStatus(null);
+    const result = await addWorkerByCho({
+      name: newWorkerName.trim(),
+      phone: cleanDigits,
+      role: newWorkerRole,
+      village: newWorkerVillage.trim() || 'सेक्टर क्षेत्र',
+    });
+    setAddWorkerLoading(false);
+
+    if (result.success) {
+      setAddWorkerStatus({ type: 'success', text: result.message });
+      await loadAuthorizedWorkers();
+      setTimeout(() => {
+        setShowAddWorkerModal(false);
+        setNewWorkerName('');
+        setNewWorkerPhone('');
+        setNewWorkerVillage('');
+        setAddWorkerStatus(null);
+      }, 1600);
+    } else {
+      setAddWorkerStatus({ type: 'error', text: result.message });
+    }
+  };
 
   // Teleconsultation & Approval Modal State
   const [teleconsultPatient, setTeleconsultPatient] = useState<any>(null);
@@ -91,6 +156,21 @@ export const ChoDashboardScreen: React.FC = () => {
       surveys: 19,
       referrals: 1,
     },
+  ];
+
+  const allWorkers = [
+    ...authorizedWorkers.map((w) => ({
+      id: w.id || `w-${w.phone}`,
+      name: w.name,
+      role: w.role || 'ASHA',
+      village: w.village || 'सेक्टर क्षेत्र',
+      phone: w.phone,
+      families: 0,
+      surveys: 0,
+      referrals: 0,
+      isChoAdded: true,
+    })),
+    ...workersPerformance.map((w) => ({ ...w, role: 'ASHA', isChoAdded: false })),
   ];
 
   const handleApproveReferral = async (id: string) => {
@@ -240,12 +320,32 @@ export const ChoDashboardScreen: React.FC = () => {
         {/* ===================== TAB 2: WORKERS ===================== */}
         {activeTab === 'Workers' && (
           <View>
-            <Text style={styles.sectionHeading}>सेक्टर की आशा कार्यकर्ताओं की कार्य प्रगति</Text>
-            {workersPerformance.map((worker) => (
+            {/* Top Action Header: Add New ASHA / ANM Worker */}
+            <View style={styles.workersHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionHeading}>स्वास्थ्य कार्यकर्ता (ASHA & ANM)</Text>
+                <Text style={styles.sectionSubHeading}>
+                  कुल कार्यकर्ता: {allWorkers.length} • उपस्थिति व कार्य कवरेज
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.addWorkerTopBtn}
+                onPress={() => {
+                  setAddWorkerStatus(null);
+                  setShowAddWorkerModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <UserPlus size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.addWorkerTopBtnText}>+ कार्यकर्ता जोड़ें</Text>
+              </TouchableOpacity>
+            </View>
+
+            {allWorkers.map((worker) => (
               <View key={worker.id} style={styles.workerCard}>
                 <View style={styles.workerHeader}>
-                  <View style={styles.workerAvatar}>
-                    <Text style={styles.workerAvatarText}>
+                  <View style={[styles.workerAvatar, worker.role === 'ANM' && { backgroundColor: '#EDE9FE' }]}>
+                    <Text style={[styles.workerAvatarText, worker.role === 'ANM' && { color: '#7C3AED' }]}>
                       {worker.name
                         .split(' ')
                         .map((w: string) => w[0])
@@ -253,9 +353,21 @@ export const ChoDashboardScreen: React.FC = () => {
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.workerName}>{worker.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                      <Text style={styles.workerName}>{worker.name}</Text>
+                      <View style={[styles.roleBadgePill, worker.role === 'ANM' ? styles.roleBadgeAnm : styles.roleBadgeAsha]}>
+                        <Text style={[styles.roleBadgePillText, worker.role === 'ANM' ? styles.roleBadgeAnmText : styles.roleBadgeAshaText]}>
+                          {worker.role === 'ANM' ? '🩺 ANM' : '🌸 ASHA'}
+                        </Text>
+                      </View>
+                      {worker.isChoAdded && (
+                        <View style={styles.choAddedBadge}>
+                          <Text style={styles.choAddedBadgeText}>सीएचओ अधिकृत</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.workerVillage}>
-                      गाँव: {worker.village} • {worker.phone}
+                      गाँव / उपकेंद्र: {worker.village} • {worker.phone}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -263,7 +375,7 @@ export const ChoDashboardScreen: React.FC = () => {
                     onPress={() => setSelectedWorker(worker)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.workerViewBtnText}>विवरण देखें</Text>
+                    <Text style={styles.workerViewBtnText}>विवरण</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -539,6 +651,144 @@ export const ChoDashboardScreen: React.FC = () => {
                 activeOpacity={0.85}
               >
                 <Text style={styles.saveAdviceBtnText}>निर्देश सहेजें एवं रेफरल स्वीकृत करें</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* CHO Add New ASHA / ANM Worker Modal */}
+      {showAddWorkerModal && (
+        <Modal visible={showAddWorkerModal} transparent animationType="fade">
+          <View style={styles.addWorkerModalOverlay}>
+            <View style={styles.addWorkerModalCard}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>नया स्वास्थ्य कार्यकर्ता जोड़ें</Text>
+                  <Text style={styles.modalSub}>ASHA / ANM Authorize & Grant Immediate Portal Access</Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowAddWorkerModal(false)}>
+                  <X size={20} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {addWorkerStatus && (
+                <View
+                  style={[
+                    styles.addWorkerAlert,
+                    addWorkerStatus.type === 'success'
+                      ? styles.addWorkerAlertSuccess
+                      : styles.addWorkerAlertError,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.addWorkerAlertText,
+                      {
+                        color:
+                          addWorkerStatus.type === 'success' ? '#15803D' : '#B91C1C',
+                      },
+                    ]}
+                  >
+                    {addWorkerStatus.text}
+                  </Text>
+                </View>
+              )}
+
+              {/* Role Select Tabs */}
+              <Text style={styles.addWorkerInputLabel}>पद / भूमिका चुनें (Role):</Text>
+              <View style={styles.addWorkerRoleSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.addWorkerRoleTab,
+                    newWorkerRole === 'ASHA' && styles.addWorkerRoleTabActive,
+                  ]}
+                  onPress={() => setNewWorkerRole('ASHA')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.addWorkerRoleTabText,
+                      newWorkerRole === 'ASHA' && styles.addWorkerRoleTabTextActive,
+                    ]}
+                  >
+                    🌸 ASHA (आशा)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.addWorkerRoleTab,
+                    newWorkerRole === 'ANM' && styles.addWorkerRoleTabActive,
+                  ]}
+                  onPress={() => setNewWorkerRole('ANM')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.addWorkerRoleTabText,
+                      newWorkerRole === 'ANM' && styles.addWorkerRoleTabTextActive,
+                    ]}
+                  >
+                    🩺 ANM (एएनएम)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Worker Name Input */}
+              <Text style={styles.addWorkerInputLabel}>कार्यकर्ता का पूरा नाम (Full Name):</Text>
+              <TextInput
+                style={styles.addWorkerInput}
+                placeholder="उदा: सुनीता देवी या रेखा शर्मा"
+                placeholderTextColor={Colors.textMuted}
+                value={newWorkerName}
+                onChangeText={setNewWorkerName}
+              />
+
+              {/* Worker Mobile Phone */}
+              <Text style={styles.addWorkerInputLabel}>10-अंकीय मोबाइल नंबर (Phone Number):</Text>
+              <TextInput
+                style={styles.addWorkerInput}
+                placeholder="उदा: 9876543210"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="phone-pad"
+                maxLength={10}
+                value={newWorkerPhone}
+                onChangeText={(val) => setNewWorkerPhone(val.replace(/[^0-9]/g, ''))}
+              />
+
+              {/* Village / Subcenter Input */}
+              <Text style={styles.addWorkerInputLabel}>कार्यक्षेत्र गाँव / उपकेंद्र (Village / PHC Area):</Text>
+              <TextInput
+                style={styles.addWorkerInput}
+                placeholder="उदा: चाँदपुर गाँव"
+                placeholderTextColor={Colors.textMuted}
+                value={newWorkerVillage}
+                onChangeText={setNewWorkerVillage}
+              />
+
+              {/* Submit Button */}
+              <TouchableOpacity
+                style={[styles.addWorkerSubmitBtn, addWorkerLoading && { opacity: 0.7 }]}
+                onPress={handleAddWorkerSubmit}
+                disabled={addWorkerLoading}
+                activeOpacity={0.85}
+              >
+                {addWorkerLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.addWorkerSubmitBtnText}>
+                    कार्यकर्ता अधिकृत करें व जोड़ें (Authorize Worker)
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.addWorkerCancelBtn}
+                onPress={() => setShowAddWorkerModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addWorkerCancelBtnText}>रद्द करें (Cancel)</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1122,5 +1372,181 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  workersHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  sectionSubHeading: {
+    fontSize: 11.5,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  addWorkerTopBtn: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  addWorkerTopBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  roleBadgePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  roleBadgePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  roleBadgeAsha: {
+    backgroundColor: '#FDF2F8',
+    borderWidth: 1,
+    borderColor: '#FBCFE8',
+  },
+  roleBadgeAshaText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#BE185D',
+  },
+  roleBadgeAnm: {
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  roleBadgeAnmText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+  choAddedBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  choAddedBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  addWorkerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  addWorkerModalCard: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  addWorkerAlert: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  addWorkerAlertSuccess: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  addWorkerAlertError: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  addWorkerAlertText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  addWorkerRoleSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  addWorkerRoleTab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  addWorkerRoleTabActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#EFF6FF',
+  },
+  addWorkerRoleTabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  addWorkerRoleTabTextActive: {
+    color: Colors.primary,
+  },
+  addWorkerInputLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 4,
+    marginTop: 6,
+  },
+  addWorkerInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13.5,
+    color: Colors.textPrimary,
+  },
+  addWorkerSubmitBtn: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  addWorkerSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  addWorkerCancelBtn: {
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  addWorkerCancelBtnText: {
+    color: Colors.textSecondary,
+    fontSize: 12.5,
+    fontWeight: '600',
   },
 });
