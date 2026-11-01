@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { useAuth } from './AuthContext';
 import {
   FamilyUnit,
   FamilyMember,
@@ -9,7 +12,7 @@ import {
   AnmSessionFolder,
   OutboxItem,
 } from '../types/storage';
-import { OfflineStorageService } from '../storage/OfflineStorageService';
+import { OfflineStorageService, setStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { SyncApi, SyncResult } from '../api/syncApi';
 
 interface OfflineDataContextType {
@@ -84,6 +87,7 @@ const OfflineDataContext = createContext<OfflineDataContextType | undefined>(und
 export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { user } = useAuth();
   const [families, setFamilies] = useState<FamilyUnit[]>([]);
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpTask[]>([]);
@@ -99,8 +103,18 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const prevOnlineRef = useRef(false);
 
+  // Synchronize storage partition whenever active user/phone switches
+  useEffect(() => {
+    if (user?.phone) {
+      setStorageWorkerPhone(user.phone);
+    }
+  }, [user?.phone]);
+
   const refreshData = useCallback(async () => {
     try {
+      if (user?.phone) {
+        setStorageWorkerPhone(user.phone);
+      }
       await OfflineStorageService.initialize();
       const [fams, mems, flws, srvs, vaxs, mtgs, anmSess, obox] = await Promise.all([
         OfflineStorageService.getFamilies(),
@@ -125,19 +139,20 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.phone]);
 
   const triggerSync = useCallback(async (): Promise<SyncResult> => {
     setIsSyncing(true);
     try {
-      const result = await SyncApi.syncOutbox();
+      const cleanPhone = user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : '9876543210';
+      const result = await SyncApi.syncOutbox(cleanPhone);
       setLastSyncResult(result);
       await refreshData();
       return result;
     } finally {
       setIsSyncing(false);
     }
-  }, [refreshData]);
+  }, [user?.phone, refreshData]);
 
   // Helper to immediately push changes to the cloud if internet connectivity is available
   const syncIfOnline = useCallback(async () => {
@@ -197,17 +212,31 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       prevOnlineRef.current = false;
     };
 
-    if (typeof window !== 'undefined') {
+    // 1. Native mobile connectivity listener via NetInfo (instantaneous connection change detection)
+    const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+      const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+      setIsOnline(isConnected);
+      if (isConnected) {
+        console.log('⚡ [NetInfo] Mobile network ONLINE! Triggering immediate cloud sync...');
+        triggerSync().catch(() => {});
+      } else {
+        console.log('📴 [NetInfo] Mobile network OFFLINE. Local storage active.');
+      }
+    });
+
+    // 2. Web browser fallback event listener
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('online', handleOnlineEvent);
       window.addEventListener('offline', handleOfflineEvent);
     }
 
-    // Active heartbeat check every 5 seconds to ensure changes sync quickly even without window events
+    // 3. Active heartbeat check every 5 seconds to ensure pending records auto-sync
     const interval = setInterval(performConnectivityCheck, 5000);
 
     return () => {
+      unsubscribeNetInfo();
       clearInterval(interval);
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('online', handleOnlineEvent);
         window.removeEventListener('offline', handleOfflineEvent);
       }

@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
+import { View, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator, Platform } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { OfflineDataProvider, useOfflineData } from './src/context/OfflineDataContext';
 import { Header } from './src/components/Header';
 import { BottomNav, TabKey } from './src/components/BottomNav';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { Colors } from './src/theme/colors';
 import { FamilyMember } from './src/types/storage';
+import { OfflineVoiceModal } from './src/components/OfflineVoiceModal';
+import { VoiceRecognition } from './src/voice/speechEngine';
 
-// Screens
+// Auth Screens
+import { LoginScreen } from './src/screens/LoginScreen';
+import { RegisterScreen } from './src/screens/RegisterScreen';
+import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
+
+// Main App Screens
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SectionFilterScreen } from './src/screens/SectionFilterScreen';
 import { FamiliesScreen } from './src/screens/FamiliesScreen';
@@ -61,6 +69,23 @@ const MainAppContent: React.FC = () => {
     village: 'Chandpur Village',
   });
 
+  // Offline Voice Dictation / Speech Prompter Modal state
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [voiceModalLang, setVoiceModalLang] = useState('hi-IN');
+  const [voiceCallback, setVoiceCallback] = useState<((text: string) => void) | null>(null);
+
+  React.useEffect(() => {
+    VoiceRecognition.registerHandler((lang, onResult, onError) => {
+      setVoiceModalLang(lang || 'hi-IN');
+      setVoiceCallback(() => onResult);
+      setVoiceModalVisible(true);
+    });
+
+    return () => {
+      VoiceRecognition.registerHandler(null);
+    };
+  }, []);
+
   // Automatically react to role changes from header / profile
   React.useEffect(() => {
     setActiveTab('Home');
@@ -84,7 +109,6 @@ const MainAppContent: React.FC = () => {
     } else if (tab === 'Profile') {
       setCurrentScreen('Profile');
     } else if (user.role === 'ASHA') {
-      // Only ASHA can access these screens
       if (tab === 'Families') setCurrentScreen('Families');
       else if (tab === 'FollowUps') setCurrentScreen('FollowUps');
       else if (tab === 'Meetings') setCurrentScreen('Meetings');
@@ -278,43 +302,97 @@ const MainAppContent: React.FC = () => {
             followUpCount={pendingFollowUpsCount}
           />
         )}
+
+        {/* Offline Speech-to-Text & Voice Dictation Modal */}
+        <OfflineVoiceModal
+          visible={voiceModalVisible}
+          lang={voiceModalLang}
+          onResult={(text) => {
+            if (voiceCallback) voiceCallback(text);
+            setVoiceModalVisible(false);
+          }}
+          onClose={() => setVoiceModalVisible(false)}
+        />
       </SafeAreaView>
     </View>
   );
 };
 
+const AppRootCoordinator: React.FC = () => {
+  const { isAuthenticated, isLoading, authScreen } = useAuth();
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          {authScreen === 'register' ? (
+            <RegisterScreen />
+          ) : authScreen === 'forgot' ? (
+            <ForgotPasswordScreen />
+          ) : (
+            <LoginScreen />
+          )}
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  return (
+    <LanguageProvider>
+      <OfflineDataProvider>
+        <MainAppContent />
+      </OfflineDataProvider>
+    </LanguageProvider>
+  );
+};
+
 export default function App() {
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <OfflineDataProvider>
-          <MainAppContent />
-        </OfflineDataProvider>
-      </LanguageProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRootCoordinator />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
+const isWeb = Platform.OS === 'web';
+
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   outerContainer: {
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: isWeb ? '#0F172A' : '#FFFFFF',
+    alignItems: isWeb ? 'center' : 'stretch',
+    justifyContent: isWeb ? 'center' : 'flex-start',
   },
   safeArea: {
     flex: 1,
     width: '100%',
-    maxWidth: 480,
+    maxWidth: isWeb ? 480 : undefined,
     height: '100%',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: isWeb ? '#000' : undefined,
+    shadowOffset: isWeb ? { width: 0, height: 4 } : undefined,
+    shadowOpacity: isWeb ? 0.25 : undefined,
+    shadowRadius: isWeb ? 16 : undefined,
+    elevation: isWeb ? 8 : 0,
     overflow: 'hidden',
   },
   body: {

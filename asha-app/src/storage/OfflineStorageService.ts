@@ -21,35 +21,74 @@ import {
 } from './seedData';
 import { generateUUID } from './uuid';
 
+let currentWorkerPhone = '9876543210';
+
+export function setStorageWorkerPhone(phone: string): void {
+  if (!phone) return;
+  const clean = phone.replace(/[^0-9]/g, '').slice(-10);
+  if (clean && clean.length >= 10 && currentWorkerPhone !== clean) {
+    currentWorkerPhone = clean;
+    if (typeof OfflineStorageService !== 'undefined' && OfflineStorageService) {
+      OfflineStorageService.resetInitializationFlag();
+    }
+  }
+}
+
+export function getStorageWorkerPhone(): string {
+  return currentWorkerPhone;
+}
+
 const STORAGE_KEYS = {
-  FAMILIES: '@asha_families_v5',
-  MEMBERS: '@asha_members_v5',
-  SURVEYS: '@asha_surveys_v5',
-  FOLLOWUPS: '@asha_followups_v5',
-  VACCINATIONS: '@asha_vaccinations_v5',
-  MEETINGS: '@asha_meetings_v5',
-  ANM_SESSIONS: '@asha_anm_sessions_v5',
-  OUTBOX: '@asha_outbox_v5',
-  INITIALIZED: '@asha_initialized_v5',
+  get FAMILIES() { return `@asha_${currentWorkerPhone}_families_v6`; },
+  get MEMBERS() { return `@asha_${currentWorkerPhone}_members_v6`; },
+  get SURVEYS() { return `@asha_${currentWorkerPhone}_surveys_v6`; },
+  get FOLLOWUPS() { return `@asha_${currentWorkerPhone}_followups_v6`; },
+  get VACCINATIONS() { return `@asha_${currentWorkerPhone}_vaccinations_v6`; },
+  get MEETINGS() { return `@asha_${currentWorkerPhone}_meetings_v6`; },
+  get ANM_SESSIONS() { return `@asha_${currentWorkerPhone}_anm_sessions_v6`; },
+  get OUTBOX() { return `@asha_${currentWorkerPhone}_outbox_v6`; },
+  get INITIALIZED() { return `@asha_${currentWorkerPhone}_initialized_v6`; },
 };
 
 class OfflineStorageServiceImpl {
   private isInitialized = false;
 
+  resetInitializationFlag(): void {
+    this.isInitialized = false;
+  }
+
   /**
-   * Initializes local storage with complete 24-household grid and official registers.
+   * Initializes local storage scoped to the active worker phone with complete 24-household grid and official registers.
    */
   async initialize(): Promise<void> {
-    if (this.isInitialized) return;
-
     try {
       const initialized = await AsyncStorage.getItem(STORAGE_KEYS.INITIALIZED);
+      this.isInitialized = true;
       if (!initialized) {
+        let initialFamilies = SEED_FAMILIES;
+        let initialMembers = SEED_MEMBERS;
+        let initialFollowups = SEED_FOLLOWUPS;
+        let initialSurveys = SEED_SURVEYS;
+
+        // Graceful migration from legacy v5 for default demo worker
+        if (currentWorkerPhone === '9876543210') {
+          try {
+            const legacyFamilies = await AsyncStorage.getItem('@asha_families_v5');
+            if (legacyFamilies) initialFamilies = JSON.parse(legacyFamilies);
+            const legacyMembers = await AsyncStorage.getItem('@asha_members_v5');
+            if (legacyMembers) initialMembers = JSON.parse(legacyMembers);
+            const legacyFollowups = await AsyncStorage.getItem('@asha_followups_v5');
+            if (legacyFollowups) initialFollowups = JSON.parse(legacyFollowups);
+            const legacySurveys = await AsyncStorage.getItem('@asha_surveys_v5');
+            if (legacySurveys) initialSurveys = JSON.parse(legacySurveys);
+          } catch {}
+        }
+
         await Promise.all([
-          AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(SEED_FAMILIES)),
-          AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(SEED_MEMBERS)),
-          AsyncStorage.setItem(STORAGE_KEYS.SURVEYS, JSON.stringify(SEED_SURVEYS)),
-          AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(SEED_FOLLOWUPS)),
+          AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(initialFamilies)),
+          AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(initialMembers)),
+          AsyncStorage.setItem(STORAGE_KEYS.SURVEYS, JSON.stringify(initialSurveys)),
+          AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(initialFollowups)),
           AsyncStorage.setItem(STORAGE_KEYS.VACCINATIONS, JSON.stringify(SEED_CHILD_VACCINATIONS)),
           AsyncStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(SEED_MEETINGS)),
           AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS)),
@@ -63,7 +102,6 @@ class OfflineStorageServiceImpl {
           await AsyncStorage.setItem(STORAGE_KEYS.ANM_SESSIONS, JSON.stringify(SEED_ANM_SESSIONS));
         }
       }
-      this.isInitialized = true;
     } catch (error) {
       console.error('Failed to initialize local offline storage:', error);
     }
@@ -496,7 +534,10 @@ class OfflineStorageServiceImpl {
     const newItem: OutboxItem = {
       id: generateUUID(),
       action,
-      payload,
+      payload: {
+        ...(payload || {}),
+        workerPhone: currentWorkerPhone,
+      },
       status: 'PENDING',
       createdAt: new Date().toISOString(),
       retryCount: 0,
@@ -671,8 +712,7 @@ class OfflineStorageServiceImpl {
       return JSON.stringify({
         t: 'ASHA_SYNC',
         c: 'CHILD_VAX',
-        p: '9876543210',
-        n: 'Sunita Devi',
+        p: currentWorkerPhone,
         cnt: vax.length,
         ts: timestamp,
         items: vax.slice(0, 10).map((v) => ({
@@ -689,8 +729,7 @@ class OfflineStorageServiceImpl {
       return JSON.stringify({
         t: 'ASHA_SYNC',
         c: 'ANC',
-        p: '9876543210',
-        n: 'Sunita Devi',
+        p: currentWorkerPhone,
         cnt: anc.length || 2,
         ts: timestamp,
         items: anc.slice(0, 10).map((m) => ({
@@ -707,8 +746,7 @@ class OfflineStorageServiceImpl {
     return JSON.stringify({
       t: 'ASHA_SYNC',
       c: 'NCD',
-      p: '9876543210',
-      n: 'Sunita Devi',
+      p: currentWorkerPhone,
       cnt: ncd.length || 3,
       ts: timestamp,
       items: ncd.slice(0, 10).map((m) => ({

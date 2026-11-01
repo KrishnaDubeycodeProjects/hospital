@@ -11,10 +11,10 @@ import {
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage, LanguageCode } from '../context/LanguageContext';
-import { User, Phone, MapPin, BadgeCheck, Languages, Check, Save } from 'lucide-react-native';
+import { User, Phone, MapPin, BadgeCheck, Languages, Check, Save, LogOut } from 'lucide-react-native';
 
 export const ProfileScreen: React.FC = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
 
   const [name, setName] = useState(user.name);
@@ -176,6 +176,16 @@ export const ProfileScreen: React.FC = () => {
         <Save size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
         <Text style={styles.saveButtonText}>{t('saveProfileChanges')}</Text>
       </TouchableOpacity>
+
+      {/* Logout / Switch Account Button */}
+      <TouchableOpacity
+        style={styles.logoutButton}
+        onPress={() => logout()}
+        activeOpacity={0.85}
+      >
+        <LogOut size={18} color="#DC2626" style={{ marginRight: 8 }} />
+        <Text style={styles.logoutButtonText}>खाते से लॉगआउट करें (Sign Out)</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -329,10 +339,26 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingVertical: 14,
     borderRadius: 10,
+    marginBottom: 12,
   },
   saveButtonText: {
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    paddingVertical: 13,
+    borderRadius: 10,
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626',
   },
 });

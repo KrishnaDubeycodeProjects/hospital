@@ -27,6 +27,12 @@
     "web": {
       "favicon": "./assets/aarogya_flow_logo_hd.png",
       "bundler": "metro"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dfe954de-c57e-41af-89bd-d80d97fde939"
+      }
+    },
+    "owner": "krishnacomp"
   }
 }

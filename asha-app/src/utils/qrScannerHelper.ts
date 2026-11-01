@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import jsQR from 'jsqr';
 
 /**
@@ -71,6 +72,10 @@ export function parseQrIdentifier(raw: string): string {
  */
 export async function scanQrFromImageFile(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return reject(new Error('फ़ोटो स्कैनर केवल समर्थित ब्राउज़र/डिवाइस पर उपलब्ध है'));
+    }
+
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('फ़ोटो फ़ाइल लोड नहीं हो सकी (Failed to read file)'));
     reader.onload = async (e) => {

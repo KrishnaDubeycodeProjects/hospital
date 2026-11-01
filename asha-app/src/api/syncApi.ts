@@ -1,11 +1,12 @@
-import { OfflineStorageService } from '../storage/OfflineStorageService';
+import { Platform } from 'react-native';
+import { OfflineStorageService, getStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { OutboxItem } from '../types/storage';
 import { parseQrIdentifier } from '../utils/qrScannerHelper';
 
 const CLOUD_API_URL = 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
 
 const getBackendBaseUrl = (): string => {
-  if (typeof window !== 'undefined' && window.location?.origin) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).location?.origin) {
     const origin = window.location.origin;
     const port = window.location.port;
     if (port === '8088' || port === '8080') {
@@ -79,7 +80,7 @@ export class SyncApi {
       const timeoutId = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(`${BACKEND_BASE_URL}/actuator/health`, {
         method: 'GET',
-        headers: { 'X-ASHA-Phone': '9876543210', ...NGROK_HEADERS },
+        headers: { 'X-ASHA-Phone': getStorageWorkerPhone(), ...NGROK_HEADERS },
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -94,7 +95,7 @@ export class SyncApi {
    * If offline or unreachable, ensures data remains safely persisted in outbox.
    */
   static async syncOutbox(
-    ashaPhone: string = '9876543210',
+    ashaPhone: string = getStorageWorkerPhone(),
     sectionFilter: string = 'CHILD_VAX'
   ): Promise<SyncResult> {
     const isOnline = await this.pingServer();
@@ -384,7 +385,7 @@ export class SyncApi {
           )}`,
           {
             method: 'POST',
-            headers: { 'X-ASHA-Phone': '9876543210', ...NGROK_HEADERS },
+            headers: { 'X-ASHA-Phone': getStorageWorkerPhone(), ...NGROK_HEADERS },
           }
         );
         if (res.ok) {
@@ -415,7 +416,7 @@ export class SyncApi {
   static async sendDataToAnm(
     sectionFilter: string = 'ALL',
     anmPhoneOrCode: string = 'ANM-CHANDPUR-01',
-    ashaPhone: string = '9876543210'
+    ashaPhone: string = getStorageWorkerPhone()
   ): Promise<SyncResult> {
     const isOnline = await this.pingServer();
 
