@@ -147,7 +147,9 @@ export interface FollowUpTask {
 export type OutboxAction =
   | 'CREATE_FAMILY'
   | 'UPDATE_FAMILY'
+  | 'DELETE_FAMILY'
   | 'ADD_MEMBER'
+  | 'DELETE_MEMBER'
   | 'SUBMIT_SURVEY'
   | 'COMPLETE_FOLLOWUP'
   | 'SAVE_MEETING'

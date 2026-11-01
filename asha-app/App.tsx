@@ -9,6 +9,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { Colors } from './src/theme/colors';
 import { FamilyMember } from './src/types/storage';
 import { OfflineVoiceModal } from './src/components/OfflineVoiceModal';
+import { StartingAnimation } from './src/components/StartingAnimation';
 import { VoiceRecognition, SpeechEngine } from './src/voice/speechEngine';
 
 // Auth Screens
@@ -320,16 +321,23 @@ const MainAppContent: React.FC = () => {
 
 const AppRootCoordinator: React.FC = () => {
   const { isAuthenticated, isLoading, authScreen } = useAuth();
+  const [isStarting, setIsStarting] = React.useState(true);
 
   React.useEffect(() => {
     // Automatically trigger offline language model downloads in the background for rural users
     SpeechEngine.initializeOfflineSpeech().catch(() => {});
   }, []);
 
-  if (isLoading) {
+  if (isStarting || isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <StartingAnimation
+            minDurationMs={2000}
+            onAnimationFinish={() => setIsStarting(false)}
+          />
+        </SafeAreaView>
       </View>
     );
   }

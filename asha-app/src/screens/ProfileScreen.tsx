@@ -7,6 +7,8 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Image,
+  Platform,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
@@ -44,12 +46,20 @@ export const ProfileScreen: React.FC = () => {
 
   const roleEmoji = user.role === 'CHO' ? '🏥' : user.role === 'ANM' ? '🩺' : '🌸';
 
+  const logoSource = Platform.OS === 'web'
+    ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
+    : require('../../assets/aarogya_flow_icon_transparent_hd.png');
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Top Profile Avatar Header */}
       <View style={styles.headerCard}>
         <View style={styles.avatarCircle}>
-          <User size={36} color={Colors.primary} />
+          <Image
+            source={logoSource}
+            style={styles.profileLogoImage}
+            resizeMode="contain"
+          />
         </View>
         <Text style={styles.headerName}>{name || user.name}</Text>
         <Text style={styles.headerRole}>{user.roleTitle}</Text>
@@ -221,13 +231,24 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   avatarCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: Colors.primaryLight,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+    borderWidth: 2.5,
+    borderColor: '#BFDBFE',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  profileLogoImage: {
+    width: 62,
+    height: 62,
   },
   headerName: {
     fontSize: 18,

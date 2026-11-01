@@ -20,7 +20,7 @@ export const RegisterScreen: React.FC = () => {
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<UserRole>('ASHA');
+  const [role, setRole] = useState<UserRole>('CHO');
   const [village, setVillage] = useState('Chandpur Village');
   const [blockName, setBlockName] = useState('Rampur Block');
   const [districtName, setDistrictName] = useState('Varanasi');
@@ -169,6 +169,30 @@ export const RegisterScreen: React.FC = () => {
               );
             })}
           </View>
+
+          {/* Official Cadre Provisioning Callout */}
+          {role !== 'CHO' ? (
+            <View style={{ backgroundColor: '#FEF3C7', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#FDE68A', marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E', marginBottom: 4 }}>
+                ℹ️ आशा एवं एएनएम कार्यकर्ताओं हेतु सूचना:
+              </Text>
+              <Text style={{ fontSize: 12, color: '#78350F', lineHeight: 18, marginBottom: 8 }}>
+                आशा कार्यकर्ता एवं एएनएम का खाता उनके पीएचसी के सामुदायिक स्वास्थ्य अधिकारी (CHO) द्वारा सीधे पंजीकृत व अधिकृत किया जाता है। आपको अलग से पंजीकरण करने की आवश्यकता नहीं है।
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: '#D97706', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 6, alignSelf: 'flex-start' }}
+                onPress={() => setAuthScreen('login')}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 12 }}>सीधे लॉगिन पर जाएँ (Go to Login)</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: '#ECFDF5', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#A7F3D0', marginBottom: 14 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#065F46' }}>
+                ✓ सीएचओ (CHO / Medical Officer) के रूप में नया प्रशासनिक खाता पंजीकृत करें।
+              </Text>
+            </View>
+          )}
 
           {/* Full Name */}
           <Text style={styles.fieldLabel}>पूरा नाम (Full Name) *</Text>

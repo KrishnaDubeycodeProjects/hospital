@@ -14,6 +14,7 @@ export interface UserProfile {
   assignedAnm?: string;
   blockName?: string;
   districtName?: string;
+  preferredLanguage?: 'hi' | 'mr';
 }
 
 export interface RegisterFormData {
@@ -48,6 +49,7 @@ interface AuthContextType {
     role: 'ASHA' | 'ANM';
     village: string;
     subcenter?: string;
+    preferredLanguage?: 'hi' | 'mr';
   }) => Promise<{ success: boolean; message: string }>;
 }
 
@@ -173,6 +175,7 @@ async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> 
           phone: '+91' + cleanDigits,
           ashaId: `${role}-${cleanDigits.slice(-4)}`,
           assignedAnm: role === 'ASHA' ? 'Rekha Sharma (+91 98765 11111)' : 'District Health Administration',
+          preferredLanguage: match.preferredLanguage || 'hi',
         };
       }
     }
@@ -375,6 +378,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           AsyncStorage.setItem(STORAGE_KEYS.TOKEN, receivedToken),
           AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile)),
           AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(profile)),
+          AsyncStorage.setItem('@asha_selected_language', profile.preferredLanguage || 'hi'),
         ]);
 
         return { success: true, message: `सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।` };
@@ -503,6 +507,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role: 'ASHA' | 'ANM';
     village: string;
     subcenter?: string;
+    preferredLanguage?: 'hi' | 'mr';
   }): Promise<{ success: boolean; message: string }> => {
     const cleanDigits = worker.phone.replace(/[^0-9]/g, '').slice(-10);
     if (!cleanDigits || cleanDigits.length < 10) {
@@ -513,6 +518,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const fullPhone = '+91' + cleanDigits;
+    const prefLang: 'hi' | 'mr' = worker.preferredLanguage || 'hi';
     const workerProfile: UserProfile = {
       name: worker.name.trim(),
       role: worker.role,
@@ -523,6 +529,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       assignedAnm: worker.role === 'ASHA' ? (currentUser.name ? `${currentUser.name} (${currentUser.phone})` : 'Rekha Sharma (+91 98765 11111)') : 'District Health Administration',
       blockName: currentUser.blockName || 'Rampur Block',
       districtName: currentUser.districtName || 'Varanasi',
+      preferredLanguage: prefLang,
     };
 
     try {
@@ -537,6 +544,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role: workerProfile.role,
         village: workerProfile.village,
         subcenter: worker.subcenter || 'PHC Chandpur',
+        preferredLanguage: prefLang,
         addedAt: new Date().toISOString(),
       });
       await AsyncStorage.setItem('@cho_authorized_workers_v6', JSON.stringify(list));
@@ -560,6 +568,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             blockName: workerProfile.blockName,
             districtName: workerProfile.districtName,
             anmPhone: currentUser.phone,
+            preferredLanguage: prefLang,
           }),
         });
       } catch (e) {

@@ -54,6 +54,7 @@ export const ChoDashboardScreen: React.FC = () => {
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
   const [newWorkerRole, setNewWorkerRole] = useState<'ASHA' | 'ANM'>('ASHA');
   const [newWorkerVillage, setNewWorkerVillage] = useState('');
+  const [newWorkerLanguage, setNewWorkerLanguage] = useState<'hi' | 'mr'>('hi');
   const [addWorkerLoading, setAddWorkerLoading] = useState(false);
   const [addWorkerStatus, setAddWorkerStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -88,6 +89,7 @@ export const ChoDashboardScreen: React.FC = () => {
       phone: cleanDigits,
       role: newWorkerRole,
       village: newWorkerVillage.trim() || 'सेक्टर क्षेत्र',
+      preferredLanguage: newWorkerLanguage,
     });
     setAddWorkerLoading(false);
 
@@ -766,6 +768,46 @@ export const ChoDashboardScreen: React.FC = () => {
                 value={newWorkerVillage}
                 onChangeText={setNewWorkerVillage}
               />
+
+              {/* Preferred Language Selection (Strictly Hindi or Marathi) */}
+              <Text style={styles.addWorkerInputLabel}>कार्यकर्ता की प्राथमिक भाषा (App Language):</Text>
+              <View style={styles.addWorkerRoleSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.addWorkerRoleTab,
+                    newWorkerLanguage === 'hi' && styles.addWorkerRoleTabActive,
+                  ]}
+                  onPress={() => setNewWorkerLanguage('hi')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.addWorkerRoleTabText,
+                      newWorkerLanguage === 'hi' && styles.addWorkerRoleTabTextActive,
+                    ]}
+                  >
+                    🇮🇳 हिन्दी (Hindi)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.addWorkerRoleTab,
+                    newWorkerLanguage === 'mr' && styles.addWorkerRoleTabActive,
+                  ]}
+                  onPress={() => setNewWorkerLanguage('mr')}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.addWorkerRoleTabText,
+                      newWorkerLanguage === 'mr' && styles.addWorkerRoleTabTextActive,
+                    ]}
+                  >
+                    🚩 मराठी (Marathi)
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               {/* Submit Button */}
               <TouchableOpacity

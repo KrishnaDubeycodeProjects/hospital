@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Switch,
   ScrollView,
+  Image,
+  Platform,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
@@ -37,14 +39,20 @@ export const SettingsScreen: React.FC = () => {
     return 'English';
   };
 
+  const logoSource = Platform.OS === 'web'
+    ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
+    : require('../../assets/aarogya_flow_icon_transparent_hd.png');
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Profile Header Card matching Screen 9 */}
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {user.name.split(' ').map((n) => n[0]).join('')}
-          </Text>
+          <Image
+            source={logoSource}
+            style={styles.avatarImage}
+            resizeMode="contain"
+          />
         </View>
         <View style={styles.profileInfo}>
           <Text style={styles.userName}>{user.name}</Text>
@@ -157,13 +165,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.primaryLight,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    borderWidth: 2,
+    borderColor: '#BFDBFE',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
   },
   avatarText: {
     fontSize: 18,

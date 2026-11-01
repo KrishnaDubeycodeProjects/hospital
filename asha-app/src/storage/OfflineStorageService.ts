@@ -177,6 +177,28 @@ class OfflineStorageServiceImpl {
     return families.find((f) => f.houseNumber.toString() === houseNo.toString()) || null;
   }
 
+  async deleteFamily(id: string): Promise<void> {
+    await this.initialize();
+    const families = await this.getFamilies();
+    const target = families.find((f) => f.id === id);
+    if (!target) return;
+
+    const remainingFamilies = families.filter((f) => f.id !== id);
+    await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(remainingFamilies));
+
+    // Also remove local members belonging to this family
+    const members = await this.getMembers();
+    const remainingMembers = members.filter((m) => m.familyUnitId !== id);
+    await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(remainingMembers));
+
+    // Queue DELETE_FAMILY tombstone in outbox
+    await this.addToOutbox('DELETE_FAMILY', {
+      id: target.id,
+      houseNumber: target.houseNumber,
+      sequentialNumber: target.sequentialNumber,
+    });
+  }
+
   // ----------------------------------------------------
   // MEMBERS CRUD
   // ----------------------------------------------------
@@ -245,6 +267,31 @@ class OfflineStorageServiceImpl {
 
     await this.addToOutbox('ADD_MEMBER', newMember);
     return newMember;
+  }
+
+  async deleteMember(memberId: string): Promise<void> {
+    await this.initialize();
+    const members = await this.getMembers();
+    const target = members.find((m) => m.id === memberId);
+    if (!target) return;
+
+    const remainingMembers = members.filter((m) => m.id !== memberId);
+    await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(remainingMembers));
+
+    // Update family totalMembers count
+    const families = await this.getFamilies();
+    const famIndex = families.findIndex((f) => f.id === target.familyUnitId);
+    if (famIndex >= 0) {
+      const famMembers = remainingMembers.filter((m) => m.familyUnitId === target.familyUnitId);
+      families[famIndex].totalMembers = famMembers.length;
+      await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(families));
+    }
+
+    // Queue DELETE_MEMBER tombstone in outbox
+    await this.addToOutbox('DELETE_MEMBER', {
+      id: target.id,
+      familyUnitId: target.familyUnitId,
+    });
   }
 
   // ----------------------------------------------------
@@ -846,6 +893,128 @@ class OfflineStorageServiceImpl {
       followUps,
       pendingOutbox,
     });
+  }
+
+  /**
+   * Merges remote cloud ledger (downloaded from server) into local storage.
+   * Restores all families and members when a user logs in on a new device or reinstalled app.
+   */
+  async mergeRemoteLedger(
+    remoteFamilies: any[] = [],
+    remoteMembers: any[] = [],
+    deletedFamilyIds: (number | string)[] = [],
+    deletedMemberIds: (number | string)[] = []
+  ): Promise<{ mergedFamilies: number; mergedMembers: number }> {
+    await this.initialize();
+
+    // 1. Merge Families
+    const localFamilies = await this.getFamilies();
+    const delFamSet = new Set(deletedFamilyIds.map(String));
+    
+    // Filter out deleted families
+    let activeFamilies = localFamilies.filter(f => !delFamSet.has(String(f.id)) && !delFamSet.has(String(f.sequentialNumber)));
+
+    let mergedFamCount = 0;
+    for (const remFam of remoteFamilies) {
+      if (delFamSet.has(String(remFam.id)) || delFamSet.has(String(remFam.sequentialNumber))) {
+        continue;
+      }
+      const houseNo = remFam.houseNumber != null ? String(remFam.houseNumber) : String(remFam.sequentialNumber || 1);
+      const existingIdx = activeFamilies.findIndex(
+        f => String(f.id) === String(remFam.id) || 
+             (f.houseNumber && String(f.houseNumber) === houseNo) ||
+             (f.sequentialNumber && remFam.sequentialNumber && f.sequentialNumber === remFam.sequentialNumber)
+      );
+
+      const mappedFamily: FamilyUnit = {
+        id: String(remFam.id || generateUUID()),
+        sequentialNumber: remFam.sequentialNumber || Number(houseNo) || 1,
+        houseNumber: houseNo,
+        headName: remFam.headName || 'Household Head',
+        primaryPhone: remFam.primaryPhone || '+91 98765 00000',
+        villageName: remFam.villageName || 'Chandpur Village',
+        visitIntervalDays: remFam.visitIntervalDays || 15,
+        nextVisitDate: remFam.nextVisitDate || new Date().toISOString().split('T')[0],
+        lastVisitedAt: remFam.lastVisitedAt || null,
+        ashaWorkerPhone: currentWorkerPhone,
+        status: (remFam.visitIntervalDays === 7 ? '7days' : remFam.visitIntervalDays === 15 ? '15days' : '30days') as any,
+        totalMembers: remFam.totalMembers || 0,
+        hasPregnancy: Boolean(remFam.hasPregnancy),
+        hasDisease: Boolean(remFam.hasDisease),
+        hasChild: Boolean(remFam.hasChild),
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (existingIdx >= 0) {
+        activeFamilies[existingIdx] = {
+          ...mappedFamily,
+          ...activeFamilies[existingIdx],
+          headName: activeFamilies[existingIdx].headName || mappedFamily.headName,
+        };
+      } else {
+        activeFamilies.push(mappedFamily);
+        mergedFamCount++;
+      }
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(activeFamilies));
+
+    // 2. Merge Members
+    const localMembers = await this.getMembers();
+    const delMemSet = new Set(deletedMemberIds.map(String));
+    let activeMembers = localMembers.filter(m => !delMemSet.has(String(m.id)));
+
+    let mergedMemCount = 0;
+    for (const remMem of remoteMembers) {
+      if (delMemSet.has(String(remMem.id))) continue;
+      const memId = String(remMem.id || generateUUID());
+      const existingIdx = activeMembers.findIndex(m => String(m.id) === memId || (m.name === remMem.name && String(m.familyUnitId) === String(remMem.familyUnitId)));
+
+      const mappedMember: FamilyMember = {
+        id: memId,
+        familyUnitId: String(remMem.familyUnitId || 1),
+        name: remMem.name || 'Member',
+        initials: (remMem.name || 'M').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+        dob: remMem.dob ? String(remMem.dob) : undefined,
+        age: Number(remMem.age) || 25,
+        gender: remMem.gender || 'Female',
+        relationship: remMem.relationship || 'Member',
+        phone: remMem.phone || '',
+        abhaNumber: remMem.abhaNumber || '',
+        isAbhaLinked: Boolean(remMem.isAbhaLinked),
+        isPregnant: Boolean(remMem.isPregnant),
+        expectedDeliveryDate: remMem.expectedDeliveryDate ? String(remMem.expectedDeliveryDate) : undefined,
+        isHrp: Boolean(remMem.isHrp),
+        hasChronicCondition: Boolean(remMem.hasChronicCondition),
+        chronicConditionType: remMem.chronicConditionType || '',
+        isChild: Boolean((remMem.age != null && remMem.age <= 5)),
+        followUpReason: remMem.followUpReason || '',
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (existingIdx >= 0) {
+        activeMembers[existingIdx] = {
+          ...mappedMember,
+          ...activeMembers[existingIdx],
+        };
+      } else {
+        activeMembers.push(mappedMember);
+        mergedMemCount++;
+      }
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(activeMembers));
+
+    // Update family totalMembers counts and clinical flags
+    for (let i = 0; i < activeFamilies.length; i++) {
+      const fam = activeFamilies[i];
+      const famMems = activeMembers.filter(m => String(m.familyUnitId) === String(fam.id));
+      activeFamilies[i].totalMembers = famMems.length;
+      activeFamilies[i].hasPregnancy = famMems.some(m => m.isPregnant);
+      activeFamilies[i].hasDisease = famMems.some(m => m.hasChronicCondition);
+      activeFamilies[i].hasChild = famMems.some(m => m.isChild || (m.age && m.age <= 5));
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(activeFamilies));
+
+    return { mergedFamilies: mergedFamCount, mergedMembers: mergedMemCount };
   }
 }
 

@@ -25,6 +25,7 @@ import {
   UserCheck,
   ShieldAlert,
   Syringe,
+  Trash2,
 } from 'lucide-react-native';
 import { StatusBadge } from '../components/StatusBadge';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
@@ -47,7 +48,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
   onBack,
   onSelectMember,
 }) => {
-  const { families, members, childVaccinations, addMember, markFamilyVisited } = useOfflineData();
+  const { families, members, childVaccinations, addMember, markFamilyVisited, deleteMember, deleteFamily } = useOfflineData();
   const { t, language } = useLanguage();
 
   // Locate the family
@@ -96,6 +97,34 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
   // Revisit Priority Modal State
   const [showPriorityModal, setShowPriorityModal] = useState(false);
   const [visitSuccessMsg, setVisitSuccessMsg] = useState<string | null>(null);
+
+  // Delete Confirmation State
+  const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null);
+  const [showDeleteFamilyModal, setShowDeleteFamilyModal] = useState(false);
+  const [deleteSuccessMsg, setDeleteSuccessMsg] = useState<string | null>(null);
+
+  const handleDeleteMemberConfirm = async () => {
+    if (!memberToDelete) return;
+    try {
+      await deleteMember(memberToDelete.id);
+      setDeleteSuccessMsg(`सदस्य "${memberToDelete.name}" को सफलतापूर्वक हटाया गया।`);
+      setMemberToDelete(null);
+      setTimeout(() => setDeleteSuccessMsg(null), 3000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteFamilyConfirm = async () => {
+    if (!currentFamily) return;
+    try {
+      await deleteFamily(currentFamily.id);
+      setShowDeleteFamilyModal(false);
+      onBack();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Add Member Modal State
   const [showModal, setShowModal] = useState(false);
@@ -428,10 +457,22 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
                 </View>
 
                 {/* Demographics & Relationship */}
-                <Text style={styles.memberSub}>
-                  {member.gender} • {member.age} वर्ष • {member.relationship}
-                  {member.fatherOrHusbandName ? ` • पिता/पति: ${member.fatherOrHusbandName}` : ''}
-                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.memberSub, { flex: 1 }]}>
+                    {member.gender} • {member.age} वर्ष • {member.relationship}
+                    {member.fatherOrHusbandName ? ` • पिता/पति: ${member.fatherOrHusbandName}` : ''}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setMemberToDelete(member);
+                    }}
+                    style={{ padding: 6, marginLeft: 8 }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Trash2 size={16} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
 
                 {/* Member DOB, Education, Phone */}
                 <View style={styles.memberContactRow}>
@@ -479,6 +520,46 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
         );
       })}
       </ScrollView>
+
+      {/* Delete Member Confirmation Modal */}
+      <Modal visible={!!memberToDelete} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxWidth: 360 }]}>
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
+                <Trash2 size={24} color="#EF4444" />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A', textAlign: 'center' }}>
+                सदस्य हटाएं
+              </Text>
+              <Text style={{ fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 }}>
+                क्या आप सचमुच "{memberToDelete?.name}" को हटाना चाहते हैं? यह परिवर्तन ऑफ़लाइन व ऑनलाइन दोनों जगह सिंक होगा।
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => setMemberToDelete(null)}
+              >
+                <Text style={{ color: '#475569', fontWeight: '700', fontSize: 14 }}>रद्द करें</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#EF4444', borderRadius: 8, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
+                onPress={handleDeleteMemberConfirm}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>हटाएं</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Toast */}
+      {deleteSuccessMsg && (
+        <View style={{ position: 'absolute', bottom: 24, left: 16, right: 16, backgroundColor: '#10B981', padding: 14, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', elevation: 4 }}>
+          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>{deleteSuccessMsg}</Text>
+        </View>
+      )}
 
       {/* Child Vaccination Schedule Modal */}
       <ChildVaccinationModal

@@ -207,7 +207,7 @@ export const LoginScreen: React.FC = () => {
               activeOpacity={0.7}
             >
               <UserPlus size={15} color={Colors.primary} style={{ marginRight: 5 }} />
-              <Text style={styles.linkText}>नया स्वास्थ्य कार्यकर्ता? <Text style={styles.linkTextBold}>पंजीकरण करें (Register)</Text></Text>
+              <Text style={styles.linkText}>सीएचओ / प्रशासनिक अधिकारी? <Text style={styles.linkTextBold}>सीएचओ पंजीकरण (CHO Register)</Text></Text>
             </TouchableOpacity>
 
             <TouchableOpacity

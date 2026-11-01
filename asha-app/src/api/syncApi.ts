@@ -122,6 +122,8 @@ export class SyncApi {
         const surveys: any[] = [];
         const followUps: any[] = [];
         const anmSends: any[] = [];
+        const deletedFamilyIds: any[] = [];
+        const deletedMemberIds: any[] = [];
 
         for (const item of pendingItems) {
           if (item.action === 'CREATE_FAMILY' || item.action === 'UPDATE_FAMILY') {
@@ -148,7 +150,13 @@ export class SyncApi {
               sequentialNumber: p.sequentialNumber || 1,
               visitIntervalDays: p.visitIntervalDays || 15,
               nextVisitDate: formattedNextVisit,
+              isDeleted: false,
             });
+          } else if (item.action === 'DELETE_FAMILY') {
+            const p = item.payload || {};
+            if (p.sequentialNumber != null) deletedFamilyIds.push(p.sequentialNumber);
+            else if (p.id != null) deletedFamilyIds.push(p.id);
+            else if (p.houseNumber != null) deletedFamilyIds.push(p.houseNumber);
           } else if (item.action === 'ADD_MEMBER') {
             const m = item.payload || {};
             // Format dob to valid date YYYY-MM-DD or derive from age to avoid SQL error
@@ -173,7 +181,11 @@ export class SyncApi {
               gender: m.gender || 'Female',
               relationship: m.relationship || 'Member',
               phone: m.phone || '',
+              isDeleted: false,
             });
+          } else if (item.action === 'DELETE_MEMBER') {
+            const m = item.payload || {};
+            if (m.id != null) deletedMemberIds.push(m.id);
           } else if (item.action === 'SUBMIT_SURVEY') {
             const s = item.payload || {};
             const code = s.categoryCode || 'GENERAL';
@@ -278,6 +290,8 @@ export class SyncApi {
             members,
             surveys,
             followUps,
+            deletedFamilyIds,
+            deletedMemberIds,
           }),
         });
 
@@ -319,6 +333,17 @@ export class SyncApi {
 
         if (downloadRes.ok) {
           const remoteData = await downloadRes.json();
+
+          // 🌟 Rehydrate & merge remote families, members, and tombstones into local storage
+          if ((remoteData.families && Array.isArray(remoteData.families)) || (remoteData.members && Array.isArray(remoteData.members))) {
+            await OfflineStorageService.mergeRemoteLedger(
+              remoteData.families || [],
+              remoteData.members || [],
+              remoteData.deletedFamilyIds || [],
+              remoteData.deletedMemberIds || []
+            );
+          }
+
           if (remoteData.followUps && Array.isArray(remoteData.followUps)) {
             for (const remTask of remoteData.followUps) {
               if (remTask.taskType === 'REFERRAL_MISSED' && remTask.status === 'PENDING') {

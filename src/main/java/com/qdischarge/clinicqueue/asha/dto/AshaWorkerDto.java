@@ -20,6 +20,7 @@ public class AshaWorkerDto {
     private String districtName;
     private Integer phcId;
     private String anmPhone;
+    private String preferredLanguage;
     private Boolean isActive;
     private LocalDateTime createdAt;
 }

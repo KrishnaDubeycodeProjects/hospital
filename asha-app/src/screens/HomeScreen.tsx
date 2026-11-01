@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { DotGrid, HouseholdDot } from '../components/DotGrid';
 import { FamilyBottomSheet } from '../components/FamilyBottomSheet';
+import { NhmCoursesCard } from '../components/NhmCoursesCard';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { FamilyMember } from '../types/storage';
@@ -266,6 +267,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 }
               }}
             />
+
+            {/* NHM TRAINING COURSES CARD */}
+            <NhmCoursesCard />
 
             {/* SENDER DATA MODULE (एएनएम को डेटा भेजें) */}
             <View style={styles.senderDataCard}>

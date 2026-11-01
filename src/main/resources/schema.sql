@@ -666,3 +666,8 @@ ALTER TABLE family_members ADD COLUMN IF NOT EXISTS last_survey_date TIMESTAMP;
 ALTER TABLE family_members ADD COLUMN IF NOT EXISTS follow_up_due_date DATE;
 ALTER TABLE family_members ADD COLUMN IF NOT EXISTS follow_up_reason VARCHAR(200);
 
+-- Soft-delete columns for offline sync tombstones & audit history
+ALTER TABLE family_units ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+ALTER TABLE asha_workers ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT 'hi';
+

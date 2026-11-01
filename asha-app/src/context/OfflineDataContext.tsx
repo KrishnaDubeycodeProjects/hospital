@@ -31,7 +31,9 @@ interface OfflineDataContextType {
   lastSyncResult: SyncResult | null;
   refreshData: () => Promise<void>;
   addFamily: (family: Omit<FamilyUnit, 'id' | 'updatedAt'>) => Promise<FamilyUnit>;
+  deleteFamily: (id: string) => Promise<void>;
   addMember: (member: Omit<FamilyMember, 'id' | 'updatedAt'>) => Promise<FamilyMember>;
+  deleteMember: (memberId: string) => Promise<void>;
   submitSurvey: (
     survey: Omit<SurveyResponse, 'id' | 'createdAt' | 'syncedToAnm'>
   ) => Promise<SurveyResponse>;
@@ -252,6 +254,12 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     return created;
   };
 
+  const deleteFamily = async (id: string): Promise<void> => {
+    await OfflineStorageService.deleteFamily(id);
+    await refreshData();
+    syncIfOnline().catch(() => {});
+  };
+
   const addMember = async (
     member: Omit<FamilyMember, 'id' | 'updatedAt'>
   ): Promise<FamilyMember> => {
@@ -259,6 +267,12 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     await refreshData();
     syncIfOnline().catch(() => {});
     return created;
+  };
+
+  const deleteMember = async (memberId: string): Promise<void> => {
+    await OfflineStorageService.deleteMember(memberId);
+    await refreshData();
+    syncIfOnline().catch(() => {});
   };
 
   const submitSurvey = async (
@@ -453,7 +467,9 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         lastSyncResult,
         refreshData,
         addFamily,
+        deleteFamily,
         addMember,
+        deleteMember,
         submitSurvey,
         updateChildVaccine,
         saveMeeting,

@@ -20,6 +20,8 @@ public class SyncDownloadResponse {
     private List<MemberDto> members;
     private List<SurveyTemplateDto> templates;
     private List<FollowUpTaskDto> followUps;
+    private List<Integer> deletedFamilyIds;
+    private List<Integer> deletedMemberIds;
 
     /** ISO-8601 timestamp for the next sync's ?since= parameter */
     private String serverTimestamp;

@@ -85,6 +85,45 @@ public class SyncService {
         int rejected = 0;
         String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
         
+        // 1. Process Soft-Deleted Families from Dedicated List
+        if (request.getDeletedFamilyIds() != null) {
+            for (Object delFam : request.getDeletedFamilyIds()) {
+                try {
+                    Integer famId = parseSafeId(delFam);
+                    if (famId != null) {
+                        jdbcTemplate.update("UPDATE clinicqueue.family_units SET is_deleted = TRUE, updated_at = NOW() " +
+                                "WHERE (id = :id OR sequential_number = :id) AND (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone)",
+                                new MapSqlParameterSource("id", famId).addValue("ashaPhone", ashaPhone).addValue("rawPhone", rawPhone));
+                        jdbcTemplate.update("UPDATE clinicqueue.family_members SET is_deleted = TRUE, updated_at = NOW() " +
+                                "WHERE family_unit_id IN (SELECT id FROM clinicqueue.family_units WHERE (id = :id OR sequential_number = :id) AND (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone))",
+                                new MapSqlParameterSource("id", famId).addValue("ashaPhone", ashaPhone).addValue("rawPhone", rawPhone));
+                        accepted++;
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to mark family deleted", e);
+                    rejected++;
+                }
+            }
+        }
+
+        // 2. Process Soft-Deleted Members from Dedicated List
+        if (request.getDeletedMemberIds() != null) {
+            for (Object delMem : request.getDeletedMemberIds()) {
+                try {
+                    Integer memId = parseSafeId(delMem);
+                    if (memId != null) {
+                        jdbcTemplate.update("UPDATE clinicqueue.family_members SET is_deleted = TRUE, updated_at = NOW() WHERE id = :id",
+                                new MapSqlParameterSource("id", memId));
+                        accepted++;
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to mark member deleted", e);
+                    rejected++;
+                }
+            }
+        }
+
+        // 3. Process Families (Create / Update / Tombstone)
         if (request.getFamilies() != null) {
             for (Map<String, Object> fam : request.getFamilies()) {
                 try {
@@ -93,12 +132,24 @@ public class SyncService {
                     Object nextDate = fam.get("nextVisitDate");
                     String nextDateStr = nextDate != null ? nextDate.toString() : "";
                     boolean isValidDate = nextDateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*");
+                    boolean isDel = Boolean.TRUE.equals(fam.get("isDeleted")) || "true".equalsIgnoreCase(String.valueOf(fam.get("isDeleted")));
+
+                    if (isDel) {
+                        if (seq != null) {
+                            jdbcTemplate.update("UPDATE clinicqueue.family_units SET is_deleted = TRUE, updated_at = NOW() " +
+                                    "WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone) AND sequential_number = :seq",
+                                    new MapSqlParameterSource("ashaPhone", ashaPhone).addValue("rawPhone", rawPhone).addValue("seq", seq));
+                        }
+                        accepted++;
+                        continue;
+                    }
 
                     int updated = 0;
                     if (seq != null) {
                         String updateSql = "UPDATE clinicqueue.family_units SET " +
                                 "visit_interval_days = COALESCE(:interval, visit_interval_days), " +
                                 (isValidDate ? "next_visit_date = :nextDate::date, " : "") +
+                                "is_deleted = FALSE, " +
                                 "last_visited_at = NOW(), " +
                                 "updated_at = NOW() " +
                                 "WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone) AND sequential_number = :seq";
@@ -114,8 +165,8 @@ public class SyncService {
                     }
 
                     if (updated == 0) {
-                        String sql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, visit_interval_days, asha_worker_phone, created_at, updated_at) " +
-                                "VALUES (:phone, :headName, :villageName, :houseNumber, :sequentialNumber, :interval, :ashaPhone, NOW(), NOW())";
+                        String sql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, visit_interval_days, asha_worker_phone, is_deleted, created_at, updated_at) " +
+                                "VALUES (:phone, :headName, :villageName, :houseNumber, :sequentialNumber, :interval, :ashaPhone, FALSE, NOW(), NOW())";
                         jdbcTemplate.update(sql, new MapSqlParameterSource()
                                 .addValue("phone", fam.get("primaryPhone"))
                                 .addValue("headName", fam.get("headName"))
@@ -133,24 +184,27 @@ public class SyncService {
             }
         }
 
+        // 4. Process Members
         if (request.getMembers() != null) {
             for (Map<String, Object> mem : request.getMembers()) {
                 try {
+                    boolean isDel = Boolean.TRUE.equals(mem.get("isDeleted")) || "true".equalsIgnoreCase(String.valueOf(mem.get("isDeleted")));
                     Integer famId = resolveFamilyUnitId(parseSafeId(mem.get("familyUnitId")), mem.get("houseNumber"), ashaPhone, rawPhone);
                     if (famId == null) {
                         // Create a default family unit if none exists
-                        String createFamSql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, visit_interval_days, asha_worker_phone, created_at, updated_at) " +
-                                "VALUES ('+919876500000', 'Village Family', 'Chandpur', '1', 1, 15, :ashaPhone, NOW(), NOW()) RETURNING id";
+                        String createFamSql = "INSERT INTO clinicqueue.family_units (primary_phone, head_name, village_name, house_number, sequential_number, visit_interval_days, asha_worker_phone, is_deleted, created_at, updated_at) " +
+                                "VALUES ('+919876500000', 'Village Family', 'Chandpur', '1', 1, 15, :ashaPhone, FALSE, NOW(), NOW()) RETURNING id";
                         famId = jdbcTemplate.queryForObject(createFamSql, new MapSqlParameterSource("ashaPhone", ashaPhone), Integer.class);
                     }
 
-                    String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, created_at, updated_at) " +
-                            "VALUES (:familyId, :name, :dob::date, :age, :gender, :relationship, :phone, NOW(), NOW()) " +
+                    String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, is_deleted, created_at, updated_at) " +
+                            "VALUES (:familyId, :name, :dob::date, :age, :gender, :relationship, :phone, :isDel, NOW(), NOW()) " +
                             "ON CONFLICT (family_unit_id, name, relationship) DO UPDATE SET " +
                             "dob = COALESCE(EXCLUDED.dob, clinicqueue.family_members.dob), " +
                             "age = COALESCE(EXCLUDED.age, clinicqueue.family_members.age), " +
                             "gender = COALESCE(EXCLUDED.gender, clinicqueue.family_members.gender), " +
                             "phone = COALESCE(EXCLUDED.phone, clinicqueue.family_members.phone), " +
+                            "is_deleted = :isDel, " +
                             "updated_at = NOW()";
                     jdbcTemplate.update(sql, new MapSqlParameterSource()
                             .addValue("familyId", famId)
@@ -159,7 +213,8 @@ public class SyncService {
                             .addValue("age", parseSafeId(mem.get("age")))
                             .addValue("gender", mem.get("gender"))
                             .addValue("relationship", mem.get("relationship"))
-                            .addValue("phone", mem.get("phone")));
+                            .addValue("phone", mem.get("phone"))
+                            .addValue("isDel", isDel));
                     accepted++;
                 } catch (Exception e) {
                     log.error("Failed to sync member", e);
@@ -227,9 +282,14 @@ public class SyncService {
         SyncDownloadResponse response = new SyncDownloadResponse();
         Timestamp sinceTime = since != null ? Timestamp.from(Instant.parse(since)) : new Timestamp(0);
         
-        String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : ""; MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone).addValue("rawPhone", rawPhone).addValue("since", sinceTime);
+        String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
+        MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone)
+                .addValue("rawPhone", rawPhone)
+                .addValue("since", sinceTime);
         
-        String familiesSql = "SELECT * FROM clinicqueue.family_units WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone)";
+        // Active families only
+        String familiesSql = "SELECT * FROM clinicqueue.family_units " +
+                "WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone) AND (is_deleted = FALSE OR is_deleted IS NULL)";
         List<FamilyDetailDto> families = jdbcTemplate.query(familiesSql, params, (rs, rowNum) -> {
             FamilyDetailDto dto = new FamilyDetailDto();
             dto.setId(rs.getInt("id"));
@@ -247,8 +307,10 @@ public class SyncService {
         });
         response.setFamilies(families);
 
+        // Active members only
         String membersSql = "SELECT m.* FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON m.family_unit_id = f.id " +
-                "WHERE (f.asha_worker_phone = :ashaPhone OR f.asha_worker_phone = :rawPhone)";
+                "WHERE (f.asha_worker_phone = :ashaPhone OR f.asha_worker_phone = :rawPhone) " +
+                "AND (m.is_deleted = FALSE OR m.is_deleted IS NULL) AND (f.is_deleted = FALSE OR f.is_deleted IS NULL)";
         List<MemberDto> members = jdbcTemplate.query(membersSql, params, (rs, rowNum) -> {
             MemberDto dto = new MemberDto();
             dto.setId(rs.getInt("id"));
@@ -267,6 +329,17 @@ public class SyncService {
             return dto;
         });
         response.setMembers(members);
+
+        // Deleted family IDs for client-side tombstone purging
+        String delFamSql = "SELECT id FROM clinicqueue.family_units WHERE (asha_worker_phone = :ashaPhone OR asha_worker_phone = :rawPhone) AND is_deleted = TRUE";
+        List<Integer> deletedFamilyIds = jdbcTemplate.query(delFamSql, params, (rs, rowNum) -> rs.getInt("id"));
+        response.setDeletedFamilyIds(deletedFamilyIds);
+
+        // Deleted member IDs
+        String delMemSql = "SELECT m.id FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON m.family_unit_id = f.id " +
+                "WHERE (f.asha_worker_phone = :ashaPhone OR f.asha_worker_phone = :rawPhone) AND m.is_deleted = TRUE";
+        List<Integer> deletedMemberIds = jdbcTemplate.query(delMemSql, params, (rs, rowNum) -> rs.getInt("id"));
+        response.setDeletedMemberIds(deletedMemberIds);
 
         String templatesSql = "SELECT * FROM clinicqueue.survey_templates WHERE is_active = true";
         List<SurveyTemplateDto> templates = jdbcTemplate.query(templatesSql, new MapSqlParameterSource(), (rs, rowNum) -> {

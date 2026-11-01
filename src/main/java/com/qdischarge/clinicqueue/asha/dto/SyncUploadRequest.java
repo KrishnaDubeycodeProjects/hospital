@@ -28,4 +28,10 @@ public class SyncUploadRequest {
 
     /** Completed follow-up tasks with offline_id */
     private List<Map<String, Object>> followUps;
+
+    /** Soft-deleted family unit IDs or sequential numbers */
+    private List<Object> deletedFamilyIds;
+
+    /** Soft-deleted family member IDs */
+    private List<Object> deletedMemberIds;
 }
