@@ -11,7 +11,7 @@ import {
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage, LanguageCode } from '../context/LanguageContext';
-import { User, Phone, MapPin, BadgeCheck, Languages, Check, Save, LogOut } from 'lucide-react-native';
+import { User, Phone, MapPin, BadgeCheck, Languages, Check, Save, LogOut, Shield, Lock } from 'lucide-react-native';
 
 export const ProfileScreen: React.FC = () => {
   const { user, updateProfile, logout } = useAuth();
@@ -42,6 +42,8 @@ export const ProfileScreen: React.FC = () => {
     { code: 'mr', label: 'Marathi', native: 'मराठी' },
   ];
 
+  const roleEmoji = user.role === 'CHO' ? '🏥' : user.role === 'ANM' ? '🩺' : '🌸';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Top Profile Avatar Header */}
@@ -52,6 +54,16 @@ export const ProfileScreen: React.FC = () => {
         <Text style={styles.headerName}>{name || user.name}</Text>
         <Text style={styles.headerRole}>{user.roleTitle}</Text>
         <Text style={styles.headerVillage}>{village || user.village}</Text>
+
+        {/* Locked Official Role Verification Badge */}
+        <View style={styles.roleLockedPill}>
+          <Text style={{ fontSize: 13, marginRight: 4 }}>{roleEmoji}</Text>
+          <Text style={styles.roleLockedPillText}>आधिकारिक पद: {user.role}</Text>
+          <View style={styles.verifiedTag}>
+            <Lock size={10} color="#FFFFFF" style={{ marginRight: 2 }} />
+            <Text style={styles.verifiedTagText}>सत्यापित (Locked)</Text>
+          </View>
+        </View>
       </View>
 
       {/* Language Selector Section */}
@@ -232,6 +244,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  roleLockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  roleLockedPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+    marginRight: 6,
+  },
+  verifiedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#16A34A',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+  },
+  verifiedTagText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   sectionCard: {
     backgroundColor: '#FFFFFF',

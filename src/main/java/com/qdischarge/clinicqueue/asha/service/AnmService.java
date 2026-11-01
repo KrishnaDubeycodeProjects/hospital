@@ -46,11 +46,11 @@ public class AnmService {
         return dto;
     }
 
-        public Optional<AnmProfileDto> getByPhone(String phone) {
+    public Optional<AnmProfileDto> getByPhone(String phone) {
         String rawPhone = phone != null ? phone.replace("+91", "").trim() : "";
         String normPhone = phone != null ? com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone) : "";
-        String sql = "SELECT * FROM clinicqueue.anm_profiles WHERE phone = :phone OR phone = :rawPhone OR phone = :normPhone OR phone = '9876543211' OR phone = '+919876543211' LIMIT 1";
-        MapSqlParameterSource params = new MapSqlParameterSource("phone", phone != null ? phone : "9876543211")
+        String sql = "SELECT * FROM clinicqueue.anm_profiles WHERE (phone = :phone OR phone = :rawPhone OR phone = :normPhone) LIMIT 1";
+        MapSqlParameterSource params = new MapSqlParameterSource("phone", phone != null ? phone : "")
                 .addValue("rawPhone", rawPhone)
                 .addValue("normPhone", normPhone);
         List<AnmProfileDto> list = jdbcTemplate.query(sql, params, (rs, rowNum) -> mapAnm(rs));
@@ -71,12 +71,11 @@ public class AnmService {
             if (byPhone.isPresent()) return byPhone;
         }
 
-        // Fallback to default ANM profile
-        return getByPhone("9876543211");
+        return Optional.empty();
     }
 
     public Map<String, Object> createOrUpdateSession(String anmPhone, String title, String category, String qrCode) {
-        String targetPhone = (anmPhone != null && !anmPhone.isBlank()) ? anmPhone.replace("+91", "").trim() : "9876543211";
+        String targetPhone = (anmPhone != null && !anmPhone.isBlank()) ? anmPhone.replace("+91", "").trim() : "";
         String finalQr = (qrCode != null && !qrCode.isBlank()) ? qrCode : "ANM-QR-" + UUID.randomUUID().toString().substring(0, 8);
         
         int updated = jdbcTemplate.update(
@@ -85,7 +84,7 @@ public class AnmService {
         );
         if (updated == 0) {
             jdbcTemplate.update(
-                "INSERT INTO clinicqueue.anm_profiles (phone, name, phc_name, qr_code_data, created_at) VALUES (:phone, 'Rekha Sharma (ANM)', 'Chandpur PHC', :qr, NOW())",
+                "INSERT INTO clinicqueue.anm_profiles (phone, name, phc_name, qr_code_data, created_at) VALUES (:phone, 'ANM Nurse Midwife', 'Sector PHC', :qr, NOW())",
                 new MapSqlParameterSource("phone", targetPhone).addValue("qr", finalQr)
             );
         }
@@ -103,9 +102,9 @@ public class AnmService {
         StringBuilder sql = new StringBuilder(
                 "SELECT asha_worker_phone, COUNT(*) as count " +
                 "FROM clinicqueue.survey_responses " +
-                "WHERE (target_anm_phone = :phone OR target_anm_phone = :rawPhone OR target_anm_phone = :normPhone OR target_anm_phone = '9876543211' OR target_anm_phone = '+919876543211' OR target_anm_phone IS NULL) AND synced_to_anm = TRUE ");
+                "WHERE (target_anm_phone = :phone OR target_anm_phone = :rawPhone OR target_anm_phone = :normPhone) AND synced_to_anm = TRUE ");
         
-        MapSqlParameterSource params = new MapSqlParameterSource("phone", anmPhone != null ? anmPhone : "9876543211")
+        MapSqlParameterSource params = new MapSqlParameterSource("phone", anmPhone != null ? anmPhone : "")
                 .addValue("rawPhone", rawPhone)
                 .addValue("normPhone", normPhone);
         if (sectionFilter != null && !sectionFilter.equals("ALL")) {
@@ -120,8 +119,8 @@ public class AnmService {
     public List<AshaWorkerDto> listAshaWorkers(String anmPhone) {
         String rawPhone = anmPhone != null ? anmPhone.replace("+91", "").trim() : "";
         String normPhone = anmPhone != null ? com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(anmPhone) : "";
-        String sql = "SELECT * FROM clinicqueue.asha_workers WHERE (anm_phone = :phone OR anm_phone = :rawPhone OR anm_phone = :normPhone OR anm_phone = '9876543211' OR anm_phone = '+919876543211' OR anm_phone IS NULL) AND is_active = true";
-        MapSqlParameterSource params = new MapSqlParameterSource("phone", anmPhone != null ? anmPhone : "9876543211")
+        String sql = "SELECT * FROM clinicqueue.asha_workers WHERE (anm_phone = :phone OR anm_phone = :rawPhone OR anm_phone = :normPhone) AND is_active = true";
+        MapSqlParameterSource params = new MapSqlParameterSource("phone", anmPhone != null ? anmPhone : "")
                 .addValue("rawPhone", rawPhone)
                 .addValue("normPhone", normPhone);
         return jdbcTemplate.query(sql, params, (rs, rowNum) -> {
@@ -148,10 +147,10 @@ public class AnmService {
                 "FROM clinicqueue.survey_responses r " +
                 "LEFT JOIN clinicqueue.family_units f ON r.family_unit_id = f.id " +
                 "LEFT JOIN clinicqueue.family_members m ON r.family_member_id = m.id " +
-                "WHERE (r.asha_worker_phone = :ashaPhone OR r.asha_worker_phone = :rawPhone OR r.asha_worker_phone = :normPhone OR r.asha_worker_phone = '9876543210' OR r.asha_worker_phone = '+919876543210' OR r.asha_worker_phone IS NULL) " +
+                "WHERE (r.asha_worker_phone = :ashaPhone OR r.asha_worker_phone = :rawPhone OR r.asha_worker_phone = :normPhone) " +
                 "AND r.synced_to_anm = TRUE ");
         
-        MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone != null ? ashaPhone : "9876543210")
+        MapSqlParameterSource params = new MapSqlParameterSource("ashaPhone", ashaPhone != null ? ashaPhone : "")
                 .addValue("rawPhone", rawPhone)
                 .addValue("normPhone", normPhone);
         if (memberId != null) {

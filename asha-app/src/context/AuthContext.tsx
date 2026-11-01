@@ -603,24 +603,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const setRole = (newRole: UserRole) => {
-    const cleanDigits = currentUser.phone.replace(/[^0-9]/g, '').slice(-10);
-    const updated: UserProfile = {
-      ...defaultProfiles[newRole],
-      name: currentUser.name,
-      phone: currentUser.phone,
-      village: currentUser.village,
-    };
-    setCurrentUser(updated);
-    AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated)).catch(() => {});
-    if (cleanDigits) {
-      AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(updated)).catch(() => {});
-    }
+    // In production, user roles are strictly locked upon official registration/verification.
+    // Switching roles arbitrarily is forbidden to enforce data isolation and clinical accountability.
+    console.warn(`Role change to ${newRole} rejected: Official cadre is permanently locked to ${currentUser.role}.`);
   };
 
   const updateProfile = (updates: Partial<UserProfile>) => {
     setCurrentUser((prev) => {
       const cleanDigits = prev.phone.replace(/[^0-9]/g, '').slice(-10);
-      const updated = { ...prev, ...updates };
+      const safeUpdates = { ...updates };
+      delete (safeUpdates as any).role; // Role cannot be modified via profile update
+      const updated = { ...prev, ...safeUpdates };
       AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated)).catch(() => {});
       if (cleanDigits) {
         AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(updated)).catch(() => {});

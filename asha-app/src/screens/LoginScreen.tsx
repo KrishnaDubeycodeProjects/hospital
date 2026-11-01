@@ -13,12 +13,12 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
-import { Phone, ShieldCheck, ArrowRight, MessageSquare, Sparkles, UserPlus, HelpCircle } from 'lucide-react-native';
+import { Phone, ShieldCheck, ArrowRight, MessageSquare, UserPlus, HelpCircle } from 'lucide-react-native';
 
 export const LoginScreen: React.FC = () => {
   const { sendOtp, verifyOtp, setAuthScreen } = useAuth();
 
-  const [phone, setPhone] = useState('9876543210');
+  const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -68,13 +68,6 @@ export const LoginScreen: React.FC = () => {
     if (!result.success) {
       setStatusMessage({ type: 'error', text: result.message });
     }
-  };
-
-  const fillQuickDemo = () => {
-    setPhone('9876543210');
-    setOtp('123456');
-    setOtpSent(true);
-    setStatusMessage({ type: 'success', text: 'डेमो क्रेडेंशियल भरे गए (कोड: 123456)' });
   };
 
   const logoSource = Platform.OS === 'web'
@@ -203,14 +196,6 @@ export const LoginScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
           )}
-
-          {/* Demo Quick Fill */}
-          <TouchableOpacity style={styles.demoFillBtn} onPress={fillQuickDemo} activeOpacity={0.8}>
-            <Sparkles size={14} color="#0D9488" style={{ marginRight: 5 }} />
-            <Text style={styles.demoFillText}>
-              त्वरित डेमो परीक्षण (Demo Fill: +91 98765 43210 / कोड: 123456)
-            </Text>
-          </TouchableOpacity>
 
           <View style={styles.divider} />
 
