@@ -19,7 +19,7 @@
     "@types/qrcode": "^1.5.6",
     "expo": "~52.0.0",
     "expo-speech": "~13.0.1",
-    "expo-speech-recognition": "^58.0.1",
+    "expo-speech-recognition": "^1.1.1",
     "expo-status-bar": "~2.0.0",
     "jsqr": "^1.4.0",
     "lucide-react-native": "^0.475.0",
