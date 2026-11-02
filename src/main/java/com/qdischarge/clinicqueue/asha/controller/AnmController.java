@@ -24,8 +24,14 @@ public class AnmController {
     private final AnmService anmService;
     private final CurrentUser currentUser;
 
+    /** ANM profiles are created by a CHO / ADMIN only (no self-registration). */
     @PostMapping("/register")
     public ResponseEntity<AnmProfileDto> register(@RequestBody Map<String, String> body) {
+        var caller = currentUser.get();
+        String callerRole = caller != null ? caller.role() : null;
+        if (!"CHO".equals(callerRole) && !"ADMIN".equals(callerRole)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         String phone = body.get("phone");
         String name = body.get("name");
         String phcName = body.get("phcName");

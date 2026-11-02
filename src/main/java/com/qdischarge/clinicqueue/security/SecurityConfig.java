@@ -127,7 +127,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // ASHA worker & community workflows
-                        .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").permitAll()
+                        // Worker onboarding is CHO-managed (no mobile self-registration)
+                        .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").hasAnyRole("CHO", "ADMIN")
                         // CHO sector referral validation: verified CHO token (or ADMIN) only
                         .requestMatchers("/api/asha/cho/**").hasAnyRole("CHO", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/asha/referrals/*/approve").hasAnyRole("CHO", "ADMIN")

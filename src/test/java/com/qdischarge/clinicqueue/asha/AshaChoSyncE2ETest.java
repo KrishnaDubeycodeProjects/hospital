@@ -118,7 +118,7 @@ class AshaChoSyncE2ETest {
         identity = new WorkerIdentityService(jdbc, props, syncService);
         syncController = new SyncController(syncService, mock(AnmService.class), currentUser);
         choController = new ChoSectorReferralController(choService, currentUser);
-        workerController = new AshaWorkerController(new AshaWorkerService(jdbc), currentUser, identity, jwt);
+        workerController = new AshaWorkerController(new AshaWorkerService(jdbc), currentUser);
 
         syncService.ensureSyncSchema();
         // Seed: survey templates + the CHO-registered test ASHA (anm_phone = registering CHO)
@@ -310,33 +310,41 @@ class AshaChoSyncE2ETest {
     }
 
     @Test
-    void selfRegistrationReturnsWorkerTokenOnlyWithPhoneProof() throws Exception {
-        // OTP-verified (patient) token for the same phone → worker token, cadre forced to ASHA
+    void onlyChoCanRegisterWorkers() throws Exception {
+        // OTP-verified non-worker (patient token) cannot self-register
         as(jwt.generatePatientToken("+919811122233"), null);
-        AshaWorkerDto body = AshaWorkerDto.builder().phone("9811122233").name("नई आशा").villageName("खेड़ा").role("ANM").build();
-        ResponseEntity<AshaWorkerDto> res = workerController.register(body);
-        assertEquals(HttpStatus.CREATED, res.getStatusCode());
-        assertNotNull(res.getBody().getAuthToken());
-        JwtService.DecodedToken d = jwt.decode(res.getBody().getAuthToken());
-        assertEquals("ASHA", d.role(), "self-onboarding never chooses ANM");
-        assertEquals("+919811122233", d.subject());
-
-        // Anonymous registration of another phone: allowed, but never a token
+        assertEquals(HttpStatus.FORBIDDEN, workerController.register(
+                AshaWorkerDto.builder().phone("9811122233").name("नई आशा").villageName("खेड़ा").build()).getStatusCode());
+        // Anonymous cannot register either
         as(null, null);
-        ResponseEntity<AshaWorkerDto> anon = workerController.register(
-                AshaWorkerDto.builder().phone("9811122244").name("अज्ञात").villageName("खेड़ा").build());
-        assertEquals(HttpStatus.CREATED, anon.getStatusCode());
-        assertNull(anon.getBody().getAuthToken());
+        assertEquals(HttpStatus.FORBIDDEN, workerController.register(
+                AshaWorkerDto.builder().phone("9811122244").name("अज्ञात").villageName("खेड़ा").build()).getStatusCode());
+        // An ASHA token cannot register
+        as(otpWorkerToken(ASHA), null);
+        assertEquals(HttpStatus.FORBIDDEN, workerController.register(
+                AshaWorkerDto.builder().phone("9811122255").name("x").villageName("y").build()).getStatusCode());
 
-        // A token for a DIFFERENT phone is not proof
-        as(jwt.generatePatientToken("+919811100000"), null);
-        assertEquals(HttpStatus.CONFLICT, workerController.register(
-                AshaWorkerDto.builder().phone("9811122233").name("x").villageName("y").build()).getStatusCode());
-
-        // CHO-registered ANM keeps the assigned cadre and joins the CHO's sector
+        // The CHO registers an ASHA and an ANM; both join the CHO's sector and get their cadre at login
         as(otpWorkerToken(CHO), null);
-        workerController.register(AshaWorkerDto.builder().phone("9811155555").name("एएनएम").villageName("खेड़ा").role("ANM").build());
+        assertEquals(HttpStatus.CREATED, workerController.register(
+                AshaWorkerDto.builder().phone("9811166666").name("नई आशा").villageName("खेड़ा").build()).getStatusCode());
+        assertEquals(HttpStatus.CREATED, workerController.register(
+                AshaWorkerDto.builder().phone("9811155555").name("एएनएम").villageName("खेड़ा").role("ANM").build()).getStatusCode());
+        assertEquals(HttpStatus.CONFLICT, workerController.register(
+                AshaWorkerDto.builder().phone("9811166666").name("दोबारा").villageName("खेड़ा").build()).getStatusCode());
+        assertEquals(Optional.of("ASHA"), identity.resolveWorkerRole("9811166666"));
         assertEquals(Optional.of("ANM"), identity.resolveWorkerRole("9811155555"));
-        assertTrue(choService.sectorSize(CHO) >= 2);
+        assertTrue(choService.sectorSize(CHO) >= 3);
+
+        // Unregistered numbers get no worker role (app shows "contact your CHO")
+        assertEquals(Optional.empty(), identity.resolveWorkerRole("9811177777"));
+
+        // Profile auto-loads for the newly registered ASHA
+        as(otpWorkerToken("9811166666"), null);
+        AshaWorkerDto me = workerController.getByPhone().getBody();
+        assertEquals("नई आशा", me.getName());
+        assertEquals("खेड़ा", me.getVillageName());
+        assertEquals("ASHA", me.getRole());
+        assertEquals(0, me.getHouseholdCount());
     }
 }

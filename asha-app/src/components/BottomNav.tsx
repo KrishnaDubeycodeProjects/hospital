@@ -1,237 +1,177 @@
+/**
+ * Role-based bottom navigation — icon + one word, 48 dp+ targets, active = tinted pill.
+ *   ASHA: आज · परिवार · ＋ · सिंक · मैं
+ *   ANM : आज · आशा · सत्र · मैं
+ *   CHO : रेफरल · आशा · मैं
+ */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '../theme/colors';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import {
-  ClipboardList,
-  Users,
-  Clock,
   CalendarCheck,
-  User,
-  BarChart3,
-  UserCheck,
-  Stethoscope,
-  Folder,
+  Users,
+  Plus,
+  RefreshCw,
+  UserRound,
+  ClipboardList,
+  QrCode,
+  Route,
+  type LucideIcon,
 } from 'lucide-react-native';
-import { useLanguage } from '../context/LanguageContext';
-import { useAuth } from '../context/AuthContext';
+import { UserRole } from '../context/AuthContext';
+import { color, radius, icon as iconSize, useTr } from '../ui';
 
-export type TabKey = 'Home' | 'Families' | 'FollowUps' | 'Meetings' | 'Profile';
+export type TabKey =
+  | 'today'
+  | 'families'
+  | 'sync'
+  | 'me'
+  | 'anmQueue'
+  | 'anmWorkers'
+  | 'anmSession'
+  | 'choReferrals'
+  | 'choWorkers';
 
-interface BottomNavProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  followUpCount?: number;
+export function homeTabFor(role: UserRole): TabKey {
+  return role === 'CHO' ? 'choReferrals' : role === 'ANM' ? 'anmQueue' : 'today';
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({
-  activeTab,
-  onTabChange,
-  followUpCount = 0,
-}) => {
-  const { t } = useLanguage();
-  const { user } = useAuth();
+interface BottomNavProps {
+  role: UserRole;
+  activeTab: TabKey;
+  onTabChange: (tab: TabKey) => void;
+  onAddPress?: () => void;
+  badges?: Partial<Record<TabKey, number>>;
+}
 
-  // CHO bottom nav — only CHO-relevant tabs
-  if (user.role === 'CHO') {
+export const BottomNav: React.FC<BottomNavProps> = ({ role, activeTab, onTabChange, onAddPress, badges = {} }) => {
+  const tr = useTr();
+
+  const tabs: { key: TabKey; label: string; icon: LucideIcon }[] =
+    role === 'CHO'
+      ? [
+          { key: 'choReferrals', label: tr('रेफरल', 'संदर्भ'), icon: Route },
+          { key: 'choWorkers', label: tr('आशा', 'आशा'), icon: Users },
+          { key: 'me', label: tr('मैं', 'मी'), icon: UserRound },
+        ]
+      : role === 'ANM'
+      ? [
+          { key: 'anmQueue', label: tr('आज', 'आज'), icon: ClipboardList },
+          { key: 'anmWorkers', label: tr('आशा', 'आशा'), icon: Users },
+          { key: 'anmSession', label: tr('सत्र', 'सत्र'), icon: QrCode },
+          { key: 'me', label: tr('मैं', 'मी'), icon: UserRound },
+        ]
+      : [
+          { key: 'today', label: tr('आज', 'आज'), icon: CalendarCheck },
+          { key: 'families', label: tr('परिवार', 'कुटुंब'), icon: Users },
+          { key: 'sync', label: tr('सिंक', 'सिंक'), icon: RefreshCw },
+          { key: 'me', label: tr('मैं', 'मी'), icon: UserRound },
+        ];
+
+  const renderTab = (t: { key: TabKey; label: string; icon: LucideIcon }) => {
+    const active = t.key === activeTab;
+    const Icon = t.icon;
+    const badge = badges[t.key];
     return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => onTabChange('Home')}
-          activeOpacity={0.7}
-        >
-          <BarChart3
-            size={20}
-            color={activeTab === 'Home' ? Colors.primary : Colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'Home' && styles.activeTabText]}>
-            डैशबोर्ड
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => onTabChange('Profile')}
-          activeOpacity={0.7}
-        >
-          <User
-            size={20}
-            color={activeTab === 'Profile' ? Colors.primary : Colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'Profile' && styles.activeTabText]}>
-            प्रोफाइल
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // ANM bottom nav — only ANM-relevant tabs
-  if (user.role === 'ANM') {
-    return (
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => onTabChange('Home')}
-          activeOpacity={0.7}
-        >
-          <Folder
-            size={20}
-            color={activeTab === 'Home' ? Colors.primary : Colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'Home' && styles.activeTabText]}>
-            सत्र
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => onTabChange('Profile')}
-          activeOpacity={0.7}
-        >
-          <User
-            size={20}
-            color={activeTab === 'Profile' ? Colors.primary : Colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'Profile' && styles.activeTabText]}>
-            प्रोफाइल
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // ASHA worker tabs (default)
-  return (
-    <View style={styles.container}>
-      {/* Suchi (Home) Tab */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onTabChange('Home')}
-        activeOpacity={0.7}
+      <Pressable
+        key={t.key}
+        onPress={() => onTabChange(t.key)}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={t.label}
+        style={styles.tab}
       >
-        <ClipboardList
-          size={19}
-          color={activeTab === 'Home' ? Colors.primary : Colors.textMuted}
-        />
-        <Text style={[styles.tabText, activeTab === 'Home' && styles.activeTabText]} numberOfLines={1}>
-          {t('suchi')}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Families Tab */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onTabChange('Families')}
-        activeOpacity={0.7}
-      >
-        <Users
-          size={19}
-          color={activeTab === 'Families' ? Colors.primary : Colors.textMuted}
-        />
-        <Text style={[styles.tabText, activeTab === 'Families' && styles.activeTabText]} numberOfLines={1}>
-          {t('families')}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Follow-ups Tab */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onTabChange('FollowUps')}
-        activeOpacity={0.7}
-      >
-        <View>
-          <Clock
-            size={19}
-            color={activeTab === 'FollowUps' ? Colors.primary : Colors.textMuted}
-          />
-          {followUpCount > 0 && (
+        <View style={[styles.iconPill, active && styles.iconPillActive]}>
+          <Icon size={iconSize.lg} color={active ? color.accent : color.muted} strokeWidth={active ? 2.4 : iconSize.stroke} />
+          {badge ? (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{followUpCount}</Text>
+              <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
             </View>
-          )}
+          ) : null}
         </View>
-        <Text style={[styles.tabText, activeTab === 'FollowUps' && styles.activeTabText]} numberOfLines={1}>
-          {t('followups')}
+        <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+          {t.label}
         </Text>
-      </TouchableOpacity>
+      </Pressable>
+    );
+  };
 
-      {/* Meetings Tab */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onTabChange('Meetings')}
-        activeOpacity={0.7}
-      >
-        <CalendarCheck
-          size={19}
-          color={activeTab === 'Meetings' ? Colors.primary : Colors.textMuted}
-        />
-        <Text style={[styles.tabText, activeTab === 'Meetings' && styles.activeTabText]} numberOfLines={1}>
-          {t('meetings')}
-        </Text>
-      </TouchableOpacity>
+  // ASHA: big centre ＋ between परिवार and सिंक
+  const showAdd = role === 'ASHA' && !!onAddPress;
+  const left = showAdd ? tabs.slice(0, 2) : tabs;
+  const right = showAdd ? tabs.slice(2) : [];
 
-      {/* Profile Tab */}
-      <TouchableOpacity
-        style={styles.tabItem}
-        onPress={() => onTabChange('Profile')}
-        activeOpacity={0.7}
-      >
-        <User
-          size={19}
-          color={activeTab === 'Profile' ? Colors.primary : Colors.textMuted}
-        />
-        <Text style={[styles.tabText, activeTab === 'Profile' && styles.activeTabText]} numberOfLines={1}>
-          {t('profile')}
-        </Text>
-      </TouchableOpacity>
+  return (
+    <View style={styles.bar}>
+      {left.map(renderTab)}
+      {showAdd ? (
+        <Pressable
+          onPress={onAddPress}
+          accessibilityRole="button"
+          accessibilityLabel={tr('नया जोड़ें', 'नवीन जोडा')}
+          style={({ pressed }) => [styles.addWrap, pressed && { transform: [{ scale: 0.95 }] }]}
+        >
+          <View style={styles.addButton}>
+            <Plus size={30} color={color.white} strokeWidth={2.6} />
+          </View>
+        </Pressable>
+      ) : null}
+      {right.map(renderTab)}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  bar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    backgroundColor: color.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    paddingVertical: 7,
-    paddingBottom: 16,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    borderTopColor: color.line,
+    paddingTop: 6,
+    paddingBottom: 10,
+    paddingHorizontal: 4,
   },
-  tabItem: {
-    flex: 1,
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 56, gap: 2 },
+  iconPill: {
+    width: 56,
+    height: 32,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
   },
-  tabText: {
-    fontSize: 10,
-    marginTop: 3,
-    color: Colors.textMuted,
-    fontWeight: '600',
-  },
-  activeTabText: {
-    color: Colors.primary,
-    fontWeight: '700',
-  },
+  iconPillActive: { backgroundColor: color.accentSoft },
+  label: { fontSize: 12, fontWeight: '700', color: color.muted, lineHeight: 17 },
+  labelActive: { color: color.accent },
   badge: {
     position: 'absolute',
     top: -4,
-    right: -8,
-    backgroundColor: Colors.urgentRed,
-    borderRadius: 8,
+    right: 6,
+    minWidth: 18,
+    height: 18,
     paddingHorizontal: 4,
-    paddingVertical: 1,
-    minWidth: 14,
+    borderRadius: radius.pill,
+    backgroundColor: color.red,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: color.surface,
   },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: '700',
+  badgeText: { color: color.white, fontSize: 10, fontWeight: '800' },
+  addWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
+  addButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: color.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -22,
+    borderWidth: 4,
+    borderColor: color.surface,
+    shadowColor: color.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });

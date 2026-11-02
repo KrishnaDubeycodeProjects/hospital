@@ -16,7 +16,13 @@ export interface UserProfile {
   blockName?: string;
   districtName?: string;
   preferredLanguage?: 'hi' | 'mr';
+  /** Server-assigned PHC / sub-centre id and household count (loaded at login). */
+  phcId?: number;
+  householdCount?: number;
 }
+
+/** Shown when an OTP-verified number is not a CHO-registered worker. */
+export const NOT_REGISTERED_MESSAGE = 'यह नंबर पंजीकृत नहीं है। कृपया अपने सीएचओ से संपर्क करें।';
 
 export interface RegisterFormData {
   name: string;
@@ -369,6 +375,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       const data = await res.json().catch(() => ({}));
 
+      // Workers are registered by their CHO: an OTP-verified number without a worker cadre
+      // (server answers role PATIENT) is not allowed into the field app.
+      if (res.ok && data.success !== false && data.role && !['ASHA', 'ANM', 'CHO'].includes(data.role)) {
+        return { success: false, message: NOT_REGISTERED_MESSAGE };
+      }
+
       if (res.ok && data.success !== false) {
         const receivedToken = data.token || 'jwt-session-token-' + Date.now();
         setToken(receivedToken);
@@ -392,12 +404,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             },
           });
           if (profileRes.ok) {
+            // Complete profile auto-loads from the CHO-registered server record.
             const dbWorker = await profileRes.json();
-            if (dbWorker && dbWorker.name) {
-              profile.name = dbWorker.name;
+            if (dbWorker) {
+              if (dbWorker.name) profile.name = dbWorker.name;
               if (dbWorker.villageName) profile.village = dbWorker.villageName;
-              if (dbWorker.id) profile.ashaId = `ASHA-UP-${dbWorker.id}`;
+              if (dbWorker.blockName) profile.blockName = dbWorker.blockName;
+              if (dbWorker.districtName) profile.districtName = dbWorker.districtName;
+              if (dbWorker.phcId != null) profile.phcId = dbWorker.phcId;
+              if (dbWorker.householdCount != null) profile.householdCount = dbWorker.householdCount;
+              if (dbWorker.id) profile.ashaId = `${profile.role}-${dbWorker.id}`;
               if (dbWorker.anmPhone) profile.assignedAnm = dbWorker.anmPhone;
+              if (dbWorker.preferredLanguage === 'hi' || dbWorker.preferredLanguage === 'mr') {
+                profile.preferredLanguage = dbWorker.preferredLanguage;
+              }
             }
           }
         } catch {

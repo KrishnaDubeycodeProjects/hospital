@@ -50,6 +50,44 @@ public class AshaWorkerService {
         return getByPhone(body.getPhone()).orElseThrow();
     }
 
+    /**
+     * Profile for the logged-in worker (GET /api/asha/me): the CHO-registered asha_workers row
+     * plus assigned household count; for CHOs (not in asha_workers) the cho_officers row.
+     */
+    public Optional<AshaWorkerDto> getProfileForMe(String phone, String role) {
+        String p10 = phone == null ? "" : phone.replaceAll("[^0-9]", "");
+        if (p10.length() > 10) p10 = p10.substring(p10.length() - 10);
+        MapSqlParameterSource params = new MapSqlParameterSource("p", p10);
+        String d10 = "RIGHT(regexp_replace(COALESCE(%s, ''), '[^0-9]', '', 'g'), 10)";
+
+        Optional<AshaWorkerDto> worker = getByPhone(phone);
+        if (worker.isEmpty() && "CHO".equals(role)) {
+            List<AshaWorkerDto> cho = jdbcTemplate.query(
+                    "SELECT id, phone, name, block_name, district_name FROM clinicqueue.cho_officers WHERE " +
+                            String.format(d10, "phone") + " = :p LIMIT 1", params,
+                    (rs, rn) -> AshaWorkerDto.builder()
+                            .id(rs.getInt("id"))
+                            .phone(rs.getString("phone"))
+                            .name(rs.getString("name"))
+                            .blockName(rs.getString("block_name"))
+                            .districtName(rs.getString("district_name"))
+                            .role("CHO")
+                            .isActive(true)
+                            .build());
+            worker = cho.isEmpty()
+                    ? Optional.of(AshaWorkerDto.builder().phone(phone).role("CHO").isActive(true).build())
+                    : Optional.of(cho.get(0));
+        }
+        worker.ifPresent(w -> {
+            if (w.getRole() == null) w.setRole(role);
+            Integer households = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM clinicqueue.family_units WHERE " + String.format(d10, "asha_worker_phone") +
+                            " = :p AND (is_deleted IS NULL OR is_deleted = FALSE)", params, Integer.class);
+            w.setHouseholdCount(households != null ? households : 0);
+        });
+        return worker;
+    }
+
     public Optional<AshaWorkerDto> getByPhone(String phone) {
         String rawPhone = phone != null ? phone.replace("+91", "").trim() : "";
         String normPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
@@ -263,6 +301,10 @@ public class AshaWorkerService {
         dto.setAnmPhone(rs.getString("anm_phone"));
         try {
             dto.setPreferredLanguage(rs.getString("preferred_language"));
+        } catch (Exception ignored) {}
+        try {
+            String role = rs.getString("role");
+            dto.setRole(role != null ? role.toUpperCase() : "ASHA");
         } catch (Exception ignored) {}
         dto.setIsActive(rs.getBoolean("is_active"));
         java.sql.Timestamp created = rs.getTimestamp("created_at");

@@ -27,7 +27,7 @@ import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 import { AshaMeetingRecord } from '../types/storage';
 import { SpeechEngine, VoiceRecognition } from '../voice/speechEngine';
 
-export const AshaMeetingsScreen: React.FC = () => {
+export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = () => {
   const { meetings, saveMeeting } = useOfflineData();
   const { t, language, localeCode, ttsEnabled } = useLanguage();
 

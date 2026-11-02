@@ -1,10 +1,13 @@
+/**
+ * Slim top bar: white squircle logo · app name · connectivity pill · cadre badge.
+ * Language and settings live in the मैं tab; sync detail lives in the सिंक tab.
+ */
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
-import { Colors } from '../theme/colors';
+import { View, Text, StyleSheet, Image, Platform, Pressable } from 'react-native';
+import { Wifi, CloudOff, RefreshCw, Shield } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
-import { useLanguage } from '../context/LanguageContext';
-import { RefreshCw, CloudOff, CheckCircle, Wifi, Globe, Shield } from 'lucide-react-native';
+import { StatusPill, color, space, text, useTr } from '../ui';
 
 interface HeaderProps {
   onRolePress?: () => void;
@@ -12,85 +15,37 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
   const { user } = useAuth();
-  const { pendingSyncCount, isSyncing, isOnline, triggerSync } = useOfflineData();
-  const { language, setLanguage, t } = useLanguage();
+  const { isSyncing, isOnline } = useOfflineData();
+  const tr = useTr();
 
-  const cycleLanguage = () => setLanguage(language === 'hi' ? 'mr' : 'hi');
+  const logoSource =
+    Platform.OS === 'web'
+      ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
+      : require('../../assets/aarogya_flow_icon_transparent_hd.png');
 
-  const currentLangLabel = language === 'hi' ? 'हिं' : 'मरा';
-
-  const logoSource = Platform.OS === 'web'
-    ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
-    : require('../../assets/aarogya_flow_icon_transparent_hd.png');
-
-  const roleEmoji = user.role === 'CHO' ? '🏥' : user.role === 'ANM' ? '🩺' : '🌸';
+  const cadre = user.role === 'CHO' ? tr('सीएचओ', 'सीएचओ') : user.role === 'ANM' ? tr('एएनएम', 'एएनएम') : tr('आशा', 'आशा');
 
   return (
     <View style={styles.container}>
-      <View style={styles.brandingRow}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={logoSource}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+      <View style={styles.brand}>
+        <View style={styles.logoSquircle}>
+          <Image source={logoSource} style={styles.logo} resizeMode="contain" />
         </View>
-        <View style={styles.titleCol}>
-          <Text style={styles.appTitle} numberOfLines={1}>{t('appTitle')}</Text>
-          <Text style={styles.appSubtitle} numberOfLines={1} ellipsizeMode="tail">{t('appSubtitle')}</Text>
-        </View>
+        <Text style={text.heading} numberOfLines={1}>
+          {tr('आरोग्य फ्लो', 'आरोग्य फ्लो')}
+        </Text>
       </View>
 
-      <View style={styles.rightActions}>
-        {/* Quick Language Toggle Pill */}
-        <TouchableOpacity
-          style={styles.langBadge}
-          onPress={cycleLanguage}
-          activeOpacity={0.8}
-        >
-          <Globe size={13} color={Colors.primary} />
-          <Text style={styles.langText}>{currentLangLabel}</Text>
-        </TouchableOpacity>
-
-        {/* Internet Connection / Local Storage Status Indicator */}
-        <TouchableOpacity
-          style={styles.storageBadge}
-          onPress={() => triggerSync()}
-          activeOpacity={0.8}
-        >
-          {isSyncing ? (
-            <>
-              <RefreshCw size={12} color={Colors.primary} />
-              <Text style={[styles.storageText, { color: Colors.primary }]}>{t('syncing')}</Text>
-            </>
-          ) : isOnline ? (
-            <>
-              <Wifi size={12} color={Colors.visitedGreen} />
-              <Text style={[styles.storageText, { color: Colors.visitedGreen }]}>{t('online')}</Text>
-            </>
-          ) : pendingSyncCount > 0 ? (
-            <>
-              <CloudOff size={12} color="#D97706" />
-              <Text style={styles.storageText}>{pendingSyncCount} {language === 'mr' ? 'बाकी' : 'शेष'}</Text>
-            </>
-          ) : (
-            <>
-              <CheckCircle size={12} color={Colors.visitedGreen} />
-              <Text style={[styles.storageText, { color: Colors.visitedGreen }]}>{t('saved')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* Locked Official Cadre Badge (Verified by NHM - Non-Switchable) */}
-        <TouchableOpacity
-          style={styles.roleBadge}
-          onPress={onRolePress}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.roleEmojiText}>{roleEmoji}</Text>
-          <Text style={styles.roleText}>{user.role}</Text>
-          <Shield size={11} color={Colors.primary} style={{ marginLeft: 3 }} />
-        </TouchableOpacity>
+      <View style={styles.right}>
+        {isSyncing ? (
+          <StatusPill tone="accent" icon={RefreshCw} label={tr('सिंक', 'सिंक')} />
+        ) : (
+          <StatusPill tone={isOnline ? 'green' : 'amber'} icon={isOnline ? Wifi : CloudOff} label={isOnline ? tr('ऑनलाइन', 'ऑनलाइन') : tr('ऑफलाइन', 'ऑफलाइन')} />
+        )}
+        <Pressable onPress={onRolePress} accessibilityRole="button" accessibilityLabel={cadre} style={styles.cadre} hitSlop={6}>
+          <Shield size={13} color={color.accent} strokeWidth={2.2} />
+          <Text style={styles.cadreText}>{cadre}</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -98,116 +53,38 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 10,
-    paddingBottom: 8,
-    paddingHorizontal: 10,
+    minHeight: 56,
+    paddingHorizontal: space.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: color.surface,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    minHeight: 52,
+    borderBottomColor: color.line,
   },
-  brandingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
-    marginRight: 6,
-  },
-  logoContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
+  brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
+  // Brand squircle: white background, rounded-square (matches the official logo treatment)
+  logoSquircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: color.line,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 2,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
-    flexShrink: 0,
+    padding: 3,
   },
-  logo: {
-    width: '100%',
-    height: '100%',
-  },
-  titleCol: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-  },
-  appTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    letterSpacing: -0.3,
-  },
-  appSubtitle: {
-    fontSize: 9,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  rightActions: {
+  logo: { width: '100%', height: '100%' },
+  right: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  cadre: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    flexShrink: 0,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: color.accentSoft,
   },
-  storageBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    paddingVertical: 3.5,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    gap: 3,
-  },
-  storageText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#D97706',
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingVertical: 3.5,
-    paddingHorizontal: 7,
-    borderRadius: 12,
-  },
-  roleEmojiText: {
-    fontSize: 12,
-    marginRight: 2,
-  },
-  roleText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginLeft: 2,
-  },
-  langBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingVertical: 3.5,
-    paddingHorizontal: 6,
-    borderRadius: 12,
-    gap: 3,
-  },
-  langText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
+  cadreText: { fontSize: 12, fontWeight: '800', color: color.accentPressed, lineHeight: 17 },
 });

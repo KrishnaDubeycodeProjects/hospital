@@ -23,6 +23,10 @@ import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
 interface FamiliesScreenProps {
   onSelectFamily: (houseNo: number, familyName: string) => void;
   onSelectMember?: (member: FamilyMember, houseNo: number, familyName: string) => void;
+  /** From the ＋ sheet: highlight "choose a member" for a survey or a referral. */
+  intent?: 'survey' | 'referral' | null;
+  /** From the ＋ sheet: open the "new family" form immediately. */
+  autoOpenCreate?: boolean;
 }
 
 export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({

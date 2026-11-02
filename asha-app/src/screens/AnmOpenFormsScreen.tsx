@@ -46,6 +46,8 @@ interface AnmSessionFolder {
 
 interface AnmOpenFormsScreenProps {
   onSelectAsha?: (worker: any) => void;
+  /** Bottom-tab view: आज (form queue) · आशा (workers) · सत्र (VHND session QR). */
+  view?: 'queue' | 'workers' | 'session';
 }
 
 export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {

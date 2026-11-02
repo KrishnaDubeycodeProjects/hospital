@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage, LanguageCode } from '../context/LanguageContext';
 import { User, Phone, MapPin, BadgeCheck, Languages, Check, Save, LogOut, Shield, Lock } from 'lucide-react-native';
 
-export const ProfileScreen: React.FC = () => {
+export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = () => {
   const { user, updateProfile, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
 

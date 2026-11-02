@@ -12,7 +12,7 @@ import { Check, AlertCircle, Phone, Stethoscope, Clock, ShieldCheck, Pill } from
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 
-export const FollowUpScreen: React.FC = () => {
+export const FollowUpScreen: React.FC<{ onBack?: () => void }> = () => {
   const { followUps, toggleFollowUp } = useOfflineData();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'Pending' | 'Completed'>('Pending');

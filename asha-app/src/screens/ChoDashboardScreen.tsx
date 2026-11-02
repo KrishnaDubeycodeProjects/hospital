@@ -37,7 +37,8 @@ import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 
-export const ChoDashboardScreen: React.FC = () => {
+/** Bottom-tab view: रेफरल (sector referrals) · आशा (workers). */
+export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = () => {
   const { addWorkerByCho } = useAuth();
   const { families, members, followUps, surveys, approveReferralByCho } = useOfflineData();
 

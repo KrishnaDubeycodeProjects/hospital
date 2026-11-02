@@ -29,6 +29,10 @@ public class AshaWorkerDto {
      */
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     private String authToken;
+
+    /** Response only (GET /me): households assigned to / registered by this worker. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private Integer householdCount;
     private String preferredLanguage;
     private Boolean isActive;
     private LocalDateTime createdAt;
