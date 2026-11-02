@@ -106,7 +106,13 @@ public class SyncService {
             // CHO sector referral validation (who approved, when, transport/triage note)
             "ALTER TABLE clinicqueue.follow_up_tasks ADD COLUMN IF NOT EXISTS cho_approved_by VARCHAR(50)",
             "ALTER TABLE clinicqueue.follow_up_tasks ADD COLUMN IF NOT EXISTS cho_approved_at TIMESTAMP",
-            "ALTER TABLE clinicqueue.follow_up_tasks ADD COLUMN IF NOT EXISTS cho_note TEXT"
+            "ALTER TABLE clinicqueue.follow_up_tasks ADD COLUMN IF NOT EXISTS cho_note TEXT",
+            // Worker identity: cadre recorded at CHO registration, and explicitly provisioned CHOs
+            "ALTER TABLE clinicqueue.asha_workers ADD COLUMN IF NOT EXISTS role VARCHAR(10)",
+            "CREATE TABLE IF NOT EXISTS clinicqueue.cho_officers (" +
+                "id SERIAL PRIMARY KEY, phone VARCHAR(50) NOT NULL UNIQUE, name VARCHAR(100), " +
+                "block_name VARCHAR(200), district_name VARCHAR(200), is_active BOOLEAN DEFAULT TRUE, " +
+                "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
         };
         boolean allOk = true;
         for (String statement : ddl) {

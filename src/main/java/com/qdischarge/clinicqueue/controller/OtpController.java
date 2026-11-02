@@ -1,9 +1,11 @@
 package com.qdischarge.clinicqueue.controller;
 
+import com.qdischarge.clinicqueue.asha.service.WorkerIdentityService;
 import com.qdischarge.clinicqueue.dto.OtpSendRequest;
 import com.qdischarge.clinicqueue.dto.OtpVerifyRequest;
 import com.qdischarge.clinicqueue.security.JwtService;
 import com.qdischarge.clinicqueue.service.OtpService;
+import com.qdischarge.clinicqueue.util.PhoneNormalizer;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Public, rate-limited (see RateLimitFilter) phone-number OTP endpoints.
@@ -32,6 +35,7 @@ public class OtpController {
 
     private final OtpService otpService;
     private final JwtService jwtService;
+    private final WorkerIdentityService workerIdentityService;
 
     @PostMapping("/send")
     public ResponseEntity<Map<String, Object>> send(@Valid @RequestBody OtpSendRequest request) {
@@ -46,7 +50,18 @@ public class OtpController {
         OtpService.OtpResult result = otpService.verifyOtp(request.phone(), request.code());
         Map<String, Object> body = body(result.success(), result.message());
         if (result.success()) {
-            body.put("token", jwtService.generatePatientToken(request.phone()));
+            // Field app: a registered ASHA / ANM / CHO gets a worker token whose subject is the
+            // OTP-proven phone. The role comes from server records only (never from the client).
+            Optional<String> workerRole = "WORKER".equalsIgnoreCase(request.purpose())
+                    ? workerIdentityService.resolveWorkerRole(request.phone())
+                    : Optional.empty();
+            if (workerRole.isPresent()) {
+                body.put("token", jwtService.generateWorkerToken(PhoneNormalizer.normalize(request.phone()), workerRole.get()));
+                body.put("role", workerRole.get());
+            } else {
+                body.put("token", jwtService.generatePatientToken(request.phone()));
+                body.put("role", JwtService.PATIENT_ROLE);
+            }
         }
         return ResponseEntity.status(result.success() ? 200 : 400).body(body);
     }

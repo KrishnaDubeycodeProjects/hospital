@@ -69,30 +69,68 @@ public class CurrentUser {
         return decoded.doctorId();
     }
 
+    /**
+     * Phone of the calling field worker (normalized +91XXXXXXXXXX), or null.
+     * <ul>
+     *   <li>ASHA / ANM / CHO token: the OTP-verified JWT subject (the SecurityContext name).</li>
+     *   <li>ADMIN token: may act on a worker's records via X-ASHA-Phone / X-ANM-Phone (web admin).</li>
+     *   <li>DOCTOR token: its own subject (legacy behaviour).</li>
+     *   <li>Header-only identity exists only when app.allow-header-identity=true (local dev);
+     *       JwtAuthFilter then authenticates the request itself.</li>
+     * </ul>
+     * PATIENT tokens and anonymous callers get null: an unverified X-ASHA-Phone is never trusted.
+     */
     public String getAshaPhone() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         JwtService.DecodedToken decoded = get();
-        if (decoded != null && ("ASHA".equalsIgnoreCase(decoded.role()) || "ADMIN".equalsIgnoreCase(decoded.role()) || "DOCTOR".equalsIgnoreCase(decoded.role())) && decoded.subject() != null && !decoded.subject().isBlank()) {
-            return com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(decoded.subject());
+        if (auth == null || decoded == null) return null;
+        String role = decoded.role();
+        if (JwtService.isWorkerRole(role)) {
+            return blankToNull(com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(auth.getName()));
         }
-        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attrs != null) {
-            HttpServletRequest req = attrs.getRequest();
-            String h = req.getHeader("X-ASHA-Phone");
-            if (h == null || h.isBlank()) h = req.getHeader("x-asha-phone");
-            if (h == null || h.isBlank()) h = req.getHeader("X-ANM-Phone");
-            if (h == null || h.isBlank()) h = req.getHeader("x-anm-phone");
-            if (h != null && !h.isBlank()) {
-                return com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(h);
-            }
+        if (JwtService.ADMIN_ROLE.equals(role)) {
+            return blankToNull(adminSelectedWorkerPhone());
+        }
+        if (JwtService.DOCTOR_ROLE.equals(role) && decoded.subject() != null) {
+            return blankToNull(com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(decoded.subject()));
         }
         return null;
     }
 
+    /** Phone of the calling CHO (verified CHO token), or the worker selected by an ADMIN; else null. */
+    public String getChoPhone() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        JwtService.DecodedToken decoded = get();
+        if (auth == null || decoded == null) return null;
+        if (JwtService.CHO_ROLE.equals(decoded.role())) {
+            return blankToNull(com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(auth.getName()));
+        }
+        if (JwtService.ADMIN_ROLE.equals(decoded.role())) {
+            return blankToNull(adminSelectedWorkerPhone());
+        }
+        return null;
+    }
+
+    /** Verified field-worker phone; 401 when absent (no more default-phone fallback). */
     public String requireAshaPhone() {
         String phone = getAshaPhone();
-        if (phone == null || phone.isBlank()) {
-            return "+919876543210";
+        if (phone == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "Verified field-worker identity required");
         }
         return phone;
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s;
+    }
+
+    private String adminSelectedWorkerPhone() {
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs == null) return null;
+        HttpServletRequest req = attrs.getRequest();
+        String h = req.getHeader("X-ASHA-Phone");
+        if (h == null || h.isBlank()) h = req.getHeader("X-ANM-Phone");
+        return h == null || h.isBlank() ? null : com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(h);
     }
 }

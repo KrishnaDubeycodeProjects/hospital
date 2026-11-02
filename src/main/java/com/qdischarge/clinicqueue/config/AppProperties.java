@@ -43,6 +43,12 @@ public class AppProperties {
     /** HMAC signing key for admin JWTs. Must be set explicitly in production. */
     private String jwtSecret;
     private int jwtExpiryMinutes;
+    /** Lifetime of OTP-issued ASHA / ANM / CHO tokens (offline-first field work). */
+    private int workerJwtExpiryDays = 30;
+    /** Local-dev only: accept X-ASHA-Phone / X-ANM-Phone as identity without a verified JWT. */
+    private boolean allowHeaderIdentity = false;
+    /** Comma-separated CHO phone numbers recognised at OTP verification. */
+    private String choPhones = "";
 
     /** Static secret Meta calls back with during webhook subscription verification (unrelated to admin JWT auth). */
     private String webhookVerifyToken;

@@ -38,7 +38,7 @@ public class ChoSectorReferralController {
 
     @GetMapping("/cho/referrals")
     public ResponseEntity<?> sectorReferrals(@RequestParam(defaultValue = "all") String scope) {
-        String cho = currentUser.getAshaPhone();
+        String cho = currentUser.getChoPhone();
         if (cho == null || cho.isBlank()) return error(HttpStatus.UNAUTHORIZED, "UNIDENTIFIED_CALLER");
         if (choReferralService.sectorSize(cho) == 0) return error(HttpStatus.FORBIDDEN, "NO_SECTOR");
         List<Map<String, Object>> referrals = choReferralService.listSectorReferrals(cho, "pending".equalsIgnoreCase(scope));
@@ -48,7 +48,7 @@ public class ChoSectorReferralController {
     @PostMapping("/referrals/{id}/approve")
     public ResponseEntity<Map<String, Object>> approve(@PathVariable int id,
                                                        @RequestBody(required = false) Map<String, String> body) {
-        String cho = currentUser.getAshaPhone();
+        String cho = currentUser.getChoPhone();
         if (cho == null || cho.isBlank()) return error(HttpStatus.UNAUTHORIZED, "UNIDENTIFIED_CALLER");
         if (choReferralService.sectorSize(cho) == 0) return error(HttpStatus.FORBIDDEN, "NO_SECTOR");
 

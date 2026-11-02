@@ -30,8 +30,10 @@ public class AshaWorkerService {
     public AshaWorkerDto register(AshaWorkerDto body) {
         String lang = body.getPreferredLanguage() != null && !body.getPreferredLanguage().isBlank() 
                 ? body.getPreferredLanguage().trim().toLowerCase() : "hi";
-        String sql = "INSERT INTO clinicqueue.asha_workers (phone, name, village_name, block_name, district_name, phc_id, anm_phone, preferred_language, is_active, created_at, updated_at) " +
-                "VALUES (:phone, :name, :villageName, :blockName, :districtName, :phcId, :anmPhone, :prefLang, true, NOW(), NOW())";
+        // Only ASHA / ANM can be registered here; CHOs are provisioned (app.cho-phones / cho_officers).
+        String role = "ANM".equalsIgnoreCase(body.getRole() != null ? body.getRole().trim() : "") ? "ANM" : "ASHA";
+        String sql = "INSERT INTO clinicqueue.asha_workers (phone, name, village_name, block_name, district_name, phc_id, anm_phone, preferred_language, role, is_active, created_at, updated_at) " +
+                "VALUES (:phone, :name, :villageName, :blockName, :districtName, :phcId, :anmPhone, :prefLang, :role, true, NOW(), NOW())";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("phone", body.getPhone())
                 .addValue("name", body.getName())
@@ -40,7 +42,8 @@ public class AshaWorkerService {
                 .addValue("districtName", body.getDistrictName())
                 .addValue("phcId", body.getPhcId())
                 .addValue("anmPhone", body.getAnmPhone())
-                .addValue("prefLang", lang);
+                .addValue("prefLang", lang)
+                .addValue("role", role);
 
         jdbcTemplate.update(sql, params);
         log.info("Registered ASHA worker: {}", body.getPhone());

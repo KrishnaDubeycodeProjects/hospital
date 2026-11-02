@@ -700,3 +700,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_fu_phone_hospital ON family_units (primary
 ALTER TABLE follow_up_tasks ADD COLUMN IF NOT EXISTS cho_approved_by VARCHAR(50);
 ALTER TABLE follow_up_tasks ADD COLUMN IF NOT EXISTS cho_approved_at TIMESTAMP;
 ALTER TABLE follow_up_tasks ADD COLUMN IF NOT EXISTS cho_note TEXT;
+
+-- Worker identity: cadre recorded at CHO registration (ASHA / ANM), and provisioned CHO officers
+ALTER TABLE asha_workers ADD COLUMN IF NOT EXISTS role VARCHAR(10);
+CREATE TABLE IF NOT EXISTS cho_officers (
+  id            SERIAL PRIMARY KEY,
+  phone         VARCHAR(50) NOT NULL UNIQUE,
+  name          VARCHAR(100),
+  block_name    VARCHAR(200),
+  district_name VARCHAR(200),
+  is_active     BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

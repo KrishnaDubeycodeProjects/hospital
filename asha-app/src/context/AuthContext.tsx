@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setStorageWorkerPhone } from '../storage/OfflineStorageService';
+import { setAuthToken, authHeader } from '../api/authSession';
 
 export type UserRole = 'ASHA' | 'ANM' | 'CHO';
 
@@ -238,6 +239,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile>(defaultProfiles.ASHA);
   const [authScreen, setAuthScreen] = useState<AuthScreenType>('login');
 
+  // API calls authenticate with the OTP-issued worker JWT held here.
+  useEffect(() => {
+    setAuthToken(token);
+  }, [token]);
+
   // Load existing persisted session on app start
   useEffect(() => {
     let isMounted = true;
@@ -336,7 +342,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': '1',
         },
-        body: JSON.stringify({ phone: cleanPhone, code: cleanCode }),
+        // purpose WORKER: a registered ASHA / ANM / CHO receives a role-bearing worker token
+        body: JSON.stringify({ phone: cleanPhone, code: cleanCode, purpose: 'WORKER' }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -344,9 +351,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (res.ok && data.success !== false) {
         const receivedToken = data.token || 'jwt-session-token-' + Date.now();
         setToken(receivedToken);
+        setAuthToken(receivedToken);
 
         const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
         let profile = await resolveProfileForPhone(cleanPhone);
+        // The server's verified cadre is authoritative (roles are immutable post-registration).
+        const serverRole = data.role;
+        if (serverRole === 'ASHA' || serverRole === 'ANM' || serverRole === 'CHO') {
+          profile = { ...profile, role: serverRole, roleTitle: defaultProfiles[serverRole as UserRole].roleTitle };
+        }
 
         // Fetch user from DB if available to enrich details
         try {
@@ -446,6 +459,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           blockName: formData.blockName || 'Rampur Block',
           districtName: formData.districtName || 'Varanasi',
           anmPhone: '+919876511111',
+          role: formData.role === 'ANM' ? 'ANM' : 'ASHA',
         }),
       });
 
@@ -474,13 +488,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       assignedAnm: 'Rekha Sharma (+91 98765 11111)',
     };
 
-    const sessionToken = 'jwt-worker-' + cleanDigits + '-' + Date.now();
-    setToken(sessionToken);
+    // Keep the OTP-verified token from step 1 (never mint a local placeholder). Because the
+    // worker row did not exist yet at verification, that token is not a worker token: the
+    // worker gets one on their next OTP login, after which sync is authorised.
     setStorageWorkerPhone(cleanPhone);
     setCurrentUser(newProfile);
     setIsAuthenticated(true);
     await Promise.all([
-      AsyncStorage.setItem(STORAGE_KEYS.TOKEN, sessionToken),
       AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile)),
       AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(newProfile)),
     ]);
@@ -558,8 +572,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-ASHA-Phone': cleanDigits,
             'ngrok-skip-browser-warning': '1',
+            ...authHeader(),
           },
           body: JSON.stringify({
             phone: cleanDigits,
@@ -569,6 +583,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             districtName: workerProfile.districtName,
             anmPhone: currentUser.phone,
             preferredLanguage: prefLang,
+            role: worker.role === 'ANM' ? 'ANM' : 'ASHA',
           }),
         });
       } catch (e) {

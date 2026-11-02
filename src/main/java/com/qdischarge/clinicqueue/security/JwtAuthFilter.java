@@ -18,8 +18,10 @@ import java.util.List;
 
 /**
  * Parses "Authorization: Bearer <jwt>" and, if valid, populates the
- * SecurityContext with a ROLE_ADMIN / ROLE_PATIENT / ROLE_DOCTOR
- * authentication (see JwtService). The decoded token itself -- subject,
+ * SecurityContext with a ROLE_ADMIN / ROLE_PATIENT / ROLE_DOCTOR / ROLE_ASHA /
+ * ROLE_ANM / ROLE_CHO authentication (see JwtService). Field workers are identified
+ * only by their OTP-issued token; the X-ASHA-Phone header is honoured as identity
+ * solely when app.allow-header-identity=true (local development). The decoded token itself -- subject,
  * role, and doctorId for doctor tokens -- is stashed in the authentication's
  * "details" slot so controllers can pull it via CurrentUser without a second
  * DB lookup. Routes that don't require auth simply proceed with no
@@ -30,6 +32,13 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final com.qdischarge.clinicqueue.config.AppProperties appProperties;
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a;
+        if (b != null && !b.isBlank()) return b;
+        return null;
+    }
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -46,30 +55,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 authentication.setDetails(decoded);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } else {
-            // Support field worker mobile app & web sync using X-ASHA-Phone or X-ANM-Phone
-            String ashaPhone = request.getHeader("X-ASHA-Phone");
-            if (ashaPhone == null || ashaPhone.isBlank()) {
-                ashaPhone = request.getHeader("x-asha-phone");
-            }
-            String anmPhone = request.getHeader("X-ANM-Phone");
-            if (anmPhone == null || anmPhone.isBlank()) {
-                anmPhone = request.getHeader("x-anm-phone");
-            }
-
-            if (ashaPhone != null && !ashaPhone.isBlank()) {
-                String cleanPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ashaPhone);
-                JwtService.DecodedToken fieldToken = new JwtService.DecodedToken(cleanPhone, "ASHA", null);
+        } else if (appProperties.isAllowHeaderIdentity()) {
+            // LOCAL DEVELOPMENT ONLY (app.allow-header-identity=true): accept X-ASHA-Phone /
+            // X-ANM-Phone as identity without a token. Optional X-Worker-Role picks ASHA/ANM/CHO.
+            // In production this branch is disabled and identity comes only from the OTP JWT.
+            String phone = firstNonBlank(request.getHeader("X-ASHA-Phone"), request.getHeader("X-ANM-Phone"));
+            if (phone != null) {
+                String cleanPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
+                String requestedRole = request.getHeader("X-Worker-Role");
+                String role = requestedRole != null && JwtService.isWorkerRole(requestedRole.trim().toUpperCase())
+                        ? requestedRole.trim().toUpperCase() : JwtService.ASHA_ROLE;
+                JwtService.DecodedToken devToken = new JwtService.DecodedToken(cleanPhone, role, null);
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA"), new SimpleGrantedAuthority("ROLE_ANM"), new SimpleGrantedAuthority("ROLE_USER")));
-                authentication.setDetails(fieldToken);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            } else if (anmPhone != null && !anmPhone.isBlank()) {
-                String cleanPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(anmPhone);
-                JwtService.DecodedToken fieldToken = new JwtService.DecodedToken(cleanPhone, "ASHA", null);
-                var authentication = new UsernamePasswordAuthenticationToken(
-                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_ASHA"), new SimpleGrantedAuthority("ROLE_ANM"), new SimpleGrantedAuthority("ROLE_USER")));
-                authentication.setDetails(fieldToken);
+                        cleanPhone, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                authentication.setDetails(devToken);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }

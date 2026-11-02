@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { OfflineStorageService, getStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { OutboxItem } from '../types/storage';
 import { parseQrIdentifier } from '../utils/qrScannerHelper';
+import { authHeader } from './authSession';
 import {
   buildUploadPayload,
   planOutcomes,
@@ -81,7 +82,7 @@ export class SyncApi {
         headers: {
           'Content-Type': 'application/json',
           'X-ANM-Phone': anmPhone,
-          ...NGROK_HEADERS,
+          ...NGROK_HEADERS, ...authHeader(),
         },
         body: JSON.stringify({ title, category, qrCode }),
       });
@@ -95,7 +96,7 @@ export class SyncApi {
   static async getAnmIncomingData(anmPhone: string = '9876543211'): Promise<any[]> {
     try {
       const res = await fetch(`${BACKEND_BASE_URL}/api/anm/data?section=ALL`, {
-        headers: { 'X-ANM-Phone': anmPhone, ...NGROK_HEADERS },
+        headers: { 'X-ANM-Phone': anmPhone, ...NGROK_HEADERS, ...authHeader() },
       });
       if (res.ok) return await res.json();
       return [];
@@ -113,7 +114,7 @@ export class SyncApi {
       const timeoutId = setTimeout(() => controller.abort(), 4000);
       const res = await fetch(`${BACKEND_BASE_URL}/actuator/health`, {
         method: 'GET',
-        headers: { 'X-ASHA-Phone': getStorageWorkerPhone(), ...NGROK_HEADERS },
+        headers: { 'X-ASHA-Phone': getStorageWorkerPhone(), ...NGROK_HEADERS, ...authHeader() },
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -188,6 +189,7 @@ export class SyncApi {
       let uploadedOk = 0;
       let failedCount = 0;
       let retryCount = 0;
+      let authRejected = false;
       if (pendingItems.length > 0) {
         const [famList, memList, taskList, vaxList] = await Promise.all([
           OfflineStorageService.getFamilies(),
@@ -214,7 +216,7 @@ export class SyncApi {
             headers: {
               'Content-Type': 'application/json',
               'X-ASHA-Phone': ashaPhone,
-              ...NGROK_HEADERS,
+              ...NGROK_HEADERS, ...authHeader(),
             },
             body: JSON.stringify(built.body),
           });
@@ -227,6 +229,7 @@ export class SyncApi {
               ack = { rejected: 0 }; // Empty 2xx body from a v1 server: treat as fully accepted.
             }
           }
+          if (uploadRes.status === 401 || uploadRes.status === 403) authRejected = true;
           // Non-2xx → ack stays null → every uploaded item is retried (server upserts are idempotent).
           outcomes.push(...planOutcomes(pendingItems, built.uploadedIds, ack));
           if (ack?.results) {
@@ -243,7 +246,7 @@ export class SyncApi {
               headers: {
                 'Content-Type': 'application/json',
                 'X-ASHA-Phone': ashaPhone,
-                ...NGROK_HEADERS,
+                ...NGROK_HEADERS, ...authHeader(),
               },
               body: JSON.stringify({
                 section: anmItem.payload?.sectionFilter || 'ALL',
@@ -263,7 +266,7 @@ export class SyncApi {
           try {
             const res = await fetch(`${BACKEND_BASE_URL}/api/asha/referrals/${approval.payload.serverTaskId}/approve`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS },
+              headers: { 'Content-Type': 'application/json', 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS, ...authHeader() },
               body: JSON.stringify({ note: approval.payload.note || null }),
             });
             outcome = res.ok
@@ -281,6 +284,20 @@ export class SyncApi {
         uploadedOk = outcomes.filter((o) => o.outcome === 'SYNCED').length;
         failedCount = outcomes.filter((o) => o.outcome === 'FAILED').length;
         retryCount = outcomes.filter((o) => o.outcome === 'RETRY').length;
+
+        if (authRejected) {
+          registerFailure();
+          return {
+            success: false,
+            mode: 'OFFLINE_QUEUED',
+            message: msg(
+              lang,
+              `सत्र समाप्त — पुनः लॉगिन करें। ${retryCount} रिकॉर्ड फोन में सुरक्षित हैं।`,
+              `सत्र संपले — पुन्हा लॉगिन करा. ${retryCount} नोंदी फोनमध्ये सुरक्षित आहेत.`
+            ),
+            syncedCount: 0,
+          };
+        }
 
         if (retryCount > 0 && uploadedOk === 0) {
           registerFailure();
@@ -303,7 +320,7 @@ export class SyncApi {
         const downloadRes = await fetch(
           `${BACKEND_BASE_URL}/api/sync/download?since=1970-01-01T00:00:00Z`,
           {
-            headers: { 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS },
+            headers: { 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS, ...authHeader() },
           }
         );
 
@@ -355,7 +372,7 @@ export class SyncApi {
       if (role === 'CHO') {
         try {
           const res = await fetch(`${BACKEND_BASE_URL}/api/asha/cho/referrals?scope=all`, {
-            headers: { 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS },
+            headers: { 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS, ...authHeader() },
           });
           if (res.ok) {
             const rows = await res.json();
@@ -422,7 +439,7 @@ export class SyncApi {
           )}`,
           {
             method: 'POST',
-            headers: { 'X-ASHA-Phone': getStorageWorkerPhone(), ...NGROK_HEADERS },
+            headers: { 'X-ASHA-Phone': getStorageWorkerPhone(), ...NGROK_HEADERS, ...authHeader() },
           }
         );
         if (res.ok) {
@@ -466,7 +483,7 @@ export class SyncApi {
             headers: {
               'Content-Type': 'application/json',
               'X-ASHA-Phone': ashaPhone,
-              ...NGROK_HEADERS,
+              ...NGROK_HEADERS, ...authHeader(),
             },
             body: JSON.stringify({
               section: sectionFilter,

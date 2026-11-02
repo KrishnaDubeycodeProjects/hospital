@@ -128,8 +128,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // ASHA worker & community workflows
                         .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").permitAll()
-                        .requestMatchers("/api/sync/**", "/api/followups/simulate-missed-referral").permitAll()
-                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**", "/api/anm/**", "/api/cho/**").hasAnyRole("ASHA", "ANM", "ADMIN", "DOCTOR", "PATIENT")
+                        // CHO sector referral validation: verified CHO token (or ADMIN) only
+                        .requestMatchers("/api/asha/cho/**").hasAnyRole("CHO", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/asha/referrals/*/approve").hasAnyRole("CHO", "ADMIN")
+                        // Offline sync & field-worker APIs: OTP-verified worker tokens (no PATIENT, no anonymous)
+                        .requestMatchers("/api/sync/**", "/api/followups/simulate-missed-referral").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN")
+                        .requestMatchers("/api/anm/**").hasAnyRole("ANM", "CHO", "ADMIN")
+                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN", "DOCTOR")
+                        // Legacy web-admin CHO endpoints (migration to /api/asha/cho/* pending)
+                        .requestMatchers("/api/cho/**").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN", "DOCTOR", "PATIENT")
                         // Test seeding endpoints accessible to ADMIN and DOCTOR
                         .requestMatchers("/api/test/**").permitAll()
                         // Drugs & ABDM open/utility APIs

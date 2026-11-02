@@ -20,6 +20,8 @@ public class AshaWorkerDto {
     private String districtName;
     private Integer phcId;
     private String anmPhone;
+    /** Cadre assigned at CHO registration: ASHA (default) or ANM. Immutable after registration. */
+    private String role;
     private String preferredLanguage;
     private Boolean isActive;
     private LocalDateTime createdAt;
