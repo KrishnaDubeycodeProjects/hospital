@@ -69,8 +69,9 @@ class WorkerIdentityServiceTest {
     }
 
     @Test
-    void standaloneAnmProfileResolvesToAnm() {
+    void anmProfileAloneNeverGrantsACadre() {
+        // e.g. created by open /api/anm/register or a session call — only a CHO assigns ANM
         when(jdbc.queryForObject(contains("anm_profiles"), any(SqlParameterSource.class), eq(Integer.class))).thenReturn(1);
-        assertEquals(Optional.of("ANM"), service.resolveWorkerRole("9876511111"));
+        assertEquals(Optional.empty(), service.resolveWorkerRole("9876511111"));
     }
 }

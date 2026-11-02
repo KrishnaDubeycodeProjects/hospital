@@ -15,9 +15,10 @@ import java.util.Optional;
  * Resolves which NHM cadre (if any) a phone number belongs to, from server-side records only —
  * never from anything the client claims. Called once a phone has been proven by OTP.
  *
- * Precedence: CHO (app.cho-phones or an active cho_officers row) → ANM (anm_profiles, or an
- * asha_workers row registered with role ANM) → ASHA (active asha_workers row). Phones are
- * compared on their last 10 digits.
+ * Precedence: CHO (app.cho-phones or an active cho_officers row) → the active asha_workers row
+ * (role ANM → ANM, otherwise ASHA). ANM cadre is therefore only ever assigned by a CHO;
+ * anm_profiles (which session / self-registration endpoints can create) never grants a role.
+ * Phones are compared on their last 10 digits.
  */
 @Slf4j
 @Service
@@ -58,19 +59,13 @@ public class WorkerIdentityService {
                 " = :p AND (c.is_active IS NULL OR c.is_active = TRUE)", p10)) {
             return Optional.of(JwtService.CHO_ROLE);
         }
-        // The CHO-registered asha_workers row is authoritative (immutable cadre). anm_profiles rows
-        // can be auto-created by session endpoints, so they only count for phones that have no
-        // asha_workers row at all — an ASHA can never escalate to ANM that way.
+        // The CHO-registered asha_workers row is authoritative (immutable cadre).
         String workerRole = jdbcTemplate.query(
                 "SELECT UPPER(COALESCE(w.role, 'ASHA')) FROM clinicqueue.asha_workers w WHERE " + d10("w.phone") + " = :p " +
                 "AND (w.is_active IS NULL OR w.is_active = TRUE) ORDER BY w.id LIMIT 1",
                 new MapSqlParameterSource("p", p10), (rs, rn) -> rs.getString(1)).stream().findFirst().orElse(null);
         if (workerRole != null) {
             return Optional.of(JwtService.ANM_ROLE.equals(workerRole) ? JwtService.ANM_ROLE : JwtService.ASHA_ROLE);
-        }
-        boolean hasAnyWorkerRow = exists("SELECT 1 FROM clinicqueue.asha_workers w WHERE " + d10("w.phone") + " = :p", p10);
-        if (!hasAnyWorkerRow && exists("SELECT 1 FROM clinicqueue.anm_profiles a WHERE " + d10("a.phone") + " = :p", p10)) {
-            return Optional.of(JwtService.ANM_ROLE);
         }
         return Optional.empty();
     }

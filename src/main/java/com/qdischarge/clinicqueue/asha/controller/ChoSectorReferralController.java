@@ -15,6 +15,7 @@ import java.util.Map;
  * Sector-level CHO referral validation for the AarogyaFlow app.
  *
  * <ul>
+ *   <li>{@code GET  /api/asha/cho/workers} — workers in the CHO's sector with activity counts</li>
  *   <li>{@code GET  /api/asha/cho/referrals?scope=pending|all} — referrals from every ASHA in the CHO's sector</li>
  *   <li>{@code POST /api/asha/referrals/{id}/approve} — validate a referral (physical triage / transport sign-off)</li>
  * </ul>
@@ -43,6 +44,14 @@ public class ChoSectorReferralController {
         if (choReferralService.sectorSize(cho) == 0) return error(HttpStatus.FORBIDDEN, "NO_SECTOR");
         List<Map<String, Object>> referrals = choReferralService.listSectorReferrals(cho, "pending".equalsIgnoreCase(scope));
         return ResponseEntity.ok(referrals);
+    }
+
+    @GetMapping("/cho/workers")
+    public ResponseEntity<?> sectorWorkers() {
+        String cho = currentUser.getChoPhone();
+        if (cho == null || cho.isBlank()) return error(HttpStatus.UNAUTHORIZED, "UNIDENTIFIED_CALLER");
+        if (choReferralService.sectorSize(cho) == 0) return error(HttpStatus.FORBIDDEN, "NO_SECTOR");
+        return ResponseEntity.ok(choReferralService.listSectorWorkers(cho));
     }
 
     @PostMapping("/referrals/{id}/approve")

@@ -6,7 +6,11 @@ import com.qdischarge.clinicqueue.asha.dto.FamilyDetailDto;
 import com.qdischarge.clinicqueue.asha.dto.FamilyGridDto;
 import com.qdischarge.clinicqueue.asha.dto.MemberDto;
 import com.qdischarge.clinicqueue.security.CurrentUser;
+import com.qdischarge.clinicqueue.security.JwtService;
 import com.qdischarge.clinicqueue.asha.service.AshaWorkerService;
+import com.qdischarge.clinicqueue.asha.service.ChoReferralService;
+import com.qdischarge.clinicqueue.asha.service.WorkerIdentityService;
+import com.qdischarge.clinicqueue.util.PhoneNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -25,11 +29,57 @@ public class AshaWorkerController {
 
     private final AshaWorkerService ashaWorkerService;
     private final CurrentUser currentUser;
+    private final WorkerIdentityService workerIdentityService;
+    private final JwtService jwtService;
 
+    /**
+     * Worker onboarding (open endpoint).
+     * <ul>
+     *   <li>CHO / ADMIN caller: registers another worker; the requested cadre (ASHA / ANM) is
+     *       honoured and the worker joins the CHO's sector (anm_phone defaults to the CHO).</li>
+     *   <li>Self-registration: always cadre ASHA. If the caller presents an OTP-verified token for
+     *       the SAME phone, the response carries a 30-day worker JWT (no second OTP needed).</li>
+     *   <li>Anonymous: registered as ASHA, but no token is issued — a worker token always
+     *       requires proof of phone ownership.</li>
+     * </ul>
+     */
     @PostMapping("/register")
     public ResponseEntity<AshaWorkerDto> register(@RequestBody AshaWorkerDto body) {
-        log.info("Registering ASHA worker");
-        return ResponseEntity.status(HttpStatus.CREATED).body(ashaWorkerService.register(body));
+        String phone10 = ChoReferralService.lastTenDigits(body.getPhone());
+        if (phone10.length() != 10) return ResponseEntity.badRequest().build();
+
+        JwtService.DecodedToken caller = currentUser.get();
+        String callerRole = caller != null ? caller.role() : null;
+        boolean byOfficer = JwtService.CHO_ROLE.equals(callerRole) || JwtService.ADMIN_ROLE.equals(callerRole);
+        boolean selfProven = !byOfficer && caller != null && caller.subject() != null
+                && (JwtService.PATIENT_ROLE.equals(callerRole) || JwtService.isWorkerRole(callerRole))
+                && ChoReferralService.lastTenDigits(caller.subject()).equals(phone10);
+
+        if (!byOfficer) {
+            body.setRole("ASHA"); // self / anonymous onboarding never chooses its own cadre
+        } else if (JwtService.CHO_ROLE.equals(callerRole) && (body.getAnmPhone() == null || body.getAnmPhone().isBlank())) {
+            body.setAnmPhone(currentUser.getChoPhone());
+        }
+
+        Optional<AshaWorkerDto> existing = ashaWorkerService.getByPhone(body.getPhone());
+        AshaWorkerDto saved;
+        HttpStatus status;
+        if (existing.isPresent()) {
+            if (!selfProven) return ResponseEntity.status(HttpStatus.CONFLICT).build();
+            saved = existing.get(); // already registered: just hand the proven owner their token
+            status = HttpStatus.OK;
+        } else {
+            saved = ashaWorkerService.register(body);
+            status = HttpStatus.CREATED;
+        }
+        log.info("Worker registration {} (by {})", PhoneNormalizer.mask(body.getPhone()),
+                byOfficer ? callerRole : selfProven ? "self-verified" : "anonymous");
+
+        if (selfProven) {
+            workerIdentityService.resolveWorkerRole(body.getPhone()).ifPresent(role ->
+                    saved.setAuthToken(jwtService.generateWorkerToken(PhoneNormalizer.normalize(body.getPhone()), role)));
+        }
+        return ResponseEntity.status(status).body(saved);
     }
 
     @GetMapping("/me")

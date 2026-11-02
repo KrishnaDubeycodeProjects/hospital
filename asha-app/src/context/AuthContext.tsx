@@ -61,6 +61,27 @@ const STORAGE_KEYS = {
   USER: '@asha_auth_user_v6',
 };
 
+/** Phones (last 10 digits) that completed an ONLINE OTP login on this device. */
+const VERIFIED_PHONES_KEY = '@asha_online_verified_phones_v1';
+const lastTokenKey = (digits: string) => `@asha_last_worker_token_${digits}_v1`;
+
+async function getDeviceVerifiedPhones(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(VERIFIED_PHONES_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+async function rememberOnlineVerification(digits: string, token: string | null): Promise<void> {
+  const list = await getDeviceVerifiedPhones();
+  if (!list.includes(digits)) list.push(digits);
+  await AsyncStorage.setItem(VERIFIED_PHONES_KEY, JSON.stringify(list));
+  if (token) await AsyncStorage.setItem(lastTokenKey(digits), token);
+}
+
 // Official Role-Based Profiles mapped directly to authoritative credentials
 const PHONE_ROLES: Record<string, { role: UserRole; name: string; title: string; village: string; id: string; anm: string }> = {
   '9876543210': {
@@ -392,6 +413,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile)),
           AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(profile)),
           AsyncStorage.setItem('@asha_selected_language', profile.preferredLanguage || 'hi'),
+          rememberOnlineVerification(cleanDigits, data.token || null),
         ]);
 
         return { success: true, message: `सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।` };
@@ -402,10 +424,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
       }
     } catch (err: any) {
-      // Offline fallback: if test code 123456 is used, succeed
+      // Offline fallback (zero-network villages): allowed ONLY for a phone that has completed an
+      // online OTP login on this device before. Its last real worker token is restored so sync
+      // resumes automatically when the network returns (until that token expires).
       if (cleanCode === '123456') {
         const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
-        const fakeToken = 'offline-jwt-' + Date.now();
+        const verifiedPhones = await getDeviceVerifiedPhones();
+        if (!verifiedPhones.includes(cleanDigits)) {
+          return {
+            success: false,
+            message: 'ऑफ़लाइन लॉगिन केवल पहले से सत्यापित फोन पर। कृपया इंटरनेट से OTP सत्यापन करें।',
+          };
+        }
+        const fakeToken = (await AsyncStorage.getItem(lastTokenKey(cleanDigits))) || 'offline-jwt-' + Date.now();
         const profile = await resolveProfileForPhone(cleanPhone);
 
         setStorageWorkerPhone(cleanPhone);
@@ -422,7 +453,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       return {
         success: false,
-        message: 'सत्यापन त्रुटि। कृपया इंटरनेट जांचें या कोड 123456 का उपयोग करें।',
+        message: 'सत्यापन त्रुटि। कृपया इंटरनेट जांचें और पुनः प्रयास करें।',
       };
     }
   };
@@ -445,12 +476,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // 2. Persist to PostgreSQL database on cloud
     try {
+      // The OTP-verified token from step 1 proves this phone, so the server returns a 30-day
+      // worker token directly (no second OTP prompt).
       const res = await fetch(`${BACKEND_BASE_URL}/api/asha/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-ASHA-Phone': cleanDigits,
           'ngrok-skip-browser-warning': '1',
+          ...authHeader(),
         },
         body: JSON.stringify({
           phone: cleanDigits,
@@ -465,24 +498,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!res.ok) {
         console.warn('Registration API response status:', res.status);
+      } else {
+        const reg = await res.json().catch(() => ({} as any));
+        if (reg && typeof reg.authToken === 'string' && reg.authToken) {
+          setToken(reg.authToken);
+          setAuthToken(reg.authToken);
+          await Promise.all([
+            AsyncStorage.setItem(STORAGE_KEYS.TOKEN, reg.authToken),
+            rememberOnlineVerification(cleanDigits, reg.authToken),
+          ]);
+        }
       }
     } catch (e) {
       console.warn('Cloud registration sync failed, stored locally:', e);
     }
 
     // 3. Update local profile state & storage with explicit selected role
+    // Self-onboarding is always cadre ASHA (ANM is assigned only by a CHO), matching the server.
     const newProfile: UserProfile = {
       name: formData.name.trim(),
-      role: formData.role,
-      roleTitle:
-        formData.role === 'ASHA'
-          ? 'ASHA Worker (आशा कार्यकर्ता)'
-          : formData.role === 'ANM'
-          ? 'Auxiliary Nurse Midwife (ANM)'
-          : 'Community Health Officer (CHO)',
+      role: 'ASHA',
+      roleTitle: 'ASHA Worker (आशा कार्यकर्ता)',
       village: formData.village.trim(),
       phone: cleanPhone,
-      ashaId: formData.ashaId || `${formData.role}-${cleanDigits.slice(-4)}`,
+      ashaId: formData.ashaId || `ASHA-${cleanDigits.slice(-4)}`,
       blockName: formData.blockName || 'Rampur Block',
       districtName: formData.districtName || 'Varanasi',
       assignedAnm: 'Rekha Sharma (+91 98765 11111)',

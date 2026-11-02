@@ -589,13 +589,13 @@ class QueueEdgeCasesCriticalTest {
 
         // Verify ranks: C1 (rank 1), C2 (rank 2 - last of available present), U1 (rank 3), U2 (rank 4)
         verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
-                eq(Map.of("rank", 1.0, "pos", 1, "id", 2001)));
+                eq(Map.of("rank", 1L, "pos", 1, "id", 2001)));
         verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
-                eq(Map.of("rank", 2.0, "pos", 2, "id", 2003))); // C2 placed at last of available present!
+                eq(Map.of("rank", 2L, "pos", 2, "id", 2003))); // C2 placed at last of available present!
         verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
-                eq(Map.of("rank", 3.0, "pos", 3, "id", 2002))); // U1 follows in relative order
+                eq(Map.of("rank", 3L, "pos", 3, "id", 2002))); // U1 follows in relative order
         verify(jdbc).update(contains("SET priority_rank = :rank, queue_position = :pos WHERE id = :id"),
-                eq(Map.of("rank", 4.0, "pos", 4, "id", 2004))); // U2 follows in relative order
+                eq(Map.of("rank", 4L, "pos", 4, "id", 2004))); // U2 follows in relative order
     }
 }
 

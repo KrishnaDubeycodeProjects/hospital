@@ -100,6 +100,30 @@ public class ChoReferralService {
         return jdbcTemplate.queryForList(sql, new MapSqlParameterSource("cho", lastTenDigits(choPhone)).addValue("types", REFERRAL_TYPES));
     }
 
+    /** Workers in the CHO's sector with activity counts (no data from outside the sector). */
+    public List<Map<String, Object>> listSectorWorkers(String choPhone) {
+        syncService.ensureSyncSchema();
+        String w10 = d10("w.phone");
+        String sql = "SELECT w.phone AS \"phone\", w.name AS \"name\", w.village_name AS \"villageName\", " +
+                "UPPER(COALESCE(w.role, 'ASHA')) AS \"role\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.family_units f WHERE " + d10("f.asha_worker_phone") + " = " + w10 +
+                "   AND (f.is_deleted IS NULL OR f.is_deleted = FALSE)) AS \"familyCount\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = " + w10 + ") AS \"surveyCount\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = " + w10 +
+                "   AND t.task_type IN (:types)) AS \"referralCount\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = " + w10 +
+                "   AND t.task_type IN (:types) AND t.status NOT IN ('APPROVED_CHO', 'COMPLETED')) AS \"pendingReferralCount\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON f.id = m.family_unit_id " +
+                "   WHERE " + d10("f.asha_worker_phone") + " = " + w10 + " AND m.is_pregnant = TRUE " +
+                "   AND (m.is_deleted IS NULL OR m.is_deleted = FALSE)) AS \"pregnantCount\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON f.id = m.family_unit_id " +
+                "   WHERE " + d10("f.asha_worker_phone") + " = " + w10 + " AND m.has_chronic_condition = TRUE " +
+                "   AND (m.is_deleted IS NULL OR m.is_deleted = FALSE)) AS \"ncdCount\", " +
+                "(SELECT MAX(s.created_at) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = " + w10 + ") AS \"lastActive\" " +
+                "FROM clinicqueue.asha_workers w WHERE " + w10 + " IN (" + SECTOR_PHONES + ") ORDER BY w.name";
+        return jdbcTemplate.queryForList(sql, new MapSqlParameterSource("cho", lastTenDigits(choPhone)).addValue("types", REFERRAL_TYPES));
+    }
+
     public enum ApproveOutcome { APPROVED, ALREADY_APPROVED, NOT_IN_SECTOR }
 
     /** Validates a referral inside the CHO's sector; idempotent for repeat taps / offline replays. */

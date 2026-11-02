@@ -30,7 +30,15 @@ client.interceptors.request.use((config) => {
 // config (see the `authFor` helper below) instead of relying on one global
 // header -- this app juggles up to three live sessions at once (admin,
 // patient, doctor), each with its own JWT in localStorage.
-const STORAGE_KEYS = { ADMIN: 'admin_token', PATIENT: 'patient_token', DOCTOR: 'doctor_token' };
+const STORAGE_KEYS = {
+  ADMIN: 'admin_token',
+  PATIENT: 'patient_token',
+  DOCTOR: 'doctor_token',
+  // OTP-verified NHM field-worker sessions (role-bearing JWTs from /api/auth/otp/verify purpose=WORKER)
+  CHO: 'cho_token',
+  ASHA: 'asha_token',
+  ANM: 'anm_token',
+};
 
 export function getToken(role) {
   return localStorage.getItem(STORAGE_KEYS[role]) || null;
@@ -203,8 +211,10 @@ export const locationApi = {
 export const otpApi = {
   /** `{ success, message }` -- no `data` field, read `.message`. */
   send: (phone) => post('/api/auth/otp/send', { phone }),
-  /** `{ success, message, token }` -- no `data` field, read `.token`. */
+  /** `{ success, message, token, role }` -- no `data` field, read `.token` / `.role`. */
   verify: (phone, code) => post('/api/auth/otp/verify', { phone, code }),
+  /** Field-worker login: a registered ASHA / ANM / CHO gets a role-bearing worker token. */
+  verifyWorker: (phone, code) => post('/api/auth/otp/verify', { phone, code, purpose: 'WORKER' }),
 };
 
 // ------------------------------------------------------------- Doctors ----
@@ -344,15 +354,27 @@ export const abdmApi = {
 
 // --------------------------------------------------------------- ASHA & Community ----
 
-const ashaAuth = (phone = '9876543210') => {
-  const token = getToken('ADMIN') || getToken('DOCTOR') || getToken('PATIENT');
-  const headers = { 
-    'X-ASHA-Phone': phone,
-    'X-ANM-Phone': phone
-  };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+// Field-worker identity comes only from the verified worker JWT. An ADMIN token may act on a
+// worker's records by naming them in X-ASHA-Phone (the server ignores that header otherwise).
+const ashaAuth = (phone) => {
+  const workerToken = getToken('ASHA') || getToken('ANM') || getToken('CHO');
+  const token = workerToken || getToken('ADMIN');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!workerToken && phone) {
+    headers['X-ASHA-Phone'] = phone;
+    headers['X-ANM-Phone'] = phone;
   }
+  return { headers };
+};
+
+/** CHO sector endpoints: the CHO's own verified token (ADMIN may name a CHO via X-ASHA-Phone). */
+const choAuth = (choPhone) => {
+  const choToken = getToken('CHO');
+  if (choToken) return { headers: { Authorization: `Bearer ${choToken}` } };
+  const admin = getToken('ADMIN');
+  const headers = admin ? { Authorization: `Bearer ${admin}` } : {};
+  if (admin && choPhone) headers['X-ASHA-Phone'] = choPhone;
   return { headers };
 };
 
@@ -369,11 +391,13 @@ export const ashaApi = {
   setVisitInterval: (familyId, intervalDays, phone) => putD(`/api/asha/families/${familyId}/visit-interval`, { intervalDays }, ashaAuth(phone)),
 };
 
+// CHO sector referral validation (physical triage / transport sign-off -- no teleconsultation).
 export const choApi = {
-  getAnalytics: () => getD('/api/cho/analytics', defaultAuth()),
-  getReferrals: () => getD('/api/cho/referrals', defaultAuth()),
-  approveReferral: (id) => postD(`/api/cho/referrals/${id}/approve`, {}, defaultAuth()),
-  saveTeleconsultAdvice: (referralId, payload) => postD(`/api/cho/referrals/${referralId}/teleconsult`, payload, defaultAuth()),
+  hasSession: () => Boolean(getToken('CHO')),
+  logout: () => setToken('CHO', null),
+  getSectorWorkers: (choPhone) => getD('/api/asha/cho/workers', choAuth(choPhone)),
+  getReferrals: (choPhone, scope = 'all') => getD('/api/asha/cho/referrals', { ...choAuth(choPhone), params: { scope } }),
+  approveReferral: (id, note, choPhone) => postD(`/api/asha/referrals/${id}/approve`, { note: note || null }, choAuth(choPhone)),
 };
 
 export const anmApi = {

@@ -135,8 +135,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/sync/**", "/api/followups/simulate-missed-referral").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN")
                         .requestMatchers("/api/anm/**").hasAnyRole("ANM", "CHO", "ADMIN")
                         .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN", "DOCTOR")
-                        // Legacy web-admin CHO endpoints (migration to /api/asha/cho/* pending)
-                        .requestMatchers("/api/cho/**").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN", "DOCTOR", "PATIENT")
+                        // Cross-sector oversight (read-only): system administrators only
+                        .requestMatchers("/api/cho/**").hasRole("ADMIN")
                         // Test seeding endpoints accessible to ADMIN and DOCTOR
                         .requestMatchers("/api/test/**").permitAll()
                         // Drugs & ABDM open/utility APIs
