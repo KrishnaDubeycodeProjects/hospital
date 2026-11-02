@@ -24,29 +24,13 @@ export interface UserProfile {
 /** Shown when an OTP-verified number is not a CHO-registered worker. */
 export const NOT_REGISTERED_MESSAGE = 'यह नंबर पंजीकृत नहीं है। कृपया अपने सीएचओ से संपर्क करें।';
 
-export interface RegisterFormData {
-  name: string;
-  phone: string;
-  role: UserRole;
-  village: string;
-  blockName?: string;
-  districtName?: string;
-  ashaId?: string;
-}
-
-export type AuthScreenType = 'login' | 'register' | 'forgot';
-
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: UserProfile;
   token: string | null;
-  authScreen: AuthScreenType;
-  setAuthScreen: (screen: AuthScreenType) => void;
   sendOtp: (phone: string) => Promise<{ success: boolean; message: string }>;
   verifyOtp: (phone: string, code: string) => Promise<{ success: boolean; message: string }>;
-  registerWorker: (data: RegisterFormData, code: string) => Promise<{ success: boolean; message: string }>;
-  forgotPassword: (phone: string, code: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   setRole: (role: UserRole) => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
@@ -88,68 +72,23 @@ async function rememberOnlineVerification(digits: string, token: string | null):
   if (token) await AsyncStorage.setItem(lastTokenKey(digits), token);
 }
 
-// Official Role-Based Profiles mapped directly to authoritative credentials
-const PHONE_ROLES: Record<string, { role: UserRole; name: string; title: string; village: string; id: string; anm: string }> = {
-  '9876543210': {
-    role: 'ASHA',
-    name: 'Sunita Devi',
-    title: 'ASHA Worker (आशा कार्यकर्ता)',
-    village: 'Chandpur Village',
-    id: 'ASHA-UP-VNS-042',
-    anm: 'Rekha Sharma (+91 98765 11111)',
-  },
-  '9876511111': {
-    role: 'ANM',
-    name: 'Rekha Sharma',
-    title: 'Auxiliary Nurse Midwife (ANM)',
-    village: 'Chandpur PHC Sector',
-    id: 'ANM-CHANDPUR-01',
-    anm: 'PHC Chandpur Medical Officer',
-  },
-  '9876522222': {
-    role: 'CHO',
-    name: 'Dr. Kavish Ahuja',
-    title: 'Community Health Officer (CHO)',
-    village: 'District Block Hospital',
-    id: 'CHO-VNS-BLOCK-1',
-    anm: 'District Health Administration',
-  },
+// Offline test account. Matches the OTP-seeded test phone in the backend (DemoDataSeeder).
+// Only the name and role are known; village / ANM / block come from the server profile at login.
+const PHONE_ROLES: Record<string, { role: UserRole; name: string }> = {
+  '9876543210': { role: 'ASHA', name: 'Sunita Devi' },
 };
 
+const ROLE_TITLES: Record<UserRole, string> = {
+  ASHA: 'ASHA Worker (आशा कार्यकर्ता)',
+  ANM: 'Auxiliary Nurse Midwife (ANM)',
+  CHO: 'Community Health Officer',
+};
+
+/** Empty, role-only profiles: no invented names, villages, phones or IDs. */
 const defaultProfiles: Record<UserRole, UserProfile> = {
-  ASHA: {
-    name: 'Sunita Devi',
-    role: 'ASHA',
-    roleTitle: 'ASHA Worker (आशा कार्यकर्ता)',
-    village: 'Chandpur Village',
-    phone: '+91 98765 43210',
-    ashaId: 'ASHA-UP-VNS-042',
-    assignedAnm: 'Rekha Sharma (+91 98765 11111)',
-    blockName: 'Rampur Block',
-    districtName: 'Varanasi',
-  },
-  ANM: {
-    name: 'Rekha Sharma',
-    role: 'ANM',
-    roleTitle: 'Auxiliary Nurse Midwife (ANM)',
-    village: 'Chandpur PHC Sector',
-    phone: '+91 98765 11111',
-    ashaId: 'ANM-CHANDPUR-01',
-    assignedAnm: 'PHC Chandpur Medical Officer',
-    blockName: 'Rampur Block',
-    districtName: 'Varanasi',
-  },
-  CHO: {
-    name: 'Dr. Kavish Ahuja',
-    role: 'CHO',
-    roleTitle: 'Community Health Officer',
-    village: 'District Block Hospital',
-    phone: '+91 98765 22222',
-    ashaId: 'CHO-VNS-BLOCK-1',
-    assignedAnm: 'District Health Administration',
-    blockName: 'Rampur Block',
-    districtName: 'Varanasi',
-  },
+  ASHA: { name: '', role: 'ASHA', roleTitle: ROLE_TITLES.ASHA, village: '', phone: '' },
+  ANM: { name: '', role: 'ANM', roleTitle: ROLE_TITLES.ANM, village: '', phone: '' },
+  CHO: { name: '', role: 'CHO', roleTitle: ROLE_TITLES.CHO, village: '', phone: '' },
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -157,12 +96,8 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   user: defaultProfiles.ASHA,
   token: null,
-  authScreen: 'login',
-  setAuthScreen: () => {},
   sendOtp: async () => ({ success: false, message: '' }),
   verifyOtp: async () => ({ success: false, message: '' }),
-  registerWorker: async () => ({ success: false, message: '' }),
-  forgotPassword: async () => ({ success: false, message: '' }),
   logout: async () => {},
   setRole: () => {},
   updateProfile: () => {},
@@ -198,11 +133,10 @@ async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> 
           ...defaultProfiles[role],
           name: match.name,
           role,
-          roleTitle: role === 'ASHA' ? 'ASHA Worker (आशा कार्यकर्ता)' : 'Auxiliary Nurse Midwife (ANM)',
-          village: match.village || 'Chandpur',
+          roleTitle: ROLE_TITLES[role] || ROLE_TITLES.ASHA,
+          village: match.village || '',
           phone: '+91' + cleanDigits,
           ashaId: `${role}-${cleanDigits.slice(-4)}`,
-          assignedAnm: role === 'ASHA' ? 'Rekha Sharma (+91 98765 11111)' : 'District Health Administration',
           preferredLanguage: match.preferredLanguage || 'hi',
         };
       }
@@ -230,11 +164,9 @@ async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> 
       ...defaultProfiles[meta.role],
       name: meta.name,
       role: meta.role,
-      roleTitle: meta.title,
-      village: meta.village,
+      roleTitle: ROLE_TITLES[meta.role],
       phone: '+91' + cleanDigits,
-      ashaId: meta.id,
-      assignedAnm: meta.anm,
+      ashaId: `${meta.role}-${cleanDigits.slice(-4)}`,
     };
   }
 
@@ -244,7 +176,7 @@ async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> 
     name: `स्वास्थ्य कार्यकर्ता`,
     role: 'ASHA',
     roleTitle: 'ASHA Worker (आशा कार्यकर्ता)',
-    village: 'कार्यक्षेत्र गाँव',
+    village: '',
     phone: '+91' + cleanDigits,
     ashaId: `ASHA-${cleanDigits.slice(-4)}`,
   };
@@ -264,7 +196,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [token, setToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile>(defaultProfiles.ASHA);
-  const [authScreen, setAuthScreen] = useState<AuthScreenType>('login');
 
   // API calls authenticate with the OTP-issued worker JWT held here.
   useEffect(() => {
@@ -479,99 +410,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   /**
-   * Register new health worker in DB with phone OTP verification
-   */
-  const registerWorker = async (
-    formData: RegisterFormData,
-    code: string
-  ): Promise<{ success: boolean; message: string }> => {
-    const cleanPhone = normalizePhone(formData.phone);
-    const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
-
-    // 1. Verify OTP first
-    const verifyRes = await verifyOtp(cleanPhone, code);
-    if (!verifyRes.success) {
-      return verifyRes;
-    }
-
-    // 2. Persist to PostgreSQL database on cloud
-    try {
-      // The OTP-verified token from step 1 proves this phone, so the server returns a 30-day
-      // worker token directly (no second OTP prompt).
-      const res = await fetch(`${BACKEND_BASE_URL}/api/asha/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': '1',
-          ...authHeader(),
-        },
-        body: JSON.stringify({
-          phone: cleanDigits,
-          name: formData.name.trim(),
-          villageName: formData.village.trim(),
-          blockName: formData.blockName || 'Rampur Block',
-          districtName: formData.districtName || 'Varanasi',
-          anmPhone: '+919876511111',
-          role: formData.role === 'ANM' ? 'ANM' : 'ASHA',
-        }),
-      });
-
-      if (!res.ok) {
-        console.warn('Registration API response status:', res.status);
-      } else {
-        const reg = await res.json().catch(() => ({} as any));
-        if (reg && typeof reg.authToken === 'string' && reg.authToken) {
-          setToken(reg.authToken);
-          setAuthToken(reg.authToken);
-          await Promise.all([
-            AsyncStorage.setItem(STORAGE_KEYS.TOKEN, reg.authToken),
-            rememberOnlineVerification(cleanDigits, reg.authToken),
-          ]);
-        }
-      }
-    } catch (e) {
-      console.warn('Cloud registration sync failed, stored locally:', e);
-    }
-
-    // 3. Update local profile state & storage with explicit selected role
-    // Self-onboarding is always cadre ASHA (ANM is assigned only by a CHO), matching the server.
-    const newProfile: UserProfile = {
-      name: formData.name.trim(),
-      role: 'ASHA',
-      roleTitle: 'ASHA Worker (आशा कार्यकर्ता)',
-      village: formData.village.trim(),
-      phone: cleanPhone,
-      ashaId: formData.ashaId || `ASHA-${cleanDigits.slice(-4)}`,
-      blockName: formData.blockName || 'Rampur Block',
-      districtName: formData.districtName || 'Varanasi',
-      assignedAnm: 'Rekha Sharma (+91 98765 11111)',
-    };
-
-    // Keep the OTP-verified token from step 1 (never mint a local placeholder). Because the
-    // worker row did not exist yet at verification, that token is not a worker token: the
-    // worker gets one on their next OTP login, after which sync is authorised.
-    setStorageWorkerPhone(cleanPhone);
-    setCurrentUser(newProfile);
-    setIsAuthenticated(true);
-    await Promise.all([
-      AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile)),
-      AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(newProfile)),
-    ]);
-
-    try {
-      const regRaw = await AsyncStorage.getItem('@asha_registered_users_registry_v6');
-      const regMap = regRaw ? JSON.parse(regRaw) : {};
-      regMap[cleanDigits] = newProfile;
-      await AsyncStorage.setItem('@asha_registered_users_registry_v6', JSON.stringify(regMap));
-    } catch {}
-
-    return {
-      success: true,
-      message: 'पंजीकरण सफल! आपका खाता सक्रिय हो गया है।',
-    };
-  };
-
-  /**
    * CHO adds authorized ASHA or ANM worker to the portal
    */
   const addWorkerByCho = async (worker: {
@@ -596,12 +434,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       name: worker.name.trim(),
       role: worker.role,
       roleTitle: worker.role === 'ASHA' ? 'ASHA Worker (आशा कार्यकर्ता)' : 'Auxiliary Nurse Midwife (ANM)',
-      village: worker.village.trim() || 'सेक्टर क्षेत्र',
+      village: worker.village.trim(),
       phone: fullPhone,
       ashaId: `${worker.role}-${cleanDigits.slice(-4)}`,
-      assignedAnm: worker.role === 'ASHA' ? (currentUser.name ? `${currentUser.name} (${currentUser.phone})` : 'Rekha Sharma (+91 98765 11111)') : 'District Health Administration',
-      blockName: currentUser.blockName || 'Rampur Block',
-      districtName: currentUser.districtName || 'Varanasi',
+      assignedAnm: worker.role === 'ASHA' && currentUser.name ? `${currentUser.name} (${currentUser.phone})` : undefined,
+      blockName: currentUser.blockName || undefined,
+      districtName: currentUser.districtName || undefined,
       preferredLanguage: prefLang,
     };
 
@@ -616,7 +454,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         phone: fullPhone,
         role: workerProfile.role,
         village: workerProfile.village,
-        subcenter: worker.subcenter || 'PHC Chandpur',
+        subcenter: worker.subcenter || undefined,
         preferredLanguage: prefLang,
         addedAt: new Date().toISOString(),
       });
@@ -659,16 +497,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   /**
-   * Account recovery / forgot password via OTP
-   */
-  const forgotPassword = async (
-    phone: string,
-    code: string
-  ): Promise<{ success: boolean; message: string }> => {
-    return verifyOtp(phone, code);
-  };
-
-  /**
    * Log out and clear session
    */
   const logout = async (): Promise<void> => {
@@ -682,7 +510,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     setToken(null);
     setIsAuthenticated(false);
-    setAuthScreen('login');
   };
 
   const setRole = (newRole: UserRole) => {
@@ -712,12 +539,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         user: currentUser,
         token,
-        authScreen,
-        setAuthScreen,
         sendOtp,
         verifyOtp,
-        registerWorker,
-        forgotPassword,
         logout,
         setRole,
         updateProfile,

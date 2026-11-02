@@ -4,6 +4,8 @@ import com.qdischarge.clinicqueue.asha.dto.AnmProfileDto;
 import com.qdischarge.clinicqueue.asha.dto.AshaWorkerDto;
 import com.qdischarge.clinicqueue.asha.dto.SurveyResponseDto;
 import com.qdischarge.clinicqueue.security.CurrentUser;
+import com.qdischarge.clinicqueue.security.JwtService;
+import com.qdischarge.clinicqueue.asha.service.ChoReferralService;
 import com.qdischarge.clinicqueue.asha.service.AnmService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,7 @@ public class AnmController {
 
     private final AnmService anmService;
     private final CurrentUser currentUser;
+    private final ChoReferralService choReferralService;
 
     /** ANM profiles are created by a CHO / ADMIN only (no self-registration). */
     @PostMapping("/register")
@@ -65,12 +68,35 @@ public class AnmController {
         return ResponseEntity.ok(anmService.listAshaWorkers(phone));
     }
 
-    @GetMapping("/data/{ashaPhone}/members/{memberId}/forms")
+    /** Forms an ASHA sent to ANM — all members (/forms) or one member (/members/{memberId}/forms). */
+    @GetMapping({"/data/{ashaPhone}/forms", "/data/{ashaPhone}/members/{memberId}/forms"})
     public ResponseEntity<List<SurveyResponseDto>> getMemberForms(
             @PathVariable String ashaPhone,
-            @PathVariable Integer memberId,
+            @PathVariable(required = false) Integer memberId,
             @RequestParam(required = false) String category) {
+        HttpStatus denied = checkAshaAccess(ashaPhone);
+        if (denied != null) return ResponseEntity.status(denied).build();
         return ResponseEntity.ok(anmService.getMemberForms(ashaPhone, memberId, category));
+    }
+
+    /**
+     * ANM: the ASHA must be assigned to her (asha_workers.anm_phone). CHO: the ASHA must be in her sector.
+     * ADMIN: allowed. Returns null when allowed, otherwise 401/403.
+     */
+    private HttpStatus checkAshaAccess(String ashaPhone) {
+        var caller = currentUser.get();
+        if (caller == null) return HttpStatus.UNAUTHORIZED;
+        String role = caller.role();
+        if (JwtService.ADMIN_ROLE.equals(role)) return null;
+        String callerPhone = currentUser.getAshaPhone();
+        if (callerPhone == null || callerPhone.isBlank()) return HttpStatus.UNAUTHORIZED;
+        if (JwtService.ANM_ROLE.equals(role)) {
+            return choReferralService.isAshaAssignedToAnm(callerPhone, ashaPhone) ? null : HttpStatus.FORBIDDEN;
+        }
+        if (JwtService.CHO_ROLE.equals(role)) {
+            return choReferralService.isAshaInSector(callerPhone, ashaPhone) ? null : HttpStatus.FORBIDDEN;
+        }
+        return HttpStatus.FORBIDDEN;
     }
 
     @PostMapping({"/session", "/qr"})

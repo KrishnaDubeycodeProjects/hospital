@@ -560,7 +560,7 @@ class OfflineStorageServiceImpl {
       phone: params.phone,
       abhaNumber: params.abhaNumber,
       houseNumber: params.houseNumber,
-      villageName: params.villageName || 'Chandpur',
+      villageName: params.villageName || undefined,
       taskType: `[ASHA to CHO Referral] ${params.reason}`,
       referralReason: params.reason,
       vitals: params.vitals,

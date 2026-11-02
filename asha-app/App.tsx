@@ -32,7 +32,7 @@ import { SurveyQuestionScreen } from './src/screens/SurveyQuestionScreen';
 import { FollowUpScreen } from './src/screens/FollowUpScreen';
 import { SendDataScreen } from './src/screens/SendDataScreen';
 import { SyncSuccessScreen } from './src/screens/SyncSuccessScreen';
-import { AnmWorkerDetailScreen } from './src/screens/AnmWorkerDetailScreen';
+import { AnmWorkerDetailScreen, AnmMemberForms } from './src/screens/AnmWorkerDetailScreen';
 import { AnmFormDetailScreen } from './src/screens/AnmFormDetailScreen';
 import { AshaMeetingsScreen } from './src/screens/AshaMeetingsScreen';
 
@@ -66,7 +66,12 @@ const MainAppContent: React.FC = () => {
   const [surveyFormType, setSurveyFormType] = useState<SurveyType>('PREGNANCY');
   const [selectedHouse, setSelectedHouse] = useState<{ houseNo: number; familyName: string }>({ houseNo: 0, familyName: '' });
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
-  const [selectedAshaWorker, setSelectedAshaWorker] = useState<{ name: string; village: string }>({ name: '', village: '' });
+  const [selectedAshaWorker, setSelectedAshaWorker] = useState<{ name: string; village: string; phone: string }>({
+    name: '',
+    village: '',
+    phone: '',
+  });
+  const [selectedAnmMember, setSelectedAnmMember] = useState<AnmMemberForms | null>(null);
 
   // Offline voice dictation modal
   const [voiceModalVisible, setVoiceModalVisible] = useState(false);
@@ -196,12 +201,22 @@ const MainAppContent: React.FC = () => {
           <AnmWorkerDetailScreen
             ashaName={selectedAshaWorker.name}
             village={selectedAshaWorker.village}
+            ashaPhone={selectedAshaWorker.phone}
             onBack={pop}
-            onSelectForm={() => push('anmFormDetail')}
+            onSelectMember={(m) => {
+              setSelectedAnmMember(m);
+              push('anmFormDetail');
+            }}
           />
         );
       case 'anmFormDetail':
-        return <AnmFormDetailScreen onBack={pop} />;
+        return (
+          <AnmFormDetailScreen
+            memberName={selectedAnmMember?.memberName}
+            forms={selectedAnmMember?.forms}
+            onBack={pop}
+          />
+        );
       default:
         return null;
     }
@@ -229,7 +244,7 @@ const MainAppContent: React.FC = () => {
           <AnmOpenFormsScreen
             view={activeTab === 'anmQueue' ? 'queue' : activeTab === 'anmWorkers' ? 'workers' : 'session'}
             onSelectAsha={(worker) => {
-              setSelectedAshaWorker({ name: worker.name, village: worker.village });
+              setSelectedAshaWorker(worker);
               push('anmWorkerDetail');
             }}
           />

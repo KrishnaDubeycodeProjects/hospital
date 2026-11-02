@@ -1,933 +1,455 @@
-import React, { useState, useRef, useEffect } from 'react';
+/**
+ * ANM home — three bottom-tab views on the shared design kit:
+ *   आज  (queue)   : survey forms ASHAs sent to this ANM, grouped per ASHA, awaiting review
+ *   आशा (workers) : ASHAs assigned to this ANM
+ *   सत्र (session): VHND session folders · create · session QR · receive ASHA data QR
+ * ANM is the clinical validator (BP, Hb, vaccines with batch). Only real data is shown.
+ */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  Platform,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import {
+  ClipboardList,
+  Users,
   QrCode,
   Plus,
-  X,
+  ScanLine,
   Syringe,
-  Baby,
+  HeartPulse,
   Activity,
-  CheckCircle,
-  Users,
-  ChevronRight,
-  ShieldCheck,
-  Camera,
-  Scan,
-  Image as ImageIcon,
   Trash2,
   MapPin,
-  ClipboardList,
+  CircleCheck,
+  CloudOff,
+  RotateCcw,
+  Inbox,
+  type LucideIcon,
 } from 'lucide-react-native';
-import jsQR from 'jsqr';
-import { scanQrFromImageFile, parseQrIdentifier } from '../utils/qrScannerHelper';
-import { SyncApi } from '../api/syncApi';
+import { scanQrFromImageFile } from '../utils/qrScannerHelper';
+import { SyncApi, AnmAshaWorker } from '../api/syncApi';
 import { useOfflineData } from '../context/OfflineDataContext';
-import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 import { RealQrCode } from '../components/RealQrCode';
-
-interface AnmSessionFolder {
-  id: string;
-  title: string;
-  category: 'CHILD_VAX' | 'ANC' | 'NCD';
-  date: string;
-  qrCodeValue: string;
-  recordsCount: number;
-}
+import { AnmSessionFolder } from '../types/storage';
+import {
+  Screen,
+  Card,
+  ListRow,
+  StatusPill,
+  SectionTitle,
+  EmptyState,
+  SkeletonRows,
+  Button,
+  IconButton,
+  Chips,
+  Field,
+  Sheet,
+  Stat,
+  Tone,
+  color,
+  space,
+  text,
+  useTr,
+} from '../ui';
 
 interface AnmOpenFormsScreenProps {
-  onSelectAsha?: (worker: any) => void;
+  onSelectAsha?: (worker: { name: string; village: string; phone: string }) => void;
   /** Bottom-tab view: आज (form queue) · आशा (workers) · सत्र (VHND session QR). */
   view?: 'queue' | 'workers' | 'session';
 }
 
-export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = () => {
-  const {
-    anmSessions,
-    createAnmSession,
-    receiveRecordsInAnmSession,
-    deleteAnmSession,
-    childVaccinations,
-    surveys,
-  } = useOfflineData();
+type Category = AnmSessionFolder['category'];
 
-  const sessions = anmSessions;
+interface IncomingRow {
+  asha_worker_phone: string;
+  count: number;
+}
 
-  // Modal States
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState<'CHILD_VAX' | 'ANC' | 'NCD'>('CHILD_VAX');
-  const [newStudyType, setNewStudyType] = useState('');
-  const [newLocation, setNewLocation] = useState('चाँदपुर उपकेंद्र (Chandpur Sub-centre)');
-  const [newNotes, setNewNotes] = useState('');
+const last10 = (p?: string) => (p || '').replace(/[^0-9]/g, '').slice(-10);
 
-  // Active Session QR Code Modal
-  const [activeQrSession, setActiveQrSession] = useState<AnmSessionFolder | null>(null);
+export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelectAsha, view = 'queue' }) => {
+  const tr = useTr();
+  const { anmSessions, createAnmSession, receiveRecordsInAnmSession, deleteAnmSession, childVaccinations, isOnline } =
+    useOfflineData();
 
-  // Auto-sync incoming records from cloud backend on mount
-  useEffect(() => {
-    let mounted = true;
-    SyncApi.getAnmIncomingData('9876543211')
-      .then((incoming) => {
-        if (mounted && Array.isArray(incoming) && incoming.length > 0) {
-          // If any child vax surveys received
-          const vaxCount = incoming.filter((r) => r.categoryCode === 'CHILD' || r.categoryCode === 'CHILD_VAX').length;
-          const ancCount = incoming.filter((r) => r.categoryCode === 'PREGNANCY' || r.categoryCode === 'ANC').length;
-          const ncdCount = incoming.filter((r) => r.categoryCode === 'DISEASE' || r.categoryCode === 'NCD').length;
+  // ---------------------------------------------------------------- server data (queue + workers)
+  const [workers, setWorkers] = useState<AnmAshaWorker[]>([]);
+  const [incoming, setIncoming] = useState<IncomingRow[]>([]);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
-          if (vaxCount > 0) receiveRecordsInAnmSession('CHILD_VAX', vaxCount);
-          if (ancCount > 0) receiveRecordsInAnmSession('ANC', ancCount);
-          if (ncdCount > 0) receiveRecordsInAnmSession('NCD', ncdCount);
-        }
-      })
-      .catch((err) => console.log('ANM cloud sync note:', err));
-
-    return () => {
-      mounted = false;
-    };
+  const load = useCallback(async () => {
+    setLoadState('loading');
+    try {
+      const [w, inc] = await Promise.all([SyncApi.getAnmAshas(), SyncApi.getAnmIncomingData()]);
+      setWorkers(w);
+      setIncoming(Array.isArray(inc) ? inc : []);
+      setLoadState('ready');
+    } catch {
+      setLoadState('error');
+    }
   }, []);
 
-  // Selected Session Drilldown Modal
-  const [inspectedSession, setInspectedSession] = useState<AnmSessionFolder | null>(null);
+  useEffect(() => {
+    if (view !== 'session') load();
+  }, [view, load]);
 
-  // Scan ASHA QR Modal State
-  const [showAshaScanModal, setShowAshaScanModal] = useState(false);
-  const [ashaScanNotice, setAshaScanNotice] = useState<string | null>(null);
-  const [ashaPayloadInput, setAshaPayloadInput] = useState('');
-  const anmFileInputRef = useRef<any>(null);
+  const workerByPhone = useMemo(() => new Map(workers.map((w) => [last10(w.phone), w])), [workers]);
+  const queue = useMemo(
+    () =>
+      incoming
+        .map((r) => ({ ...r, count: Number(r.count) || 0, worker: workerByPhone.get(last10(r.asha_worker_phone)) }))
+        .filter((r) => r.count > 0)
+        .sort((a, b) => b.count - a.count),
+    [incoming, workerByPhone]
+  );
+  const totalForms = queue.reduce((s, r) => s + r.count, 0);
 
-  const handleProcessAshaPayload = async (raw: string) => {
+  // ---------------------------------------------------------------- sessions
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newCategory, setNewCategory] = useState<Category>('CHILD_VAX');
+  const [newLocation, setNewLocation] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [qrSession, setQrSession] = useState<AnmSessionFolder | null>(null);
+  const [inspected, setInspected] = useState<AnmSessionFolder | null>(null);
+
+  const [showScan, setShowScan] = useState(false);
+  const [scanNotice, setScanNotice] = useState<{ tone: Tone; msg: string } | null>(null);
+  const [payload, setPayload] = useState('');
+  const fileInputRef = useRef<any>(null);
+
+  const catMeta = (c: Category): { icon: LucideIcon; tone: Tone; label: string } =>
+    c === 'CHILD_VAX'
+      ? { icon: Syringe, tone: 'accent', label: tr('बाल टीकाकरण', 'बाल लसीकरण') }
+      : c === 'ANC'
+      ? { icon: HeartPulse, tone: 'red', label: tr('प्रसव पूर्व जांच', 'प्रसूतीपूर्व तपासणी') }
+      : { icon: Activity, tone: 'amber', label: tr('NCD जांच', 'NCD तपासणी') };
+
+  const closeScanSoon = () =>
+    setTimeout(() => {
+      setShowScan(false);
+      setScanNotice(null);
+      setPayload('');
+    }, 1800);
+
+  /** ASHA data QR payload → add records to the matching session. Invalid codes add nothing. */
+  const processPayload = async (raw: string) => {
+    let data: any;
     try {
-      const data = JSON.parse(raw);
-      const cat = data.c || data.cluster || 'CHILD_VAX';
-      const cnt = data.cnt || data.count || (data.items ? data.items.length : 1);
-      const worker = data.n || data.ashaName || 'सुनीता देवी';
-
-      await receiveRecordsInAnmSession(cat, Number(cnt));
-
-      setAshaScanNotice(`✓ आशा कार्यकर्ता (${worker}) से ${cnt} नए रिकॉर्ड्स सफलतापूर्वक प्राप्त हुए!`);
-      setTimeout(() => {
-        setShowAshaScanModal(false);
-        setAshaScanNotice(null);
-        setAshaPayloadInput('');
-      }, 1800);
+      data = JSON.parse(raw);
     } catch {
-      await receiveRecordsInAnmSession('CHILD_VAX', 1);
-      setAshaScanNotice(`✓ QR कोड पहचाना गया — 1 नया रिकॉर्ड प्राप्त हुआ!`);
-      setTimeout(() => {
-        setShowAshaScanModal(false);
-        setAshaScanNotice(null);
-        setAshaPayloadInput('');
-      }, 1800);
+      setScanNotice({ tone: 'red', msg: tr('QR कोड पढ़ा नहीं गया', 'QR कोड वाचला नाही') });
+      return;
     }
+    const cat: Category = ['CHILD_VAX', 'ANC', 'NCD'].includes(data.c || data.cluster) ? data.c || data.cluster : 'CHILD_VAX';
+    const cnt = Number(data.cnt ?? data.count ?? (Array.isArray(data.items) ? data.items.length : 0));
+    if (!Number.isFinite(cnt) || cnt <= 0) {
+      setScanNotice({ tone: 'amber', msg: tr('कोड में कोई रिकॉर्ड नहीं', 'कोडमध्ये नोंद नाही') });
+      return;
+    }
+    await receiveRecordsInAnmSession(cat, cnt);
+    const who = data.n || data.ashaName;
+    setScanNotice({
+      tone: 'green',
+      msg: who ? `${who}: ${cnt} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या')}` : `${cnt} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या')}`,
+    });
+    closeScanSoon();
   };
 
-  const handleAnmFileScan = async (e: any) => {
+  const handleFileScan = async (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
+    setScanNotice({ tone: 'accent', msg: tr('स्कैन हो रहा है…', 'स्कॅन होत आहे…') });
     try {
-      setAshaScanNotice('QR कोड स्कैन किया जा रहा है (Multi-pass decoding)...');
       const decoded = await scanQrFromImageFile(file);
-      await handleProcessAshaPayload(decoded);
-    } catch (err: any) {
-      setAshaScanNotice(err.message || '⚠️ QR कोड नहीं मिला। कृपया स्पष्ट फोटो लें।');
+      await processPayload(decoded);
+    } catch {
+      setScanNotice({ tone: 'red', msg: tr('QR नहीं मिला, साफ फोटो लें', 'QR मिळाला नाही, स्पष्ट फोटो घ्या') });
     }
   };
 
-  const handleCreateSession = async () => {
-    if (!newTitle.trim()) return;
-
+  const handleCreate = async () => {
+    if (!newTitle.trim()) {
+      setTitleError(tr('शीर्षक लिखें', 'शीर्षक लिहा'));
+      return;
+    }
     const created = await createAnmSession({
       title: newTitle.trim(),
       category: newCategory,
-      studyType:
-        newStudyType.trim() ||
-        `${newCategory === 'CHILD_VAX' ? 'बाल टीकाकरण' : newCategory === 'ANC' ? 'मातृ स्वास्थ्य' : 'एनसीडी जांच'} फील्ड स्टडी`,
-      notes: newNotes.trim() || 'ANM फील्ड स्टडी / सत्र',
-      location: newLocation.trim() || 'चाँदपुर उपकेंद्र (Chandpur Sub-centre)',
+      studyType: catMeta(newCategory).label,
+      notes: newNotes.trim(),
+      location: newLocation.trim() || tr('उपकेंद्र', 'उपकेंद्र'),
     });
-
     setNewTitle('');
-    setNewStudyType('');
     setNewNotes('');
-    setShowCreateModal(false);
-    // Directly open QR code for ASHA to scan
-    setActiveQrSession(created);
+    setNewLocation('');
+    setTitleError(null);
+    setShowCreate(false);
+    setQrSession(created); // show QR immediately so ASHAs can scan
   };
 
-  const getCategoryIcon = (category: AnmSessionFolder['category']) => {
-    switch (category) {
-      case 'CHILD_VAX':
-        return <Syringe size={20} color="#0284C7" />;
-      case 'ANC':
-        return <Baby size={20} color={Colors.urgentRed} />;
-      case 'NCD':
-      default:
-        return <Activity size={20} color="#BE185D" />;
-    }
-  };
+  // ---------------------------------------------------------------- shared states
+  const serverState = (empty: React.ReactNode) =>
+    loadState === 'loading' ? (
+      <SkeletonRows count={4} />
+    ) : loadState === 'error' ? (
+      <EmptyState
+        icon={CloudOff}
+        tone="amber"
+        title={isOnline ? tr('डेटा लोड नहीं हुआ', 'डेटा लोड झाला नाही') : tr('इंटरनेट नहीं है', 'इंटरनेट नाही')}
+        action={<Button label={tr('फिर कोशिश', 'पुन्हा प्रयत्न')} icon={RotateCcw} variant="secondary" full={false} onPress={load} />}
+      />
+    ) : (
+      empty
+    );
 
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Offline Audio Guide for ANM */}
-        <VoiceGuideBanner
-          sectionTitle="एएनएम सत्र क्लस्टर एवं क्यूआर कोड"
-          guideTextHi="एएनएम पोर्टल: नया टीकाकरण या स्वास्थ्य सत्र बनाएं, क्यूआर कोड खोलें जिससे आशा कार्यकर्ता सीधे क्लस्टर डेटा सिंक कर सकें।"
-          guideTextMr="एएनएम पोर्टल: नवीन लसीकरण सत्र तयार करा, क्यूआर कोड दाखवा जेणेकरून आशा कार्यकर्त्या डेटा सिंक करू शकतील."
-          guideTextEn="ANM Session Manager. Create immunization sessions, generate session QR codes, and receive clustered records from ASHAs."
-        />
-
-        {/* Hidden Input for ANM to pick QR photo */}
-        {Platform.OS === 'web' && (
-          <input
-            type="file"
-            accept="image/*"
-            ref={anmFileInputRef}
-            style={{ display: 'none' }}
-            onChange={handleAnmFileScan}
-          />
+  // ---------------------------------------------------------------- views
+  if (view === 'queue') {
+    return (
+      <Screen>
+        <Card>
+          <View style={styles.statsRow}>
+            <Stat value={totalForms} label={tr('फॉर्म बाकी', 'फॉर्म बाकी')} tone="amber" />
+            <View style={styles.vr} />
+            <Stat value={queue.length} label={tr('आशा से', 'आशांकडून')} tone="neutral" />
+          </View>
+        </Card>
+        <SectionTitle label={tr('समीक्षा हेतु', 'पडताळणीसाठी')} count={queue.length} />
+        {loadState === 'ready' && queue.length === 0 ? (
+          <EmptyState icon={CircleCheck} title={tr('कोई फॉर्म बाकी नहीं', 'कोणताही फॉर्म बाकी नाही')} />
+        ) : loadState === 'ready' ? (
+          <View style={styles.list}>
+            {queue.map((r) => (
+              <ListRow
+                key={r.asha_worker_phone}
+                icon={ClipboardList}
+                tone="amber"
+                title={r.worker?.name || r.asha_worker_phone}
+                subtitle={r.worker?.villageName || undefined}
+                onPress={() => onSelectAsha?.({ name: r.worker?.name || r.asha_worker_phone, village: r.worker?.villageName || '', phone: r.asha_worker_phone })}
+                right={<StatusPill tone="amber" label={`${r.count} ${tr('फॉर्म', 'फॉर्म')}`} />}
+              />
+            ))}
+          </View>
+        ) : (
+          serverState(null)
         )}
+      </Screen>
+    );
+  }
 
-        {/* Action Header */}
-        <View style={styles.actionBar}>
-          <View>
-            <Text style={styles.pageTitle}>सत्र फ़ोल्डर ({sessions.length})</Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <TouchableOpacity
-              style={styles.scanAshaBtn}
-              onPress={() => setShowAshaScanModal(true)}
-              activeOpacity={0.85}
-            >
-              <Scan size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.scanAshaBtnText}>आशा QR स्कैन</Text>
-            </TouchableOpacity>
+  if (view === 'workers') {
+    return (
+      <Screen>
+        <SectionTitle label={tr('मेरी आशा', 'माझ्या आशा')} count={loadState === 'ready' ? workers.length : undefined} />
+        {loadState === 'ready' ? (
+          workers.length === 0 ? (
+            <EmptyState icon={Users} tone="neutral" title={tr('कोई आशा नहीं जुड़ी', 'कोणतीही आशा जोडलेली नाही')} />
+          ) : (
+            <View style={styles.list}>
+              {workers.map((w) => {
+                const pending = queue.find((q) => last10(q.asha_worker_phone) === last10(w.phone))?.count || 0;
+                return (
+                  <ListRow
+                    key={w.phone}
+                    icon={Users}
+                    tone="accent"
+                    title={w.name}
+                    subtitle={w.villageName || undefined}
+                    onPress={() => onSelectAsha?.({ name: w.name, village: w.villageName || '', phone: w.phone })}
+                    right={
+                      pending > 0 ? (
+                        <StatusPill tone="amber" label={`${pending} ${tr('फॉर्म', 'फॉर्म')}`} />
+                      ) : (
+                        <StatusPill tone="green" label={tr('अद्यतन', 'अद्ययावत')} />
+                      )
+                    }
+                  />
+                );
+              })}
+            </View>
+          )
+        ) : (
+          serverState(null)
+        )}
+      </Screen>
+    );
+  }
 
-            <TouchableOpacity
-              style={styles.addBtn}
-              onPress={() => setShowCreateModal(true)}
-              activeOpacity={0.85}
-            >
-              <Plus size={14} color="#FFFFFF" style={{ marginRight: 3 }} />
-              <Text style={styles.addBtnText}>+ नया सत्र / फील्ड स्टडी</Text>
-            </TouchableOpacity>
-          </View>
+  // session view
+  return (
+    <Screen>
+      {Platform.OS === 'web' ? (
+        <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileScan} />
+      ) : null}
+
+      <View style={styles.actionsRow}>
+        <View style={styles.flex}>
+          <Button label={tr('नया सत्र', 'नवीन सत्र')} icon={Plus} onPress={() => setShowCreate(true)} />
         </View>
+        <View style={styles.flex}>
+          <Button label={tr('आशा QR स्कैन', 'आशा QR स्कॅन')} icon={ScanLine} variant="secondary" onPress={() => setShowScan(true)} />
+        </View>
+      </View>
 
-        {/* Session Folders List */}
-        {sessions.map((sess) => (
-          <View key={sess.id} style={styles.sessionCard}>
-            <View style={styles.sessionTopRow}>
-              <View style={styles.iconCircle}>{getCategoryIcon(sess.category)}</View>
-
-              <View style={{ flex: 1, paddingRight: 6 }}>
-                <Text style={styles.sessionTitle}>{sess.title}</Text>
-                <Text style={styles.sessionDate}>दिनांक: {sess.date}</Text>
-                {sess.studyType && (
-                  <View style={styles.studyTypeTagRow}>
-                    <ClipboardList size={11} color="#0369A1" style={{ marginRight: 3 }} />
-                    <Text style={styles.studyTypeTagText}>{sess.studyType}</Text>
-                  </View>
-                )}
-                {sess.location && (
-                  <View style={styles.studyLocationRow}>
-                    <MapPin size={11} color="#6B7280" style={{ marginRight: 3 }} />
-                    <Text style={styles.studyLocationText}>{sess.location}</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                {/* Show Session QR Code Button */}
-                <TouchableOpacity
-                  style={styles.qrButton}
-                  onPress={() => setActiveQrSession(sess)}
-                  activeOpacity={0.8}
-                >
-                  <QrCode size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.qrButtonText}>QR कोड</Text>
-                </TouchableOpacity>
-
-                {/* Delete / Archive Session Button (for custom sessions) */}
-                {sess.id.startsWith('sess-') && Number(sess.id.replace('sess-', '')) > 1000 && (
-                  <TouchableOpacity
-                    style={styles.deleteSessionBtn}
-                    onPress={() => deleteAnmSession(sess.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Trash2 size={13} color="#DC2626" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            {/* Clustered Records Preview Bar */}
-            <TouchableOpacity
-              style={styles.recordsSummaryBar}
-              onPress={() => setInspectedSession(sess)}
-              activeOpacity={0.75}
-            >
-              <Users size={14} color="#0369A1" style={{ marginRight: 6 }} />
-              <Text style={styles.recordsCountText}>
-                {sess.recordsCount > 0
-                  ? `${sess.recordsCount} क्लस्टर्ड रिकॉर्ड प्राप्त हुए (क्लिक करके देखें)`
-                  : 'अभी तक कोई डेटा प्राप्त नहीं हुआ (QR स्कैन करवाएं)'}
-              </Text>
-              <ChevronRight size={16} color="#0369A1" />
-            </TouchableOpacity>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* Modal 0: Scan ASHA Worker Data QR Code */}
-      <Modal visible={showAshaScanModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>आशा कार्यकर्ता का डेटा QR स्कैन करें</Text>
-                <Text style={styles.modalSub}>ASHA डेटा कोड स्कैन करके सत्र में रिकॉर्ड्स जोड़ें</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowAshaScanModal(false)}>
-                <X size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {ashaScanNotice && (
-              <View style={styles.ashaScanNoticeBox}>
-                <CheckCircle size={16} color="#059669" style={{ marginRight: 6 }} />
-                <Text style={styles.ashaScanNoticeText}>{ashaScanNotice}</Text>
-              </View>
-            )}
-
-            <View style={styles.scanActionRowAnm}>
-              <TouchableOpacity
-                style={styles.scanPickBtn}
-                onPress={() => {
-                  if (Platform.OS === 'web' && anmFileInputRef.current) {
-                    anmFileInputRef.current.click();
+      <SectionTitle label={tr('VHND सत्र', 'VHND सत्र')} count={anmSessions.length} />
+      {anmSessions.length === 0 ? (
+        <EmptyState icon={Inbox} tone="neutral" title={tr('अभी कोई सत्र नहीं', 'अजून सत्र नाही')} />
+      ) : (
+        <View style={styles.list}>
+          {anmSessions.map((s) => {
+            const meta = catMeta(s.category);
+            const deletable = s.id.startsWith('sess-') && Number(s.id.replace('sess-', '')) > 1000;
+            return (
+              <Card key={s.id} tone={meta.tone}>
+                <ListRow
+                  icon={meta.icon}
+                  tone={meta.tone}
+                  title={s.title}
+                  subtitle={[s.date, s.location].filter(Boolean).join(' • ')}
+                  onPress={() => setInspected(s)}
+                  right={
+                    <StatusPill
+                      tone={s.recordsCount > 0 ? 'green' : 'neutral'}
+                      label={`${s.recordsCount} ${tr('रिकॉर्ड', 'नोंदी')}`}
+                    />
                   }
-                }}
-                activeOpacity={0.85}
-              >
-                <Camera size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.scanPickBtnText}>आशा QR फोटो / कैमरा स्कैन</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>या QR पेलोड / कोड दर्ज करें:</Text>
-            <TextInput
-              style={[styles.modalInput, { height: 60, textAlignVertical: 'top' }]}
-              placeholder='उदा. {"t":"ASHA_SYNC","c":"CHILD_VAX","cnt":4}'
-              value={ashaPayloadInput}
-              onChangeText={setAshaPayloadInput}
-              multiline
-            />
-
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
-              <TouchableOpacity
-                style={styles.sampleChip}
-                onPress={() =>
-                  handleProcessAshaPayload(
-                    JSON.stringify({ t: 'ASHA_SYNC', c: 'CHILD_VAX', cnt: 4, n: 'सुनीता देवी' })
-                  )
-                }
-              >
-                <Text style={styles.sampleChipText}>+4 बाल टीका डेटा जोड़ें</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.sampleChip}
-                onPress={() =>
-                  handleProcessAshaPayload(
-                    JSON.stringify({ t: 'ASHA_SYNC', c: 'ANC', cnt: 2, n: 'सुनीता देवी' })
-                  )
-                }
-              >
-                <Text style={styles.sampleChipText}>+2 ANC डेटा जोड़ें</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={() => {
-                if (ashaPayloadInput.trim()) {
-                  handleProcessAshaPayload(ashaPayloadInput.trim());
-                }
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.createBtnText}>डेटा सत्यापित एवं दर्ज करें</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal 1: Create New Session Folder / Field Study */}
-      <Modal visible={showCreateModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>नया सत्र / फील्ड स्टडी बनाएं</Text>
-                <Text style={styles.modalSub}>ANM Field Study / Session Folder Creation</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-                <X size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>सत्र की श्रेणी (Category)</Text>
-              <View style={styles.categoryRow}>
-                {(
-                  [
-                    { key: 'CHILD_VAX', label: '💉 बाल टीकाकरण', desc: 'Child Vaccination' },
-                    { key: 'ANC', label: '🤰 प्रसव पूर्व जांच', desc: 'Antenatal Care' },
-                    { key: 'NCD', label: '🩺 एनसीडी / कैंसर', desc: 'NCD Screening' },
-                  ] as const
-                ).map((cat) => (
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={[
-                      styles.catOption,
-                      newCategory === cat.key && styles.catOptionActive,
-                    ]}
-                    onPress={() => setNewCategory(cat.key)}
-                  >
-                    <Text
-                      style={[
-                        styles.catOptionText,
-                        newCategory === cat.key && styles.catOptionTextActive,
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>सत्र / फील्ड स्टडी का शीर्षक *</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="उदा. चाँदपुर पोषण एवं बाल स्वास्थ्य फील्ड स्टडी (VHND Drive)"
-                value={newTitle}
-                onChangeText={setNewTitle}
-              />
-
-              <Text style={styles.inputLabel}>फील्ड स्टडी का प्रकार / उद्देश्य (Study Focus)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="उदा. विशेष बाल टीकाकरण एवं वृद्धि निगरानी अध्ययन"
-                value={newStudyType}
-                onChangeText={setNewStudyType}
-              />
-
-              <Text style={styles.inputLabel}>सत्र स्थान / उपकेंद्र (Location)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="उदा. चाँदपुर उपकेंद्र / प्राथमिक विद्यालय प्रांगण"
-                value={newLocation}
-                onChangeText={setNewLocation}
-              />
-
-              <Text style={styles.inputLabel}>अध्ययन टिप्पणी / निर्देश (Notes & Protocol)</Text>
-              <TextInput
-                style={[styles.modalInput, { height: 60 }]}
-                placeholder="उदा. आशा कार्यकर्ताओं से क्लस्टर्ड डेटा क्यूआर द्वारा प्राप्त कर सत्यापन करें।"
-                value={newNotes}
-                onChangeText={setNewNotes}
-                multiline
-              />
-            </ScrollView>
-
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={handleCreateSession}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.createBtnText}>✓ स्टडी बनाएं एवं QR कोड उत्पन्न करें</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal 2: Generated Session QR Code for ASHA to Scan */}
-      {activeQrSession && (
-        <Modal visible={!!activeQrSession} transparent animationType="fade">
-          <View style={styles.modalOverlayCenter}>
-            <View style={styles.qrModalContent}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>{activeQrSession.title}</Text>
-                  <Text style={styles.modalSub}>
-                    {activeQrSession.category === 'CHILD_VAX'
-                      ? 'बाल टीकाकरण क्लस्टर'
-                      : activeQrSession.category === 'ANC'
-                      ? 'मातृ स्वास्थ्य क्लस्टर'
-                      : 'एनसीडी स्क्रीनिंग क्लस्टर'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => setActiveQrSession(null)}>
-                  <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* QR Code Presentation Box */}
-              <View style={styles.qrDisplayBox}>
-                <RealQrCode value={activeQrSession.qrCodeValue} size={180} />
-                <View style={styles.qrCodeTag}>
-                  <Text style={styles.qrCodeTagText}>{activeQrSession.qrCodeValue}</Text>
-                </View>
-              </View>
-
-              <Text style={styles.qrInstruction}>
-                📲 आशा कार्यकर्ता से कहें कि अपने फोन से इस QR कोड को स्कैन करें। डेटा तुरंत इस सत्र में क्लस्टर हो जाएगा।
-              </Text>
-
-              <TouchableOpacity
-                style={styles.doneBtn}
-                onPress={() => setActiveQrSession(null)}
-                activeOpacity={0.85}
-              >
-                <CheckCircle size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.doneBtnText}>पूर्ण (बंद करें)</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Modal 3: Clustered Records Drilldown */}
-      {inspectedSession && (
-        <Modal visible={!!inspectedSession} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>{inspectedSession.title}</Text>
-                  <Text style={styles.modalSub}>प्राप्त क्लस्टर्ड रिकॉर्ड सूची</Text>
-                </View>
-                <TouchableOpacity onPress={() => setInspectedSession(null)}>
-                  <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={{ maxHeight: 380 }}>
-                {inspectedSession.category === 'CHILD_VAX' ? (
-                  childVaccinations.map((c) => (
-                    <View key={c.id} style={styles.clusteredRecordItem}>
-                      <ShieldCheck size={16} color="#0284C7" style={{ marginRight: 8 }} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.recordName}>{c.childName}</Text>
-                        <Text style={styles.recordMeta}>
-                          पिता: {c.fatherName} • {c.ageMonths} माह • MCTS: {c.mctsCode}
-                        </Text>
-                      </View>
-                      <View style={styles.recordBadge}>
-                        <Text style={styles.recordBadgeText}>टीकाकरण पूर्ण</Text>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <View style={{ padding: 20, alignItems: 'center' }}>
-                    <CheckCircle size={32} color={Colors.visitedGreen} />
-                    <Text style={{ fontSize: 13, fontWeight: '700', marginTop: 8 }}>
-                      क्लस्टर डेटा सुरक्षित एवं समक्रमित है।
-                    </Text>
+                />
+                <View style={styles.sessionActions}>
+                  <View style={styles.flex}>
+                    <Button label={tr('QR दिखाएँ', 'QR दाखवा')} icon={QrCode} variant="secondary" onPress={() => setQrSession(s)} />
                   </View>
-                )}
-              </ScrollView>
-
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => setInspectedSession(null)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.closeBtnText}>बंद करें</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+                  {deletable ? (
+                    <IconButton icon={Trash2} tone="red" filled label={tr('सत्र हटाएँ', 'सत्र काढा')} onPress={() => deleteAnmSession(s.id)} />
+                  ) : null}
+                </View>
+              </Card>
+            );
+          })}
+        </View>
       )}
-    </View>
+
+      {/* Create session */}
+      <Sheet visible={showCreate} onClose={() => setShowCreate(false)} title={tr('नया सत्र', 'नवीन सत्र')} closeLabel={tr('बंद करें', 'बंद करा')}>
+        <Chips
+          value={newCategory}
+          onChange={setNewCategory}
+          options={(['CHILD_VAX', 'ANC', 'NCD'] as Category[]).map((c) => ({ key: c, label: catMeta(c).label, tone: catMeta(c).tone }))}
+        />
+        <Field
+          label={tr('सत्र का नाम', 'सत्राचे नाव')}
+          value={newTitle}
+          onChangeText={(v) => {
+            setNewTitle(v);
+            if (titleError) setTitleError(null);
+          }}
+          error={titleError}
+        />
+        <Field
+          label={tr('स्थान', 'ठिकाण')}
+          value={newLocation}
+          onChangeText={setNewLocation}
+          helper={tr('जैसे: आंगनवाड़ी केंद्र', 'उदा. अंगणवाडी केंद्र')}
+          right={<MapPin size={18} color={color.faint} />}
+        />
+        <Field label={tr('टिप्पणी', 'टीप')} value={newNotes} onChangeText={setNewNotes} multiline />
+        <Button label={tr('सत्र बनाएँ', 'सत्र तयार करा')} icon={QrCode} onPress={handleCreate} />
+      </Sheet>
+
+      {/* Session QR for ASHAs to scan */}
+      <Sheet
+        visible={!!qrSession}
+        onClose={() => setQrSession(null)}
+        title={qrSession?.title}
+        closeLabel={tr('बंद करें', 'बंद करा')}
+      >
+        {qrSession ? (
+          <View style={styles.qrWrap}>
+            <StatusPill tone={catMeta(qrSession.category).tone} label={catMeta(qrSession.category).label} />
+            <RealQrCode value={qrSession.qrCodeValue} size={220} label={qrSession.qrCodeValue} />
+            <Text style={[text.body, styles.center]}>{tr('आशा फोन से यह QR स्कैन करें', 'आशा फोनने हा QR स्कॅन करा')}</Text>
+            <Button label={tr('पूर्ण', 'पूर्ण')} icon={CircleCheck} onPress={() => setQrSession(null)} />
+          </View>
+        ) : null}
+      </Sheet>
+
+      {/* Session records */}
+      <Sheet visible={!!inspected} onClose={() => setInspected(null)} title={inspected?.title} closeLabel={tr('बंद करें', 'बंद करा')}>
+        {inspected ? (
+          inspected.category === 'CHILD_VAX' && childVaccinations.length > 0 ? (
+            <View style={styles.list}>
+              {childVaccinations.slice(0, 20).map((c) => {
+                const statuses = Object.values(c.vaccines || {});
+                const due = statuses.filter((v) => v === 'Due').length;
+                const given = statuses.filter((v) => v === 'Given').length;
+                return (
+                  <ListRow
+                    key={c.id}
+                    icon={Syringe}
+                    tone={due > 0 ? 'amber' : 'green'}
+                    title={c.childName}
+                    subtitle={`${c.ageMonths} ${tr('माह', 'महिने')}${c.mctsCode ? ` • ${c.mctsCode}` : ''}`}
+                    right={
+                      due > 0 ? (
+                        <StatusPill tone="amber" label={`${due} ${tr('देय', 'देय')}`} />
+                      ) : (
+                        <StatusPill tone="green" label={`${given} ${tr('दिए', 'दिल्या')}`} />
+                      )
+                    }
+                  />
+                );
+              })}
+            </View>
+          ) : (
+            <EmptyState
+              icon={inspected.recordsCount > 0 ? CircleCheck : Inbox}
+              tone={inspected.recordsCount > 0 ? 'green' : 'neutral'}
+              title={
+                inspected.recordsCount > 0
+                  ? `${inspected.recordsCount} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या')}`
+                  : tr('अभी कोई रिकॉर्ड नहीं', 'अजून नोंद नाही')
+              }
+            />
+          )
+        ) : null}
+      </Sheet>
+
+      {/* Receive ASHA data QR */}
+      <Sheet
+        visible={showScan}
+        onClose={() => {
+          setShowScan(false);
+          setScanNotice(null);
+        }}
+        title={tr('आशा QR स्कैन', 'आशा QR स्कॅन')}
+        closeLabel={tr('बंद करें', 'बंद करा')}
+      >
+        {scanNotice ? <StatusPill tone={scanNotice.tone} label={scanNotice.msg} /> : null}
+        {Platform.OS === 'web' ? (
+          <Button
+            label={tr('QR फोटो चुनें', 'QR फोटो निवडा')}
+            icon={ScanLine}
+            onPress={() => fileInputRef.current && fileInputRef.current.click()}
+          />
+        ) : null}
+        <Field label={tr('या कोड लिखें', 'किंवा कोड लिहा')} value={payload} onChangeText={setPayload} multiline />
+        <Button
+          label={tr('डेटा जोड़ें', 'डेटा जोडा')}
+          icon={CircleCheck}
+          disabled={!payload.trim()}
+          onPress={() => processPayload(payload.trim())}
+        />
+      </Sheet>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  content: {
-    padding: 14,
-    paddingBottom: 40,
-  },
-  actionBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  pageTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  pageSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  addBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  addBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  scanAshaBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  scanAshaBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  ashaScanNoticeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  ashaScanNoticeText: {
-    fontSize: 12,
-    color: '#065F46',
-    fontWeight: '600',
-    flex: 1,
-  },
-  scanActionRowAnm: {
-    marginBottom: 12,
-  },
-  scanPickBtn: {
-    backgroundColor: '#0284C7',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  scanPickBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  sampleChip: {
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  sampleChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  sessionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-  },
-  sessionTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F0F9FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  sessionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  sessionDate: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  studyTypeTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  studyTypeTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  studyLocationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  studyLocationText: {
-    fontSize: 10,
-    color: '#6B7280',
-  },
-  deleteSessionBtn: {
-    padding: 5,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  qrButtonText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  recordsSummaryBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F0F9FF',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#E0F2FE',
-  },
-  recordsCountText: {
-    fontSize: 11,
-    color: '#0369A1',
-    fontWeight: '600',
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalOverlayCenter: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  qrModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 14,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  modalSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 12,
-  },
-  catOption: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  catOptionActive: {
-    backgroundColor: '#DCFCE7',
-    borderColor: Colors.primary,
-  },
-  catOptionText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  catOptionTextActive: {
-    color: Colors.primaryDark,
-    fontWeight: '700',
-  },
-  modalInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: Colors.textPrimary,
-    marginBottom: 16,
-  },
-  createBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 13,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  createBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  qrDisplayBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  qrCodeTag: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 10,
-  },
-  qrCodeTagText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  qrInstruction: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 14,
-  },
-  doneBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    justifyContent: 'center',
-  },
-  doneBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  clusteredRecordItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  recordName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  recordMeta: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  recordBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  recordBadgeText: {
-    fontSize: 10,
-    color: '#15803D',
-    fontWeight: '700',
-  },
-  closeBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  closeBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  flex: { flex: 1 },
+  center: { textAlign: 'center' },
+  statsRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  vr: { width: 1, alignSelf: 'stretch', backgroundColor: color.line },
+  list: { gap: space.sm },
+  actionsRow: { flexDirection: 'row', gap: space.md },
+  sessionActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
+  qrWrap: { alignItems: 'center', gap: space.md },
 });

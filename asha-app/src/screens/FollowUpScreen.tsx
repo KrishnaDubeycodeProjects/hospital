@@ -1,542 +1,163 @@
+/**
+ * फॉलो-अप / रेफरल — referral & follow-up tasks with R/A/G status.
+ * Physical referral validation only (CHO-validated = green "सत्यापित"); no teleconsultation.
+ */
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  Linking,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import { Check, AlertCircle, Phone, Stethoscope, Clock, ShieldCheck, Pill } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, Linking } from 'react-native';
+import { Phone, Check, Route, CircleCheck, ShieldCheck, Pill, Clock, Activity } from 'lucide-react-native';
 import { useOfflineData } from '../context/OfflineDataContext';
-import { useLanguage } from '../context/LanguageContext';
+import { FollowUpTask } from '../types/storage';
+import { AppBar, Screen, Card, IconBadge, StatusPill, Segmented, EmptyState, SkeletonRows, Tone, color, radius, space, text, touch, useTr } from '../ui';
 
-export const FollowUpScreen: React.FC<{ onBack?: () => void }> = () => {
-  const { followUps, toggleFollowUp } = useOfflineData();
-  const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'Pending' | 'Completed'>('Pending');
+/** Server/legacy task text can carry English prefixes like "[Hospital Referral Missed]" — never show them. */
+const stripLatinPrefix = (s?: string) => (s || '').replace(/^\[[^\]]*\]\s*/, '').trim();
+const hasLatinWords = (s?: string) => /[A-Za-z]{3,}/.test(s || '');
 
-  const pendingCount = followUps.filter((t) => !t.isCompleted).length;
-  const completedCount = followUps.filter((t) => t.isCompleted).length;
+export const FollowUpScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
+  const tr = useTr();
+  const { followUps, toggleFollowUp, isLoading } = useOfflineData();
+  const [tab, setTab] = useState<'pending' | 'done'>('pending');
 
-  const filteredTasks = followUps.filter((t) =>
-    activeTab === 'Pending' ? !t.isCompleted : t.isCompleted
-  );
+  const pending = followUps.filter((t) => !t.isCompleted);
+  const done = followUps.filter((t) => t.isCompleted);
+  const list = tab === 'pending' ? pending : done;
 
-  const formatUrgency = (text: string, isReferral: boolean) => {
-    const lower = (text || '').toLowerCase();
-    if (lower.includes('7') || lower.includes('urgent') || lower.includes('अति') || isReferral) {
-      return 'गंभीर (Severe)';
-    }
-    if (lower.includes('15') || lower.includes('due') || lower.includes('समीक्षा')) {
-      return 'मध्यम (Medium)';
-    }
-    if (lower.includes('30') || lower.includes('routine') || lower.includes('नियमित')) {
-      return 'सामान्य (Normal)';
-    }
-    return text || 'सामान्य';
+  const statusOf = (t: FollowUpTask): { tone: Tone; label: string } => {
+    if (t.isCompleted) return { tone: 'green', label: tr('पूर्ण', 'पूर्ण') };
+    if (t.choStatus === 'APPROVED_CHO') return { tone: 'green', label: tr('सत्यापित', 'पडताळले') };
+    const missed = /missed/i.test(t.taskType) || (t.sourceReferralId != null && !t.referredToCho);
+    if (missed) return { tone: 'red', label: tr('छूटा रेफरल', 'चुकलेला संदर्भ') };
+    if (t.referredToCho) return { tone: 'amber', label: tr('सीएचओ समीक्षा', 'सीएचओ आढावा') };
+    return { tone: 'amber', label: tr('देय', 'देय') };
   };
 
   return (
-    <View style={styles.container}>
-      {/* Top Segmented Tabs */}
-      <View style={styles.tabSection}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'Pending' && styles.activeTabBtn]}
-          onPress={() => setActiveTab('Pending')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.tabBtnText,
-              activeTab === 'Pending' && styles.activeTabBtnText,
-            ]}
-          >
-            {t('pending')} ({pendingCount})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabBtn,
-            activeTab === 'Completed' && styles.activeTabBtn,
+    <View style={styles.flex}>
+      {onBack ? <AppBar title={tr('फॉलो-अप', 'पाठपुरावा')} onBack={onBack} backLabel={tr('वापस', 'मागे')} /> : null}
+      <Screen>
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          options={[
+            { key: 'pending', label: `${tr('बाकी', 'बाकी')} ${pending.length}`, icon: Clock },
+            { key: 'done', label: `${tr('पूर्ण', 'पूर्ण')} ${done.length}`, icon: CircleCheck },
           ]}
-          onPress={() => setActiveTab('Completed')}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.tabBtnText,
-              activeTab === 'Completed' && styles.activeTabBtnText,
-            ]}
-          >
-            {t('completed')} ({completedCount})
-          </Text>
-        </TouchableOpacity>
-      </View>
+        />
 
-      {/* Task List - Clean, Spacious Referral Cards */}
-      <FlatList
-        data={filteredTasks}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {activeTab === 'Pending'
-                ? t('noPendingTasks')
-                : t('noCompletedTasks')}
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const isReferralMissed =
-            item.taskType.toLowerCase().includes('hospital referral missed') ||
-            item.taskType.toLowerCase().includes('referral missed') ||
-            item.taskType.toLowerCase().includes('referral');
-
-          const urgencyLabel = formatUrgency(item.urgencyDays, isReferralMissed);
-          const isSevere = urgencyLabel.includes('Severe') || urgencyLabel.includes('गंभीर');
-          const isMedium = urgencyLabel.includes('Medium') || urgencyLabel.includes('मध्यम');
-
-          return (
-            <View
-              style={[
-                styles.taskCard,
-                isReferralMissed && styles.referralTaskCard,
-              ]}
-            >
-              <View style={styles.cardMainRow}>
-                {/* Beneficiary Avatar */}
-                <View
-                  style={[
-                    styles.avatarCircle,
-                    item.isCompleted && styles.completedAvatar,
-                    isReferralMissed && !item.isCompleted && styles.referralAvatar,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarInitials,
-                      item.isCompleted && styles.completedInitials,
-                      isReferralMissed && !item.isCompleted && styles.referralInitials,
-                    ]}
-                  >
-                    {item.initials}
-                  </Text>
+        {isLoading && followUps.length === 0 ? (
+          <SkeletonRows count={3} />
+        ) : list.length === 0 ? (
+          <EmptyState
+            icon={CircleCheck}
+            title={tab === 'pending' ? tr('कोई बाकी काम नहीं', 'बाकी काम नाही') : tr('अभी कुछ पूर्ण नहीं', 'अजून काही पूर्ण नाही')}
+          />
+        ) : (
+          list.map((item) => {
+            const st = statusOf(item);
+            const reason = stripLatinPrefix(item.referralReason || item.taskType);
+            return (
+              <Card key={item.id} tone={st.tone}>
+                <View style={styles.head}>
+                  <IconBadge icon={st.tone === 'green' ? CircleCheck : Route} tone={st.tone} />
+                  <View style={styles.flex}>
+                    <Text style={text.heading} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    {item.houseNumber ? (
+                      <Text style={text.caption}>
+                        {tr('घर', 'घर')} {item.houseNumber}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <StatusPill tone={st.tone} label={st.label} />
                 </View>
 
-                {/* Middle Information */}
-                <View style={styles.taskInfo}>
-                  {isReferralMissed && (
-                    <View style={styles.referralTagRow}>
-                      <AlertCircle size={12} color={Colors.urgentRed} style={{ marginRight: 4 }} />
-                      <Text style={styles.referralTagText}>अस्पताल रेफरल अनुवर्ती (REFERRAL FOLLOW-UP)</Text>
-                    </View>
-                  )}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={styles.taskName}>{item.name}</Text>
-                    {item.houseNumber && (
-                      <Text style={styles.houseTag}>घर नं. {item.houseNumber}</Text>
-                    )}
+                {reason && !hasLatinWords(reason) ? <Text style={[text.body, styles.gapTop]}>{reason}</Text> : null}
+
+                {item.vitals && !hasLatinWords(item.vitals) ? (
+                  <View style={styles.meta}>
+                    <Activity size={16} color={color.muted} strokeWidth={2} />
+                    <Text style={[text.caption, styles.flex]}>{item.vitals}</Text>
                   </View>
+                ) : null}
 
-                  {/* Attached Real Contact Number & ABHA Number */}
-                  <View style={styles.numberRow}>
-                    {item.phone && (
-                      <TouchableOpacity
-                        style={styles.phoneChip}
-                        onPress={() => Linking.openURL(`tel:${item.phone}`)}
-                        activeOpacity={0.7}
-                      >
-                        <Phone size={11} color="#0284C7" style={{ marginRight: 4 }} />
-                        <Text style={styles.phoneChipText}>{item.phone}</Text>
-                      </TouchableOpacity>
-                    )}
-                    {item.abhaNumber && (
-                      <View style={styles.abhaChip}>
-                        <ShieldCheck size={11} color="#059669" style={{ marginRight: 3 }} />
-                        <Text style={styles.abhaChipText}>ABHA: {item.abhaNumber}</Text>
-                      </View>
-                    )}
+                {item.prescriptionDetails ? (
+                  <View style={[styles.meta, styles.rx]}>
+                    <Pill size={16} color={color.amber} strokeWidth={2} />
+                    <Text style={[text.caption, styles.flex, { color: color.amberText }]}>{item.prescriptionDetails}</Text>
                   </View>
+                ) : null}
 
-                  <Text style={styles.taskType}>{item.taskType}</Text>
+                {item.choAdvice ? (
+                  <View style={styles.meta}>
+                    <ShieldCheck size={16} color={color.green} strokeWidth={2} />
+                    <Text style={[text.caption, styles.flex, { color: color.greenText }]}>{item.choAdvice}</Text>
+                  </View>
+                ) : null}
 
-                  {/* Doctor & Hospital Details */}
-                  {item.doctorName && (
-                    <View style={styles.doctorRow}>
-                      <Stethoscope size={11} color="#475569" style={{ marginRight: 4 }} />
-                      <Text style={styles.doctorText}>
-                        {item.doctorName} {item.hospitalName ? `(${item.hospitalName})` : ''}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Prescriptions & Prescription Deadline */}
-                  {item.prescriptionDetails && (
-                    <View style={styles.prescriptionBox}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                        <Pill size={11} color="#B45309" style={{ marginRight: 4 }} />
-                        <Text style={styles.prescriptionLabel}>दवा निर्देश (Prescription):</Text>
-                      </View>
-                      <Text style={styles.prescriptionText}>{item.prescriptionDetails}</Text>
-                      {item.prescriptionDeadline && (
-                        <View style={styles.deadlineContainer}>
-                          <Clock size={11} color="#DC2626" style={{ marginRight: 4 }} />
-                          <Text style={styles.deadlineText}>
-                            समयसीमा: {item.prescriptionDeadline}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Vitals & Observations */}
-                  {item.vitals && (
-                    <Text style={styles.vitalsText}>जाँच: {item.vitals}</Text>
-                  )}
-
-                  {/* CHO Status */}
-                  {item.referredToCho && (
-                    <View style={styles.choStatusRow}>
-                      <Text style={styles.choStatusLabel}>
-                        सीएचओ स्थिति:{' '}
-                        <Text style={{ fontWeight: '700', color: item.choStatus === 'APPROVED_CHO' ? '#15803D' : '#D97706' }}>
-                          {item.choStatus === 'APPROVED_CHO' ? '✓ स्वीकृत (Approved by CHO)' : '⏳ लंबित (Pending Review)'}
-                        </Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  <Text style={styles.taskDueDate}>देय तिथि: {item.dueDate}</Text>
-                </View>
-
-                {/* Right Action & Urgency Chip */}
-                <View style={styles.actionCol}>
-                  <View
-                    style={[
-                      styles.urgencyChip,
-                      isSevere
-                        ? styles.urgentRedChip
-                        : isMedium
-                        ? styles.urgentPinkChip
-                        : styles.urgentYellowChip,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.urgencyText,
-                        isSevere
-                          ? styles.urgentRedText
-                          : isMedium
-                          ? styles.urgentPinkText
-                          : styles.urgentYellowText,
-                      ]}
-                    >
-                      {urgencyLabel}
+                {item.dueDate && !hasLatinWords(item.dueDate) ? (
+                  <View style={styles.meta}>
+                    <Clock size={16} color={color.muted} strokeWidth={2} />
+                    <Text style={text.caption}>
+                      {tr('देय तिथि', 'देय तारीख')}: {item.dueDate}
                     </Text>
                   </View>
+                ) : null}
 
-                  <TouchableOpacity
-                    style={[
-                      styles.checkCircleBtn,
-                      item.isCompleted && styles.checkCircleCompleted,
-                    ]}
+                <View style={styles.actions}>
+                  {item.phone ? (
+                    <Pressable
+                      onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={tr('कॉल करें', 'कॉल करा')}
+                      style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+                    >
+                      <Phone size={18} color={color.accent} strokeWidth={2} />
+                      <Text style={styles.actionText}>{tr('कॉल करें', 'कॉल करा')}</Text>
+                    </Pressable>
+                  ) : null}
+                  <Pressable
                     onPress={() => toggleFollowUp(item.id)}
-                    activeOpacity={0.7}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: item.isCompleted }}
+                    accessibilityLabel={item.isCompleted ? tr('पूर्ण हटाएँ', 'पूर्ण काढा') : tr('पूर्ण करें', 'पूर्ण करा')}
+                    style={({ pressed }) => [styles.actionBtn, item.isCompleted && styles.actionDone, pressed && styles.pressed]}
                   >
-                    {item.isCompleted && <Check size={14} color="#FFFFFF" />}
-                  </TouchableOpacity>
+                    <Check size={18} color={item.isCompleted ? color.white : color.green} strokeWidth={2.4} />
+                    <Text style={[styles.actionText, { color: item.isCompleted ? color.white : color.greenText }]}>
+                      {item.isCompleted ? tr('पूर्ण', 'पूर्ण') : tr('पूर्ण करें', 'पूर्ण करा')}
+                    </Text>
+                  </Pressable>
                 </View>
-              </View>
-            </View>
-          );
-        }}
-      />
+              </Card>
+            );
+          })
+        )}
+      </Screen>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  flex: { flex: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  gapTop: { marginTop: space.md },
+  meta: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, marginTop: space.sm },
+  rx: { backgroundColor: color.amberSoft, borderRadius: radius.control, padding: space.sm },
+  actions: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
+  actionBtn: {
     flex: 1,
-    backgroundColor: Colors.background,
-  },
-  tabSection: {
+    minHeight: touch,
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    gap: 8,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-  },
-  activeTabBtn: {
-    backgroundColor: Colors.primary,
-  },
-  tabBtnText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  activeTabBtnText: {
-    color: '#FFFFFF',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.textMuted,
-  },
-  taskCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  cardMainRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  houseTag: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  numberRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 6,
-    marginVertical: 4,
-  },
-  phoneChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9FF',
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
+    borderColor: color.line,
+    backgroundColor: color.surface,
   },
-  phoneChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  abhaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-  },
-  abhaChipText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#047857',
-  },
-  doctorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  doctorText: {
-    fontSize: 11,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  prescriptionBox: {
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 6,
-  },
-  prescriptionLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-  prescriptionText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#78350F',
-  },
-  deadlineContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    backgroundColor: '#FEF2F2',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  deadlineText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-  vitalsText: {
-    fontSize: 11,
-    color: '#475569',
-    fontStyle: 'italic',
-    marginTop: 3,
-  },
-  choStatusRow: {
-    marginTop: 4,
-    paddingVertical: 2,
-  },
-  choStatusLabel: {
-    fontSize: 11,
-    color: '#334155',
-  },
-  avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  completedAvatar: {
-    backgroundColor: Colors.visitedGreenBg,
-  },
-  avatarInitials: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textSecondary,
-  },
-  completedInitials: {
-    color: Colors.visitedGreen,
-  },
-  taskInfo: {
-    flex: 1,
-    paddingRight: 6,
-  },
-  taskName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  taskType: {
-    fontSize: 12.5,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  taskDueDate: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 3,
-    fontWeight: '500',
-  },
-  actionCol: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    height: 52,
-  },
-  urgencyChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  urgentRedChip: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  urgentPinkChip: {
-    backgroundColor: '#FCE7F3',
-    borderWidth: 1,
-    borderColor: '#F9A8D4',
-  },
-  urgentYellowChip: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-  },
-  urgencyText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-  },
-  urgentRedText: {
-    color: '#DC2626',
-  },
-  urgentPinkText: {
-    color: '#BE185D',
-  },
-  urgentYellowText: {
-    color: '#B45309',
-  },
-  checkCircleBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkCircleCompleted: {
-    backgroundColor: Colors.visitedGreen,
-    borderColor: Colors.visitedGreen,
-  },
-  // Referral Task Card Accents
-  referralTaskCard: {
-    borderColor: '#FCA5A5',
-    borderLeftWidth: 5,
-    borderLeftColor: Colors.urgentRed,
-    backgroundColor: '#FFFAFA',
-  },
-  referralAvatar: {
-    backgroundColor: '#FEE2E2',
-  },
-  referralInitials: {
-    color: Colors.urgentRed,
-  },
-  referralTagRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  referralTagText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: Colors.urgentRed,
-    letterSpacing: 0.2,
-  },
+  actionDone: { backgroundColor: color.green, borderColor: color.green },
+  actionText: { ...text.label, color: color.accent },
+  pressed: { transform: [{ scale: 0.98 }] },
 });

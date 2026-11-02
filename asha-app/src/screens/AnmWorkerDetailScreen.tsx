@@ -1,199 +1,130 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import { ArrowLeft, ChevronRight } from 'lucide-react-native';
-import { StatusBadge } from '../components/StatusBadge';
+/**
+ * ANM → one ASHA: the members whose forms this ASHA has sent, grouped per member (newest first).
+ * Only real server data is shown; loading / empty / error states are explicit.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { HeartPulse, Baby, Activity, ClipboardList, CloudOff, RotateCcw, Inbox, type LucideIcon } from 'lucide-react-native';
+import { SyncApi, AnmSurveyForm } from '../api/syncApi';
+import { Screen, AppBar, Card, ListRow, StatusPill, SectionTitle, EmptyState, SkeletonRows, Button, Stat, Tone, color, space, useTr } from '../ui';
+
+export interface AnmMemberForms {
+  memberName: string;
+  familyHeadName?: string;
+  forms: AnmSurveyForm[];
+}
 
 interface AnmWorkerDetailScreenProps {
   ashaName?: string;
   village?: string;
+  ashaPhone?: string;
   onBack: () => void;
-  onSelectForm: () => void;
+  onSelectMember: (member: AnmMemberForms) => void;
 }
 
-const mockWorkerMembers = [
-  { id: 1, initials: 'SV', name: 'Suman Verma', details: 'Female • 28 yrs', isPregnant: true },
-  { id: 2, initials: 'RV', name: 'Rajesh Verma', details: 'Male • 35 yrs' },
-  { id: 3, initials: 'AV', name: 'Aarti Verma', details: 'Female • 16 yrs' },
-  { id: 4, initials: 'VV', name: 'Vivek Verma', details: 'Male • 10 yrs' },
-];
+export const categoryMeta = (
+  code: string,
+  tr: (hi: string, mr: string) => string
+): { icon: LucideIcon; tone: Tone; label: string } =>
+  code === 'PREGNANCY'
+    ? { icon: HeartPulse, tone: 'red', label: tr('गर्भावस्था', 'गर्भधारणा') }
+    : code === 'CHILD'
+    ? { icon: Baby, tone: 'accent', label: tr('बाल स्वास्थ्य', 'बाल आरोग्य') }
+    : code === 'DISEASE'
+    ? { icon: Activity, tone: 'amber', label: tr('रोग जांच', 'आजार तपासणी') }
+    : { icon: ClipboardList, tone: 'neutral', label: tr('सामान्य', 'सामान्य') };
 
 export const AnmWorkerDetailScreen: React.FC<AnmWorkerDetailScreenProps> = ({
-  ashaName = 'Sunita Devi',
-  village = 'Chandpur Village',
+  ashaName = '',
+  village,
+  ashaPhone,
   onBack,
-  onSelectForm,
+  onSelectMember,
 }) => {
-  const [activeTab, setActiveTab] = useState<'Members' | 'Surveys' | 'History'>('Members');
+  const tr = useTr();
+  const [forms, setForms] = useState<AnmSurveyForm[]>([]);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+
+  const load = useCallback(async () => {
+    if (!ashaPhone) {
+      setState('ready');
+      return;
+    }
+    setState('loading');
+    try {
+      setForms(await SyncApi.getAnmAshaForms(ashaPhone));
+      setState('ready');
+    } catch {
+      setState('error');
+    }
+  }, [ashaPhone]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const members = useMemo(() => {
+    const byKey = new Map<string, AnmMemberForms>();
+    for (const f of forms) {
+      const key = f.familyMemberId ? `m${f.familyMemberId}` : `f${f.id}`;
+      const g = byKey.get(key) || { memberName: f.memberName || tr('नाम दर्ज नहीं', 'नाव नोंद नाही'), familyHeadName: f.familyHeadName, forms: [] };
+      g.forms.push(f);
+      byKey.set(key, g);
+    }
+    return [...byKey.values()]; // server returns newest first, so groups keep that order
+  }, [forms, tr]);
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <ArrowLeft size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>{ashaName}</Text>
-          <Text style={styles.headerSub}>{village}</Text>
-        </View>
-        <View style={{ width: 30 }} />
-      </View>
-
-      {/* Tabs matching Screen 10 */}
-      <View style={styles.tabSection}>
-        {(['Members', 'Surveys', 'History'] as const).map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabBtn, isActive && styles.activeTabBtn]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[styles.tabText, isActive && styles.activeTabText]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Member Cards List */}
-      <FlatList
-        data={mockWorkerMembers}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={onSelectForm}
-            activeOpacity={0.7}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{item.initials}</Text>
-            </View>
-
-            <View style={styles.cardInfo}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.name}>{item.name}</Text>
-                {item.isPregnant && (
-                  <View style={{ marginLeft: 8 }}>
-                    <StatusBadge type="pregnant" />
-                  </View>
-                )}
+    <View style={styles.flex}>
+      <AppBar title={ashaName} subtitle={village || undefined} onBack={onBack} backLabel={tr('वापस', 'मागे')} />
+      <Screen>
+        {state === 'loading' ? (
+          <SkeletonRows count={5} />
+        ) : state === 'error' ? (
+          <EmptyState
+            icon={CloudOff}
+            tone="amber"
+            title={tr('डेटा लोड नहीं हुआ', 'डेटा लोड झाला नाही')}
+            action={<Button label={tr('फिर कोशिश', 'पुन्हा प्रयत्न')} icon={RotateCcw} variant="secondary" full={false} onPress={load} />}
+          />
+        ) : members.length === 0 ? (
+          <EmptyState icon={Inbox} tone="neutral" title={tr('अभी कोई फॉर्म नहीं', 'अजून फॉर्म नाही')} />
+        ) : (
+          <>
+            <Card>
+              <View style={styles.statsRow}>
+                <Stat value={forms.length} label={tr('फॉर्म', 'फॉर्म')} tone="amber" />
+                <View style={styles.vr} />
+                <Stat value={members.length} label={tr('सदस्य', 'सदस्य')} tone="neutral" />
               </View>
-              <Text style={styles.details}>{item.details}</Text>
+            </Card>
+            <SectionTitle label={tr('सदस्य', 'सदस्य')} count={members.length} />
+            <View style={styles.list}>
+              {members.map((m, i) => {
+                const meta = categoryMeta(m.forms[0].categoryCode, tr);
+                return (
+                  <ListRow
+                    key={`${m.memberName}-${i}`}
+                    icon={meta.icon}
+                    tone={meta.tone}
+                    title={m.memberName}
+                    subtitle={m.familyHeadName ? `${tr('परिवार', 'कुटुंब')}: ${m.familyHeadName}` : undefined}
+                    onPress={() => onSelectMember(m)}
+                    right={<StatusPill tone={meta.tone} label={m.forms.length > 1 ? `${meta.label} +${m.forms.length - 1}` : meta.label} />}
+                  />
+                );
+              })}
             </View>
-
-            <ChevronRight size={18} color={Colors.textMuted} />
-          </TouchableOpacity>
+          </>
         )}
-      />
+      </Screen>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 45,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  headerSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  tabSection: {
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: Colors.grayBg,
-    marginHorizontal: 4,
-  },
-  activeTabBtn: {
-    backgroundColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-  },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#FCE7F3',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#BE185D',
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  details: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
+  flex: { flex: 1, backgroundColor: color.canvas },
+  statsRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  vr: { width: 1, alignSelf: 'stretch', backgroundColor: color.line },
+  list: { gap: space.sm },
 });

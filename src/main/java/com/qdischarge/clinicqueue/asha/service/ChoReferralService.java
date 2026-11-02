@@ -56,6 +56,28 @@ public class ChoReferralService {
         return n != null ? n : 0;
     }
 
+    /** True when the ASHA (any phone format) is an active worker in the CHO's sector. */
+    public boolean isAshaInSector(String choPhone, String ashaPhone) {
+        String asha = lastTenDigits(ashaPhone);
+        if (asha.isEmpty() || lastTenDigits(choPhone).isEmpty()) return false;
+        Integer n = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM (" + SECTOR_PHONES + ") s(p) WHERE s.p = :asha",
+                new MapSqlParameterSource("cho", lastTenDigits(choPhone)).addValue("asha", asha), Integer.class);
+        return n != null && n > 0;
+    }
+
+    /** True when the ASHA (any phone format) is an active worker assigned to this ANM. */
+    public boolean isAshaAssignedToAnm(String anmPhone, String ashaPhone) {
+        String asha = lastTenDigits(ashaPhone);
+        String anm = lastTenDigits(anmPhone);
+        if (asha.isEmpty() || anm.isEmpty()) return false;
+        Integer n = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM clinicqueue.asha_workers a WHERE (a.is_active IS NULL OR a.is_active = TRUE) AND "
+                        + d10("a.phone") + " = :asha AND " + d10("a.anm_phone") + " = :anm",
+                new MapSqlParameterSource("asha", asha).addValue("anm", anm), Integer.class);
+        return n != null && n > 0;
+    }
+
     public List<Map<String, Object>> listSectorReferrals(String choPhone, boolean pendingOnly) {
         syncService.ensureSyncSchema();
         String sql = """

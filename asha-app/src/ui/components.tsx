@@ -16,6 +16,8 @@ import {
   ViewStyle,
   StyleProp,
   KeyboardTypeOptions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
@@ -486,14 +488,16 @@ export const Sheet: React.FC<{
 }> = ({ visible, onClose, title, closeLabel, children }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={closeLabel} />
-    <View style={styles.sheet}>
-      <View style={styles.sheetHandle} />
-      <View style={styles.sheetHeader}>
-        <Text style={text.title}>{title}</Text>
-        <IconButton icon={X} onPress={onClose} label={closeLabel} />
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <Text style={text.title}>{title}</Text>
+          <IconButton icon={X} onPress={onClose} label={closeLabel} />
+        </View>
+        {children}
       </View>
-      {children}
-    </View>
+    </KeyboardAvoidingView>
   </Modal>
 );
 
@@ -673,6 +677,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingBottom: space.xxl,
     gap: space.lg,
+    maxHeight: 640,
   },
   sheetHandle: {
     alignSelf: 'center',

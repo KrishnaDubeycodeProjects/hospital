@@ -67,4 +67,35 @@ class ChoReferralServiceTest {
         when(jdbc.query(startsWith("UPDATE"), any(SqlParameterSource.class), any(RowMapper.class))).thenReturn((List) List.of(42));
         assertEquals(ChoReferralService.ApproveOutcome.APPROVED, service.approve("9876522222", 42, " "));
     }
+
+    @Test
+    void anmAccessRequiresAssignmentOnLastTenDigits() {
+        when(jdbc.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class))).thenReturn(1);
+        assertTrue(service.isAshaAssignedToAnm("+91 98765 11111", "+919876543210"));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbc).queryForObject(sql.capture(), params.capture(), eq(Integer.class));
+        assertTrue(sql.getValue().contains("a.anm_phone"), sql.getValue());
+        MapSqlParameterSource p = (MapSqlParameterSource) params.getValue();
+        assertEquals("9876511111", p.getValue("anm"));
+        assertEquals("9876543210", p.getValue("asha"));
+    }
+
+    @Test
+    void anmAccessDeniedWhenNotAssignedOrPhoneMissing() {
+        when(jdbc.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class))).thenReturn(0);
+        assertFalse(service.isAshaAssignedToAnm("9876511111", "9876543210"));
+        assertFalse(service.isAshaAssignedToAnm("9876511111", null));
+        assertFalse(service.isAshaInSector(null, "9876543210"));
+    }
+
+    @Test
+    void choAccessIsScopedToSector() {
+        when(jdbc.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class))).thenReturn(1);
+        assertTrue(service.isAshaInSector("9876522222", "9876543210"));
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForObject(sql.capture(), any(SqlParameterSource.class), eq(Integer.class));
+        assertTrue(sql.getValue().contains("asha_workers") && sql.getValue().contains(":asha"), sql.getValue());
+    }
 }

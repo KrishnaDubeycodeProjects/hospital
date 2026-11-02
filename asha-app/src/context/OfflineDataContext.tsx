@@ -458,7 +458,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       recordsCount: 0,
       studyType: data.studyType || `${data.category} Field Study`,
       notes: data.notes || '',
-      location: data.location || 'Chandpur Health Centre',
+      location: data.location || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

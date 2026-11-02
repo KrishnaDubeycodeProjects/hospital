@@ -26,6 +26,41 @@ const getBackendBaseUrl = (): string => {
 
 const BACKEND_BASE_URL = getBackendBaseUrl();
 
+/** Row of GET /api/anm/ashas (AshaWorkerDto). */
+export interface AnmAshaWorker {
+  id?: number;
+  phone: string;
+  name: string;
+  villageName?: string;
+}
+
+/** Row of GET /api/anm/data/{ashaPhone}/forms (SurveyResponseDto). */
+export interface AnmSurveyForm {
+  id: number;
+  familyUnitId?: number;
+  familyMemberId?: number;
+  categoryCode: 'PREGNANCY' | 'DISEASE' | 'CHILD' | 'GENERAL' | string;
+  ashaWorkerPhone: string;
+  answers?: Record<string, any>;
+  syncedAt?: string;
+  offlineId?: string;
+  createdAt?: string;
+  memberName?: string;
+  familyHeadName?: string;
+}
+
+/** Row of GET /api/asha/cho/workers (ChoReferralService.listSectorWorkers). */
+export interface ChoSectorWorker {
+  phone: string;
+  name: string;
+  villageName?: string | null;
+  role: 'ASHA' | 'ANM' | string;
+  familyCount: number;
+  surveyCount: number;
+  referralCount: number;
+  pendingReferralCount: number;
+}
+
 // Required for ngrok free tier to skip the browser warning interstitial page
 const NGROK_HEADERS: Record<string, string> = {
   'ngrok-skip-browser-warning': '1',
@@ -103,6 +138,49 @@ export class SyncApi {
     } catch {
       return [];
     }
+  }
+
+  /** ASHAs assigned to the signed-in ANM. Throws on network/HTTP failure so callers can show a retry state. */
+  static async getAnmAshas(): Promise<AnmAshaWorker[]> {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/anm/ashas`, { headers: { ...NGROK_HEADERS, ...authHeader() } });
+    if (!res.ok) throw new Error(`ashas ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  /** All forms an ASHA has sent to ANM (newest first). Throws on failure. */
+  static async getAnmAshaForms(ashaPhone: string): Promise<AnmSurveyForm[]> {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/anm/data/${encodeURIComponent(ashaPhone)}/forms`, {
+      headers: { ...NGROK_HEADERS, ...authHeader() },
+    });
+    if (!res.ok) throw new Error(`forms ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  /**
+   * Workers in the signed-in CHO's sector with live activity counts.
+   * A CHO with no registered workers yet gets 403 NO_SECTOR, which is returned as an empty list.
+   * Throws on network/other HTTP failure so callers can show a retry state.
+   */
+  static async getChoSectorWorkers(): Promise<ChoSectorWorker[]> {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/asha/cho/workers`, { headers: { ...NGROK_HEADERS, ...authHeader() } });
+    if (res.status === 403) {
+      const body = await res.json().catch(() => null);
+      if (body && body.error === 'NO_SECTOR') return [];
+      throw new Error('cho workers 403');
+    }
+    if (!res.ok) throw new Error(`cho workers ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data)
+      ? data.map((w: any) => ({
+          ...w,
+          familyCount: Number(w.familyCount) || 0,
+          surveyCount: Number(w.surveyCount) || 0,
+          referralCount: Number(w.referralCount) || 0,
+          pendingReferralCount: Number(w.pendingReferralCount) || 0,
+        }))
+      : [];
   }
 
   /**
