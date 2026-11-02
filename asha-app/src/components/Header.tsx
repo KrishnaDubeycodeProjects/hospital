@@ -63,17 +63,12 @@ const styles = StyleSheet.create({
     borderBottomColor: color.line,
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
-  // Brand squircle: white background, rounded-square (matches the official logo treatment)
+  // Brand logo: clear emblem
   logoSquircle: {
     width: 36,
     height: 36,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: color.line,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 3,
   },
   logo: { width: '100%', height: '100%' },
   right: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

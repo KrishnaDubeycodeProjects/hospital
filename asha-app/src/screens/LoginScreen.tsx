@@ -197,22 +197,12 @@ const styles = StyleSheet.create({
   langText: { fontSize: 14, fontWeight: '700', color: color.muted, lineHeight: 19 },
   langTextActive: { color: color.accentPressed },
   brand: { alignItems: 'center', gap: space.sm },
-  // Official brand treatment: white squircle (radius 24)
+  // Official brand treatment: clear logo
   logoSquircle: {
     width: 96,
     height: 96,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: color.line,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
   },
   logo: { width: '100%', height: '100%' },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.lg },

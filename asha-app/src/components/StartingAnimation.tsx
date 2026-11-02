@@ -7,29 +7,21 @@ import {
   Image,
   Platform,
   Easing,
-  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
-import { Colors } from '../theme/colors';
 
 interface StartingAnimationProps {
   onAnimationFinish?: () => void;
   minDurationMs?: number;
 }
 
-const { width } = Dimensions.get('window');
-
 export const StartingAnimation: React.FC<StartingAnimationProps> = ({
   onAnimationFinish,
   minDurationMs = 2200,
 }) => {
-  const scaleAnim = useRef(new Animated.Value(0.15)).current;
-  const logoZoomPulse = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const glowScale = useRef(new Animated.Value(0.9)).current;
-  const glowOpacity = useRef(new Animated.Value(0.3)).current;
-  const textTranslateY = useRef(new Animated.Value(30)).current;
-  const textOpacity = useRef(new Animated.Value(0)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
+  const contentFadeAnim = useRef(new Animated.Value(0)).current;
   const [statusText, setStatusText] = useState('डिजिटल स्वास्थ्य प्रणाली प्रारंभ हो रही है...');
 
   const logoSource =
@@ -38,96 +30,29 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
       : require('../../assets/aarogya_flow_icon_transparent_hd.png');
 
   useEffect(() => {
-    // 1. Entrance animation (Dramatic logo zoom-in & fade)
+    // 1. Entrance animation (Clear logo fade & gentle scale)
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 5,
-        tension: 38,
+        friction: 6,
+        tension: 40,
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 700,
+        duration: 500,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
-      Animated.timing(textOpacity, {
+      Animated.timing(contentFadeAnim, {
         toValue: 1,
-        duration: 800,
-        delay: 300,
+        duration: 600,
+        delay: 200,
         useNativeDriver: true,
-      }),
-      Animated.spring(textTranslateY, {
-        toValue: 0,
-        friction: 7,
-        tension: 45,
-        delay: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(progressAnim, {
-        toValue: 1,
-        duration: minDurationMs - 200,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: false,
       }),
     ]).start();
 
-    // 2. Continuous ambient pulse for the glow ring behind the logo
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(glowScale, {
-            toValue: 1.25,
-            duration: 1100,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowOpacity, {
-            toValue: 0.75,
-            duration: 1100,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(glowScale, {
-            toValue: 0.95,
-            duration: 1100,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowOpacity, {
-            toValue: 0.25,
-            duration: 1100,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ]),
-      ])
-    );
-    pulseLoop.start();
-
-    // 3. Continuous ambient zooming breath loop for the logo
-    const logoZoomLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoZoomPulse, {
-          toValue: 1.07,
-          duration: 1100,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(logoZoomPulse, {
-          toValue: 0.98,
-          duration: 1100,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    logoZoomLoop.start();
-
-    // Staggered status messages
+    // 2. Status message updates
     const timer1 = setTimeout(() => {
       setStatusText('ऑफ़लाइन डेटाबेस और सिंक तैयार हो रहा है...');
     }, 800);
@@ -143,41 +68,21 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
     }, minDurationMs);
 
     return () => {
-      pulseLoop.stop();
-      logoZoomLoop.stop();
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(finishTimer);
     };
   }, []);
 
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
-  });
-
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.contentBox, { opacity: fadeAnim }]}>
-        {/* Glowing Aura Ring */}
+        {/* Clear Logo — No blue highlights, glow rings, or borders */}
         <Animated.View
           style={[
-            styles.glowRing,
+            styles.logoContainer,
             {
-              transform: [{ scale: glowScale }],
-              opacity: glowOpacity,
-            },
-          ]}
-        />
-
-        {/* Outer Logo Badge Frame (Round Square with White Background) */}
-        <Animated.View
-          style={[
-            styles.logoWrapper,
-            {
-              transform: [
-                { scale: Animated.multiply(scaleAnim, logoZoomPulse) },
-              ],
+              transform: [{ scale: scaleAnim }],
             },
           ]}
         >
@@ -188,38 +93,39 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
           />
         </Animated.View>
 
-        {/* Animated Brand Titles */}
+        {/* Brand Titles & Indian Flag NHM Line */}
         <Animated.View
           style={[
             styles.textContainer,
             {
-              opacity: textOpacity,
-              transform: [{ translateY: textTranslateY }],
+              opacity: contentFadeAnim,
             },
           ]}
         >
           <Text style={styles.appTitle}>आरोग्य प्रवाह</Text>
           <Text style={styles.appTitleEn}>Aarogya Flow</Text>
+
+          {/* NHM line with Indian flag below the logo */}
           <View style={styles.badgeRow}>
             <View style={styles.nhmBadge}>
+              <Text style={styles.flagEmoji}>🇮🇳</Text>
               <Text style={styles.nhmBadgeText}>राष्ट्रीय स्वास्थ्य मिशन (NHM)</Text>
             </View>
           </View>
+
           <Text style={styles.tagline}>सशक्त आशा • स्वस्थ परिवार • सुरक्षित समाज</Text>
         </Animated.View>
 
-        {/* Progress Bar & Status Text */}
-        <Animated.View style={[styles.loadingBox, { opacity: textOpacity }]}>
-          <View style={styles.progressBarTrack}>
-            <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
-          </View>
+        {/* In-Between Loading Feature (Clean Spinner rather than sliding) */}
+        <Animated.View style={[styles.loadingBox, { opacity: contentFadeAnim }]}>
+          <ActivityIndicator size="small" color="#059669" style={styles.spinner} />
           <Text style={styles.statusLabel}>{statusText}</Text>
         </Animated.View>
       </Animated.View>
 
       {/* Official Footer Notice */}
       <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>स्वास्थ्य एवं परिवार कल्याण मंत्रालय</Text>
+        <Text style={styles.footerText}>🇮🇳 स्वास्थ्य एवं परिवार कल्याण मंत्रालय</Text>
         <Text style={styles.footerSubText}>Ministry of Health and Family Welfare, Govt. of India</Text>
       </View>
     </View>
@@ -242,40 +148,20 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 360,
   },
-  glowRing: {
-    position: 'absolute',
-    top: -20,
-    width: 176,
-    height: 176,
-    borderRadius: 48,
-    backgroundColor: '#93C5FD',
-    zIndex: 0,
-  },
-  logoWrapper: {
-    width: 136,
-    height: 136,
-    borderRadius: 34, // Round square / squircle
-    backgroundColor: '#FFFFFF',
+  // Pure clear logo: zero borders, zero blue aura, zero background box
+  logoContainer: {
+    width: 120,
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    elevation: 12,
-    borderWidth: 3,
-    borderColor: '#DBEAFE',
-    zIndex: 1,
-    marginBottom: 26,
+    marginBottom: 24,
   },
   logoImage: {
-    width: 108,
-    height: 108,
+    width: 116,
+    height: 116,
   },
   textContainer: {
     alignItems: 'center',
-    marginBottom: 32,
   },
   appTitle: {
     fontSize: 28,
@@ -286,7 +172,7 @@ const styles = StyleSheet.create({
   appTitleEn: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.primary,
+    color: '#059669',
     letterSpacing: 1.2,
     marginTop: 2,
     textTransform: 'uppercase',
@@ -296,17 +182,23 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   nhmBadge: {
-    backgroundColor: '#EFF6FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#E2E8F0',
+    gap: 6,
+  },
+  flagEmoji: {
+    fontSize: 14,
   },
   nhmBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#1D4ED8',
+    color: '#0F172A',
   },
   tagline: {
     fontSize: 13,
@@ -315,22 +207,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  // Loading feature in between rather than sliding bar
   loadingBox: {
-    width: '85%',
+    marginTop: 32,
     alignItems: 'center',
+    gap: 10,
   },
-  progressBarTrack: {
-    width: '100%',
-    height: 5,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 3,
+  spinner: {
+    transform: [{ scale: 1.1 }],
   },
   statusLabel: {
     fontSize: 12,
@@ -345,12 +229,12 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: '#64748B',
     fontWeight: '600',
   },
   footerSubText: {
     fontSize: 10,
-    color: '#CBD5E1',
+    color: '#94A3B8',
     fontWeight: '400',
     marginTop: 1,
   },

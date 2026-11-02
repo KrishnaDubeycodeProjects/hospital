@@ -23,12 +23,17 @@ import {
   ChevronUp,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { NhmCoursesCard } from '../components/NhmCoursesCard';
 import { Screen, Card, ListRow, SectionTitle, Button, StatusPill, color, space, text, useTr } from '../ui';
 
 export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpenMeetings }) => {
   const { user, logout } = useAuth();
+  const { families } = useOfflineData();
+  // ASHA: live count of her registered households on this device (includes families added since
+  // login and everything merged from the server); other cadres use the server-reported figure.
+  const householdCount = user.role === 'ASHA' ? families.length : user.householdCount;
   const { language, setLanguage, ttsEnabled, setTtsEnabled } = useLanguage();
   const tr = useTr();
   const [coursesOpen, setCoursesOpen] = useState(false);
@@ -102,10 +107,10 @@ export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpe
       <View style={styles.list}>
         <ListRow icon={MapPin} title={user.village || '—'} subtitle={area || undefined} />
         <ListRow icon={Phone} tone="neutral" title={user.phone || '—'} />
-        {user.householdCount != null ? (
+        {householdCount != null ? (
           <ListRow
             icon={House}
-            title={`${user.householdCount} ${tr('परिवार', 'कुटुंबे')}`}
+            title={`${householdCount} ${tr('परिवार', 'कुटुंबे')}`}
             subtitle={tr('आवंटित घर', 'नेमून दिलेली घरे')}
           />
         ) : null}
@@ -178,23 +183,13 @@ const styles = StyleSheet.create({
   list: { gap: space.sm },
   headerCard: { alignItems: 'center', gap: space.sm, paddingVertical: space.xl },
   avatarTouch: { alignItems: 'center', justifyContent: 'center', marginBottom: space.sm },
-  // Official squircle: white, radius 24 (preserved)
+  // Clear avatar logo
   avatarSquircle: {
     width: 92,
     height: 92,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
-    borderWidth: 2,
-    borderColor: color.accentLine,
-    shadowColor: color.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 6,
   },
-  logo: { width: 74, height: 74 },
+  logo: { width: 88, height: 88 },
   confirmRow: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
 });
