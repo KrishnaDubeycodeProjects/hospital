@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { OfflineDataProvider, useOfflineData } from './src/context/OfflineDataContext';
 import { Header } from './src/components/Header';
+import { FailedSyncBar } from './src/components/FailedSyncBar';
 import { BottomNav, TabKey } from './src/components/BottomNav';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { Colors } from './src/theme/colors';
@@ -291,6 +292,7 @@ const MainAppContent: React.FC = () => {
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         {/* Universal Top Header with Aarogya Flow branding and offline sync status */}
         {!isFormFilling && <Header />}
+        {!isFormFilling && <FailedSyncBar />}
 
         {/* Main Screen Surface */}
         <View style={styles.body}>{renderActiveScreen()}</View>

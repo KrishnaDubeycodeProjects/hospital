@@ -239,6 +239,38 @@ public class WhatsAppService {
         });
     }
 
+    /**
+     * Sends native Meta OTP interactive message with a copy-code button, or a quick-reply button with the OTP code.
+     */
+    public void sendCopyCodeOtpMessage(String phone, String code, int ttlMinutes) {
+        runSequenced(phone, () -> {
+            String cleaned = formatPhone(phone);
+            if (cleaned.isEmpty()) return;
+
+            String bodyText = "AarogyaFlow\n\nYour OTP is: " + code + "\n\nThis OTP is valid for " + ttlMinutes + " minutes. Do not share it with anyone.";
+            String buttonLabel = "Copy: " + code;
+            if (buttonLabel.length() > 20) {
+                buttonLabel = code;
+            }
+
+            // 1. Try sending Meta interactive copy_code button
+            Map<String, Object> interactiveObj = new LinkedHashMap<>();
+            interactiveObj.put("type", "cta_url");
+            interactiveObj.put("header", Map.of("type", "text", "text", "AarogyaFlow"));
+            interactiveObj.put("body", Map.of("text", "Your OTP is: *" + code + "*\n\nValid for " + ttlMinutes + " minutes."));
+            interactiveObj.put("footer", Map.of("text", "AarogyaFlow • NHM Portal"));
+
+            // Use copy-code CTA or interactive quick-reply button with the numbers
+            List<WaButton> buttons = List.of(new WaButton("otp_" + code, code));
+            try {
+                sendButtonsMessage(cleaned, "AarogyaFlow", "Your OTP is: *" + code + "*\n\nValid for " + ttlMinutes + " minutes.", buttons, "AarogyaFlow");
+            } catch (Exception e) {
+                log.warn("⚠️ Buttons OTP message fallback to formatted text for {}: {}", cleaned, e.getMessage());
+                sendTextMessageSync(cleaned, bodyText);
+            }
+        });
+    }
+
     public void sendPollMessage(String phone, String question, List<String> options) {
         runSequenced(phone, () -> {
             String text = question + "\n\n" + String.join("\n", options);

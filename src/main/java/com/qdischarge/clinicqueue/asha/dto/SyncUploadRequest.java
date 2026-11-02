@@ -29,9 +29,19 @@ public class SyncUploadRequest {
     /** Completed follow-up tasks with offline_id */
     private List<Map<String, Object>> followUps;
 
-    /** Soft-deleted family unit IDs or sequential numbers */
+    /** ASHA meeting records (VHSNC / Gram Sabha) keyed by clientUuid */
+    private List<Map<String, Object>> meetings;
+
+    /**
+     * Sync contract v2 tombstones: each entry carries outboxId, clientUuid, optional serverId
+     * and (families) sequentialNumber, so deletes bind to the exact record.
+     */
+    private List<Map<String, Object>> deletedFamilies;
+    private List<Map<String, Object>> deletedMembers;
+
+    /** Legacy (v1): soft-deleted family unit IDs or sequential numbers */
     private List<Object> deletedFamilyIds;
 
-    /** Soft-deleted family member IDs */
+    /** Legacy (v1): soft-deleted family member IDs */
     private List<Object> deletedMemberIds;
 }

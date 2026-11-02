@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from './AuthContext';
+import { useLanguage } from './LanguageContext';
 import {
   FamilyUnit,
   FamilyMember,
@@ -25,6 +26,10 @@ interface OfflineDataContextType {
   anmSessions: AnmSessionFolder[];
   outbox: OutboxItem[];
   pendingSyncCount: number;
+  /** Outbox records the server rejected (kept locally, never deleted). */
+  failedSyncCount: number;
+  /** Re-queue every failed record and sync immediately. */
+  retryFailedRecords: () => Promise<SyncResult | null>;
   isLoading: boolean;
   isSyncing: boolean;
   isOnline: boolean;
@@ -104,6 +109,10 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
 
   const prevOnlineRef = useRef(false);
+  const netInfoConnectedRef = useRef<boolean | null>(null);
+  const { language } = useLanguage();
+  const languageRef = useRef(language);
+  languageRef.current = language;
 
   // Synchronize storage partition whenever active user/phone switches
   useEffect(() => {
@@ -143,18 +152,43 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [user?.phone]);
 
-  const triggerSync = useCallback(async (): Promise<SyncResult> => {
-    setIsSyncing(true);
-    try {
-      const cleanPhone = user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : '9876543210';
-      const result = await SyncApi.syncOutbox(cleanPhone);
-      setLastSyncResult(result);
-      await refreshData();
-      return result;
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [user?.phone, refreshData]);
+  /**
+   * Core sync runner. `force` bypasses the failure backoff (used for manual taps);
+   * automatic triggers respect it. Never syncs before a worker is logged in, so records
+   * are never uploaded/downloaded under a placeholder phone.
+   */
+  const runSync = useCallback(
+    async (force: boolean): Promise<SyncResult> => {
+      const cleanPhone = user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : '';
+      if (cleanPhone.length !== 10) {
+        return {
+          success: false,
+          mode: 'OFFLINE_QUEUED',
+          message: languageRef.current === 'mr' ? 'लॉगिननंतर सिंक होईल' : 'लॉगिन के बाद सिंक होगा',
+          syncedCount: 0,
+        };
+      }
+      setIsSyncing(true);
+      try {
+        const result = await SyncApi.syncOutbox(cleanPhone, 'CHILD_VAX', {
+          lang: languageRef.current,
+          force,
+          role: user?.role,
+        });
+        setLastSyncResult(result);
+        await refreshData();
+        return result;
+      } finally {
+        setIsSyncing(SyncApi.isSyncInFlight());
+      }
+    },
+    [user?.phone, user?.role, refreshData]
+  );
+
+  // Manual sync (header button, Send Data screen) — always attempts immediately.
+  const triggerSync = useCallback(() => runSync(true), [runSync]);
+  // Automatic sync (heartbeat, reconnect, after local writes) — respects backoff.
+  const autoSync = useCallback(() => runSync(false), [runSync]);
 
   // Helper to immediately push changes to the cloud if internet connectivity is available
   const syncIfOnline = useCallback(async () => {
@@ -162,12 +196,12 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       const online = await SyncApi.pingServer();
       setIsOnline(online);
       if (online) {
-        await triggerSync();
+        await autoSync();
       }
     } catch (e) {
       console.warn('Sync check failed:', e);
     }
-  }, [triggerSync]);
+  }, [autoSync]);
 
   // Network connectivity listener and auto-synchronization:
   // Immediately synchronizes queued operations as soon as the device/browser reconnects to the internet!
@@ -187,9 +221,9 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         const pendingItems = await OfflineStorageService.getPendingOutbox();
         const hasPending = pendingItems.length > 0;
 
-        if (online && (!prevOnlineRef.current || hasPending)) {
+        if (online && (!prevOnlineRef.current || hasPending) && !SyncApi.isSyncInFlight()) {
           console.log(`🌐 Online connection active (${pendingItems.length} pending records). Auto-synchronizing with cloud...`);
-          await triggerSync();
+          await autoSync();
         }
         prevOnlineRef.current = online;
       } catch (err) {
@@ -215,13 +249,19 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     // 1. Native mobile connectivity listener via NetInfo (instantaneous connection change detection)
+    // Only an offline -> online transition triggers a sync; NetInfo also fires on
+    // subscribe and on every reachability/wifi-detail change, which previously caused
+    // a burst of overlapping syncs.
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const wasConnected = netInfoConnectedRef.current;
+      netInfoConnectedRef.current = isConnected;
       setIsOnline(isConnected);
-      if (isConnected) {
+      if (isConnected && wasConnected !== true) {
         console.log('⚡ [NetInfo] Mobile network ONLINE! Triggering immediate cloud sync...');
-        triggerSync().catch(() => {});
-      } else {
+        performConnectivityCheck();
+      } else if (!isConnected) {
+        prevOnlineRef.current = false;
         console.log('📴 [NetInfo] Mobile network OFFLINE. Local storage active.');
       }
     });
@@ -243,7 +283,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         window.removeEventListener('offline', handleOfflineEvent);
       }
     };
-  }, [refreshData, triggerSync]);
+  }, [refreshData, autoSync]);
 
   const addFamily = async (
     family: Omit<FamilyUnit, 'id' | 'updatedAt'>
@@ -448,6 +488,14 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const pendingSyncCount = outbox.filter((i) => i.status === 'PENDING').length;
+  const failedSyncCount = outbox.filter((i) => i.status === 'FAILED').length;
+
+  const retryFailedRecords = async (): Promise<SyncResult | null> => {
+    const requeued = await OfflineStorageService.requeueFailedOutbox();
+    await refreshData();
+    if (requeued === 0) return null;
+    return triggerSync();
+  };
 
   return (
     <OfflineDataContext.Provider
@@ -461,6 +509,8 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         anmSessions,
         outbox,
         pendingSyncCount,
+        failedSyncCount,
+        retryFailedRecords,
         isLoading,
         isSyncing,
         isOnline,

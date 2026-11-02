@@ -28,15 +28,12 @@ export const SettingsScreen: React.FC = () => {
   const { language, setLanguage, ttsEnabled, setTtsEnabled } = useLanguage();
 
   const toggleLanguage = () => {
-    if (language === 'hi') setLanguage('en');
-    else if (language === 'en') setLanguage('mr');
-    else setLanguage('hi');
+    setLanguage(language === 'hi' ? 'mr' : 'hi');
   };
 
   const getLanguageLabel = () => {
     if (language === 'hi') return 'हिंदी (Hindi)';
-    if (language === 'mr') return 'मराठी (Marathi)';
-    return 'English';
+    return 'मराठी (Marathi)';
   };
 
   const logoSource = Platform.OS === 'web'
@@ -165,24 +162,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 58,
+    height: 58,
+    borderRadius: 15, // Round square / squircle
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
-    borderWidth: 2,
-    borderColor: '#BFDBFE',
+    borderWidth: 1.5,
+    borderColor: '#DBEAFE',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 5,
     elevation: 3,
+    padding: 4,
   },
   avatarImage: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
   },
   avatarText: {
     fontSize: 18,

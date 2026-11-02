@@ -104,7 +104,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           disease: Boolean(hasDisease),
         },
         familyUnitId: fam.id,
-        primaryPhone: fam.primaryPhone || '+91 98765 00000',
+        primaryPhone: fam.primaryPhone || '',
         villageName: fam.villageName || 'चाँदपुर गाँव',
         membersList: famMembers.map((m) => ({
           id: m.id,
@@ -132,7 +132,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Filter children (age <= 5)
   const children = members.filter((m) => {
-    const isChild = m.isChild || m.age <= 5;
+    const isChild = m.isChild || (m.age != null && m.age <= 5);
     if (!isChild) return false;
     return true;
   });
@@ -140,12 +140,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // Other beneficiaries
   const otherBeneficiaries = members.filter((m) => {
     if (otherCategory === 'fp') {
-      return !m.isPregnant && m.gender === 'Female' && m.age >= 18 && m.age <= 45;
+      return !m.isPregnant && m.gender === 'Female' && m.age != null && m.age >= 18 && m.age <= 45;
     }
     if (otherCategory === 'pnc') {
-      return !m.isPregnant && m.gender === 'Female' && m.age >= 18 && m.age <= 35;
+      return !m.isPregnant && m.gender === 'Female' && m.age != null && m.age >= 18 && m.age <= 35;
     }
-    return m.age >= 10 && m.age <= 19;
+    return m.age != null && m.age >= 10 && m.age <= 19;
   });
 
   const getDueVaccineForAge = (ageMonths: number): string => {
@@ -669,7 +669,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {children.map((child, idx) => {
               const fam = getFamilyInfo(child.familyUnitId);
               const fatherName = child.fatherOrHusbandName || fam.head;
-              const ageMonths = child.age <= 1 ? 3 : child.age * 12;
+              const ageMonths = child.age == null ? 0 : child.age <= 1 ? 3 : child.age * 12;
               const dueVaccine = getDueVaccineForAge(ageMonths);
 
               return (

@@ -76,11 +76,7 @@ export const OfflineVoiceModal: React.FC<VoiceModalProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [statusText, setStatusText] = useState('सुन रहे हैं... (Listening)');
 
-  const langKey = lang.toLowerCase().startsWith('mr')
-    ? 'mr'
-    : lang.toLowerCase().startsWith('en')
-    ? 'en'
-    : 'hi';
+  const langKey = lang.toLowerCase().startsWith('mr') ? 'mr' : 'hi';
 
   const phrases = COMMON_OFFLINE_PHRASES[langKey] || COMMON_OFFLINE_PHRASES.hi;
 

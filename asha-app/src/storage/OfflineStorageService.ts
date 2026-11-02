@@ -20,8 +20,12 @@ import {
   SEED_ANM_SESSIONS,
 } from './seedData';
 import { generateUUID } from './uuid';
+import { calculateEdd, formatClinicalDate, parseAffirmative, parseClinicalDate } from '../services/maternalMath';
 
 let currentWorkerPhone = '9876543210';
+
+/** Local id prefix for CHO sector referrals downloaded from /api/asha/cho/referrals. */
+export const CHO_SECTOR_PREFIX = 'cho:';
 
 export function setStorageWorkerPhone(phone: string): void {
   if (!phone) return;
@@ -36,6 +40,17 @@ export function setStorageWorkerPhone(phone: string): void {
 
 export function getStorageWorkerPhone(): string {
   return currentWorkerPhone;
+}
+
+/**
+ * Serializes every read-modify-write of the outbox key. Without this, an item enqueued
+ * while a sync is marking items SYNCED can be overwritten by the stale array and lost.
+ */
+let outboxLock: Promise<unknown> = Promise.resolve();
+function withOutboxLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = outboxLock.then(fn, fn);
+  outboxLock = run.catch(() => undefined);
+  return run;
 }
 
 const STORAGE_KEYS = {
@@ -194,6 +209,7 @@ class OfflineStorageServiceImpl {
     // Queue DELETE_FAMILY tombstone in outbox
     await this.addToOutbox('DELETE_FAMILY', {
       id: target.id,
+      serverId: target.serverId,
       houseNumber: target.houseNumber,
       sequentialNumber: target.sequentialNumber,
     });
@@ -290,6 +306,7 @@ class OfflineStorageServiceImpl {
     // Queue DELETE_MEMBER tombstone in outbox
     await this.addToOutbox('DELETE_MEMBER', {
       id: target.id,
+      serverId: target.serverId,
       familyUnitId: target.familyUnitId,
     });
   }
@@ -336,11 +353,17 @@ class OfflineStorageServiceImpl {
     const members = await this.getMembers();
     const mIndex = members.findIndex((m) => m.id === survey.familyMemberId);
     if (mIndex >= 0) {
-      members[mIndex].lastSurveyDate = new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
+      members[mIndex].lastSurveyDate = formatClinicalDate(new Date());
+      if (survey.categoryCode === 'PREGNANCY') {
+        const pregnant = parseAffirmative(survey.answers?.isPregnant);
+        if (pregnant !== null) members[mIndex].isPregnant = pregnant;
+        const lmp = parseClinicalDate(survey.answers?.lmpDate);
+        if (lmp && pregnant !== false) {
+          // EDD strictly by Naegele's rule (Annexure 1)
+          members[mIndex].expectedDeliveryDate = formatClinicalDate(calculateEdd(lmp));
+        }
+      }
+      members[mIndex].updatedAt = new Date().toISOString();
       await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
     }
 
@@ -402,11 +425,21 @@ class OfflineStorageServiceImpl {
     daysOverdue: number;
     referralReason: string;
     category?: 'Pregnancy' | 'Disease' | 'Child';
+    /** Server-side task id; when given, re-downloading the same referral is a no-op. */
+    sourceReferralId?: string;
   }): Promise<{ task: FollowUpTask; family: FamilyUnit | null }> {
     await this.initialize();
     const families = await this.getFamilies();
     const members = await this.getMembers();
     const tasks = await this.getFollowUps();
+
+    if (params.sourceReferralId) {
+      const existing = tasks.find((t) => String(t.sourceReferralId) === params.sourceReferralId);
+      if (existing) {
+        const fam = families.find((f) => f.id === existing.familyUnitId) || null;
+        return { task: existing, family: fam };
+      }
+    }
 
     // 1. Locate the family
     const famIndex = families.findIndex(
@@ -477,7 +510,8 @@ class OfflineStorageServiceImpl {
       dueDate: `Due: Urgent (${params.daysOverdue}d overdue)`,
       urgencyDays: urgencyLabel,
       isCompleted: false,
-      ashaWorkerPhone: '9876543210',
+      ashaWorkerPhone: currentWorkerPhone,
+      ...(params.sourceReferralId ? { sourceReferralId: params.sourceReferralId } : {}),
     };
 
     tasks.unshift(newTask);
@@ -535,7 +569,7 @@ class OfflineStorageServiceImpl {
       prescriptionDetails: params.prescriptionDetails,
       prescriptionDeadline: params.prescriptionDeadline || '7 days',
       isCompleted: false,
-      ashaWorkerPhone: params.ashaWorkerPhone || '9876543210',
+      ashaWorkerPhone: params.ashaWorkerPhone || currentWorkerPhone,
       referredToCho: true,
       choStatus: 'PENDING_CHO',
     };
@@ -547,7 +581,9 @@ class OfflineStorageServiceImpl {
   }
 
   /**
-   * CHO Admin approves referral or provides teleconsultation advice
+   * CHO validates a referral (physical referral triage / transport sign-off — no teleconsultation).
+   * Sector referrals downloaded from the server (id "cho:<serverId>") are approved through the
+   * dedicated CHO endpoint; locally created tasks keep the regular outbox flow.
    */
   async approveReferralByCho(taskId: string, advice?: string): Promise<FollowUpTask | null> {
     await this.initialize();
@@ -559,10 +595,85 @@ class OfflineStorageServiceImpl {
         tasks[taskIndex].choAdvice = advice;
       }
       await AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(tasks));
-      await this.addToOutbox('APPROVE_REFERRAL', { taskId, advice });
+      if (taskId.startsWith(CHO_SECTOR_PREFIX)) {
+        await this.addToOutbox('CHO_APPROVE_REFERRAL', {
+          serverTaskId: Number(taskId.slice(CHO_SECTOR_PREFIX.length)),
+          note: advice || null,
+        });
+      } else {
+        await this.addToOutbox('APPROVE_REFERRAL', { taskId, advice });
+      }
       return tasks[taskIndex];
     }
     return null;
+  }
+
+  /**
+   * Replaces the CHO's local copy of sector referrals with the server list. A referral the CHO
+   * approved offline (approval still in the outbox) keeps its local APPROVED_CHO state.
+   */
+  async mergeChoSectorReferrals(rows: any[]): Promise<number> {
+    await this.initialize();
+    const tasks = await this.getFollowUps();
+    const localSector = new Map(tasks.filter((t) => t.id.startsWith(CHO_SECTOR_PREFIX)).map((t) => [t.id, t]));
+    const own = tasks.filter((t) => !t.id.startsWith(CHO_SECTOR_PREFIX));
+
+    const mapped: FollowUpTask[] = rows
+      .filter((r) => r && r.id != null)
+      .map((r) => {
+        const id = CHO_SECTOR_PREFIX + String(r.id);
+        const local = localSector.get(id);
+        const serverApproved = r.status === 'APPROVED_CHO';
+        const name = String(r.patientName || r.familyHeadName || '');
+        const task: FollowUpTask = {
+          id,
+          familyUnitId: '',
+          familyMemberId: r.memberId != null ? String(r.memberId) : '',
+          initials: name.split(' ').map((w: string) => w[0] || '').join('').slice(0, 2).toUpperCase(),
+          name,
+          taskType: String(r.title || r.taskType || ''),
+          referralReason: r.title || undefined,
+          vitals: r.description || undefined,
+          dueDate: r.dueDate ? String(r.dueDate) : '',
+          urgencyDays: '',
+          isCompleted: r.status === 'COMPLETED',
+          ashaWorkerPhone: String(r.ashaWorkerPhone || ''),
+          phone: r.patientPhone || undefined,
+          houseNumber: r.houseNumber || undefined,
+          villageName: r.villageName || undefined,
+          age: r.age != null ? Number(r.age) : undefined,
+          gender: r.gender === 'Male' || r.gender === 'Female' || r.gender === 'Other' ? r.gender : undefined,
+          sourceReferralId: r.id,
+          referredToCho: true,
+          choStatus: serverApproved || local?.choStatus === 'APPROVED_CHO' ? 'APPROVED_CHO' : 'PENDING_CHO',
+          choAdvice: r.choNote || local?.choAdvice,
+        };
+        return task;
+      });
+
+    await AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify([...mapped, ...own]));
+    return mapped.length;
+  }
+
+  /** ASHA side: reflect CHO validation of this worker's own referrals (matched by offline id). */
+  async applyRemoteFollowUpStatus(remote: any[]): Promise<void> {
+    await this.initialize();
+    const approved = new Map<string, any>();
+    for (const r of remote || []) {
+      if (r && r.offlineId && r.status === 'APPROVED_CHO') approved.set(String(r.offlineId), r);
+    }
+    if (approved.size === 0) return;
+    const tasks = await this.getFollowUps();
+    let changed = false;
+    for (const t of tasks) {
+      const r = approved.get(t.id);
+      if (r && t.choStatus !== 'APPROVED_CHO') {
+        t.choStatus = 'APPROVED_CHO';
+        if (r.choNote) t.choAdvice = r.choNote;
+        changed = true;
+      }
+    }
+    if (changed) await AsyncStorage.setItem(STORAGE_KEYS.FOLLOWUPS, JSON.stringify(tasks));
   }
 
   // ----------------------------------------------------
@@ -587,38 +698,120 @@ class OfflineStorageServiceImpl {
 
   async addToOutbox(action: OutboxAction, payload: any): Promise<OutboxItem> {
     await this.initialize();
-    const outbox = await this.getOutbox();
-    const newItem: OutboxItem = {
-      id: generateUUID(),
-      action,
-      payload: {
-        ...(payload || {}),
-        workerPhone: currentWorkerPhone,
-      },
-      status: 'PENDING',
-      createdAt: new Date().toISOString(),
-      retryCount: 0,
-    };
-    outbox.push(newItem);
-    await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(outbox));
-    return newItem;
+    return withOutboxLock(async () => {
+      const outbox = await this.getOutbox();
+      const newItem: OutboxItem = {
+        id: generateUUID(),
+        action,
+        payload: {
+          ...(payload || {}),
+          workerPhone: currentWorkerPhone,
+        },
+        status: 'PENDING',
+        createdAt: new Date().toISOString(),
+        retryCount: 0,
+      };
+      outbox.push(newItem);
+      await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(outbox));
+      return newItem;
+    });
   }
 
   async markOutboxSynced(itemIds: string[]): Promise<void> {
     await this.initialize();
-    const outbox = await this.getOutbox();
-    const idSet = new Set(itemIds);
-    const updated = outbox.map((item) => {
-      if (idSet.has(item.id)) {
-        return {
-          ...item,
-          status: 'SYNCED' as const,
-          syncedAt: new Date().toISOString(),
-        };
-      }
-      return item;
+    await withOutboxLock(async () => {
+      const outbox = await this.getOutbox();
+      const idSet = new Set(itemIds);
+      const updated = outbox.map((item) => {
+        if (idSet.has(item.id)) {
+          return {
+            ...item,
+            status: 'SYNCED' as const,
+            syncedAt: new Date().toISOString(),
+          };
+        }
+        return item;
+      });
+      await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(updated));
     });
-    await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(updated));
+  }
+
+  /**
+   * Applies sync v2 per-record outcomes in one locked write:
+   * SYNCED → retired, RETRY → stays PENDING with retryCount+1, FAILED → kept (never deleted)
+   * with the server's reason so it can be reviewed and re-queued.
+   */
+  async applyOutboxOutcomes(
+    outcomes: { id: string; outcome: 'SYNCED' | 'RETRY' | 'FAILED'; error?: string }[]
+  ): Promise<void> {
+    if (outcomes.length === 0) return;
+    await this.initialize();
+    await withOutboxLock(async () => {
+      const outbox = await this.getOutbox();
+      const byId = new Map(outcomes.map((o) => [o.id, o]));
+      const now = new Date().toISOString();
+      const updated = outbox.map((item) => {
+        const o = byId.get(item.id);
+        if (!o) return item;
+        if (o.outcome === 'SYNCED') return { ...item, status: 'SYNCED' as const, syncedAt: now, lastError: undefined };
+        if (o.outcome === 'FAILED')
+          return { ...item, status: 'FAILED' as const, retryCount: (item.retryCount || 0) + 1, lastError: o.error };
+        return { ...item, retryCount: (item.retryCount || 0) + 1, lastError: o.error };
+      });
+      await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(updated));
+    });
+  }
+
+  /** Re-queues FAILED outbox items (worker tapped "पुनः भेजें"); returns how many were re-queued. */
+  async requeueFailedOutbox(): Promise<number> {
+    await this.initialize();
+    return withOutboxLock(async () => {
+      const outbox = await this.getOutbox();
+      let count = 0;
+      const updated = outbox.map((item) => {
+        if (item.status !== 'FAILED') return item;
+        count++;
+        return { ...item, status: 'PENDING' as const, retryCount: 0, lastError: undefined };
+      });
+      if (count > 0) await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(updated));
+      return count;
+    });
+  }
+
+  /** Stores server row ids learned from accepted FAMILY / MEMBER acknowledgements. */
+  async applyServerIds(ids: { families: Record<string, number>; members: Record<string, number> }): Promise<void> {
+    await this.initialize();
+    if (Object.keys(ids.families).length > 0) {
+      const families = await this.getFamilies();
+      let changed = false;
+      for (const f of families) {
+        const sid = ids.families[f.id];
+        if (sid != null && f.serverId !== sid) { f.serverId = sid; changed = true; }
+      }
+      if (changed) await AsyncStorage.setItem(STORAGE_KEYS.FAMILIES, JSON.stringify(families));
+    }
+    if (Object.keys(ids.members).length > 0) {
+      const members = await this.getMembers();
+      let changed = false;
+      for (const m of members) {
+        const sid = ids.members[m.id];
+        if (sid != null && m.serverId !== sid) { m.serverId = sid; changed = true; }
+      }
+      if (changed) await AsyncStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+    }
+  }
+
+  /** Records a failed upload attempt; items stay PENDING so they are retried (never dropped). */
+  async markOutboxRetry(itemIds: string[]): Promise<void> {
+    await this.initialize();
+    await withOutboxLock(async () => {
+      const outbox = await this.getOutbox();
+      const idSet = new Set(itemIds);
+      const updated = outbox.map((item) =>
+        idSet.has(item.id) ? { ...item, retryCount: (item.retryCount || 0) + 1 } : item
+      );
+      await AsyncStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify(updated));
+    });
   }
 
   async markSurveysSyncedToAnm(targetAnmPhone?: string, sectionFilter?: string): Promise<number> {
@@ -911,33 +1104,44 @@ class OfflineStorageServiceImpl {
     const localFamilies = await this.getFamilies();
     const delFamSet = new Set(deletedFamilyIds.map(String));
     
-    // Filter out deleted families
-    let activeFamilies = localFamilies.filter(f => !delFamSet.has(String(f.id)) && !delFamSet.has(String(f.sequentialNumber)));
+    // Filter out deleted families. Tombstones are server ids (legacy) or client UUIDs (v2);
+    // they are compared to local id / serverId only — never to house sequence numbers.
+    let activeFamilies = localFamilies.filter(
+      f => !delFamSet.has(String(f.id)) && !(f.serverId != null && delFamSet.has(String(f.serverId)))
+    );
 
     let mergedFamCount = 0;
     for (const remFam of remoteFamilies) {
-      if (delFamSet.has(String(remFam.id)) || delFamSet.has(String(remFam.sequentialNumber))) {
+      if (delFamSet.has(String(remFam.id)) || (remFam.clientUuid && delFamSet.has(String(remFam.clientUuid)))) {
         continue;
       }
       const houseNo = remFam.houseNumber != null ? String(remFam.houseNumber) : String(remFam.sequentialNumber || 1);
+      // Sync v2: bind by client UUID / server id. Fuzzy house-number matching is kept only for
+      // legacy server rows that have no client UUID yet.
+      const remKey = remFam.clientUuid ? String(remFam.clientUuid) : String(remFam.id);
       const existingIdx = activeFamilies.findIndex(
-        f => String(f.id) === String(remFam.id) || 
-             (f.houseNumber && String(f.houseNumber) === houseNo) ||
-             (f.sequentialNumber && remFam.sequentialNumber && f.sequentialNumber === remFam.sequentialNumber)
+        f => f.id === remKey ||
+             (remFam.id != null && f.serverId != null && String(f.serverId) === String(remFam.id)) ||
+             (!remFam.clientUuid && (
+               String(f.id) === String(remFam.id) ||
+               (f.houseNumber && String(f.houseNumber) === houseNo) ||
+               (f.sequentialNumber && remFam.sequentialNumber && f.sequentialNumber === remFam.sequentialNumber)
+             ))
       );
 
       const mappedFamily: FamilyUnit = {
-        id: String(remFam.id || generateUUID()),
+        id: remKey || generateUUID(),
+        serverId: remFam.id != null ? Number(remFam.id) : undefined,
         sequentialNumber: remFam.sequentialNumber || Number(houseNo) || 1,
         houseNumber: houseNo,
-        headName: remFam.headName || 'Household Head',
-        primaryPhone: remFam.primaryPhone || '+91 98765 00000',
-        villageName: remFam.villageName || 'Chandpur Village',
-        visitIntervalDays: remFam.visitIntervalDays || 15,
-        nextVisitDate: remFam.nextVisitDate || new Date().toISOString().split('T')[0],
+        headName: remFam.headName || '',
+        primaryPhone: remFam.primaryPhone || '',
+        villageName: remFam.villageName || '',
+        visitIntervalDays: [7, 15, 30].includes(Number(remFam.visitIntervalDays)) ? (Number(remFam.visitIntervalDays) as 7 | 15 | 30) : null,
+        nextVisitDate: remFam.nextVisitDate || '',
         lastVisitedAt: remFam.lastVisitedAt || null,
         ashaWorkerPhone: currentWorkerPhone,
-        status: (remFam.visitIntervalDays === 7 ? '7days' : remFam.visitIntervalDays === 15 ? '15days' : '30days') as any,
+        status: (remFam.visitIntervalDays === 7 ? '7days' : remFam.visitIntervalDays === 15 ? '15days' : remFam.visitIntervalDays === 30 ? '30days' : 'noData') as any,
         totalMembers: remFam.totalMembers || 0,
         hasPregnancy: Boolean(remFam.hasPregnancy),
         hasDisease: Boolean(remFam.hasDisease),
@@ -950,6 +1154,7 @@ class OfflineStorageServiceImpl {
           ...mappedFamily,
           ...activeFamilies[existingIdx],
           headName: activeFamilies[existingIdx].headName || mappedFamily.headName,
+          serverId: mappedFamily.serverId ?? activeFamilies[existingIdx].serverId,
         };
       } else {
         activeFamilies.push(mappedFamily);
@@ -961,23 +1166,35 @@ class OfflineStorageServiceImpl {
     // 2. Merge Members
     const localMembers = await this.getMembers();
     const delMemSet = new Set(deletedMemberIds.map(String));
-    let activeMembers = localMembers.filter(m => !delMemSet.has(String(m.id)));
+    let activeMembers = localMembers.filter(
+      m => !delMemSet.has(String(m.id)) && !(m.serverId != null && delMemSet.has(String(m.serverId)))
+    );
 
     let mergedMemCount = 0;
     for (const remMem of remoteMembers) {
-      if (delMemSet.has(String(remMem.id))) continue;
-      const memId = String(remMem.id || generateUUID());
-      const existingIdx = activeMembers.findIndex(m => String(m.id) === memId || (m.name === remMem.name && String(m.familyUnitId) === String(remMem.familyUnitId)));
+      if (delMemSet.has(String(remMem.id)) || (remMem.clientUuid && delMemSet.has(String(remMem.clientUuid)))) continue;
+      const memId = remMem.clientUuid ? String(remMem.clientUuid) : String(remMem.id || generateUUID());
+      // Re-link to the local family: by its client UUID, else by the family's known server id.
+      const localFamily =
+        (remMem.familyClientUuid && activeFamilies.find(f => f.id === String(remMem.familyClientUuid))) ||
+        activeFamilies.find(f => f.serverId != null && String(f.serverId) === String(remMem.familyUnitId));
+      const familyUnitId = localFamily ? localFamily.id : String(remMem.familyClientUuid || remMem.familyUnitId);
+      const existingIdx = activeMembers.findIndex(
+        m => m.id === memId ||
+             (remMem.id != null && m.serverId != null && String(m.serverId) === String(remMem.id)) ||
+             (!remMem.clientUuid && m.name === remMem.name && String(m.familyUnitId) === familyUnitId)
+      );
 
       const mappedMember: FamilyMember = {
         id: memId,
-        familyUnitId: String(remMem.familyUnitId || 1),
-        name: remMem.name || 'Member',
+        serverId: remMem.id != null ? Number(remMem.id) : undefined,
+        familyUnitId,
+        name: remMem.name || '',
         initials: (remMem.name || 'M').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
         dob: remMem.dob ? String(remMem.dob) : undefined,
-        age: Number(remMem.age) || 25,
-        gender: remMem.gender || 'Female',
-        relationship: remMem.relationship || 'Member',
+        age: remMem.age != null && Number.isFinite(Number(remMem.age)) ? Number(remMem.age) : undefined,
+        gender: remMem.gender === 'Male' || remMem.gender === 'Female' || remMem.gender === 'Other' ? remMem.gender : undefined,
+        relationship: remMem.relationship || '',
         phone: remMem.phone || '',
         abhaNumber: remMem.abhaNumber || '',
         isAbhaLinked: Boolean(remMem.isAbhaLinked),
@@ -995,6 +1212,7 @@ class OfflineStorageServiceImpl {
         activeMembers[existingIdx] = {
           ...mappedMember,
           ...activeMembers[existingIdx],
+          serverId: mappedMember.serverId ?? activeMembers[existingIdx].serverId,
         };
       } else {
         activeMembers.push(mappedMember);

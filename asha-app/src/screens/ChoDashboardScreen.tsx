@@ -218,9 +218,9 @@ export const ChoDashboardScreen: React.FC = () => {
         {/* Offline Audio Guidance for CHO */}
         <VoiceGuideBanner
           sectionTitle="सीएचओ सेक्टर अवलोकन (CHO Dashboard)"
-          guideTextHi="सीएचओ डैशबोर्ड में आपका स्वागत है। यहाँ आप अपने सेक्टर की आशा कार्यकर्ताओं की प्रगति, उच्च जोखिम रेफरल और टेली-परामर्श का प्रबंधन कर सकते हैं।"
+          guideTextHi="सीएचओ डैशबोर्ड में आपका स्वागत है। यहाँ आप अपने सेक्टर की आशा कार्यकर्ताओं की प्रगति, उच्च जोखिम मामलों और रेफरल का प्रबंधन कर सकते हैं।"
           guideTextMr="सीएचओ डॅशबोर्डवर आपले स्वागत आहे. येथे आपण आशा कार्यकर्त्यांची प्रगती आणि उच्च-जोखीम रेफरल्सचे व्यवस्थापन करू शकता."
-          guideTextEn="Welcome to CHO Health Officer portal. Review ASHA worker coverage, approve urgent referrals, and conduct teleconsultations."
+          guideTextEn="Welcome to CHO Health Officer portal. Review ASHA worker coverage and approve urgent referrals."
         />
 
         {/* CHO Navigation Tabs */}
@@ -284,11 +284,11 @@ export const ChoDashboardScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Critical Action Card: Direct Teleconsultation */}
+            {/* Critical Action Card: Referral Review & Approval */}
             <View style={styles.actionCard}>
               <View style={styles.actionCardHeader}>
                 <Stethoscope size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                <Text style={styles.actionCardTitle}>तत्काल टेली-परामर्श एवं रेफरल अनुमोदन</Text>
+                <Text style={styles.actionCardTitle}>रेफरल सत्यापन एवं नैदानिक निर्देश</Text>
               </View>
 
               <TouchableOpacity
@@ -556,8 +556,8 @@ export const ChoDashboardScreen: React.FC = () => {
                         onPress={() => setTeleconsultPatient(task)}
                         activeOpacity={0.8}
                       >
-                        <PhoneCall size={14} color="#0369A1" style={{ marginRight: 4 }} />
-                        <Text style={styles.teleconsultBtnText}>टेली-परामर्श व दवा सलाह</Text>
+                        <FileText size={14} color="#0369A1" style={{ marginRight: 4 }} />
+                        <Text style={styles.teleconsultBtnText}>नैदानिक निर्देश दर्ज करें</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -615,14 +615,14 @@ export const ChoDashboardScreen: React.FC = () => {
         </Modal>
       )}
 
-      {/* Teleconsultation & Clinical Advice Modal */}
+      {/* Clinical Advice Modal */}
       {teleconsultPatient && (
         <Modal visible={!!teleconsultPatient} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <View>
-                  <Text style={styles.modalTitle}>टेली-परामर्श एवं चिकित्सा निर्देश</Text>
+                  <Text style={styles.modalTitle}>नैदानिक निर्देश एवं रेफरल टिप्पणी</Text>
                   <Text style={styles.modalSub}>रोगी: {teleconsultPatient.name}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setTeleconsultPatient(null)}>
@@ -630,7 +630,7 @@ export const ChoDashboardScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.inputLabel}>सीएचओ चिकित्सा परामर्श एवं निर्देश:</Text>
+              <Text style={styles.inputLabel}>सीएचओ नैदानिक निर्देश:</Text>
               <TextInput
                 style={styles.modalInputArea}
                 placeholder="रोगी को तत्काल प्राथमिक स्वास्थ्य केंद्र (PHC) भिजवाएं। IFA गोलियां एवं BP की निगरानी जारी रखें..."

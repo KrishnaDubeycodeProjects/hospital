@@ -18,6 +18,7 @@ import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { FamilyMember } from '../types/storage';
 import { fuzzySearchFamilies, SearchMatchResult } from '../services/fuzzySearch';
+import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
 
 interface FamiliesScreenProps {
   onSelectFamily: (houseNo: number, familyName: string) => void;
@@ -61,15 +62,16 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({
     if (!newHeadName.trim() || !newHouseNo.trim()) return;
 
     await addFamily({
-      sequentialNumber: families.length + 1,
+      // Next free number (families.length + 1 collided with existing numbers after a delete)
+      sequentialNumber: families.reduce((max, f) => Math.max(max, Number(f.sequentialNumber) || 0), 0) + 1,
       houseNumber: Number(newHouseNo) || newHouseNo,
       headName: newHeadName.trim(),
-      primaryPhone: newPhone.trim() || '+91 98765 00000',
+      primaryPhone: newPhone.trim(),
       villageName: 'Chandpur',
       visitIntervalDays: 15,
       nextVisitDate: 'मध्यम (Medium)',
       lastVisitedAt: null,
-      ashaWorkerPhone: '9876543210',
+      ashaWorkerPhone: getStorageWorkerPhone(),
       status: '15days',
       totalMembers: 1,
       hasPregnancy: false,

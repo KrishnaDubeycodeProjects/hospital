@@ -22,7 +22,8 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
   onAnimationFinish,
   minDurationMs = 2200,
 }) => {
-  const scaleAnim = useRef(new Animated.Value(0.4)).current;
+  const scaleAnim = useRef(new Animated.Value(0.15)).current;
+  const logoZoomPulse = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const glowScale = useRef(new Animated.Value(0.9)).current;
   const glowOpacity = useRef(new Animated.Value(0.3)).current;
@@ -37,12 +38,12 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
       : require('../../assets/aarogya_flow_icon_transparent_hd.png');
 
   useEffect(() => {
-    // 1. Entrance animation (Logo scale & fade)
+    // 1. Entrance animation (Dramatic logo zoom-in & fade)
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
-        friction: 6,
-        tension: 40,
+        friction: 5,
+        tension: 38,
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
@@ -107,6 +108,25 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
     );
     pulseLoop.start();
 
+    // 3. Continuous ambient zooming breath loop for the logo
+    const logoZoomLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(logoZoomPulse, {
+          toValue: 1.07,
+          duration: 1100,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoZoomPulse, {
+          toValue: 0.98,
+          duration: 1100,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    logoZoomLoop.start();
+
     // Staggered status messages
     const timer1 = setTimeout(() => {
       setStatusText('ऑफ़लाइन डेटाबेस और सिंक तैयार हो रहा है...');
@@ -124,6 +144,7 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
 
     return () => {
       pulseLoop.stop();
+      logoZoomLoop.stop();
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(finishTimer);
@@ -149,12 +170,14 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
           ]}
         />
 
-        {/* Outer Logo Badge Frame */}
+        {/* Outer Logo Badge Frame (Round Square with White Background) */}
         <Animated.View
           style={[
             styles.logoWrapper,
             {
-              transform: [{ scale: scaleAnim }],
+              transform: [
+                { scale: Animated.multiply(scaleAnim, logoZoomPulse) },
+              ],
             },
           ]}
         >
@@ -222,19 +245,20 @@ const styles = StyleSheet.create({
   glowRing: {
     position: 'absolute',
     top: -20,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
+    width: 176,
+    height: 176,
+    borderRadius: 48,
     backgroundColor: '#93C5FD',
     zIndex: 0,
   },
   logoWrapper: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
+    width: 136,
+    height: 136,
+    borderRadius: 34, // Round square / squircle
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 12,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,
@@ -246,8 +270,8 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   logoImage: {
-    width: 100,
-    height: 100,
+    width: 108,
+    height: 108,
   },
   textContainer: {
     alignItems: 'center',

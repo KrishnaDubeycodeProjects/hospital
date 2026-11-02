@@ -18,10 +18,20 @@ import {
   Check,
   Mic,
   FileText,
+  CalendarDays,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { SpeechEngine, VoiceRecognition } from '../voice/speechEngine';
 import { useLanguage } from '../context/LanguageContext';
 import { useOfflineData } from '../context/OfflineDataContext';
+import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
+import {
+  parseClinicalDate,
+  formatClinicalDate,
+  calculateEdd,
+  gestationalWeeks,
+  trimesterFromWeeks,
+} from '../services/maternalMath';
 
 interface SurveyQuestionScreenProps {
   onBack: () => void;
@@ -36,7 +46,7 @@ interface QuestionDef {
   id: string;
   number: number;
   title: string;
-  type: 'binary' | 'options' | 'number' | 'text' | 'dual_number' | 'custom_clinical';
+  type: 'binary' | 'options' | 'number' | 'text' | 'dual_number' | 'custom_clinical' | 'date';
   options?: string[];
   fieldKey: string;
   helperText?: string;
@@ -45,90 +55,99 @@ interface QuestionDef {
 export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   onBack,
   onComplete,
-  familyUnitId = 'f012-0000-0000-0012',
-  familyMemberId = 'm001-0000-0000-0001',
-  memberName = 'सुमन वर्मा',
+  familyUnitId = '',
+  familyMemberId = '',
+  memberName = '',
   formType = 'PREGNANCY',
 }) => {
-  const { ttsEnabled, localeCode } = useLanguage();
+  const { ttsEnabled, localeCode, language } = useLanguage();
+  const tr = (hi: string, mr: string) => (language === 'mr' ? mr : hi);
   const { submitSurvey } = useOfflineData();
 
   const pregnancyQuestions: QuestionDef[] = [
     {
       id: 'p1',
       number: 1,
-      title: 'क्या महिला गर्भवती है? (ANC)',
+      title: tr('क्या महिला गर्भवती है? (ANC)', 'स्त्री गरोदर आहे का? (ANC)'),
       type: 'binary',
       fieldKey: 'isPregnant',
-      options: ['हाँ', 'नहीं'],
+      options: [tr('हाँ', 'होय'), tr('नहीं', 'नाही')],
+    },
+    {
+      id: 'p_lmp',
+      number: 2,
+      title: tr('अंतिम मासिक धर्म तिथि (LMP)', 'शेवटची मासिक पाळीची तारीख (LMP)'),
+      type: 'date',
+      fieldKey: 'lmpDate',
+      helperText: tr('EDD = LMP + 9 माह + 7 दिन', 'EDD = LMP + 9 महिने + 7 दिवस'),
     },
     {
       id: 'p2',
       number: 2,
-      title: 'प्रसव पूर्व जाँच (ANC विजिट)',
+      title: tr('प्रसव पूर्व जाँच (ANC विजिट)', 'प्रसूतीपूर्व तपासणी (ANC भेट)'),
       type: 'options',
       fieldKey: 'ancVisit',
-      options: ['ANC 1', 'ANC 2', 'ANC 3', 'ANC 4', 'सभी पूर्ण'],
+      options: ['ANC 1', 'ANC 2', 'ANC 3', 'ANC 4', tr('सभी पूर्ण', 'सर्व पूर्ण')],
     },
     {
       id: 'p3',
       number: 3,
-      title: 'TT / Td टीका लगाया गया?',
+      title: tr('Td टीका लगाया गया?', 'Td लस दिली का?'),
       type: 'binary',
       fieldKey: 'ttGiven',
-      options: ['✓ लगाया गया', '✕ नहीं लगाया'],
+      options: [tr('✓ लगाया गया', '✓ दिली'), tr('✕ नहीं लगाया', '✕ दिली नाही')],
     },
     {
       id: 'p4',
       number: 4,
-      title: 'BP एवं वजन',
+      title: tr('बी.पी. एवं वजन', 'बी.पी. व वजन'),
       type: 'custom_clinical',
       fieldKey: 'bpAndWeight',
-      helperText: 'सामान्य BP: 120/80',
+      helperText: tr('सामान्य बी.पी.: 120/80', 'सामान्य बी.पी.: 120/80'),
     },
     {
       id: 'p5',
       number: 5,
-      title: 'हीमोग्लोबिन (g/dL)',
+      title: tr('हीमोग्लोबिन (g/dL)', 'हिमोग्लोबिन (g/dL)'),
       type: 'number',
       fieldKey: 'hemoglobin',
-      helperText: '11 से कम → एनीमिया (HRP)',
+      helperText: tr('11 से कम → एनीमिया (उच्च जोखिम)', '11 पेक्षा कमी → रक्तक्षय (उच्च जोखीम)'),
     },
     {
       id: 'p6',
       number: 6,
-      title: 'मूत्र जाँच (Urine)',
+      title: tr('मूत्र जाँच', 'लघवी तपासणी'),
       type: 'options',
       fieldKey: 'urine',
-      options: ['सामान्य', 'असामान्य (Protein+)', 'जाँच नहीं हुई'],
+      options: [tr('सामान्य', 'सामान्य'), tr('असामान्य (प्रोटीन+)', 'असामान्य (प्रथिने+)'), tr('जाँच नहीं हुई', 'तपासणी झाली नाही')],
     },
     {
       id: 'p7',
       number: 7,
-      title: 'पेट की जाँच हुई?',
+      title: tr('पेट की जाँच हुई?', 'पोटाची तपासणी झाली का?'),
       type: 'binary',
       fieldKey: 'abdominalExam',
-      options: ['✓ की गई', '✕ नहीं की गई'],
+      options: [tr('✓ की गई', '✓ केली'), tr('✕ नहीं की गई', '✕ केली नाही')],
     },
     {
       id: 'p8',
       number: 8,
-      title: 'IFA एवं कैल्शियम गोलियाँ',
+      title: tr('IFA एवं कैल्शियम गोलियाँ', 'IFA व कॅल्शियम गोळ्या'),
       type: 'dual_number',
       fieldKey: 'tablets',
-      helperText: 'लक्ष्य: 180 गोलियाँ प्रत्येक',
+      helperText: tr('लक्ष्य: 180 गोलियाँ प्रत्येक', 'लक्ष्य: प्रत्येकी 180 गोळ्या'),
     },
     {
       id: 'p9',
       number: 9,
-      title: 'सेवा की स्थिति',
+      title: tr('सेवा की स्थिति', 'सेवेची स्थिती'),
       type: 'options',
       fieldKey: 'serviceStatus',
       options: [
-        '✓ सेवा पूर्ण',
-        'लाभार्थी अनुपस्थित',
-        'लाभार्थी का इनकार',
-        'अस्पताल रेफरल',
+        tr('✓ सेवा पूर्ण', '✓ सेवा पूर्ण'),
+        tr('लाभार्थी अनुपस्थित', 'लाभार्थी अनुपस्थित'),
+        tr('लाभार्थी का इनकार', 'लाभार्थीचा नकार'),
+        tr('अस्पताल रेफरल', 'रुग्णालय संदर्भ'),
       ],
     },
   ];
@@ -137,42 +156,42 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     {
       id: 'c1',
       number: 1,
-      title: 'आज टीका लगाया गया?',
+      title: tr('आज टीका लगाया गया?', 'आज लस दिली का?'),
       type: 'binary',
       fieldKey: 'vaccineGiven',
-      options: ['✓ हाँ, टीका लगाया', '✕ नहीं लगाया'],
+      options: [tr('✓ हाँ, टीका लगाया', '✓ होय, लस दिली'), tr('✕ नहीं लगाया', '✕ दिली नाही')],
     },
     {
       id: 'c2',
       number: 2,
-      title: 'शिशु का वजन (kg)',
+      title: tr('शिशु का वजन (kg)', 'बाळाचे वजन (kg)'),
       type: 'number',
       fieldKey: 'childWeight',
-      helperText: 'वृद्धि मॉनिटरिंग',
+      helperText: tr('वृद्धि निगरानी', 'वाढ निरीक्षण'),
     },
     {
       id: 'c3',
       number: 3,
-      title: 'बीमारी / खतरे के लक्षण',
+      title: tr('बीमारी / खतरे के लक्षण', 'आजार / धोक्याची लक्षणे'),
       type: 'options',
       fieldKey: 'childCondition',
       options: [
-        'पूर्णतः स्वस्थ',
-        'खाँसी / सर्दी / बुखार',
-        'दस्त (ORS देय)',
-        'गंभीर — रेफरल आवश्यक',
+        tr('पूर्णतः स्वस्थ', 'पूर्णपणे निरोगी'),
+        tr('खाँसी / सर्दी / बुखार', 'खोकला / सर्दी / ताप'),
+        tr('दस्त (ORS देय)', 'जुलाब (ORS देय)'),
+        tr('गंभीर — रेफरल आवश्यक', 'गंभीर — संदर्भ आवश्यक'),
       ],
     },
     {
       id: 'c4',
       number: 4,
-      title: 'सत्र की स्थिति (रजिस्टर 18 अ)',
+      title: tr('सत्र की स्थिति (रजिस्टर 18 अ)', 'सत्राची स्थिती (रजिस्टर 18 अ)'),
       type: 'options',
       fieldKey: 'childStatus',
       options: [
-        '✓ टीकाकरण पूर्ण',
-        'माता-पिता अनुपस्थित',
-        'टीके से इनकार',
+        tr('✓ टीकाकरण पूर्ण', '✓ लसीकरण पूर्ण'),
+        tr('माता-पिता अनुपस्थित', 'पालक अनुपस्थित'),
+        tr('टीके से इनकार', 'लसीला नकार'),
       ],
     },
   ];
@@ -181,74 +200,88 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     {
       id: 'o1',
       number: 1,
-      title: 'सेवा का प्रकार',
+      title: tr('सेवा का प्रकार', 'सेवेचा प्रकार'),
       type: 'options',
       fieldKey: 'otherCategory',
       options: [
-        'परिवार नियोजन',
-        'धात्री माता (PNC)',
-        'किशोरी आयरन (WIFS)',
-        'NCD जाँच',
+        tr('परिवार नियोजन', 'कुटुंब नियोजन'),
+        tr('धात्री माता (PNC)', 'स्तनदा माता (PNC)'),
+        tr('किशोरी आयरन (WIFS)', 'किशोरी लोह (WIFS)'),
+        tr('NCD जाँच', 'NCD तपासणी'),
       ],
     },
     {
       id: 'o2',
       number: 2,
-      title: 'सामग्री / दवा वितरण',
+      title: tr('सामग्री / दवा वितरण', 'साहित्य / औषध वाटप'),
       type: 'options',
       fieldKey: 'suppliesGiven',
       options: [
-        'छाया / अंतरा / कंडोम',
-        'आयरन (WIFS) गोली दी',
-        'केवल परामर्श दिया',
-        'दवा अनुपलब्ध',
+        tr('छाया / अंतरा / कंडोम', 'छाया / अंतरा / निरोध'),
+        tr('आयरन (WIFS) गोली दी', 'लोह (WIFS) गोळी दिली'),
+        tr('केवल परामर्श दिया', 'फक्त समुपदेशन केले'),
+        tr('दवा अनुपलब्ध', 'औषध उपलब्ध नाही'),
       ],
     },
     {
       id: 'o3',
       number: 3,
-      title: 'सत्यापन (रजिस्टर 18 स)',
+      title: tr('सत्यापन (रजिस्टर 18 स)', 'पडताळणी (रजिस्टर 18 स)'),
       type: 'options',
       fieldKey: 'otherStatus',
       options: [
-        '✓ सेवा सफल',
-        'अगले सप्ताह फॉलो-अप',
-        'स्वास्थ्य केंद्र रेफरल',
+        tr('✓ सेवा सफल', '✓ सेवा यशस्वी'),
+        tr('अगले सप्ताह फॉलो-अप', 'पुढील आठवड्यात पाठपुरावा'),
+        tr('स्वास्थ्य केंद्र रेफरल', 'आरोग्य केंद्र संदर्भ'),
       ],
     },
   ];
 
-  const questions =
+  const questions = (
     formType === 'CHILD'
       ? childQuestions
       : formType === 'OTHER'
       ? otherQuestions
-      : pregnancyQuestions;
+      : pregnancyQuestions
+  ).map((q, i) => ({ ...q, number: i + 1 }));
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentQ = questions[currentIndex];
   const totalQuestions = questions.length;
 
-  const [answers, setAnswers] = useState<Record<string, any>>({
-    isPregnant: 'हाँ',
-    ancVisit: 'ANC 2',
-    ttGiven: '✓ लगाया गया',
-    bp: '120/80',
-    weight: '58',
-    hemoglobin: '10.4',
-    urine: 'सामान्य',
-    abdominalExam: '✓ की गई',
-    ironTablets: '100',
-    calciumTablets: '100',
-    serviceStatus: '✓ सेवा पूर्ण',
-    vaccineGiven: '✓ हाँ, टीका लगाया',
-    childWeight: '5.4',
-    childCondition: 'पूर्णतः स्वस्थ',
-    childStatus: '✓ टीकाकरण पूर्ण',
-    otherCategory: 'परिवार नियोजन',
-    suppliesGiven: 'छाया / अंतरा / कंडोम',
-    otherStatus: '✓ सेवा सफल',
-  });
+  // Start empty: unanswered questions must stay unrecorded, never pre-filled with sample clinical values.
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  // LMP entry as three large numeric boxes (DD / MM / YYYY); EDD auto-derived by Naegele's rule.
+  const [lmpParts, setLmpParts] = useState({ d: '', m: '', y: '' });
+  const lmpComplete = lmpParts.d.length > 0 && lmpParts.m.length > 0 && lmpParts.y.length === 4;
+  const lmpDate = lmpComplete ? parseClinicalDate(`${lmpParts.d}/${lmpParts.m}/${lmpParts.y}`) : null;
+  const lmpWeeks = lmpDate ? gestationalWeeks(lmpDate) : null;
+  const lmpIsFuture = lmpDate ? lmpDate.getTime() > Date.now() : false;
+  const lmpError: string | null = !lmpComplete
+    ? null
+    : !lmpDate
+    ? tr('अमान्य तिथि', 'अवैध तारीख')
+    : lmpIsFuture
+    ? tr('भविष्य की तिथि नहीं', 'भविष्यातील तारीख नाही')
+    : lmpWeeks === null
+    ? tr('45 सप्ताह से पुरानी', '45 आठवड्यांपेक्षा जुनी')
+    : null;
+  const lmpEdd = lmpDate && !lmpError ? calculateEdd(lmpDate) : null;
+
+  const updateLmpPart = (part: 'd' | 'm' | 'y', raw: string) => {
+    const next = { ...lmpParts, [part]: raw.replace(/[^0-9]/g, '') };
+    setLmpParts(next);
+    const complete = next.d.length > 0 && next.m.length > 0 && next.y.length === 4;
+    const parsed = complete ? parseClinicalDate(`${next.d}/${next.m}/${next.y}`) : null;
+    const valid = parsed !== null && parsed.getTime() <= Date.now() && gestationalWeeks(parsed) !== null;
+    setAnswers((prev) => {
+      const { lmpDate: _l, eddDate: _e, ...rest } = prev;
+      return valid && parsed
+        ? { ...rest, lmpDate: formatClinicalDate(parsed), eddDate: formatClinicalDate(calculateEdd(parsed)) }
+        : rest;
+    });
+  };
 
   const [isSaving, setIsSaving] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -260,7 +293,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       setIsListening(false);
     } else {
       setIsListening(true);
-      const speechLang = localeCode === 'en' ? 'en-IN' : localeCode === 'mr' ? 'mr-IN' : 'hi-IN';
+      const speechLang = language === 'mr' ? 'mr-IN' : 'hi-IN';
       VoiceRecognition.start(
         speechLang,
         (transcript) => {
@@ -305,13 +338,18 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   };
 
   const handleSave = async () => {
+    // Never attach a survey to a placeholder patient.
+    if (!familyUnitId || !familyMemberId) {
+      onBack();
+      return;
+    }
     setIsSaving(true);
     try {
       await submitSurvey({
         familyUnitId,
         familyMemberId,
         categoryCode: formType === 'OTHER' ? 'GENERAL' : formType,
-        ashaWorkerPhone: '9876543210',
+        ashaWorkerPhone: getStorageWorkerPhone(),
         answers: {
           ...answers,
           clinicalNote,
@@ -344,10 +382,10 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>
             {formType === 'PREGNANCY'
-              ? 'प्रसवपूर्व (18 ब)'
+              ? tr('प्रसवपूर्व (18 ब)', 'प्रसूतीपूर्व (18 ब)')
               : formType === 'CHILD'
-              ? 'बाल स्वास्थ्य (18 अ)'
-              : 'अन्य सेवाएँ (18 स)'}
+              ? tr('बाल स्वास्थ्य (18 अ)', 'बाल आरोग्य (18 अ)')
+              : tr('अन्य सेवाएँ (18 स)', 'इतर सेवा (18 स)')}
           </Text>
           <Text style={styles.headerMember}>{memberName}</Text>
         </View>
@@ -460,13 +498,73 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
               </View>
             )}
 
+            {/* LMP DATE (Naegele's rule EDD, gestational weeks, trimester) */}
+            {currentQ.type === 'date' && (
+              <View style={styles.clinicalBox}>
+                <View style={styles.lmpRow}>
+                  {([
+                    ['d', tr('दिन', 'दिवस'), 2, '--'],
+                    ['m', tr('माह', 'महिना'), 2, '--'],
+                    ['y', tr('वर्ष', 'वर्ष'), 4, '----'],
+                  ] as const).map(([part, label, max, hint]) => (
+                    <View key={part} style={[styles.lmpCell, part === 'y' && styles.lmpCellWide]}>
+                      <Text style={styles.inputLabel}>{label}</Text>
+                      <TextInput
+                        style={[styles.lmpInput, lmpError ? styles.lmpInputError : null]}
+                        value={lmpParts[part]}
+                        onChangeText={(v) => updateLmpPart(part, v)}
+                        keyboardType="number-pad"
+                        maxLength={max}
+                        placeholder={hint}
+                        placeholderTextColor="#9CA3AF"
+                        accessibilityLabel={label}
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                {lmpError && (
+                  <View style={styles.lmpErrorRow}>
+                    <AlertTriangle size={14} color="#DC2626" />
+                    <Text style={styles.lmpErrorText}>{lmpError}</Text>
+                  </View>
+                )}
+
+                {lmpEdd && lmpWeeks !== null && (
+                  <View style={styles.eddCard}>
+                    <View style={styles.eddHeaderRow}>
+                      <CalendarDays size={18} color="#047857" />
+                      <Text style={styles.eddLabel}>{tr('संभावित प्रसव (EDD)', 'संभाव्य प्रसूती (EDD)')}</Text>
+                    </View>
+                    <Text style={styles.eddValue}>{formatClinicalDate(lmpEdd)}</Text>
+                    <View style={styles.eddChipsRow}>
+                      <View style={styles.eddChip}>
+                        <Text style={styles.eddChipText}>
+                          {lmpWeeks} {tr('सप्ताह', 'आठवडे')}
+                        </Text>
+                      </View>
+                      <View style={styles.eddChip}>
+                        <Text style={styles.eddChipText}>
+                          {tr('तिमाही', 'तिमाही')} {trimesterFromWeeks(lmpWeeks)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {currentQ.helperText && (
+                  <Text style={styles.helperNotice}>ℹ️ {currentQ.helperText}</Text>
+                )}
+              </View>
+            )}
+
             {/* 3. CUSTOM CLINICAL: BP & Weight */}
             {currentQ.type === 'custom_clinical' && (
               <View style={styles.clinicalBox}>
                 <View style={styles.inputGroup}>
                   <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>BP (mmHg)</Text>
-                    <TouchableOpacity onPress={() => speak('रक्तचाप')} style={styles.inlineLabelVoice}>
+                    <Text style={styles.inputLabel}>{tr('बी.पी.', 'बी.पी.')} (mmHg)</Text>
+                    <TouchableOpacity onPress={() => speak(tr('रक्तचाप', 'रक्तदाब'))} style={styles.inlineLabelVoice}>
                       <Volume2 size={13} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -482,7 +580,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
                 <View style={[styles.inputGroup, { marginTop: 14 }]}>
                   <View style={styles.inputLabelRow}>
                     <Text style={styles.inputLabel}>वजन (kg)</Text>
-                    <TouchableOpacity onPress={() => speak('वजन किलोग्राम')} style={styles.inlineLabelVoice}>
+                    <TouchableOpacity onPress={() => speak(tr('वजन किलोग्राम', 'वजन किलोग्रॅम'))} style={styles.inlineLabelVoice}>
                       <Volume2 size={13} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -529,8 +627,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
               <View style={styles.clinicalBox}>
                 <View style={styles.inputGroup}>
                   <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>IFA गोलियाँ (संख्या)</Text>
-                    <TouchableOpacity onPress={() => speak('आयरन गोलियों की संख्या')} style={styles.inlineLabelVoice}>
+                    <Text style={styles.inputLabel}>{tr('IFA गोलियाँ (संख्या)', 'IFA गोळ्या (संख्या)')}</Text>
+                    <TouchableOpacity onPress={() => speak(tr('आयरन गोलियों की संख्या', 'लोह गोळ्यांची संख्या'))} style={styles.inlineLabelVoice}>
                       <Volume2 size={13} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -546,8 +644,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
 
                 <View style={[styles.inputGroup, { marginTop: 14 }]}>
                   <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>कैल्शियम गोलियाँ (संख्या)</Text>
-                    <TouchableOpacity onPress={() => speak('कैल्शियम गोलियों की संख्या')} style={styles.inlineLabelVoice}>
+                    <Text style={styles.inputLabel}>{tr('कैल्शियम गोलियाँ (संख्या)', 'कॅल्शियम गोळ्या (संख्या)')}</Text>
+                    <TouchableOpacity onPress={() => speak(tr('कैल्शियम गोलियों की संख्या', 'कॅल्शियम गोळ्यांची संख्या'))} style={styles.inlineLabelVoice}>
                       <Volume2 size={13} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -573,7 +671,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
                   <View style={styles.voiceNoteTitleRow}>
                     <FileText size={16} color={Colors.primary} style={{ marginRight: 6 }} />
                     <Text style={styles.voiceNoteTitle}>
-                      टिप्पणी जोड़ें / Add Note (वैकल्पिक)
+                      {tr('टिप्पणी जोड़ें (वैकल्पिक)', 'टीप जोडा (ऐच्छिक)')}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -583,15 +681,15 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
                   >
                     <Mic size={15} color={isListening ? '#FFFFFF' : Colors.primary} />
                     <Text style={[styles.voiceMicBtnText, isListening && styles.voiceMicBtnTextActive]}>
-                      {isListening ? 'सुन रहे हैं... रोकें' : 'बोलकर लिखें'}
+                      {isListening ? tr('सुन रहे हैं... रोकें', 'ऐकत आहे... थांबवा') : tr('बोलकर लिखें', 'बोलून लिहा')}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
                 <Text style={styles.voiceNoteSub}>
                   {isListening
-                    ? '🎙️ बोलिए... आपकी आवाज़ को टेक्स्ट में बदला जा रहा है।'
-                    : 'माइक दबाकर बोलें या यहाँ लिखें (वैकल्पिक टिप्पणी)'}
+                    ? tr('🎙️ बोलिए... आपकी आवाज़ को टेक्स्ट में बदला जा रहा है।', '🎙️ बोला... तुमचा आवाज मजकुरात बदलला जात आहे.')
+                    : tr('माइक दबाकर बोलें या यहाँ लिखें (वैकल्पिक टिप्पणी)', 'माइक दाबून बोला किंवा येथे लिहा (ऐच्छिक टीप)')}
                 </Text>
 
                 <TextInput
@@ -601,7 +699,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
                     setClinicalNote(txt);
                     setAnswers((prev) => ({ ...prev, clinicalNote: txt, remarks: txt }));
                   }}
-                  placeholder="यहाँ अपनी टिप्पणी बोलें या टाइप करें (वैकल्पिक)..."
+                  placeholder={tr('यहाँ अपनी टिप्पणी बोलें या टाइप करें (वैकल्पिक)...', 'येथे तुमची टीप बोला किंवा टाइप करा (ऐच्छिक)...')}
                   placeholderTextColor="#9CA3AF"
                   multiline
                   numberOfLines={3}
@@ -617,7 +715,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         {currentIndex > 0 ? (
           <TouchableOpacity style={styles.prevBtn} onPress={handlePrev} activeOpacity={0.8}>
             <ArrowLeft size={18} color={Colors.textPrimary} style={{ marginRight: 6 }} />
-            <Text style={styles.prevBtnText}>पिछला</Text>
+            <Text style={styles.prevBtnText}>{tr('पिछला', 'मागे')}</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ flex: 1 }} />
@@ -625,7 +723,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
 
         {!isLastQuestion ? (
           <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.85}>
-            <Text style={styles.nextBtnText}>अगला</Text>
+            <Text style={styles.nextBtnText}>{tr('अगला', 'पुढे')}</Text>
             <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         ) : (
@@ -637,7 +735,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
           >
             <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
             <Text style={styles.saveBtnText}>
-              {isSaving ? 'सहेजा जा रहा है...' : 'सहेजें'}
+              {isSaving ? tr('सहेजा जा रहा है...', 'जतन होत आहे...') : tr('सहेजें', 'जतन करा')}
             </Text>
           </TouchableOpacity>
         )}
@@ -647,6 +745,46 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  // LMP date entry (48dp+ tactile targets, Devanagari-safe line heights)
+  lmpRow: { flexDirection: 'row', gap: 10 },
+  lmpCell: { flex: 1 },
+  lmpCellWide: { flex: 1.6 },
+  lmpInput: {
+    minHeight: 56,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  lmpInputError: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
+  lmpErrorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  lmpErrorText: { color: '#991B1B', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  eddCard: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    backgroundColor: '#ECFDF5',
+  },
+  eddHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  eddLabel: { fontSize: 13, fontWeight: '600', color: '#065F46', lineHeight: 18 },
+  eddValue: { fontSize: 26, fontWeight: '800', color: '#047857', marginTop: 6 },
+  eddChipsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  eddChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  eddChipText: { fontSize: 13, fontWeight: '700', color: '#065F46', lineHeight: 18 },
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',

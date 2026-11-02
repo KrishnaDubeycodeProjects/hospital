@@ -92,15 +92,12 @@ public class OtpService {
         // Generate and store local OTP code so verification is fast, reliable, and available for WhatsApp
         String code = generateAndStoreLocalOtp(cleanPhone);
 
-        // 1. Send via WhatsApp Cloud API
+        // 1. Send via WhatsApp Cloud API with interactive numbers button / copy code
         try {
             if (whatsAppService != null) {
-                whatsAppService.sendWhatsAppMessage(phone,
-                        "🔐 *AarogyaFlow Verification OTP*\n\n" +
-                        "Your verification code is: *" + code + "*\n" +
-                        "Valid for " + appProperties.getOtpTtlMinutes() + " minutes.\n\n" +
-                        "Please enter this code in the portal to verify your access.");
-                log.info("📲 Dispatched WhatsApp OTP to {}", phone);
+                int ttl = appProperties.getOtpTtlMinutes() > 0 ? appProperties.getOtpTtlMinutes() : 15;
+                whatsAppService.sendCopyCodeOtpMessage(phone, code, ttl);
+                log.info("📲 Dispatched WhatsApp OTP interactive message to {}", phone);
             }
         } catch (Exception e) {
             log.warn("WhatsApp OTP dispatch attempt notice for {}: {}", phone, e.getMessage());

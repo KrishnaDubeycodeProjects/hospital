@@ -14,8 +14,9 @@
 - **Offline Storage:** `@react-native-async-storage/async-storage` with an append-only Outbox Queue (`@asha_outbox`).
 - **Icons & UI:** `lucide-react-native`, `react-native-svg` (Clean, text-light, icon-driven Material 3 surface styling).
 - **Design Skill & Rules:** Strictly enforce [`DESIGN_SKILL.md`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/asha-app/DESIGN_SKILL.md) and [`visual-abstract-ui`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/.agents/skills/visual-abstract-ui/SKILL.md) (Anti-AI-slop, 3-word ceiling, tactile cards, semantic color bindings).
+- **Government System Alignment:** Strictly adhere to [`GOVERNMENT_RCH_ANMOL_SPECIFICATION.md`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/asha-app/GOVERNMENT_RCH_ANMOL_SPECIFICATION.md) for official RCH 2.0 registers, ANMOL 5.0.12 schemas, National Immunization Schedule (NIS Annexure 2), Naegele's rule EDD calculation (Annexure 1), VHND workflows, and ASHA vs ANM role boundaries.
 - **Voice Engine:** `expo-speech-recognition`, `expo-speech` (Local model initialization for offline rural dialect dictation).
-- **Language Localization:** Strictly **Hindi (`hi`)** and **Marathi (`mr`)** only.
+- **Language Localization:** Strictly **Hindi (`hi`)** and **Marathi (`mr`)** only. Zero English leakage policy for all patient-facing and field worker interfaces.
 
 ---
 
@@ -47,8 +48,10 @@
    - Roles (`ASHA`, `ANM`, `CHO`) are strictly immutable post-login.
 5. **Language Constraint:**
    - Only Hindi (`hi`) and Marathi (`mr`) are permitted.
-   - All user-facing strings must use the translation hook: `const { t } = useLanguage();`.
-6. **Guardrails:**
+   - Zero English leakage in UI. All user-facing strings must use the translation hook: `const { t } = useLanguage();`.
+6. **Government Compatibility Invariant:**
+   - All forms, clinical tracking parameters (BP, Hb, EDD, vaccines), and role handoffs must strictly adhere to [`GOVERNMENT_RCH_ANMOL_SPECIFICATION.md`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/asha-app/GOVERNMENT_RCH_ANMOL_SPECIFICATION.md).
+7. **Guardrails:**
    - **DO NOT** edit files in `dist/`, `.expo/`, or `android/app/build/`.
    - **DO NOT** replace React Native code with native Android Java/Kotlin unless explicitly requested for custom native modules.
 

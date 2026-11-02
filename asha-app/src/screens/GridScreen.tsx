@@ -137,7 +137,7 @@ export const GridScreen: React.FC<GridScreenProps> = ({
 
       const famMembers = members.filter((m) => m.familyUnitId === fam.id);
       if (selectedSubFilter === 'infants') {
-        return famMembers.some((m) => m.isChild && m.age <= 1);
+        return famMembers.some((m) => m.isChild && m.age != null && m.age <= 1);
       }
       if (selectedSubFilter === 'vax_due') {
         return fam.status === '7days' || fam.status === '15days';
@@ -177,7 +177,7 @@ export const GridScreen: React.FC<GridScreenProps> = ({
           child: fam.hasChild,
         },
         familyUnitId: fam.id,
-        primaryPhone: fam.primaryPhone || '+91 98765 00000',
+        primaryPhone: fam.primaryPhone || '',
         villageName: fam.villageName || 'चाँदपुर गाँव',
         membersList: famMembers.map((m) => ({
           id: m.id,

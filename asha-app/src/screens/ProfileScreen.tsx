@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
   Image,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +20,69 @@ import { User, Phone, MapPin, BadgeCheck, Languages, Check, Save, LogOut, Shield
 export const ProfileScreen: React.FC = () => {
   const { user, updateProfile, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+
+  // Profile Pic Zooming Animation Values
+  const zoomScale = useRef(new Animated.Value(0.3)).current;
+  const zoomOpacity = useRef(new Animated.Value(0)).current;
+  const pulseScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // 1. Initial spring zoom-in on screen open
+    Animated.parallel([
+      Animated.spring(zoomScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(zoomOpacity, {
+        toValue: 1,
+        duration: 450,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // 2. Continuous subtle breathing zoom loop
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseScale, {
+            toValue: 1.06,
+            duration: 1200,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseScale, {
+            toValue: 1.0,
+            duration: 1200,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
+  }, []);
+
+  // Interactive tap zoom effect
+  const handleAvatarZoomPress = () => {
+    Animated.sequence([
+      Animated.timing(zoomScale, {
+        toValue: 0.9,
+        duration: 90,
+        useNativeDriver: true,
+      }),
+      Animated.spring(zoomScale, {
+        toValue: 1.12,
+        friction: 3,
+        tension: 50,
+        useNativeDriver: true,
+      }),
+      Animated.spring(zoomScale, {
+        toValue: 1.0,
+        friction: 5,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
 
   const [name, setName] = useState(user.name);
   const [village, setVillage] = useState(user.village);
@@ -40,7 +105,6 @@ export const ProfileScreen: React.FC = () => {
 
   const languagesList: { code: LanguageCode; label: string; native: string }[] = [
     { code: 'hi', label: 'Hindi', native: 'हिंदी' },
-    { code: 'en', label: 'English', native: 'English' },
     { code: 'mr', label: 'Marathi', native: 'मराठी' },
   ];
 
@@ -54,13 +118,29 @@ export const ProfileScreen: React.FC = () => {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Top Profile Avatar Header */}
       <View style={styles.headerCard}>
-        <View style={styles.avatarCircle}>
-          <Image
-            source={logoSource}
-            style={styles.profileLogoImage}
-            resizeMode="contain"
-          />
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={handleAvatarZoomPress}
+          style={styles.avatarTouchWrapper}
+        >
+          <Animated.View
+            style={[
+              styles.avatarSquircle,
+              {
+                opacity: zoomOpacity,
+                transform: [
+                  { scale: Animated.multiply(zoomScale, pulseScale) },
+                ],
+              },
+            ]}
+          >
+            <Image
+              source={logoSource}
+              style={styles.profileLogoImage}
+              resizeMode="contain"
+            />
+          </Animated.View>
+        </TouchableOpacity>
         <Text style={styles.headerName}>{name || user.name}</Text>
         <Text style={styles.headerRole}>{user.roleTitle}</Text>
         <Text style={styles.headerVillage}>{village || user.village}</Text>
@@ -230,25 +310,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  avatarTouchWrapper: {
+    marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarSquircle: {
+    width: 92,
+    height: 92,
+    borderRadius: 24, // Round square / squircle
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
-    borderWidth: 2.5,
-    borderColor: '#BFDBFE',
+    padding: 8,
+    borderWidth: 2,
+    borderColor: '#DBEAFE',
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
   profileLogoImage: {
-    width: 62,
-    height: 62,
+    width: 74,
+    height: 74,
   },
   headerName: {
     fontSize: 18,

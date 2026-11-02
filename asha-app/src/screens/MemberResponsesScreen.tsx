@@ -52,7 +52,10 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
   onStartNewSurvey,
 }) => {
   const { t, language, localeCode, ttsEnabled } = useLanguage();
-  const { surveys, createReferralToCho } = useOfflineData();
+  const { surveys, families, createReferralToCho } = useOfflineData();
+  // Members share the household head's phone unless they have their own number.
+  const contactPhone =
+    member.phone?.trim() || families.find((f) => f.id === member.familyUnitId)?.primaryPhone?.trim() || '';
 
   // Find member's survey responses
   const memberSurveys = surveys.filter((s) => s.familyMemberId === member.id);
@@ -83,7 +86,7 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
       familyUnitId: member.familyUnitId,
       familyMemberId: member.id,
       name: member.name,
-      phone: member.phone,
+      phone: contactPhone || undefined,
       abhaNumber: member.abhaNumber,
       houseNumber: houseNo,
       villageName: 'Chandpur',
@@ -181,14 +184,14 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
                   <Text style={styles.contactText}>DOB: {member.dob}</Text>
                 </View>
               )}
-              {member.phone && (
+              {!!contactPhone && (
                 <TouchableOpacity
                   style={styles.clickablePhoneItem}
-                  onPress={() => Linking.openURL(`tel:${member.phone}`)}
+                  onPress={() => Linking.openURL(`tel:${contactPhone}`)}
                   activeOpacity={0.7}
                 >
                   <Phone size={12} color="#0284C7" style={{ marginRight: 4 }} />
-                  <Text style={styles.clickablePhoneText}>{member.phone}</Text>
+                  <Text style={styles.clickablePhoneText}>{contactPhone}</Text>
                   <Text style={styles.callBadgeText}>कॉल करें</Text>
                 </TouchableOpacity>
               )}
@@ -497,8 +500,8 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
                 <View style={styles.modalBeneficiaryCard}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={styles.modalBenName}>{member.name} ({member.age} वर्ष)</Text>
-                    {member.phone && (
-                      <Text style={styles.modalBenPhone}>📞 {member.phone}</Text>
+                    {!!contactPhone && (
+                      <Text style={styles.modalBenPhone}>📞 {contactPhone}</Text>
                     )}
                   </View>
                   {member.abhaNumber && (

@@ -16,7 +16,6 @@ export class SpeechEngine {
       try {
         await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'hi-IN' }).catch(() => {});
         await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'mr-IN' }).catch(() => {});
-        await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'en-IN' }).catch(() => {});
       } catch (e) {
         // Safe fallback on unsupported Android versions
       }

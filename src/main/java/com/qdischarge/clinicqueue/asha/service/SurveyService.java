@@ -73,10 +73,20 @@ public class SurveyService {
             // Side effects
             String updateMemberSql = "UPDATE clinicqueue.family_members SET last_survey_date = NOW()";
             MapSqlParameterSource memberParams = new MapSqlParameterSource("memberId", body.getFamilyMemberId());
-            
-            if ("PREGNANCY".equalsIgnoreCase(body.getCategoryCode()) && body.getAnswers() != null &&
-                    Boolean.TRUE.equals(body.getAnswers().get("isPregnant"))) {
-                updateMemberSql += ", is_pregnant = true";
+
+            if ("PREGNANCY".equalsIgnoreCase(body.getCategoryCode()) && body.getAnswers() != null) {
+                // Accepts boolean true/false and localized "हाँ" / "होय" / "नहीं" / "नाही".
+                Boolean pregnant = ClinicalValueNormalizer.affirmative(body.getAnswers().get("isPregnant"));
+                if (pregnant != null) {
+                    updateMemberSql += ", is_pregnant = :isPregnant";
+                    memberParams.addValue("isPregnant", pregnant);
+                }
+                // EDD strictly by Naegele's rule from the recorded LMP (Annexure 1).
+                java.time.LocalDate lmp = ClinicalValueNormalizer.parseDate(body.getAnswers().get("lmpDate"));
+                if (lmp != null && !Boolean.FALSE.equals(pregnant)) {
+                    updateMemberSql += ", expected_delivery_date = :edd";
+                    memberParams.addValue("edd", java.sql.Date.valueOf(ClinicalValueNormalizer.naegeleEdd(lmp)));
+                }
             }
             updateMemberSql += " WHERE id = :memberId";
             jdbcTemplate.update(updateMemberSql, memberParams);

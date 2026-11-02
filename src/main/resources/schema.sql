@@ -671,3 +671,32 @@ ALTER TABLE family_units ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FAL
 ALTER TABLE family_members ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
 ALTER TABLE asha_workers ADD COLUMN IF NOT EXISTS preferred_language VARCHAR(10) DEFAULT 'hi';
 
+
+-- Sync contract v2: bind offline-created ASHA records to server rows by client UUID.
+-- (Also applied at runtime by SyncService.ensureSyncSchema, since SchemaInitRunner is skipped on Lambda.)
+ALTER TABLE family_units ADD COLUMN IF NOT EXISTS client_uuid VARCHAR(64);
+ALTER TABLE family_members ADD COLUMN IF NOT EXISTS client_uuid VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fu_client_uuid ON family_units (client_uuid) WHERE client_uuid IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fm_client_uuid ON family_members (client_uuid) WHERE client_uuid IS NOT NULL;
+
+-- ASHA meetings (VHSNC / Gram Sabha) synced from the offline outbox
+CREATE TABLE IF NOT EXISTS asha_meetings (
+  id                SERIAL PRIMARY KEY,
+  client_uuid       VARCHAR(64) NOT NULL UNIQUE,
+  asha_worker_phone VARCHAR(50) NOT NULL,
+  meeting_date      DATE,
+  payload           JSONB NOT NULL,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_am_asha ON asha_meetings (asha_worker_phone);
+
+-- Shared household phones: ASHA families may share or omit a contact number.
+-- Uniqueness of primary_phone is kept only for hospital family accounts (no asha_worker_phone).
+ALTER TABLE family_units DROP CONSTRAINT IF EXISTS family_units_primary_phone_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fu_phone_hospital ON family_units (primary_phone) WHERE asha_worker_phone IS NULL;
+
+-- CHO sector referral validation (physical referral triage and transport sign-off)
+ALTER TABLE follow_up_tasks ADD COLUMN IF NOT EXISTS cho_approved_by VARCHAR(50);
+ALTER TABLE follow_up_tasks ADD COLUMN IF NOT EXISTS cho_approved_at TIMESTAMP;
+ALTER TABLE follow_up_tasks ADD COLUMN IF NOT EXISTS cho_note TEXT;

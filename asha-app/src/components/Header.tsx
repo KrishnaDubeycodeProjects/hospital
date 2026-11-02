@@ -15,13 +15,9 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
   const { pendingSyncCount, isSyncing, isOnline, triggerSync } = useOfflineData();
   const { language, setLanguage, t } = useLanguage();
 
-  const cycleLanguage = () => {
-    if (language === 'hi') setLanguage('mr');
-    else if (language === 'mr') setLanguage('en');
-    else setLanguage('hi');
-  };
+  const cycleLanguage = () => setLanguage(language === 'hi' ? 'mr' : 'hi');
 
-  const currentLangLabel = language === 'hi' ? 'हिं' : language === 'mr' ? 'मरा' : 'EN';
+  const currentLangLabel = language === 'hi' ? 'हिं' : 'मरा';
 
   const logoSource = Platform.OS === 'web'
     ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
@@ -75,7 +71,7 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           ) : pendingSyncCount > 0 ? (
             <>
               <CloudOff size={12} color="#D97706" />
-              <Text style={styles.storageText}>{pendingSyncCount} local</Text>
+              <Text style={styles.storageText}>{pendingSyncCount} {language === 'mr' ? 'बाकी' : 'शेष'}</Text>
             </>
           ) : (
             <>

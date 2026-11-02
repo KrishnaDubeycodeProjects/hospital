@@ -2,6 +2,13 @@ import { Platform } from 'react-native';
 import { OfflineStorageService, getStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { OutboxItem } from '../types/storage';
 import { parseQrIdentifier } from '../utils/qrScannerHelper';
+import {
+  buildUploadPayload,
+  planOutcomes,
+  collectServerIds,
+  OutboxOutcome,
+  SyncRecordResult,
+} from './syncContract';
 
 const CLOUD_API_URL = 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
 
@@ -30,6 +37,32 @@ export interface SyncResult {
   syncedCount: number;
   qrPayload?: string;
   downloadedTasksCount?: number;
+}
+
+type SyncLang = 'hi' | 'mr' | string;
+const msg = (lang: SyncLang, hi: string, mr: string) => (lang === 'mr' ? mr : hi);
+
+/**
+ * Auto-sync coordination (shared by heartbeat, NetInfo, browser events and manual taps):
+ * - single-flight: concurrent callers share one in-flight run, so the same outbox batch
+ *   is never uploaded twice in parallel;
+ * - exponential backoff after a failed upload (1s, 2s, 4s ... capped at 5 min) so a
+ *   failing server is not hammered every 5 s by the heartbeat.
+ */
+let inFlightSync: Promise<SyncResult> | null = null;
+let consecutiveFailures = 0;
+let nextAttemptAt = 0;
+const MAX_BACKOFF_MS = 5 * 60 * 1000;
+
+function registerFailure(): void {
+  consecutiveFailures += 1;
+  const delay = Math.min(1000 * 2 ** (consecutiveFailures - 1), MAX_BACKOFF_MS);
+  nextAttemptAt = Date.now() + delay;
+}
+
+function registerSuccess(): void {
+  consecutiveFailures = 0;
+  nextAttemptAt = 0;
 }
 
 export class SyncApi {
@@ -96,7 +129,39 @@ export class SyncApi {
    */
   static async syncOutbox(
     ashaPhone: string = getStorageWorkerPhone(),
-    sectionFilter: string = 'CHILD_VAX'
+    sectionFilter: string = 'CHILD_VAX',
+    options: { lang?: SyncLang; force?: boolean; role?: string } = {}
+  ): Promise<SyncResult> {
+    const lang = options.lang || 'hi';
+    const role = options.role || 'ASHA';
+    if (inFlightSync) return inFlightSync;
+
+    if (!options.force && Date.now() < nextAttemptAt) {
+      const pending = await OfflineStorageService.getPendingOutbox();
+      return {
+        success: false,
+        mode: 'OFFLINE_QUEUED',
+        message: msg(lang, `${pending.length} रिकॉर्ड सुरक्षित, पुनः प्रयास शीघ्र`, `${pending.length} नोंदी सुरक्षित, लवकरच पुन्हा प्रयत्न`),
+        syncedCount: 0,
+      };
+    }
+
+    inFlightSync = this.runSyncOutbox(ashaPhone, sectionFilter, lang, role).finally(() => {
+      inFlightSync = null;
+    });
+    return inFlightSync;
+  }
+
+  /** True while an outbox sync is running (lets callers skip redundant triggers). */
+  static isSyncInFlight(): boolean {
+    return inFlightSync !== null;
+  }
+
+  private static async runSyncOutbox(
+    ashaPhone: string,
+    sectionFilter: string,
+    lang: SyncLang,
+    role: string
   ): Promise<SyncResult> {
     const isOnline = await this.pingServer();
 
@@ -106,7 +171,11 @@ export class SyncApi {
       return {
         success: true,
         mode: 'OFFLINE_QUEUED',
-        message: `Offline mode: ${pendingItems.length} records safely stored locally. Ready for QR transmission or auto-sync when online.`,
+        message: msg(
+          lang,
+          `ऑफलाइन: ${pendingItems.length} रिकॉर्ड सुरक्षित। नेटवर्क मिलते ही अपने आप सिंक होंगे।`,
+          `ऑफलाइन: ${pendingItems.length} नोंदी सुरक्षित. नेटवर्क मिळताच आपोआप सिंक होतील.`
+        ),
         syncedCount: pendingItems.length,
         qrPayload,
       };
@@ -115,190 +184,61 @@ export class SyncApi {
     try {
       const pendingItems = await OfflineStorageService.getPendingOutbox();
 
-      // 1. UPLOAD ALL PENDING LOCAL CHANGES TO CLOUD
+      // 1. UPLOAD ALL PENDING LOCAL CHANGES TO CLOUD (sync contract v2, per-record acks)
+      let uploadedOk = 0;
+      let failedCount = 0;
+      let retryCount = 0;
       if (pendingItems.length > 0) {
-        const families: any[] = [];
-        const members: any[] = [];
-        const surveys: any[] = [];
-        const followUps: any[] = [];
-        const anmSends: any[] = [];
-        const deletedFamilyIds: any[] = [];
-        const deletedMemberIds: any[] = [];
+        const [famList, memList, taskList, vaxList] = await Promise.all([
+          OfflineStorageService.getFamilies(),
+          OfflineStorageService.getMembers(),
+          OfflineStorageService.getFollowUps(),
+          OfflineStorageService.getChildVaccinations(),
+        ]);
+        const built = buildUploadPayload(pendingItems, {
+          families: famList,
+          members: memList,
+          followUps: taskList,
+          vaccinations: vaxList,
+        });
 
-        for (const item of pendingItems) {
-          if (item.action === 'CREATE_FAMILY' || item.action === 'UPDATE_FAMILY') {
-            const p = item.payload || {};
-            // Format nextVisitDate as YYYY-MM-DD for PostgreSQL date parsing
-            let formattedNextVisit = p.nextVisitDate;
-            if (
-              !formattedNextVisit ||
-              typeof formattedNextVisit !== 'string' ||
-              !formattedNextVisit.match(/^\d{4}-\d{2}-\d{2}/)
-            ) {
-              const days =
-                p.visitIntervalDays ||
-                (p.status === '7days' ? 7 : p.status === '15days' ? 15 : 30);
-              formattedNextVisit = new Date(Date.now() + days * 86400000)
-                .toISOString()
-                .split('T')[0];
+        const outcomes: OutboxOutcome[] = built.unsupportedIds.map((id) => ({
+          id,
+          outcome: 'FAILED' as const,
+          error: 'UNSUPPORTED_ACTION',
+        }));
+
+        if (built.uploadedIds.length > 0) {
+          const uploadRes = await fetch(`${BACKEND_BASE_URL}/api/sync/upload`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-ASHA-Phone': ashaPhone,
+              ...NGROK_HEADERS,
+            },
+            body: JSON.stringify(built.body),
+          });
+
+          let ack: { results?: SyncRecordResult[]; rejected?: number } | null = null;
+          if (uploadRes.ok) {
+            try {
+              ack = await uploadRes.json();
+            } catch {
+              ack = { rejected: 0 }; // Empty 2xx body from a v1 server: treat as fully accepted.
             }
-            families.push({
-              primaryPhone: p.primaryPhone || '+91 98765 00000',
-              headName: p.headName || 'Household Head',
-              villageName: p.villageName || 'Chandpur Village',
-              houseNumber: p.houseNumber != null ? p.houseNumber.toString() : '1',
-              sequentialNumber: p.sequentialNumber || 1,
-              visitIntervalDays: p.visitIntervalDays || 15,
-              nextVisitDate: formattedNextVisit,
-              isDeleted: false,
-            });
-          } else if (item.action === 'DELETE_FAMILY') {
-            const p = item.payload || {};
-            if (p.sequentialNumber != null) deletedFamilyIds.push(p.sequentialNumber);
-            else if (p.id != null) deletedFamilyIds.push(p.id);
-            else if (p.houseNumber != null) deletedFamilyIds.push(p.houseNumber);
-          } else if (item.action === 'ADD_MEMBER') {
-            const m = item.payload || {};
-            // Format dob to valid date YYYY-MM-DD or derive from age to avoid SQL error
-            let formattedDob = m.dob;
-            if (!formattedDob || typeof formattedDob !== 'string' || !formattedDob.match(/^\d{4}-\d{2}-\d{2}/)) {
-              if (formattedDob && typeof formattedDob === 'string' && formattedDob.includes('/')) {
-                const parts = formattedDob.split('/');
-                if (parts.length === 3) {
-                  formattedDob = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                }
-              } else {
-                const currentYear = new Date().getFullYear();
-                const approxBirthYear = currentYear - (Number(m.age) || 25);
-                formattedDob = `${approxBirthYear}-01-01`;
-              }
-            }
-            members.push({
-              familyUnitId: m.familyUnitId || 1,
-              name: m.name || 'Family Member',
-              dob: formattedDob,
-              age: m.age || 25,
-              gender: m.gender || 'Female',
-              relationship: m.relationship || 'Member',
-              phone: m.phone || '',
-              isDeleted: false,
-            });
-          } else if (item.action === 'DELETE_MEMBER') {
-            const m = item.payload || {};
-            if (m.id != null) deletedMemberIds.push(m.id);
-          } else if (item.action === 'SUBMIT_SURVEY') {
-            const s = item.payload || {};
-            const code = s.categoryCode || 'GENERAL';
-            const tmplId =
-              code === 'PREGNANCY' ? 1 : code === 'CHILD' ? 2 : code === 'DISEASE' ? 3 : 4;
-            surveys.push({
-              offlineId: s.id || item.id,
-              familyUnitId: s.familyUnitId || 1,
-              familyMemberId: s.familyMemberId || 1,
-              templateId: tmplId,
-              categoryCode: code,
-              answers: s.answers || {},
-            });
-          } else if (item.action === 'COMPLETE_FOLLOWUP') {
-            const f = item.payload || {};
-            followUps.push({
-              offlineId: f.offlineId || f.taskId || item.id,
-              familyUnitId: f.familyUnitId || 1,
-              familyMemberId: f.familyMemberId || 1,
-              taskType: f.taskType || 'FOLLOW_UP',
-              title: f.title || f.taskType || 'Follow-up Task',
-              description: f.isCompleted
-                ? `Completed at ${f.completedAt || new Date().toISOString()}`
-                : 'Pending Task',
-              dueDate: new Date().toISOString().split('T')[0],
-              status: f.isCompleted ? 'COMPLETED' : 'PENDING',
-            });
-          } else if (item.action === 'UPDATE_CHILD_VACCINE') {
-            const v = item.payload || {};
-            surveys.push({
-              offlineId: item.id,
-              familyUnitId: 1,
-              familyMemberId: v.childMemberId || 1,
-              templateId: 2,
-              categoryCode: 'CHILD',
-              answers: {
-                recordType: 'VACCINE_UPDATE',
-                vaccineName: v.vaccineName,
-                status: v.status,
-                updatedAt: new Date().toISOString(),
-              },
-            });
-          } else if (item.action === 'SAVE_MEETING') {
-            const mtg = item.payload || {};
-            surveys.push({
-              offlineId: mtg.id || item.id,
-              familyUnitId: 1,
-              familyMemberId: 1,
-              templateId: 1,
-              categoryCode: 'GENERAL',
-              answers: {
-                recordType: 'ASHA_MEETING',
-                meetingDate: mtg.meetingDate || new Date().toISOString().split('T')[0],
-                venue: mtg.venue || 'Anganwadi Center',
-                meetingType: mtg.meetingType || 'VHSNC',
-                attendeesCount: mtg.attendeesCount || 10,
-                materialsAvailable: mtg.materialsAvailable || '',
-                discussionPoints: mtg.discussionPoints || '',
-                decisionsTaken: mtg.decisionsTaken || '',
-                createdAt: mtg.createdAt || new Date().toISOString(),
-              },
-            });
-          } else if (item.action === 'CREATE_REFERRAL') {
-            const ref = item.payload || {};
-            followUps.push({
-              offlineId: ref.id || item.id,
-              familyUnitId: Number(ref.familyUnitId) || 1,
-              familyMemberId: Number(ref.familyMemberId) || 1,
-              taskType: 'REFERRAL_CONFIRMATION',
-              title: ref.title || `Referral: ${ref.name || 'Patient'}`,
-              description: ref.description || `Referral to CHO: ${ref.referralReason || ''}. Vitals: ${ref.vitals || ''}`,
-              dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-              status: 'PENDING',
-            });
-          } else if (item.action === 'APPROVE_REFERRAL') {
-            const app = item.payload || {};
-            followUps.push({
-              offlineId: app.taskId || item.id,
-              familyUnitId: 1,
-              familyMemberId: 1,
-              taskType: 'REFERRAL_CONFIRMATION',
-              title: 'CHO Referral Approved',
-              description: app.advice ? `CHO Advice: ${app.advice}` : 'Approved by CHO',
-              dueDate: new Date().toISOString().split('T')[0],
-              status: 'COMPLETED',
-            });
-          } else if (item.action === 'SEND_TO_ANM') {
-            anmSends.push(item);
+          }
+          // Non-2xx → ack stays null → every uploaded item is retried (server upserts are idempotent).
+          outcomes.push(...planOutcomes(pendingItems, built.uploadedIds, ack));
+          if (ack?.results) {
+            await OfflineStorageService.applyServerIds(collectServerIds(ack.results));
           }
         }
 
-        // Upload batch changes to backend
-        const uploadRes = await fetch(`${BACKEND_BASE_URL}/api/sync/upload`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-ASHA-Phone': ashaPhone,
-            ...NGROK_HEADERS,
-          },
-          body: JSON.stringify({
-            families,
-            members,
-            surveys,
-            followUps,
-            deletedFamilyIds,
-            deletedMemberIds,
-          }),
-        });
-
-        // Trigger remote ANM dispatch if any SEND_TO_ANM tasks queued
-        for (const anmItem of anmSends) {
+        // ANM dispatch has its own endpoint; only retire the item when the server confirms it.
+        for (const anmItem of built.anmSends) {
+          let ok = false;
           try {
-            await fetch(`${BACKEND_BASE_URL}/api/sync/send-to-anm`, {
+            const res = await fetch(`${BACKEND_BASE_URL}/api/sync/send-to-anm`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -310,14 +250,50 @@ export class SyncApi {
                 anmIdentifier: parseQrIdentifier(anmItem.payload?.anmPhoneOrCode || 'ANM-CHANDPUR-01') || 'ANM-CHANDPUR-01',
               }),
             });
+            ok = res.ok;
           } catch (anmErr) {
             console.warn('ANM remote sync note:', anmErr);
           }
+          outcomes.push(ok ? { id: anmItem.id, outcome: 'SYNCED' } : { id: anmItem.id, outcome: 'RETRY', error: 'ANM_SEND_FAILED' });
         }
 
-        if (uploadRes.ok) {
-          const itemIds = pendingItems.map((i) => i.id);
-          await OfflineStorageService.markOutboxSynced(itemIds);
+        // CHO sector validations (physical referral triage / transport sign-off).
+        for (const approval of built.choApprovals) {
+          let outcome: OutboxOutcome;
+          try {
+            const res = await fetch(`${BACKEND_BASE_URL}/api/asha/referrals/${approval.payload.serverTaskId}/approve`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS },
+              body: JSON.stringify({ note: approval.payload.note || null }),
+            });
+            outcome = res.ok
+              ? { id: approval.id, outcome: 'SYNCED' }
+              : res.status === 404 || res.status === 403
+              ? { id: approval.id, outcome: 'FAILED', error: res.status === 404 ? 'NOT_IN_SECTOR' : 'NO_SECTOR' }
+              : { id: approval.id, outcome: 'RETRY', error: 'HTTP_' + res.status };
+          } catch {
+            outcome = { id: approval.id, outcome: 'RETRY', error: 'NETWORK' };
+          }
+          outcomes.push(outcome);
+        }
+
+        await OfflineStorageService.applyOutboxOutcomes(outcomes);
+        uploadedOk = outcomes.filter((o) => o.outcome === 'SYNCED').length;
+        failedCount = outcomes.filter((o) => o.outcome === 'FAILED').length;
+        retryCount = outcomes.filter((o) => o.outcome === 'RETRY').length;
+
+        if (retryCount > 0 && uploadedOk === 0) {
+          registerFailure();
+          return {
+            success: false,
+            mode: 'OFFLINE_QUEUED',
+            message: msg(
+              lang,
+              `सर्वर ने अपलोड स्वीकार नहीं किया। ${retryCount} रिकॉर्ड सुरक्षित हैं, पुनः प्रयास होगा।`,
+              `सर्व्हरने अपलोड स्वीकारला नाही. ${retryCount} नोंदी सुरक्षित आहेत, पुन्हा प्रयत्न होईल.`
+            ),
+            syncedCount: 0,
+          };
         }
       }
 
@@ -339,12 +315,13 @@ export class SyncApi {
             await OfflineStorageService.mergeRemoteLedger(
               remoteData.families || [],
               remoteData.members || [],
-              remoteData.deletedFamilyIds || [],
-              remoteData.deletedMemberIds || []
+              [...(remoteData.deletedFamilyIds || []), ...(remoteData.deletedFamilyClientUuids || [])],
+              [...(remoteData.deletedMemberIds || []), ...(remoteData.deletedMemberClientUuids || [])]
             );
           }
 
           if (remoteData.followUps && Array.isArray(remoteData.followUps)) {
+            await OfflineStorageService.applyRemoteFollowUpStatus(remoteData.followUps);
             for (const remTask of remoteData.followUps) {
               if (remTask.taskType === 'REFERRAL_MISSED' && remTask.status === 'PENDING') {
                 const days = remTask.title?.includes('15')
@@ -353,11 +330,17 @@ export class SyncApi {
                   ? 30
                   : 7;
 
+                if (remTask.id == null || remTask.houseNumber == null) continue;
+                const sourceReferralId = `remote-${remTask.id}`;
+                const existingTasks = await OfflineStorageService.getFollowUps();
+                if (existingTasks.some((t) => String(t.sourceReferralId) === sourceReferralId)) continue;
+
                 await OfflineStorageService.ingestMissedReferral({
-                  memberName: remTask.memberName || 'Beneficiary',
-                  houseNumber: remTask.houseNumber || 12,
+                  memberName: remTask.memberName || msg(lang, 'लाभार्थी', 'लाभार्थी'),
+                  houseNumber: remTask.houseNumber,
                   daysOverdue: days,
-                  referralReason: remTask.title || 'Hospital Referral Follow-up',
+                  referralReason: remTask.title || msg(lang, 'अस्पताल रेफरल फॉलो-अप', 'रुग्णालय संदर्भ पाठपुरावा'),
+                  sourceReferralId,
                 });
                 newReferralsCount++;
               }
@@ -368,22 +351,51 @@ export class SyncApi {
         console.warn('Could not complete download sync:', dlErr);
       }
 
+      // CHO: refresh sector referrals from every ASHA in the sector.
+      if (role === 'CHO') {
+        try {
+          const res = await fetch(`${BACKEND_BASE_URL}/api/asha/cho/referrals?scope=all`, {
+            headers: { 'X-ASHA-Phone': ashaPhone, ...NGROK_HEADERS },
+          });
+          if (res.ok) {
+            const rows = await res.json();
+            if (Array.isArray(rows)) await OfflineStorageService.mergeChoSectorReferrals(rows);
+          }
+        } catch (choErr) {
+          console.warn('CHO sector referrals not refreshed:', choErr);
+        }
+      }
+
+      if (retryCount > 0) registerFailure();
+      else registerSuccess();
+      const partsHi = [`सिंक सफल: ${uploadedOk} बदलाव भेजे।`];
+      const partsMr = [`सिंक यशस्वी: ${uploadedOk} बदल पाठवले.`];
+      if (retryCount > 0) {
+        partsHi.push(`${retryCount} पुनः प्रयास में।`);
+        partsMr.push(`${retryCount} पुन्हा प्रयत्नात.`);
+      }
+      if (failedCount > 0) {
+        partsHi.push(`${failedCount} अस्वीकृत — जाँच आवश्यक।`);
+        partsMr.push(`${failedCount} नाकारल्या — तपासणी आवश्यक.`);
+      }
+      if (newReferralsCount > 0) {
+        partsHi.push(`${newReferralsCount} नए रेफरल मिले।`);
+        partsMr.push(`${newReferralsCount} नवीन संदर्भ मिळाले.`);
+      }
       return {
-        success: true,
+        success: failedCount === 0 && retryCount === 0,
         mode: 'ONLINE_SYNCED',
-        message: `Online Sync Complete! Uploaded ${pendingItems.length} changes. ${
-          newReferralsCount > 0
-            ? `Received ${newReferralsCount} missed referral patients from hospital.`
-            : 'All patient records up-to-date.'
-        }`,
-        syncedCount: pendingItems.length,
+        message: msg(lang, partsHi.join(' '), partsMr.join(' ')),
+        syncedCount: uploadedOk,
         downloadedTasksCount: newReferralsCount,
       };
     } catch (err: any) {
+      console.warn('Sync interrupted:', err?.message);
+      registerFailure();
       return {
         success: false,
         mode: 'OFFLINE_QUEUED',
-        message: `Sync interrupted: ${err.message}. Data preserved locally.`,
+        message: msg(lang, 'सिंक बाधित। डेटा फोन में सुरक्षित है।', 'सिंक खंडित. डेटा फोनमध्ये सुरक्षित आहे.'),
         syncedCount: 0,
       };
     }

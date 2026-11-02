@@ -25,6 +25,8 @@ public class FollowUpTaskDto {
     private Integer sourceReferralId;
     private LocalDateTime completedAt;
     private String offlineId;
+    /** CHO sector validation note (transport / triage sign-off), when approved */
+    private String choNote;
     private LocalDateTime createdAt;
 
     // Joined context for display

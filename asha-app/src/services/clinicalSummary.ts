@@ -1,5 +1,18 @@
 import { FamilyMember, SurveyResponse } from '../types/storage';
 import { LanguageCode } from '../context/LanguageContext';
+import {
+  parseClinicalDate,
+  formatClinicalDate,
+  calculateEdd,
+  gestationalWeeks,
+  trimesterFromWeeks,
+  classifyHb,
+  HbGrade,
+  parseNumber,
+  parseBp,
+  isHypertensive,
+  parseAffirmative,
+} from './maternalMath';
 
 export interface SummaryHighlight {
   id: string;
@@ -29,58 +42,129 @@ export interface MemberClinicalSummary {
   hasData: boolean;
 }
 
-/**
- * Intelligent Clinical Summarizer:
- * Extracts important clinical keywords (Yes/No flags, tick marks, high-risk warnings, BP, vitals)
- * and generates a concise spoken clinical summary for offline Text-to-Speech in Hindi, English, and Marathi.
- */
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+type Tri = true | false | null;
+
+/** Interpret a recorded answer as yes / no / not recorded (shared with the sync payload builder). */
+const triState = (value: unknown): Tri => parseAffirmative(value);
+
+/** First non-empty value among the given answer keys. */
+function pick(answers: Record<string, any>, keys: string[]): any {
+  for (const k of keys) {
+    const v = answers[k];
+    if (v !== undefined && v !== null && v !== '') return v;
+  }
+  return undefined;
+}
+
+/** Latest ANC-visit-scoped key first (anc4X … anc1X), then the plain keys. */
+function ancKeys(suffix: string, plain: string[]): string[] {
+  return [...plain, `anc4${suffix}`, `anc3${suffix}`, `anc2${suffix}`, `anc1${suffix}`];
+}
+
+const NCD_NAMES: Record<string, { hi: string; mr: string }> = {
+  hypertension: { hi: 'उच्च रक्तचाप', mr: 'उच्च रक्तदाब' },
+  diabetes: { hi: 'मधुमेह', mr: 'मधुमेह' },
+  'oral cancer': { hi: 'मुख कैंसर', mr: 'तोंडाचा कर्करोग' },
+  'breast cancer': { hi: 'स्तन कैंसर', mr: 'स्तनाचा कर्करोग' },
+  'cervical cancer': { hi: 'गर्भाशय ग्रीवा कैंसर', mr: 'गर्भाशय मुख कर्करोग' },
+  'other cancer': { hi: 'अन्य कैंसर', mr: 'इतर कर्करोग' },
+  'other ncd': { hi: 'अन्य असंक्रामक रोग', mr: 'इतर असंसर्गजन्य आजार' },
+};
+
 export function generateClinicalSummary(
   member: FamilyMember,
   survey: SurveyResponse | undefined,
   lang: LanguageCode = 'hi'
 ): MemberClinicalSummary {
-  const isHi = lang === 'hi';
-  const isMr = lang === 'mr';
+  // Only Hindi and Marathi are supported; anything else renders Hindi.
+  const tr = (hi: string, mr: string) => (lang === 'mr' ? mr : hi);
+  const NOT_RECORDED = tr('दर्ज नहीं', 'नोंद नाही');
+  const yesNo = (v: Tri) => (v === null ? NOT_RECORDED : v ? tr('हाँ', 'होय') : tr('नहीं', 'नाही'));
+  const sentenceEnd = tr('।', '.');
 
-  // 1. If no survey submitted yet, provide synthesized baseline from member health profile
+  const localizeCondition = (raw: unknown): string => {
+    if (raw == null || raw === '') return NOT_RECORDED;
+    const s = String(raw);
+    const key = s.replace(/\s*\(.*\)\s*$/, '').trim().toLowerCase();
+    const hit = NCD_NAMES[key];
+    return hit ? tr(hit.hi, hit.mr) : s;
+  };
+
+  const hbLabel = (g: HbGrade) =>
+    g === 'NORMAL'
+      ? tr('सामान्य', 'सामान्य')
+      : g === 'MILD'
+      ? tr('हल्का एनीमिया', 'सौम्य रक्तक्षय')
+      : g === 'MODERATE'
+      ? tr('मध्यम एनीमिया', 'मध्यम रक्तक्षय')
+      : tr('गंभीर एनीमिया', 'तीव्र रक्तक्षय');
+
+  const hbAdvice = (g: HbGrade) =>
+    g === 'NORMAL'
+      ? tr('IFA 180 गोलियाँ', 'IFA 180 गोळ्या')
+      : g === 'MILD'
+      ? tr('IFA 360 गोलियाँ', 'IFA 360 गोळ्या')
+      : g === 'MODERATE'
+      ? tr('निकट निगरानी, पोषण परामर्श', 'जवळून देखरेख, पोषण समुपदेशन')
+      : tr('तुरंत FRU रेफरल', 'तातडीने FRU संदर्भ');
+
+  const surveyDateOf = (s: SurveyResponse) => {
+    const d = new Date(s.createdAt);
+    return isNaN(d.getTime()) ? NOT_RECORDED : formatClinicalDate(d);
+  };
+
+  const pendingSurveyLabel = member.lastSurveyDate || tr('सर्वे शेष', 'सर्वेक्षण बाकी');
+
+  // =========================================================================
+  // 1. No survey yet — summarise only what is actually on the member record
+  // =========================================================================
   if (!survey) {
     const isFemalePregnant = member.gender === 'Female' && member.isPregnant && (!member.age || member.age >= 12);
 
     if (isFemalePregnant) {
+      const eddDate = parseClinicalDate(member.expectedDeliveryDate);
+      const eddText = eddDate ? formatClinicalDate(eddDate) : member.expectedDeliveryDate || NOT_RECORDED;
+      const hrp = member.isHrp === true;
+
       const highlights: SummaryHighlight[] = [
         {
           id: 'preg',
-          label: isHi ? 'गर्भावस्था स्थिति' : isMr ? 'गर्भधारणा स्थिती' : 'Pregnancy Status',
-          value: isHi ? 'गर्भवती: हाँ ✓' : isMr ? 'गर्भवती: होय ✓' : 'Pregnant: Yes ✓',
+          label: tr('गर्भावस्था स्थिति', 'गर्भधारणा स्थिती'),
+          value: tr('गर्भवती ✓', 'गरोदर ✓'),
           isNormal: true,
           statusType: 'check',
         },
         {
           id: 'edd',
-          label: isHi ? 'प्रसव संभावित तिथि' : isMr ? 'संभाव्य प्रसूती तारीख' : 'Expected Delivery',
-          value: member.expectedDeliveryDate || '15 Nov 2026',
+          label: tr('संभावित प्रसव तिथि (EDD)', 'संभाव्य प्रसूती तारीख (EDD)'),
+          value: eddText,
           statusType: 'info',
         },
         {
-          id: 'chronic',
-          label: isHi ? 'पुरानी बीमारी' : isMr ? 'दीर्घकालीन आजार' : 'Chronic Condition',
-          value: isHi ? 'कोई नहीं ✓' : isMr ? 'काहीही नाही ✓' : 'None ✓',
-          isNormal: true,
-          statusType: 'check',
+          id: 'hrp',
+          label: tr('उच्च जोखिम', 'उच्च जोखीम'),
+          value: hrp ? `${tr('हाँ', 'होय')} ⚠️` : NOT_RECORDED,
+          isAlert: hrp,
+          statusType: hrp ? 'alert' : 'info',
         },
       ];
 
-      const spokenText = isHi
-        ? `${member.name} का संक्षेप: गर्भवती: हाँ। प्रसव संभावित तिथि: 15 अक्टूबर। कोई गंभीर पुरानी बीमारी नहीं दर्ज है। अगला नियमित एएनसी जांच आवश्यक है।`
-        : isMr
-        ? `${member.name} सारांश: गर्भवती: होय. संभाव्य प्रसूती तारीख: 15 ऑक्टोबर. कोणताही जुनाट आजार नाही. पुढील नियमित तपासणी आवश्यक आहे.`
-        : `${member.name} summary: Pregnant: Yes. Expected delivery: 15 October. No chronic condition recorded. Regular ANC checkup advised.`;
+      const spokenText =
+        `${member.name}${tr(' का संक्षेप: ', ' सारांश: ')}` +
+        `${tr('गर्भवती', 'गरोदर')}${sentenceEnd} ` +
+        `${tr('संभावित प्रसव तिथि', 'संभाव्य प्रसूती तारीख')}: ${eddText}${sentenceEnd} ` +
+        (hrp ? `${tr('उच्च जोखिम गर्भावस्था', 'उच्च जोखमीची गर्भधारणा')}${sentenceEnd} ` : '') +
+        `${tr('प्रसव पूर्व जांच अभी दर्ज नहीं', 'प्रसूतीपूर्व तपासणी अद्याप नोंद नाही')}${sentenceEnd}`;
 
       return {
         memberId: member.id,
         memberName: member.name,
-        categoryTitle: isHi ? 'मातृ एवं शिशु स्वास्थ्य' : isMr ? 'मातृ व बाल आरोग्य' : 'Maternal & Child Health',
-        surveyDate: member.lastSurveyDate || (isHi ? 'देय' : isMr ? 'देय' : 'Due'),
+        categoryTitle: tr('मातृ एवं शिशु स्वास्थ्य', 'मातृ व बाल आरोग्य'),
+        surveyDate: pendingSurveyLabel,
         highlights,
         spokenText,
         detailedEntries: [],
@@ -88,33 +172,36 @@ export function generateClinicalSummary(
       };
     }
 
-    if (member.isChild || (member.age && member.age <= 5)) {
+    if (member.isChild || (member.age != null && member.age <= 5)) {
+      const ageText =
+        member.age == null
+          ? NOT_RECORDED
+          : member.age < 1
+          ? tr('1 वर्ष से कम', '1 वर्षापेक्षा कमी')
+          : `${member.age} ${tr('वर्ष', 'वर्षे')}`;
       const highlights: SummaryHighlight[] = [
-        {
-          id: 'child_vax',
-          label: isHi ? 'बाल स्वास्थ्य' : isMr ? 'बाल आरोग्य' : 'Child Health',
-          value: isHi ? 'टीकाकरण देय' : isMr ? 'लसीकरण देय' : 'Vaccines Due',
-          isNormal: true,
-          statusType: 'check',
-        },
         {
           id: 'child_age',
-          label: isHi ? 'उम्र' : isMr ? 'वय' : 'Age',
-          value: `${member.age || 1} वर्ष`,
+          label: tr('उम्र', 'वय'),
+          value: ageText,
+          statusType: 'info',
+        },
+        {
+          id: 'child_vax',
+          label: tr('टीकाकरण', 'लसीकरण'),
+          value: tr('टीका कार्ड देखें', 'लस कार्ड पहा'),
           statusType: 'info',
         },
       ];
-      const spokenText = isHi
-        ? `${member.name} का संक्षेप: बालक आयु ${member.age || 1} वर्ष। नियमित बाल टीकाकरण एवं पोषण आवश्यक।`
-        : isMr
-        ? `${member.name} सारांश: बालक वय ${member.age || 1} वर्ष. नियमित लसीकरण आवश्यक.`
-        : `${member.name} summary: Child age ${member.age || 1} years. Routine vaccination advised.`;
+      const spokenText =
+        `${member.name}${tr(' का संक्षेप: ', ' सारांश: ')}${tr('उम्र', 'वय')} ${ageText}${sentenceEnd} ` +
+        `${tr('बाल सर्वे अभी दर्ज नहीं', 'बाल सर्वेक्षण अद्याप नोंद नाही')}${sentenceEnd}`;
 
       return {
         memberId: member.id,
         memberName: member.name,
-        categoryTitle: isHi ? 'बाल स्वास्थ्य एवं टीकाकरण' : isMr ? 'बाल आरोग्य व लसीकरण' : 'Child Immunization',
-        surveyDate: member.lastSurveyDate || (isHi ? 'देय' : 'Due'),
+        categoryTitle: tr('बाल स्वास्थ्य एवं टीकाकरण', 'बाल आरोग्य व लसीकरण'),
+        surveyDate: pendingSurveyLabel,
         highlights,
         spokenText,
         detailedEntries: [],
@@ -122,36 +209,33 @@ export function generateClinicalSummary(
       };
     }
 
-    if (member.hasChronicCondition) {
-      const condition = member.chronicConditionType || 'Hypertension';
+    if (member.hasChronicCondition || member.isNcdPatient) {
+      const condition = localizeCondition(member.chronicConditionType || member.ncdDiagnosis);
       const highlights: SummaryHighlight[] = [
         {
           id: 'chronic',
-          label: isHi ? 'पुरानी बीमारी' : isMr ? 'दीर्घकालीन आजार' : 'Chronic Condition',
+          label: tr('पुरानी बीमारी', 'दीर्घकालीन आजार'),
           value: `${condition} ⚠️`,
           isAlert: true,
           statusType: 'alert',
         },
         {
           id: 'bp',
-          label: isHi ? 'रक्तचाप स्थिति' : isMr ? 'रक्तदाब स्थिती' : 'Blood Pressure',
-          value: isHi ? 'नियमित निगरानी आवश्यक' : isMr ? 'नियमित देखरेख आवश्यक' : 'Regular Monitoring Due',
-          isAlert: true,
-          statusType: 'alert',
+          label: tr('रक्तचाप (बी.पी.)', 'रक्तदाब (बी.पी.)'),
+          value: NOT_RECORDED,
+          statusType: 'info',
         },
       ];
 
-      const spokenText = isHi
-        ? `${member.name} का संक्षेप: पुरानी बीमारी: ${condition}। नियमित दवा लेना आवश्यक है। बीपी जांच कराने की सलाह दी गई है।`
-        : isMr
-        ? `${member.name} सारांश: जुनाट आजार: ${condition}. नियमित औषधे घेणे आवश्यक आहे. रक्तदाब तपासणीचा सल्ला दिला आहे.`
-        : `${member.name} summary: Chronic condition: ${condition}. Regular daily medication required. Blood pressure checkup advised.`;
+      const spokenText =
+        `${member.name}${tr(' का संक्षेप: ', ' सारांश: ')}${tr('पुरानी बीमारी', 'जुनाट आजार')}: ${condition}${sentenceEnd} ` +
+        `${tr('रक्तचाप अभी दर्ज नहीं', 'रक्तदाब अद्याप नोंद नाही')}${sentenceEnd}`;
 
       return {
         memberId: member.id,
         memberName: member.name,
-        categoryTitle: isHi ? 'दीर्घकालीन रोग जांच' : isMr ? 'दीर्घकालीन रोग तपासणी' : 'Non-Communicable Disease',
-        surveyDate: member.lastSurveyDate || '20 Oct 2026',
+        categoryTitle: tr('असंक्रामक रोग (NCD)', 'असंसर्गजन्य आजार (NCD)'),
+        surveyDate: pendingSurveyLabel,
         highlights,
         spokenText,
         detailedEntries: [],
@@ -159,184 +243,313 @@ export function generateClinicalSummary(
       };
     }
 
-    // Default general member baseline
-    const spokenText = isHi
-      ? `${member.name} का स्वास्थ्य संक्षेप: सामान्य स्वास्थ्य। कोई गंभीर लक्षण नहीं दर्ज है।`
-      : isMr
-      ? `${member.name} आरोग्य सारांश: सामान्य आरोग्य. कोणतीही गंभीर लक्षणे नाहीत.`
-      : `${member.name} health summary: General health normal. No high-risk symptoms recorded.`;
-
     return {
       memberId: member.id,
       memberName: member.name,
-      categoryTitle: isHi ? 'सामान्य स्वास्थ्य' : isMr ? 'सामान्य आरोग्य' : 'General Health',
-      surveyDate: member.lastSurveyDate || (isHi ? 'पंजीकृत' : isMr ? 'नोंदणीकृत' : 'Registered'),
+      categoryTitle: tr('सामान्य स्वास्थ्य', 'सामान्य आरोग्य'),
+      surveyDate: member.lastSurveyDate || tr('पंजीकृत', 'नोंदणीकृत'),
       highlights: [
         {
           id: 'gen',
-          label: isHi ? 'स्वास्थ्य स्थिति' : isMr ? 'आरोग्य स्थिती' : 'Health Status',
-          value: isHi ? 'सामान्य ✓' : isMr ? 'सामान्य ✓' : 'Normal ✓',
-          isNormal: true,
-          statusType: 'check',
+          label: tr('स्वास्थ्य स्थिति', 'आरोग्य स्थिती'),
+          value: tr('कोई जोखिम दर्ज नहीं', 'जोखीम नोंद नाही'),
+          statusType: 'info',
         },
       ],
-      spokenText,
+      spokenText: `${member.name}${tr(' का संक्षेप: ', ' सारांश: ')}${tr('कोई जोखिम दर्ज नहीं', 'कोणतीही जोखीम नोंद नाही')}${sentenceEnd}`,
       detailedEntries: [],
       hasData: true,
     };
   }
 
-  // 2. Parse submitted survey answers
-  const answers = survey.answers || {};
+  // =========================================================================
+  // 2. Submitted survey — every value below comes from recorded answers only
+  // =========================================================================
+  const answers: Record<string, any> = survey.answers || {};
+  const remarksText = survey.voiceNotes || answers.remarks || answers.clinicalNote || NOT_RECORDED;
+
+  // ---------------------------- CHILD ----------------------------
+  if (survey.categoryCode === 'CHILD') {
+    const vaccineGiven = triState(answers.vaccineGiven);
+    const weight = parseNumber(answers.childWeight);
+    const condition: string | undefined = answers.childCondition;
+    const isDanger = condition ? /गंभीर|रेफरल|severe|referral/i.test(condition) : false;
+    const isSick = condition ? !/स्वस्थ|निरोगी|healthy/i.test(condition) : false;
+    const sessionStatus: string | undefined = answers.childStatus;
+
+    const highlights: SummaryHighlight[] = [
+      {
+        id: 'c_vax',
+        label: tr('आज टीका', 'आज लस'),
+        value: vaccineGiven === null ? NOT_RECORDED : vaccineGiven ? `${tr('लगाया', 'दिली')} ✓` : tr('नहीं लगाया', 'दिली नाही'),
+        isNormal: vaccineGiven === true,
+        statusType: vaccineGiven === null ? 'info' : 'check',
+      },
+      {
+        id: 'c_wt',
+        label: tr('वजन', 'वजन'),
+        value: weight === null ? NOT_RECORDED : `${weight} kg`,
+        statusType: 'info',
+      },
+      {
+        id: 'c_cond',
+        label: tr('खतरे के लक्षण', 'धोक्याची लक्षणे'),
+        value: condition ? (isDanger ? `${condition} ⚠️` : condition) : NOT_RECORDED,
+        isAlert: isDanger || isSick,
+        isNormal: condition ? !isSick : undefined,
+        statusType: !condition ? 'info' : isDanger || isSick ? 'alert' : 'check',
+      },
+    ];
+
+    const spokenText =
+      `${member.name}${tr(' का बाल संक्षेप: ', ' बाल सारांश: ')}` +
+      `${tr('टीका', 'लस')}: ${yesNo(vaccineGiven)}${sentenceEnd} ` +
+      `${tr('वजन', 'वजन')}: ${weight === null ? NOT_RECORDED : `${weight} ${tr('किलो', 'किलो')}`}${sentenceEnd} ` +
+      `${tr('लक्षण', 'लक्षणे')}: ${condition || NOT_RECORDED}${sentenceEnd}`;
+
+    return {
+      memberId: member.id,
+      memberName: member.name,
+      categoryTitle: tr('बाल स्वास्थ्य एवं टीकाकरण', 'बाल आरोग्य व लसीकरण'),
+      surveyDate: surveyDateOf(survey),
+      highlights,
+      spokenText,
+      detailedEntries: [
+        { questionNumber: 1, questionText: tr('आज टीका लगाया गया?', 'आज लस दिली का?'), answerText: yesNo(vaccineGiven), isNormal: vaccineGiven !== false },
+        { questionNumber: 2, questionText: tr('शिशु का वजन', 'बाळाचे वजन'), answerText: weight === null ? NOT_RECORDED : `${weight} kg`, isNormal: true },
+        {
+          questionNumber: 3,
+          questionText: tr('बीमारी / खतरे के लक्षण', 'आजार / धोक्याची लक्षणे'),
+          answerText: condition || NOT_RECORDED,
+          isNormal: !isSick,
+          note: isDanger ? tr('तुरंत रेफरल', 'तातडीने संदर्भ') : undefined,
+        },
+        { questionNumber: 4, questionText: tr('सत्र की स्थिति', 'सत्राची स्थिती'), answerText: sessionStatus || NOT_RECORDED, isNormal: true },
+        { questionNumber: 5, questionText: tr('मौखिक नोट्स', 'तोंडी नोंदी'), answerText: remarksText, isNormal: true },
+      ],
+      hasData: true,
+    };
+  }
+
+  // ---------------------------- GENERAL (Other services) ----------------------------
+  if (survey.categoryCode === 'GENERAL' && !member.isPregnant) {
+    const service: string | undefined = answers.otherCategory;
+    const supplies: string | undefined = answers.suppliesGiven;
+    const status: string | undefined = answers.otherStatus;
+    const isReferral = status ? /रेफरल|संदर्भ|referral/i.test(status) : false;
+
+    return {
+      memberId: member.id,
+      memberName: member.name,
+      categoryTitle: tr('अन्य सेवाएँ', 'इतर सेवा'),
+      surveyDate: surveyDateOf(survey),
+      highlights: [
+        { id: 'o_svc', label: tr('सेवा', 'सेवा'), value: service || NOT_RECORDED, statusType: 'info' },
+        { id: 'o_sup', label: tr('सामग्री वितरण', 'साहित्य वाटप'), value: supplies || NOT_RECORDED, statusType: 'info' },
+        {
+          id: 'o_status',
+          label: tr('स्थिति', 'स्थिती'),
+          value: status || NOT_RECORDED,
+          isAlert: isReferral,
+          statusType: !status ? 'info' : isReferral ? 'alert' : 'check',
+        },
+      ],
+      spokenText:
+        `${member.name}${tr(' का संक्षेप: ', ' सारांश: ')}` +
+        `${tr('सेवा', 'सेवा')}: ${service || NOT_RECORDED}${sentenceEnd} ` +
+        `${tr('स्थिति', 'स्थिती')}: ${status || NOT_RECORDED}${sentenceEnd}`,
+      detailedEntries: [
+        { questionNumber: 1, questionText: tr('सेवा का प्रकार', 'सेवेचा प्रकार'), answerText: service || NOT_RECORDED, isNormal: true },
+        { questionNumber: 2, questionText: tr('सामग्री / दवा वितरण', 'साहित्य / औषध वाटप'), answerText: supplies || NOT_RECORDED, isNormal: true },
+        { questionNumber: 3, questionText: tr('सत्यापन', 'पडताळणी'), answerText: status || NOT_RECORDED, isNormal: !isReferral },
+        { questionNumber: 4, questionText: tr('मौखिक नोट्स', 'तोंडी नोंदी'), answerText: remarksText, isNormal: true },
+      ],
+      hasData: true,
+    };
+  }
+
+  // ---------------------------- PREGNANCY / ANC ----------------------------
   const isPregnancySurvey =
     (survey.categoryCode === 'PREGNANCY' || member.isPregnant) &&
+    survey.categoryCode !== 'DISEASE' &&
     member.gender === 'Female' &&
     (!member.age || member.age >= 12);
 
   if (isPregnancySurvey) {
-    const isFirstPreg = answers.isFirstPregnancy === 'Yes' || answers.firstPregnancy === 'Yes';
-    const lmp = answers.lmpDate || member.expectedDeliveryDate || (isHi ? 'लागू नहीं' : 'N/A');
-    const hasComplications =
-      answers.hasComplications === 'Yes' ||
-      (Array.isArray(answers.complicationsList) &&
-        answers.complicationsList.length > 0 &&
-        !answers.complicationsList.includes('None'));
-    const compText = Array.isArray(answers.complicationsList)
-      ? answers.complicationsList.join(', ')
-      : answers.highRiskSymptoms || (hasComplications ? 'Headache' : 'None');
+    // LMP / EDD — EDD strictly derived via Naegele's rule when LMP is known
+    const lmpDate = parseClinicalDate(pick(answers, ['lmpDate', 'lmp']));
+    const recordedEdd = parseClinicalDate(pick(answers, ['eddDate', 'edd'])) || parseClinicalDate(member.expectedDeliveryDate);
+    const eddDate = lmpDate ? calculateEdd(lmpDate) : recordedEdd;
+    const weeks = lmpDate ? gestationalWeeks(lmpDate) : null;
+    const trimester = weeks !== null ? trimesterFromWeeks(weeks) : null;
+    const lmpText = lmpDate ? formatClinicalDate(lmpDate) : NOT_RECORDED;
+    const eddText = eddDate ? formatClinicalDate(eddDate) : NOT_RECORDED;
+    const gaText =
+      weeks !== null
+        ? `${weeks} ${tr('सप्ताह', 'आठवडे')} • ${tr('तिमाही', 'तिमाही')} ${trimester}`
+        : null;
 
-    const bp = `${answers.bpSystolic || 118}/${answers.bpDiastolic || 76}`;
-    const isBpHigh = (answers.bpSystolic && answers.bpSystolic >= 140) || (answers.bpDiastolic && answers.bpDiastolic >= 90);
-    const hb = answers.hemoglobin || '10.4 g/dL';
-    const ttDone = answers.ttVaccination === 'Yes' || answers.ttDone === 'Yes';
-    const instDelivery = answers.institutionalDelivery === 'Yes' || true;
+    const firstPreg = triState(pick(answers, ['isFirstPregnancy', 'firstPregnancy']));
+
+    // Danger signs / complications
+    const compList: string[] | null = Array.isArray(answers.complicationsList)
+      ? answers.complicationsList.filter((c: any) => c && c !== 'None')
+      : null;
+    const hrpFlag = triState(pick(answers, ['hasComplications', 'isHrp'])) === true || member.isHrp === true;
+    const hasComplications = hrpFlag || (compList !== null && compList.length > 0);
+    const compText =
+      compList && compList.length > 0
+        ? compList.join(', ')
+        : answers.highRiskSymptoms || (hasComplications ? tr('हाँ', 'होय') : null);
+    const compKnown = compList !== null || answers.highRiskSymptoms != null || pick(answers, ['hasComplications', 'isHrp']) != null || member.isHrp != null;
+
+    // Blood pressure
+    const sysNum = parseNumber(answers.bpSystolic);
+    const diaNum = parseNumber(answers.bpDiastolic);
+    const bp =
+      sysNum !== null && diaNum !== null
+        ? { sys: sysNum, dia: diaNum }
+        : parseBp(pick(answers, ancKeys('Bp', ['bp'])));
+    const bpHigh = bp ? isHypertensive(bp) : false;
+    const bpText = bp ? `${bp.sys}/${bp.dia} mmHg` : NOT_RECORDED;
+
+    // Hemoglobin
+    const hb = parseNumber(pick(answers, ancKeys('Hb', ['hemoglobin', 'hb'])));
+    const hbGrade = hb !== null ? classifyHb(hb) : null;
+    const hbText = hb !== null && hbGrade ? `${hb} g/dL • ${hbLabel(hbGrade)}` : NOT_RECORDED;
+
+    // Td / TT
+    const td = triState(pick(answers, ancKeys('TtDose', ['ttGiven', 'ttVaccination', 'ttDone'])));
+
+    // Institutional delivery plan
+    const inst = triState(answers.institutionalDelivery);
+    const instPlace: string | undefined = answers.deliveryPlace || answers.plannedDeliveryPlace;
+
+    const anyAlert = hasComplications || bpHigh || hbGrade === 'SEVERE';
 
     const highlights: SummaryHighlight[] = [
       {
         id: 'p1',
-        label: isHi ? 'पहली गर्भावस्था' : isMr ? 'पहिली गर्भधारणा' : 'First Pregnancy',
-        value: isFirstPreg
-          ? (isHi ? 'हाँ ✓' : isMr ? 'होय ✓' : 'Yes ✓')
-          : (isHi ? 'नहीं' : isMr ? 'नाही' : 'No'),
-        isNormal: true,
-        statusType: 'check',
+        label: tr('पहली गर्भावस्था', 'पहिली गर्भधारणा'),
+        value: yesNo(firstPreg),
+        statusType: 'info',
       },
       {
-        id: 'lmp',
-        label: 'LMP (माहवारी)',
-        value: `${lmp} (2nd Trimester)`,
+        id: 'edd',
+        label: tr('संभावित प्रसव (EDD)', 'संभाव्य प्रसूती (EDD)'),
+        value: gaText ? `${eddText} • ${gaText}` : eddText,
         statusType: 'info',
       },
       {
         id: 'comp',
-        label: isHi ? 'गंभीर जोखिम लक्षण' : isMr ? 'धोक्याची लक्षणे' : 'High Risk Symptoms',
-        value: hasComplications
-          ? `${compText} ⚠️`
-          : (isHi ? 'कोई नहीं ✓' : isMr ? 'काहीही नाही ✓' : 'None ✓'),
+        label: tr('जोखिम लक्षण', 'धोक्याची लक्षणे'),
+        value: !compKnown ? NOT_RECORDED : hasComplications ? `${compText} ⚠️` : `${tr('कोई नहीं', 'काहीही नाही')} ✓`,
         isAlert: hasComplications,
-        isNormal: !hasComplications,
-        statusType: hasComplications ? 'alert' : 'check',
+        isNormal: compKnown && !hasComplications,
+        statusType: !compKnown ? 'info' : hasComplications ? 'alert' : 'check',
       },
       {
         id: 'bp',
-        label: isHi ? 'रक्तचाप (BP)' : isMr ? 'रक्तदाब (BP)' : 'Blood Pressure',
-        value: isBpHigh ? `${bp} mmHg ⚠️` : `${bp} mmHg ✓`,
-        isAlert: isBpHigh,
-        isNormal: !isBpHigh,
-        statusType: isBpHigh ? 'alert' : 'check',
+        label: tr('रक्तचाप (बी.पी.)', 'रक्तदाब (बी.पी.)'),
+        value: bp ? `${bpText} ${bpHigh ? '⚠️' : '✓'}` : NOT_RECORDED,
+        isAlert: bpHigh,
+        isNormal: bp ? !bpHigh : undefined,
+        statusType: !bp ? 'info' : bpHigh ? 'alert' : 'check',
       },
       {
         id: 'hb',
-        label: isHi ? 'हीमोग्लोबिन (Hb)' : isMr ? 'हिमोग्लोबिन' : 'Hemoglobin',
-        value: `${hb} (हल्का एनीमिया)`,
-        isAlert: true,
-        statusType: 'alert',
+        label: tr('हीमोग्लोबिन (Hb)', 'हिमोग्लोबिन (Hb)'),
+        value: hbGrade ? `${hbText} ${hbGrade === 'NORMAL' ? '✓' : '⚠️'}` : NOT_RECORDED,
+        isAlert: hbGrade !== null && hbGrade !== 'NORMAL',
+        isNormal: hbGrade === 'NORMAL' ? true : hbGrade ? false : undefined,
+        statusType: !hbGrade ? 'info' : hbGrade === 'NORMAL' ? 'check' : 'alert',
       },
       {
         id: 'tt',
-        label: isHi ? 'टीटी टीकाकरण' : isMr ? 'टीटी लसीकरण' : 'TT Vaccination',
-        value: ttDone
-          ? (isHi ? 'पूर्ण ✓' : isMr ? 'पूर्ण ✓' : 'Completed ✓')
-          : (isHi ? 'लंबित' : isMr ? 'प्रलंबित' : 'Pending'),
-        isNormal: ttDone,
-        statusType: 'check',
+        label: tr('Td टीका', 'Td लस'),
+        value: td === null ? NOT_RECORDED : td ? `${tr('लगाया', 'दिली')} ✓` : tr('लंबित', 'प्रलंबित'),
+        isNormal: td === true,
+        statusType: td === null ? 'info' : td ? 'check' : 'alert',
       },
       {
         id: 'del',
-        label: isHi ? 'संस्थागत प्रसव' : isMr ? 'संस्थात्मक प्रसूती' : 'Institutional Delivery',
-        value: instDelivery
-          ? (isHi ? 'पीएचसी में तय ✓' : isMr ? 'पीएचसी येथे निश्चित ✓' : 'Planned at PHC ✓')
-          : (isHi ? 'अपेक्षित' : isMr ? 'अपेक्षित' : 'Pending'),
-        isNormal: true,
-        statusType: 'check',
+        label: tr('संस्थागत प्रसव', 'संस्थात्मक प्रसूती'),
+        value: inst === null ? NOT_RECORDED : inst ? `${instPlace || tr('योजना तय', 'नियोजन निश्चित')} ✓` : tr('तय नहीं', 'निश्चित नाही'),
+        isNormal: inst === true,
+        statusType: inst === null ? 'info' : inst ? 'check' : 'alert',
       },
     ];
 
-    // Natural spoken summary for offline Text-to-Speech
-    const spokenText = isHi
-      ? `${member.name} का नैदानिक संक्षेप: पहली गर्भावस्था: ${isFirstPreg ? 'हाँ' : 'नहीं'}। अंतिम माहवारी: 12 जून, दूसरा तिमाही। गंभीर लक्षण: ${hasComplications ? compText : 'कोई नहीं'}। रक्तचाप: ${bp}, सामान्य। हीमोग्लोबिन: 10.4, हल्का कम। टीटी टीका: पूर्ण। संस्थागत प्रसव: पीएचसी में तय।`
-      : isMr
-      ? `${member.name} चा वैद्यकीय सारांश: पहिली गर्भधारणा: ${isFirstPreg ? 'होय' : 'नाही'}. शेवटची मासिक पाळी: 12 जून, दुसरी तिमाही. धोक्याची लक्षणे: ${hasComplications ? compText : 'काहीही नाही'}. रक्तदाब: ${bp}, सामान्य. हिमोग्लोबिन: 10.4, सौम्य कमी. टीटी लस: पूर्ण. संस्थात्मक प्रसूती: प्राथमिक आरोग्य केंद्रात निश्चित.`
-      : `${member.name} Clinical Summary: First pregnancy: ${isFirstPreg ? 'Yes' : 'No'}. LMP: 12 June, second trimester. High risk symptoms: ${hasComplications ? compText : 'None'}. Blood pressure: ${bp}, normal. Hemoglobin: 10.4, mild anemia. TT vaccination: Completed. Delivery: Planned at PHC.`;
+    if (hbGrade === 'SEVERE' || bpHigh) {
+      highlights.unshift({
+        id: 'urgent',
+        label: tr('उच्च जोखिम', 'उच्च जोखीम'),
+        value: `${tr('तुरंत रेफरल', 'तातडीने संदर्भ')} ⚠️`,
+        isAlert: true,
+        statusType: 'alert',
+      });
+    }
+
+    const spokenParts = [
+      `${member.name}${tr(' का नैदानिक संक्षेप', ' चा वैद्यकीय सारांश')}`,
+      `${tr('पहली गर्भावस्था', 'पहिली गर्भधारणा')}: ${yesNo(firstPreg)}`,
+      `${tr('अंतिम माहवारी', 'शेवटची मासिक पाळी')}: ${lmpText}`,
+      `${tr('संभावित प्रसव तिथि', 'संभाव्य प्रसूती तारीख')}: ${eddText}`,
+      ...(weeks !== null ? [`${tr('गर्भ अवधि', 'गर्भ कालावधी')}: ${weeks} ${tr('सप्ताह', 'आठवडे')}`] : []),
+      `${tr('जोखिम लक्षण', 'धोक्याची लक्षणे')}: ${!compKnown ? NOT_RECORDED : hasComplications ? compText : tr('कोई नहीं', 'काहीही नाही')}`,
+      `${tr('रक्तचाप', 'रक्तदाब')}: ${bp ? `${bp.sys} ${tr('बटा', 'बाय')} ${bp.dia}${bpHigh ? `, ${tr('अधिक', 'जास्त')}` : ''}` : NOT_RECORDED}`,
+      `${tr('हीमोग्लोबिन', 'हिमोग्लोबिन')}: ${hb !== null && hbGrade ? `${hb}, ${hbLabel(hbGrade)}` : NOT_RECORDED}`,
+      `${tr('टीडी टीका', 'टीडी लस')}: ${yesNo(td)}`,
+      ...(anyAlert ? [tr('रेफरल की सलाह', 'संदर्भाचा सल्ला')] : []),
+    ];
+    const spokenText = spokenParts.join(`${sentenceEnd} `) + sentenceEnd;
+
+    const ancVisit: string | undefined = answers.ancVisit;
+    const urine: string | undefined = pick(answers, ancKeys('UrineTest', ['urine']));
 
     const detailedEntries: DetailedFormEntry[] = [
-      {
-        questionNumber: 1,
-        questionText: isHi ? 'क्या यह इनकी पहली गर्भावस्था है?' : isMr ? 'ही पहिली गर्भधारणा आहे का?' : 'Is this the first pregnancy?',
-        answerText: isFirstPreg ? 'Yes' : 'No',
-        isNormal: true,
-      },
-      {
-        questionNumber: 2,
-        questionText: isHi ? 'अंतिम मासिक धर्म (LMP)' : isMr ? 'शेवटची मासिक पाळी तारीख' : 'Last Menstrual Period (LMP)',
-        answerText: lmp,
-        isNormal: true,
-      },
+      { questionNumber: 1, questionText: tr('पहली गर्भावस्था?', 'पहिली गर्भधारणा?'), answerText: yesNo(firstPreg), isNormal: true },
+      { questionNumber: 2, questionText: tr('अंतिम मासिक धर्म तिथि (LMP)', 'शेवटची मासिक पाळीची तारीख (LMP)'), answerText: lmpText, isNormal: true },
       {
         questionNumber: 3,
-        questionText: isHi ? 'कोई गंभीर जोखिम लक्षण?' : isMr ? 'काही धोक्याची लक्षणे?' : 'Any High Risk Symptoms?',
-        answerText: compText,
-        isNormal: !hasComplications,
-        note: hasComplications ? (isHi ? 'पीएचसी रेफरल सलाह' : 'PHC Referral Advised') : undefined,
+        questionText: tr('संभावित प्रसव तिथि (EDD)', 'संभाव्य प्रसूतीची तारीख (EDD)'),
+        answerText: eddText,
+        isNormal: true,
+        note: lmpDate ? tr('LMP + 9 माह + 7 दिन', 'LMP + 9 महिने + 7 दिवस') : undefined,
       },
-      {
-        questionNumber: 4,
-        questionText: isHi ? 'रक्तचाप माप (BP)' : isMr ? 'रक्तदाब (BP)' : 'Blood Pressure Measurement',
-        answerText: `${bp} mmHg`,
-        isNormal: !isBpHigh,
-      },
+      { questionNumber: 4, questionText: tr('ANC विजिट', 'ANC भेट'), answerText: ancVisit || NOT_RECORDED, isNormal: true },
       {
         questionNumber: 5,
-        questionText: isHi ? 'हीमोग्लोबिन स्तर' : isMr ? 'हिमोग्लोबिन पातळी' : 'Hemoglobin Level',
-        answerText: hb,
-        isNormal: false,
-        note: isHi ? 'आयरन फोलिक एसिड गोली दी गई' : 'Iron Folic Acid Prescribed',
+        questionText: tr('जोखिम लक्षण', 'धोक्याची लक्षणे'),
+        answerText: !compKnown ? NOT_RECORDED : hasComplications ? String(compText) : tr('कोई नहीं', 'काहीही नाही'),
+        isNormal: !hasComplications,
+        note: hasComplications ? tr('PHC रेफरल सलाह', 'PHC संदर्भ सल्ला') : undefined,
       },
       {
         questionNumber: 6,
-        questionText: isHi ? 'टीटी टीका लगाया गया?' : isMr ? 'टीटी लस दिली का?' : 'TT Vaccination Administered?',
-        answerText: ttDone ? 'Yes' : 'No',
-        isNormal: ttDone,
+        questionText: tr('रक्तचाप (बी.पी.)', 'रक्तदाब (बी.पी.)'),
+        answerText: bpText,
+        isNormal: !bpHigh,
+        note: bpHigh ? tr('≥140/90 — रेफरल', '≥140/90 — संदर्भ') : undefined,
       },
       {
         questionNumber: 7,
-        questionText: isHi ? 'संस्थागत प्रसव योजना' : isMr ? 'संस्थात्मक प्रसूती योजना' : 'Institutional Delivery Plan',
-        answerText: isHi ? 'पीएचसी चाँदपुर' : 'PHC Chandpur',
-        isNormal: true,
+        questionText: tr('हीमोग्लोबिन स्तर', 'हिमोग्लोबिन पातळी'),
+        answerText: hbText,
+        isNormal: hbGrade === null || hbGrade === 'NORMAL',
+        note: hbGrade ? hbAdvice(hbGrade) : undefined,
       },
-      {
-        questionNumber: 8,
-        questionText: isHi ? 'मौखिक नैदानिक नोट्स' : isMr ? 'नोंदवलेल्या तोंडी नोंदी' : 'Spoken Clinical Notes',
-        answerText: survey.voiceNotes || (answers.remarks || 'Regular checkup conducted.'),
-        isNormal: true,
-      },
+      { questionNumber: 8, questionText: tr('मूत्र जाँच', 'लघवी तपासणी'), answerText: urine || NOT_RECORDED, isNormal: urine ? !/असामान्य|प्रोटीन|प्रथिने|protein|albumin|sugar/i.test(urine) : true },
+      { questionNumber: 9, questionText: tr('Td टीका लगाया गया?', 'Td लस दिली का?'), answerText: yesNo(td), isNormal: td !== false },
+      { questionNumber: 10, questionText: tr('संस्थागत प्रसव योजना', 'संस्थात्मक प्रसूती नियोजन'), answerText: inst === null ? NOT_RECORDED : instPlace || yesNo(inst), isNormal: inst !== false },
+      { questionNumber: 11, questionText: tr('मौखिक नोट्स', 'तोंडी नोंदी'), answerText: remarksText, isNormal: true },
     ];
 
     return {
       memberId: member.id,
       memberName: member.name,
-      categoryTitle: isHi ? 'मातृ एवं शिशु देखभाल (ANC)' : isMr ? 'मातृ व बाल संगोपन' : 'Pregnancy Care (ANC)',
-      surveyDate: new Date(survey.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      categoryTitle: tr('प्रसव पूर्व जांच (ANC)', 'प्रसूतीपूर्व तपासणी (ANC)'),
+      surveyDate: surveyDateOf(survey),
       highlights,
       spokenText,
       detailedEntries,
@@ -344,114 +557,91 @@ export function generateClinicalSummary(
     };
   }
 
-  // Non-communicable disease survey (e.g. Rajesh Verma Hypertension)
-  const bpSys = answers.bpSystolic || 142;
-  const bpDia = answers.bpDiastolic || 92;
-  const isHighBp = bpSys >= 140 || bpDia >= 90;
-  const meds = answers.onRegularMedication === 'Yes' || answers.medication === 'Yes';
-  const saltDiet = answers.dietSaltReduced === 'Yes';
-  const dizziness = answers.chestPainOrDizziness === 'Yes';
+  // ---------------------------- NCD / DISEASE ----------------------------
+  const condition = localizeCondition(
+    pick(answers, ['chronicCondition', 'diagnosis']) || member.ncdDiagnosis || member.chronicConditionType
+  );
+  const sysN = parseNumber(answers.bpSystolic);
+  const diaN = parseNumber(answers.bpDiastolic);
+  const ncdBp = sysN !== null && diaN !== null ? { sys: sysN, dia: diaN } : parseBp(answers.bp);
+  const ncdBpHigh = ncdBp ? isHypertensive(ncdBp) : false;
+  const meds = triState(pick(answers, ['onRegularMedication', 'medication', 'treatmentStarted']));
+  const saltDiet = triState(answers.dietSaltReduced);
+  const dizziness = triState(answers.chestPainOrDizziness);
 
   const highlights: SummaryHighlight[] = [
     {
       id: 'ncd_cond',
-      label: isHi ? 'पुरानी बीमारी' : isMr ? 'दीर्घकालीन आजार' : 'Chronic Condition',
-      value: `${answers.chronicCondition || 'Hypertension'} ⚠️`,
-      isAlert: true,
-      statusType: 'alert',
+      label: tr('पुरानी बीमारी', 'दीर्घकालीन आजार'),
+      value: condition === NOT_RECORDED ? condition : `${condition} ⚠️`,
+      isAlert: condition !== NOT_RECORDED,
+      statusType: condition === NOT_RECORDED ? 'info' : 'alert',
     },
     {
       id: 'ncd_bp',
-      label: isHi ? 'रक्तचाप (BP)' : isMr ? 'रक्तदाब' : 'Blood Pressure',
-      value: `${bpSys}/${bpDia} mmHg ${isHighBp ? '⚠️' : '✓'}`,
-      isAlert: isHighBp,
-      isNormal: !isHighBp,
-      statusType: isHighBp ? 'alert' : 'check',
+      label: tr('रक्तचाप (बी.पी.)', 'रक्तदाब (बी.पी.)'),
+      value: ncdBp ? `${ncdBp.sys}/${ncdBp.dia} mmHg ${ncdBpHigh ? '⚠️' : '✓'}` : NOT_RECORDED,
+      isAlert: ncdBpHigh,
+      isNormal: ncdBp ? !ncdBpHigh : undefined,
+      statusType: !ncdBp ? 'info' : ncdBpHigh ? 'alert' : 'check',
     },
     {
       id: 'ncd_med',
-      label: isHi ? 'नियमित दवा' : isMr ? 'नियमित औषध' : 'Regular Medication',
-      value: meds
-        ? (isHi ? 'हाँ (एमलोडिपिन 5mg) ✓' : isMr ? 'होय (ॲम्लोडिपिन) ✓' : 'Yes (Amlodipine 5mg) ✓')
-        : (isHi ? 'नहीं ⚠️' : isMr ? 'नाही ⚠️' : 'No ⚠️'),
-      isNormal: meds,
-      isAlert: !meds,
-      statusType: meds ? 'check' : 'alert',
+      label: tr('नियमित दवा', 'नियमित औषध'),
+      value: meds === null ? NOT_RECORDED : meds ? `${tr('हाँ', 'होय')} ✓` : `${tr('नहीं', 'नाही')} ⚠️`,
+      isNormal: meds === true,
+      isAlert: meds === false,
+      statusType: meds === null ? 'info' : meds ? 'check' : 'alert',
     },
     {
       id: 'ncd_salt',
-      label: isHi ? 'नमक नियंत्रण' : isMr ? 'मीठ नियंत्रण' : 'Low Salt Diet',
-      value: saltDiet
-        ? (isHi ? 'हाँ ✓' : isMr ? 'होय ✓' : 'Yes ✓')
-        : (isHi ? 'नहीं' : isMr ? 'नाही' : 'No'),
-      isNormal: saltDiet,
-      statusType: 'check',
+      label: tr('नमक नियंत्रण', 'मीठ नियंत्रण'),
+      value: yesNo(saltDiet),
+      isNormal: saltDiet === true,
+      statusType: saltDiet === null ? 'info' : 'check',
     },
     {
       id: 'ncd_dizz',
-      label: isHi ? 'सीने में दर्द / चक्कर' : isMr ? 'छातीत दुखणे / चक्कर' : 'Chest Pain / Dizziness',
-      value: dizziness
-        ? (isHi ? 'हाँ ⚠️' : isMr ? 'होय ⚠️' : 'Yes ⚠️')
-        : (isHi ? 'नहीं ✓' : isMr ? 'नाही ✓' : 'No ✓'),
-      isAlert: dizziness,
-      isNormal: !dizziness,
-      statusType: dizziness ? 'alert' : 'check',
+      label: tr('सीने में दर्द / चक्कर', 'छातीत दुखणे / चक्कर'),
+      value: dizziness === null ? NOT_RECORDED : dizziness ? `${tr('हाँ', 'होय')} ⚠️` : `${tr('नहीं', 'नाही')} ✓`,
+      isAlert: dizziness === true,
+      isNormal: dizziness === false,
+      statusType: dizziness === null ? 'info' : dizziness ? 'alert' : 'check',
     },
   ];
 
-  const spokenText = isHi
-    ? `${member.name} का नैदानिक संक्षेप: पुरानी बीमारी: उच्च रक्तचाप। वर्तमान बीपी: ${bpSys} बटे ${bpDia}, हल्का अधिक। नियमित दवा: ${meds ? 'हाँ, ले रहे हैं' : 'नहीं'}। नमक नियंत्रण: ${saltDiet ? 'हाँ' : 'नहीं'}। सीने में दर्द: ${dizziness ? 'हाँ' : 'नहीं'}। अगला फॉलो-अप 30 सितंबर को निर्धारित है।`
-    : isMr
-    ? `${member.name} चा वैद्यकीय सारांश: जुनाट आजार: उच्च रक्तदाब. सध्याचा रक्तदाब: ${bpSys} बाय ${bpDia}, सौम्य जास्त. नियमित औषध: ${meds ? 'होय' : 'नाही'}. मीठ नियंत्रण: ${saltDiet ? 'होय' : 'नाही'}. पुढील पाठपुरावा 30 सप्टेंबर रोजी निश्चित आहे.`
-    : `${member.name} Clinical Summary: Condition: Hypertension. Current BP: ${bpSys} by ${bpDia}, slightly elevated. Regular medication: ${meds ? 'Yes' : 'No'}. Low salt diet: ${saltDiet ? 'Yes' : 'No'}. Next follow-up scheduled for 30 September.`;
+  const ncdSpoken = [
+    `${member.name}${tr(' का नैदानिक संक्षेप', ' चा वैद्यकीय सारांश')}`,
+    `${tr('पुरानी बीमारी', 'जुनाट आजार')}: ${condition}`,
+    `${tr('रक्तचाप', 'रक्तदाब')}: ${ncdBp ? `${ncdBp.sys} ${tr('बटा', 'बाय')} ${ncdBp.dia}${ncdBpHigh ? `, ${tr('अधिक', 'जास्त')}` : ''}` : NOT_RECORDED}`,
+    `${tr('नियमित दवा', 'नियमित औषध')}: ${yesNo(meds)}`,
+    `${tr('नमक नियंत्रण', 'मीठ नियंत्रण')}: ${yesNo(saltDiet)}`,
+    `${tr('सीने में दर्द', 'छातीत दुखणे')}: ${yesNo(dizziness)}`,
+    ...(member.followUpDueDate ? [`${tr('अगला फॉलो-अप', 'पुढील पाठपुरावा')}: ${member.followUpDueDate}`] : []),
+  ];
 
   const detailedEntries: DetailedFormEntry[] = [
-    {
-      questionNumber: 1,
-      questionText: isHi ? 'पहचानी गई पुरानी बीमारी' : 'Identified Chronic Condition',
-      answerText: answers.chronicCondition || 'Hypertension',
-      isNormal: false,
-    },
+    { questionNumber: 1, questionText: tr('पहचानी गई बीमारी', 'ओळखलेला आजार'), answerText: condition, isNormal: condition === NOT_RECORDED },
     {
       questionNumber: 2,
-      questionText: isHi ? 'सिस्टोलिक एवं डायस्टोलिक बीपी' : 'Systolic & Diastolic BP',
-      answerText: `${bpSys}/${bpDia} mmHg`,
-      isNormal: !isHighBp,
-      note: isHighBp ? (isHi ? 'हल्का अधिक बीपी' : 'Slightly elevated') : undefined,
+      questionText: tr('रक्तचाप (बी.पी.)', 'रक्तदाब (बी.पी.)'),
+      answerText: ncdBp ? `${ncdBp.sys}/${ncdBp.dia} mmHg` : NOT_RECORDED,
+      isNormal: !ncdBpHigh,
+      note: ncdBpHigh ? tr('≥140/90 — अधिक', '≥140/90 — जास्त') : undefined,
     },
-    {
-      questionNumber: 3,
-      questionText: isHi ? 'दैनिक डॉक्टर द्वारा दी गई दवा ले रहे हैं?' : 'Taking Daily Prescribed Medication?',
-      answerText: meds ? 'Yes (Amlodipine 5mg)' : 'No',
-      isNormal: meds,
-    },
-    {
-      questionNumber: 4,
-      questionText: isHi ? 'भोजन में नमक की मात्रा कम की है?' : 'Reduced Dietary Salt Intake?',
-      answerText: saltDiet ? 'Yes' : 'No',
-      isNormal: saltDiet,
-    },
-    {
-      questionNumber: 5,
-      questionText: isHi ? 'सीने में दर्द या चक्कर के लक्षण?' : 'Any Chest Pain or Dizziness?',
-      answerText: dizziness ? 'Yes' : 'No',
-      isNormal: !dizziness,
-    },
-    {
-      questionNumber: 6,
-      questionText: isHi ? 'आशा कार्यकर्ता मौखिक परामर्श' : 'ASHA Worker Spoken Counseling',
-      answerText: survey.voiceNotes || (answers.remarks || 'Regular daily medication counseled.'),
-      isNormal: true,
-    },
+    { questionNumber: 3, questionText: tr('नियमित दवा ले रहे हैं?', 'नियमित औषध घेतात का?'), answerText: yesNo(meds), isNormal: meds !== false },
+    { questionNumber: 4, questionText: tr('नमक कम किया?', 'मीठ कमी केले?'), answerText: yesNo(saltDiet), isNormal: saltDiet !== false },
+    { questionNumber: 5, questionText: tr('सीने में दर्द या चक्कर?', 'छातीत दुखणे किंवा चक्कर?'), answerText: yesNo(dizziness), isNormal: dizziness !== true },
+    { questionNumber: 6, questionText: tr('मौखिक परामर्श नोट्स', 'तोंडी समुपदेशन नोंदी'), answerText: remarksText, isNormal: true },
   ];
 
   return {
     memberId: member.id,
     memberName: member.name,
-    categoryTitle: isHi ? 'उच्च रक्तचाप एवं असंक्रामक रोग' : isMr ? 'उच्च रक्तदाब तपासणी' : 'Hypertension & NCD Review',
-    surveyDate: new Date(survey.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    categoryTitle: tr('असंक्रामक रोग (NCD)', 'असंसर्गजन्य आजार (NCD)'),
+    surveyDate: surveyDateOf(survey),
     highlights,
-    spokenText,
+    spokenText: ncdSpoken.join(`${sentenceEnd} `) + sentenceEnd,
     detailedEntries,
     hasData: true,
   };

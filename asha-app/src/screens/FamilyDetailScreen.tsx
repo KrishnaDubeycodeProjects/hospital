@@ -154,7 +154,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
         fatherName: member.fatherOrHusbandName || currentFamily?.headName || 'पिता',
         gender: member.gender,
         dob: member.dob || '01/01/2024',
-        ageMonths: member.age * 12 || 12,
+        ageMonths: member.age != null ? member.age * 12 || 12 : 0,
         phone: member.phone || currentFamily?.primaryPhone,
         mctsCode: `MCTS-${member.id.substring(0, 6)}`,
         vaccines: {
@@ -266,7 +266,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
             <View style={styles.houseMetaRow}>
               <Phone size={12} color={Colors.textSecondary} style={{ marginRight: 4 }} />
               <Text style={styles.houseMetaText}>
-                {currentFamily?.primaryPhone || '+91 98765 00000'}
+                {currentFamily?.primaryPhone || '—'}
               </Text>
               {currentFamily?.headDob && (
                 <>
@@ -485,10 +485,10 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
                   {member.education && (
                     <Text style={styles.memberContactText}>• {member.education}</Text>
                   )}
-                  {member.phone && (
+                  {!!(member.phone || currentFamily?.primaryPhone) && (
                     <View style={styles.memberMetaItem}>
                       <Phone size={11} color={Colors.textSecondary} style={{ marginRight: 3 }} />
-                      <Text style={styles.memberContactText}>{member.phone}</Text>
+                      <Text style={styles.memberContactText}>{member.phone || currentFamily?.primaryPhone}</Text>
                     </View>
                   )}
                 </View>
@@ -504,7 +504,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
             </TouchableOpacity>
 
             {/* Child Immunization Direct CTA Button */}
-            {(member.isChild || member.age <= 5) && (
+            {(member.isChild || (member.age != null && member.age <= 5)) && (
               <TouchableOpacity
                 style={styles.vaxCtaBtn}
                 onPress={() => handleOpenVaccination(member)}

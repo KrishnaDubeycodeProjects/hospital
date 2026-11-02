@@ -216,7 +216,7 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.vaccineName}>
-                          {language === 'en' ? v.nameEn : v.nameHi}
+                          {v.nameHi}
                         </Text>
                         <Text style={styles.vaccineCodeText}>{v.code}</Text>
                       </View>
