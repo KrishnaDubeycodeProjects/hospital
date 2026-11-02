@@ -13,3 +13,6 @@ android/app/.cxx/
 **/local.properties
 *local.properties
 local.properties
+res/
+dist/
+*.apk

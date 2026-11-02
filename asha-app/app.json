@@ -12,7 +12,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone."
+      }
     },
     "android": {
       "package": "com.jansamvaad.aarogyaflow",
@@ -21,21 +25,22 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
       "favicon": "./assets/aarogya_flow_logo_hd.png",
       "bundler": "metro"
     },
-    "extra": {
-      "eas": {
-        "projectId": "dfe954de-c57e-41af-89bd-d80d97fde939"
-      }
-    },
-    "owner": "krishnacomp",
     "plugins": [
       "expo-speech-recognition"
-    ]
+    ],
+    "owner": "krishnadubeycomp",
+    "extra": {
+      "eas": {
+        "projectId": "50696879-d279-4194-a7a3-f2d556ab84bf"
+      }
+    }
   }
 }
