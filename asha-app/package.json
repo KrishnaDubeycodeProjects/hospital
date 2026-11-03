@@ -8,9 +8,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "deploy": "eas build --platform android --profile preview --non-interactive",
-    "deploy:prod": "eas build --platform android --profile production --non-interactive",
-    "build:apk": "eas build --platform android --profile preview --non-interactive"
+    "deploy": "eas build --platform android --profile preview --non-interactive --no-wait",
+    "deploy:prod": "eas build --platform android --profile production --non-interactive --no-wait",
+    "build:apk": "eas build --platform android --profile preview --non-interactive --no-wait"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

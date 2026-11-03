@@ -12,6 +12,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "`n[2/2] Triggering Expo EAS Cloud Build..." -ForegroundColor Yellow
-npx -y eas-cli build --platform android --profile preview --non-interactive
+npx -y eas-cli build --platform android --profile preview --non-interactive --no-wait
 
-Write-Host "`nBuild submitted to Expo EAS successfully!" -ForegroundColor Green
+Write-Host "`nBuild submitted to Expo EAS cloud queue successfully!" -ForegroundColor Green
+
