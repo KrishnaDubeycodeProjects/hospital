@@ -24,7 +24,7 @@ const getBackendBaseUrl = (): string => {
   return CLOUD_API_URL;
 };
 
-const BACKEND_BASE_URL = getBackendBaseUrl();
+export const BACKEND_BASE_URL = getBackendBaseUrl();
 
 /** Row of GET /api/anm/ashas (AshaWorkerDto). */
 export interface AnmAshaWorker {
@@ -547,7 +547,7 @@ export class SyncApi {
    */
   static async sendDataToAnm(
     sectionFilter: string = 'ALL',
-    anmPhoneOrCode: string = 'ANM-CHANDPUR-01',
+    anmPhoneOrCode: string,
     ashaPhone: string = getStorageWorkerPhone()
   ): Promise<SyncResult> {
     const isOnline = await this.pingServer();
@@ -569,6 +569,15 @@ export class SyncApi {
             }),
           }
         );
+        if (res.status === 422) {
+          // Server could not match the code to an ANM and this ASHA has no assigned ANM: nothing is sent.
+          return {
+            success: false,
+            mode: 'ONLINE_SYNCED',
+            message: 'ANM_NOT_FOUND',
+            syncedCount: 0,
+          };
+        }
         if (res.ok) {
           const sentCount = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode, sectionFilter);
           return {

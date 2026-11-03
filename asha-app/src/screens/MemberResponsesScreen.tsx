@@ -306,8 +306,8 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
               onChange={setReferUrgency}
               options={[URGENT, MEDIUM].map((u) => ({ key: u, label: urgencyLabel(u) }))}
             />
-            <Field label={tr('कारण', 'कारण')} value={referReason} onChangeText={setReferReason} />
-            <Field label={tr('जाँच / लक्षण', 'तपासणी / लक्षणे')} value={referVitals} onChangeText={setReferVitals} placeholder="BP 120/80, Hb 11" />
+            <Field label={tr('कारण', 'कारण')} voice="long" value={referReason} onChangeText={setReferReason} />
+            <Field label={tr('जाँच / लक्षण', 'तपासणी / लक्षणे')} voice="long" value={referVitals} onChangeText={setReferVitals} placeholder="BP 120/80, Hb 11" />
             <Button label={tr('रेफरल भेजें', 'संदर्भ पाठवा')} icon={Send} disabled={!referReason.trim()} onPress={handleConfirmReferral} />
           </View>
         )}

@@ -10,7 +10,7 @@ import { AddActionSheet } from './src/components/AddActionSheet';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { color } from './src/ui';
 import { FamilyMember } from './src/types/storage';
-import { OfflineVoiceModal } from './src/components/OfflineVoiceModal';
+import { DictationEventBridge } from './src/voice/dictation';
 import { StartingAnimation } from './src/components/StartingAnimation';
 import { VoiceRecognition, SpeechEngine } from './src/voice/speechEngine';
 
@@ -72,20 +72,6 @@ const MainAppContent: React.FC = () => {
     phone: '',
   });
   const [selectedAnmMember, setSelectedAnmMember] = useState<AnmMemberForms | null>(null);
-
-  // Offline voice dictation modal
-  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
-  const [voiceModalLang, setVoiceModalLang] = useState('hi-IN');
-  const [voiceCallback, setVoiceCallback] = useState<((text: string) => void) | null>(null);
-
-  useEffect(() => {
-    VoiceRecognition.registerHandler((lang, onResult) => {
-      setVoiceModalLang(lang || 'hi-IN');
-      setVoiceCallback(() => onResult);
-      setVoiceModalVisible(true);
-    });
-    return () => VoiceRecognition.registerHandler(null);
-  }, []);
 
   // Roles are immutable post-login; reset to the cadre home tab if the session changes.
   useEffect(() => {
@@ -295,15 +281,8 @@ const MainAppContent: React.FC = () => {
           onReferral={() => openFromAddSheet('referral', false)}
         />
 
-        <OfflineVoiceModal
-          visible={voiceModalVisible}
-          lang={voiceModalLang}
-          onResult={(spoken) => {
-            if (voiceCallback) voiceCallback(spoken);
-            setVoiceModalVisible(false);
-          }}
-          onClose={() => setVoiceModalVisible(false)}
-        />
+        {/* Routes native speech events to whichever mic is listening (no popup). */}
+        <DictationEventBridge />
       </SafeAreaView>
     </View>
   );

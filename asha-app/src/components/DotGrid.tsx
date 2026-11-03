@@ -1,5 +1,5 @@
 /**
- * 24-house village grid (houses 01–24, spatial order) + selected-house card.
+ * Village house grid (all houses, in house-number order) + selected-house card.
  * Cells are ≥ 64 dp tactile tiles; colour = visit urgency (red 7 days · amber 15 days ·
  * neutral 30 days / no data · green visited). Same props / exports as before.
  */
@@ -54,8 +54,8 @@ const pad = (n: number) => (n < 10 ? `0${n}` : String(n));
 export const DotGrid: React.FC<DotGridProps> = ({ dots, onDotPress, selectedDotId, onViewFamilyDetail, onMarkVisited }) => {
   const tr = useTr();
 
-  // Strict official 24-house matrix (01–24)
-  const villageDots = dots.filter((d) => d.houseNo >= 1 && d.houseNo <= 24).sort((a, b) => a.houseNo - b.houseNo);
+  // Every registered house, in house-number order (no fixed 24-house cap: newly added families must appear)
+  const villageDots = dots.filter((d) => d.houseNo >= 1).sort((a, b) => a.houseNo - b.houseNo);
   const activeDot =
     villageDots.find((d) => d.id === selectedDotId || d.houseNo === selectedDotId) || (villageDots.length > 0 ? villageDots[0] : null);
 
@@ -185,7 +185,7 @@ export const DotGrid: React.FC<DotGridProps> = ({ dots, onDotPress, selectedDotI
 const styles = StyleSheet.create({
   wrap: { gap: space.md },
   center: { textAlign: 'center' },
-  // 4 columns × 6 rows keeps every house ≥ 64 dp while preserving 01–24 spatial order
+  // 4 columns × 6 rows keeps every house ≥ 64 dp while keeping house-number order
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: space.sm },
   cell: {
     width: '23%',

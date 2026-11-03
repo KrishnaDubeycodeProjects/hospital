@@ -3,12 +3,12 @@
  * No pre-filled sample values; voice dictation for decisions; read-aloud per meeting.
  */
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Users, CalendarDays, MapPin, Package, FileText, Plus, Volume2, Mic, CircleCheck } from 'lucide-react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Users, CalendarDays, MapPin, Package, FileText, Plus, Volume2, CircleCheck } from 'lucide-react-native';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { AshaMeetingRecord } from '../types/storage';
-import { SpeechEngine, VoiceRecognition } from '../voice/speechEngine';
+import { SpeechEngine } from '../voice/speechEngine';
 import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { formatClinicalDate } from '../services/maternalMath';
 import {
@@ -53,7 +53,6 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
   const [attendeesCount, setAttendeesCount] = useState('');
   const [materialsAvailable, setMaterialsAvailable] = useState('');
   const [decisionsTaken, setDecisionsTaken] = useState('');
-  const [isListening, setIsListening] = useState(false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,18 +64,6 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
     setMaterialsAvailable('');
     setDecisionsTaken('');
     setError(null);
-  };
-
-  const startVoice = () => {
-    setIsListening(true);
-    VoiceRecognition.start(
-      localeCode,
-      (spoken) => {
-        setDecisionsTaken((prev) => (prev ? `${prev} ${spoken}` : spoken));
-        setIsListening(false);
-      },
-      () => setIsListening(false)
-    );
   };
 
   const handleSave = async () => {
@@ -184,26 +171,12 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
               <Field label={tr('तारीख', 'तारीख')} value={meetingDate} onChangeText={setMeetingDate} keyboardType="numbers-and-punctuation" />
             </View>
             <View style={styles.flex}>
-              <Field label={tr('उपस्थित', 'उपस्थित')} value={attendeesCount} onChangeText={setAttendeesCount} keyboardType="numeric" />
+              <Field label={tr('उपस्थित', 'उपस्थित')} voice="number" value={attendeesCount} onChangeText={setAttendeesCount} keyboardType="numeric" />
             </View>
           </View>
-          <Field label={tr('स्थान', 'स्थळ')} value={venue} onChangeText={setVenue} />
-          <Field label={tr('किट सामग्री', 'किट साहित्य')} value={materialsAvailable} onChangeText={setMaterialsAvailable} />
-          <View style={styles.labelRow}>
-            <Text style={text.label}>{tr('निर्णय', 'निर्णय')}</Text>
-            <Pressable
-              onPress={startVoice}
-              accessibilityRole="button"
-              accessibilityLabel={tr('बोलकर लिखें', 'बोलून लिहा')}
-              style={[styles.mic, isListening && styles.micActive]}
-            >
-              <Mic size={18} color={isListening ? color.white : color.accent} strokeWidth={2} />
-              <Text style={[styles.micText, isListening && { color: color.white }]}>
-                {isListening ? tr('सुन रहे हैं', 'ऐकत आहे') : tr('बोलकर लिखें', 'बोलून लिहा')}
-              </Text>
-            </Pressable>
-          </View>
-          <Field label="" value={decisionsTaken} onChangeText={setDecisionsTaken} multiline error={error} />
+          <Field label={tr('स्थान', 'स्थळ')} voice="text" value={venue} onChangeText={setVenue} />
+          <Field label={tr('किट सामग्री', 'किट साहित्य')} voice="text" value={materialsAvailable} onChangeText={setMaterialsAvailable} />
+          <Field label={tr('निर्णय', 'निर्णय')} value={decisionsTaken} onChangeText={setDecisionsTaken} multiline error={error} voice="long" />
           <Button label={tr('सहेजें', 'जतन करा')} icon={CircleCheck} onPress={handleSave} />
         </View>
       </Sheet>

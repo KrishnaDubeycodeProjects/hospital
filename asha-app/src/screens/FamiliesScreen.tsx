@@ -8,6 +8,7 @@ import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Modal, ScrollVi
 import { Search, Mic, X, Plus, Users, ClipboardPlus, Route, HousePlus, ChevronRight, UserRound } from 'lucide-react-native';
 import { StatusBadge } from '../components/StatusBadge';
 import { VoiceRecognition } from '../voice/speechEngine';
+import { extractSearchQuery } from '../voice/smartExtract';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -73,7 +74,7 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
     VoiceRecognition.start(
       localeCode,
       (spoken) => {
-        setSearchQuery(spoken);
+        setSearchQuery(extractSearchQuery(spoken));
         setIsListening(false);
       },
       () => setIsListening(false)
@@ -312,10 +313,10 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
               <IconButton icon={X} label={tr('बंद करें', 'बंद करा')} onPress={closeForm} />
             </View>
             <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-              <Field label={tr('मुखिया का नाम', 'कुटुंबप्रमुखाचे नाव')} value={newHeadName} onChangeText={(v) => { setNewHeadName(v); setFormError(null); }} autoFocus />
-              <Field label={tr('घर नंबर', 'घर क्रमांक')} value={newHouseNo} onChangeText={(v) => { setNewHouseNo(v.replace(/[^0-9A-Za-z/-]/g, '')); setFormError(null); }} keyboardType="number-pad" maxLength={6} />
+              <Field label={tr('मुखिया का नाम', 'कुटुंबप्रमुखाचे नाव')} voice="name" value={newHeadName} onChangeText={(v) => { setNewHeadName(v); setFormError(null); }} autoFocus />
+              <Field label={tr('घर नंबर', 'घर क्रमांक')} voice="house" value={newHouseNo} onChangeText={(v) => { setNewHouseNo(v.replace(/[^0-9A-Za-z/-]/g, '')); setFormError(null); }} keyboardType="number-pad" maxLength={6} />
               <Field
-                label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')}
+                label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
                 value={newPhone}
                 onChangeText={(v) => { setNewPhone(v.replace(/[^0-9]/g, '')); setFormError(null); }}
                 keyboardType="phone-pad"

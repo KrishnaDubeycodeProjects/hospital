@@ -70,7 +70,7 @@ interface OfflineDataContextType {
     memberName?: string
   ) => Promise<{ task: any; family: any; syncedOnline: boolean }>;
   markFamilyVisited: (familyId: string, priority: '7days' | '15days' | '30days') => Promise<void>;
-  sendToAnm: (sectionFilter?: string, anmCode?: string) => Promise<SyncResult>;
+  sendToAnm: (sectionFilter: string, anmCode: string) => Promise<SyncResult>;
   createReferralToCho: (params: {
     familyUnitId: string;
     familyMemberId: string;
@@ -372,7 +372,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const sendToAnm = async (
     sectionFilter: string = 'ALL',
-    anmCode: string = 'ANM-CHANDPUR-01'
+    anmCode: string
   ): Promise<SyncResult> => {
     setIsSyncing(true);
     try {

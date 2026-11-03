@@ -6,6 +6,7 @@
  * ANM is the clinical validator (BP, Hb, vaccines with batch). Only real data is shown.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BroadcastInbox } from '../components/BroadcastInbox';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import {
   ClipboardList,
@@ -206,6 +207,7 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
   if (view === 'queue') {
     return (
       <Screen>
+        <BroadcastInbox />
         <Card>
           <View style={styles.statsRow}>
             <Stat value={totalForms} label={tr('फॉर्म बाकी', 'फॉर्म बाकी')} tone="amber" />
@@ -336,7 +338,7 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
           options={(['CHILD_VAX', 'ANC', 'NCD'] as Category[]).map((c) => ({ key: c, label: catMeta(c).label, tone: catMeta(c).tone }))}
         />
         <Field
-          label={tr('सत्र का नाम', 'सत्राचे नाव')}
+          label={tr('सत्र का नाम', 'सत्राचे नाव')} voice="text"
           value={newTitle}
           onChangeText={(v) => {
             setNewTitle(v);
@@ -345,13 +347,13 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
           error={titleError}
         />
         <Field
-          label={tr('स्थान', 'ठिकाण')}
+          label={tr('स्थान', 'ठिकाण')} voice="text"
           value={newLocation}
           onChangeText={setNewLocation}
           helper={tr('जैसे: आंगनवाड़ी केंद्र', 'उदा. अंगणवाडी केंद्र')}
           right={<MapPin size={18} color={color.faint} />}
         />
-        <Field label={tr('टिप्पणी', 'टीप')} value={newNotes} onChangeText={setNewNotes} multiline />
+        <Field label={tr('टिप्पणी', 'टीप')} value={newNotes} voice="long" onChangeText={setNewNotes} multiline />
         <Button label={tr('सत्र बनाएँ', 'सत्र तयार करा')} icon={QrCode} onPress={handleCreate} />
       </Sheet>
 

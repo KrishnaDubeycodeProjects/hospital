@@ -1,4 +1,5 @@
 import { FamilyUnit, FamilyMember } from '../types/storage';
+import { phoneticKey } from './phoneticName';
 
 export interface SearchMatchResult {
   family: FamilyUnit;
@@ -46,6 +47,21 @@ function levenshteinDistance(a: string, b: string): number {
  * Returns: { score: number, type: 'exact' | 'prefix' | 'fuzzy' | null }
  */
 function calculateSimilarity(
+  query: string,
+  target: string
+): { score: number; type: 'exact' | 'prefix' | 'fuzzy' | null } {
+  const direct = calculateTextSimilarity(query, target);
+  if (direct.score >= 95) return direct;
+  // Cross-script / spelling-variant match: "सुनीता" finds "Sunita", "Radha" finds "राधा".
+  const qk = phoneticKey(query);
+  const tk = phoneticKey(target);
+  if (qk.replace(/\s/g, '').length < 2 || !tk) return direct;
+  const phonetic = calculateTextSimilarity(qk, tk);
+  const scaled = { score: Math.round(phonetic.score * 0.9), type: phonetic.type };
+  return scaled.score > direct.score ? scaled : direct;
+}
+
+function calculateTextSimilarity(
   query: string,
   target: string
 ): { score: number; type: 'exact' | 'prefix' | 'fuzzy' | null } {

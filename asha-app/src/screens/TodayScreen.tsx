@@ -1,9 +1,10 @@
 /**
  * आज (Today) — the ASHA's single prioritised work list.
- * Merges the old Home due-lists, follow-ups and the 24-house grid (सूची ↔ ग्रिड toggle).
+ * Merges the old Home due-lists, follow-ups and the village house grid (सूची ↔ ग्रिड toggle).
  * Every row is computed from recorded data only; nothing is invented.
  */
 import React, { useMemo, useState } from 'react';
+import { BroadcastInbox } from '../components/BroadcastInbox';
 import { View, Text, StyleSheet } from 'react-native';
 import {
   AlertTriangle,
@@ -62,7 +63,7 @@ const DAY = 86400000;
 
 export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMember, onOpenFollowUps }) => {
   const tr = useTr();
-  const { families, members, followUps, childVaccinations, isLoading, markFamilyVisited } = useOfflineData();
+  const { families, members, followUps, childVaccinations, isLoading, markFamilyVisited, lastSyncResult } = useOfflineData();
   const [mode, setMode] = useState<'list' | 'grid'>('list');
   const [filter, setFilter] = useState<'all' | 'red' | 'amber'>('all');
   const [selectedDot, setSelectedDot] = useState<number | undefined>();
@@ -167,7 +168,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
     () =>
       families
         .map((f) => ({ f, house: houseOf(f) }))
-        .filter(({ house }) => house >= 1 && house <= 24)
+        .filter(({ house }) => house >= 1)
         .sort((a, b) => a.house - b.house)
         .map(({ f, house }) => {
           const fm = members.filter((m) => m.familyUnitId === f.id);
@@ -205,6 +206,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
 
   return (
     <Screen>
+      {/* NHM / CHO work messages (hidden when there are none); refreshed after every sync */}
+      <BroadcastInbox refreshKey={lastSyncResult} />
+
       {/* Summary: three numbers, colour = meaning */}
       <Card>
         <View style={styles.statsRow}>

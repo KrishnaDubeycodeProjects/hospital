@@ -2,7 +2,7 @@
  * AarogyaFlow UI kit — the only building blocks screens should use.
  * Visual-abstract rules: icon + ≤3-word label, 48 dp targets, semantic tone colours, no emoji.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,9 @@ import {
 import type { LucideIcon } from 'lucide-react-native';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { color, radius, space, touch, icon as iconSize, text, tonePalette, Tone, elevation } from './theme';
+import { useTr } from './useTr';
+import { VoiceMic, VoiceState } from './VoiceMic';
+import type { VoiceKind } from '../voice/smartExtract';
 
 // ---------------------------------------------------------------------------------------------
 // Layout
@@ -402,27 +405,57 @@ export const Field: React.FC<{
   multiline?: boolean;
   autoFocus?: boolean;
   right?: React.ReactNode;
-}> = ({ label, value, onChangeText, keyboardType, error, helper, maxLength, placeholder, multiline, autoFocus, right }) => (
-  <View style={styles.field}>
-    <Text style={text.label}>{label}</Text>
-    <View style={[styles.inputWrap, error ? styles.inputError : null]}>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        placeholderTextColor={color.faint}
-        multiline={multiline}
-        autoFocus={autoFocus}
-        accessibilityLabel={label}
-        style={[styles.input, multiline && styles.inputMultiline]}
-      />
-      {right}
+  /** Adds a mic: speak to fill. The answer is cleaned for this kind (phone, name, age, bp…). */
+  voice?: VoiceKind;
+}> = ({ label, value, onChangeText, keyboardType, error, helper, maxLength, placeholder, multiline, autoFocus, right, voice }) => {
+  const tr = useTr();
+  const [vs, setVs] = useState<VoiceState>({ listening: false, partial: null, notUnderstood: false });
+  const voiceLine = vs.listening
+    ? vs.partial
+      ? `${tr('सुन रहे हैं', 'ऐकत आहे')}: ${vs.partial}`
+      : tr('बोलिए…', 'बोला…')
+    : vs.notUnderstood
+    ? tr('समझ नहीं आया, फिर से बोलें', 'समजले नाही, पुन्हा बोला')
+    : null;
+  return (
+    <View style={styles.field}>
+      <Text style={text.label}>{label}</Text>
+      <View style={[styles.inputWrap, error ? styles.inputError : null, vs.listening ? styles.inputListening : null]}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          placeholderTextColor={color.faint}
+          multiline={multiline}
+          autoFocus={autoFocus}
+          accessibilityLabel={label}
+          style={[styles.input, multiline && styles.inputMultiline]}
+        />
+        {right}
+        {voice ? (
+          <VoiceMic
+            kind={voice}
+            value={value}
+            onChangeText={(v) => onChangeText(maxLength ? v.slice(0, maxLength) : v)}
+            label={`${label} — ${tr('बोलकर भरें', 'बोलून भरा')}`}
+            onStateChange={setVs}
+          />
+        ) : null}
+      </View>
+      {voiceLine ? (
+        <Text style={[text.caption, vs.notUnderstood && !vs.listening ? styles.errorText : null]} accessibilityLiveRegion="polite">
+          {voiceLine}
+        </Text>
+      ) : error ? (
+        <Text style={styles.errorText}>{error}</Text>
+      ) : helper ? (
+        <Text style={text.caption}>{helper}</Text>
+      ) : null}
     </View>
-    {error ? <Text style={styles.errorText}>{error}</Text> : helper ? <Text style={text.caption}>{helper}</Text> : null}
-  </View>
-);
+  );
+};
 
 // ---------------------------------------------------------------------------------------------
 // States
@@ -653,6 +686,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: space.md,
   },
+  inputListening: { borderColor: color.red },
   inputError: { borderColor: color.red, backgroundColor: color.redSoft },
   input: { flex: 1, fontSize: 18, fontWeight: '600', color: color.ink, paddingVertical: space.md },
   inputMultiline: { minHeight: 96, textAlignVertical: 'top' },

@@ -967,7 +967,7 @@ class OfflineStorageServiceImpl {
         ts: timestamp,
         items: vax.slice(0, 10).map((v) => ({
           name: v.childName,
-          mcts: v.mctsCode || 'MCTS-NEW',
+          mcts: v.mctsCode || undefined,
           mo: v.ageMonths,
         })),
       });
@@ -980,7 +980,7 @@ class OfflineStorageServiceImpl {
         t: 'ASHA_SYNC',
         c: 'ANC',
         p: currentWorkerPhone,
-        cnt: anc.length || 2,
+        cnt: anc.length,
         ts: timestamp,
         items: anc.slice(0, 10).map((m) => ({
           name: m.name,
@@ -997,12 +997,12 @@ class OfflineStorageServiceImpl {
       t: 'ASHA_SYNC',
       c: 'NCD',
       p: currentWorkerPhone,
-      cnt: ncd.length || 3,
+      cnt: ncd.length,
       ts: timestamp,
       items: ncd.slice(0, 10).map((m) => ({
         name: m.name,
         age: m.age,
-        cond: m.chronicConditionType || m.ncdDiagnosis || 'BP/Sugar',
+        cond: m.chronicConditionType || m.ncdDiagnosis || undefined,
       })),
     });
   }

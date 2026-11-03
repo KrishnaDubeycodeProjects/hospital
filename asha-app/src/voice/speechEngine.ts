@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Speech from 'expo-speech';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { Dictation } from './dictation';
 
 // Zero-cost, 100% offline speech synthesis using Expo Speech (Native OS TTS) & Web Speech API
 export class SpeechEngine {
@@ -136,69 +137,33 @@ export class SpeechEngine {
   }
 }
 
-export type VoiceModalHandler = (
-  lang: string,
-  onResult: (text: string) => void,
-  onError: (err: string) => void
-) => void;
-
-// 100% Offline-capable speech-to-text with Native Speech Recognition & Modal Visualizer
+/**
+ * Speech-to-text for older call sites: starts listening immediately (no popup / phrase list).
+ * Exactly one of onResult / onError is called per start. New fields should use <Field voice=…/>.
+ */
 export class VoiceRecognition {
-  private static modalHandler: VoiceModalHandler | null = null;
-
-  static registerHandler(handler: VoiceModalHandler | null): void {
-    this.modalHandler = handler;
-  }
-
-  static start(
-    lang = 'hi-IN',
-    onResult: (text: string) => void,
-    onError: (err: string) => void
-  ): void {
-    // 1. If modal handler is registered, present interactive voice prompter
-    if (this.modalHandler) {
-      this.modalHandler(lang, onResult, onError);
-      return;
-    }
-
-    // 2. Direct native module fallback
-    ExpoSpeechRecognitionModule.requestPermissionsAsync()
-      .then((perm) => {
-        if (!perm.granted) {
-          onError('Microphone permission not granted');
-          return;
-        }
-        try {
-          ExpoSpeechRecognitionModule.start({
-            lang,
-            interimResults: true,
-            maxAlternatives: 1,
-            continuous: false,
-            requiresOnDeviceRecognition: true,
-            androidIntentOptions: {
-              EXTRA_PREFER_OFFLINE: true,
-            },
-          });
-        } catch {
-          ExpoSpeechRecognitionModule.start({
-            lang,
-            interimResults: true,
-            maxAlternatives: 1,
-            continuous: false,
-            androidIntentOptions: {
-              EXTRA_PREFER_OFFLINE: true,
-            },
-          });
-        }
-      })
-      .catch((err) => {
-        onError(err?.message || 'Speech recognition failed');
-      });
+  static start(lang = 'hi-IN', onResult: (text: string) => void, onError: (err: string) => void): void {
+    let settled = false;
+    Dictation.start(lang, {
+      onFinal: (t) => {
+        if (settled) return;
+        settled = true;
+        onResult(t);
+      },
+      onError: (code) => {
+        if (settled) return;
+        settled = true;
+        onError(code);
+      },
+      onEnd: () => {
+        if (settled) return;
+        settled = true;
+        onError('no-speech');
+      },
+    });
   }
 
   static stop(): void {
-    try {
-      ExpoSpeechRecognitionModule.stop();
-    } catch (e) {}
+    Dictation.stop();
   }
 }

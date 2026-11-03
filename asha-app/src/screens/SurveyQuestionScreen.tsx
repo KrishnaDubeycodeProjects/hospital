@@ -14,6 +14,7 @@ import {
 } from 'lucide-react-native';
 import { AppBar, Screen, Card, Button, IconButton, Field, StatusPill, color, radius, space, text, type, touch } from '../ui';
 import { SpeechEngine, VoiceRecognition } from '../voice/speechEngine';
+import type { VoiceKind } from '../voice/smartExtract';
 import { useLanguage } from '../context/LanguageContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
@@ -396,7 +397,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     onChange: (v: string) => void,
     keyboard: 'numeric' | 'decimal-pad' | 'default',
     spoken: string,
-    placeholder?: string
+    placeholder?: string,
+    voiceKind: VoiceKind = keyboard === 'numeric' ? 'number' : 'decimal'
   ) => (
     <Field
       label={label}
@@ -404,6 +406,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       onChangeText={onChange}
       keyboardType={keyboard}
       placeholder={placeholder}
+      voice={voiceKind}
       right={<IconButton icon={Volume2} label={tr('सुनें', 'ऐका')} onPress={() => speak(spoken)} />}
     />
   );
@@ -511,7 +514,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         {/* BP & weight */}
         {currentQ.type === 'custom_clinical' ? (
           <View style={styles.block}>
-            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)'), answers.bp, (v) => setAnswers({ ...answers, bp: v }), 'default', tr('रक्तचाप', 'रक्तदाब'), '120/80')}
+            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)'), answers.bp, (v) => setAnswers({ ...answers, bp: v }), 'default', tr('रक्तचाप', 'रक्तदाब'), '120/80', 'bp')}
             {renderNumberInput(tr('वजन (kg)', 'वजन (kg)'), answers.weight, (v) => setAnswers({ ...answers, weight: v }), 'numeric', tr('वजन किलोग्राम', 'वजन किलोग्रॅम'))}
           </View>
         ) : null}

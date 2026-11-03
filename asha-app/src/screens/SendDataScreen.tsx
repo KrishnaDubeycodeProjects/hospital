@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { scanQrFromImageFile, parseQrIdentifier } from '../utils/qrScannerHelper';
 import { useOfflineData } from '../context/OfflineDataContext';
+import { useAuth } from '../context/AuthContext';
 import { RealQrCode } from '../components/RealQrCode';
 import { OfflineStorageService } from '../storage/OfflineStorageService';
 import {
@@ -70,6 +71,13 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
     sendToAnm,
   } = useOfflineData();
   const tr = useTr();
+  const { user } = useAuth();
+  // Assigned ANM from the server profile (anm_phone). Used when the ANM scans "मेरा QR".
+  const assignedAnmPhone = (() => {
+    const d = (user.assignedAnm || '').replace(/[^0-9]/g, '');
+    return d.length >= 10 ? d.slice(-10) : '';
+  })();
+  const [handoffError, setHandoffError] = useState<string | null>(null);
 
   const [syncMode, setSyncMode] = useState<'IN_OUT' | 'ANM_QR'>('ANM_QR');
   const [qrSubMode, setQrSubMode] = useState<'SCAN' | 'SHOW'>('SCAN');
@@ -128,12 +136,32 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
   const ancCount = members.filter((m) => m.gender === 'Female' && m.isPregnant && (!m.age || m.age >= 12)).length;
   const ncdCount = members.filter((m) => m.hasChronicCondition || m.isNcdPatient).length || surveys.filter((s) => s.categoryCode === 'DISEASE').length;
 
+  /** Send this category to the ANM whose session QR was scanned / typed (or the assigned ANM). */
   const handleDirectScan = async (codeToUse?: string) => {
+    setHandoffError(null);
     const raw = (codeToUse || manualCode).trim();
-    const code = parseQrIdentifier(raw) || `ANM-QR-${selectedCluster}-SYNCED`;
-    await sendToAnm(selectedCluster, code);
+    const code = parseQrIdentifier(raw) || assignedAnmPhone;
+    if (!code) {
+      setHandoffError(tr('एएनएम का QR स्कैन करें या कोड लिखें', 'एएनएमचा QR स्कॅन करा किंवा कोड लिहा'));
+      return;
+    }
+    const res = await sendToAnm(selectedCluster, code);
+    if (!res.success) {
+      setHandoffError(
+        res.message === 'ANM_NOT_FOUND'
+          ? tr('यह एएनएम कोड नहीं मिला। सही QR स्कैन करें।', 'हा एएनएम कोड सापडला नाही. योग्य QR स्कॅन करा.')
+          : tr('भेजा नहीं जा सका, फिर कोशिश करें', 'पाठवता आले नाही, पुन्हा प्रयत्न करा')
+      );
+      return;
+    }
     onSuccess();
   };
+
+  /**
+   * "मेरा QR": the ANM scanned this phone's QR with her own app (offline handoff). Record it so the
+   * same records are marked as given to the assigned ANM — online now, or queued until signal.
+   */
+  const handleAnmScannedMyQr = () => handleDirectScan(assignedAnmPhone);
 
   const setTestCode = (code: string, cluster: Cluster) => {
     setSelectedCluster(cluster);
@@ -238,6 +266,12 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
               );
             })}
 
+            {handoffError ? (
+              <Card tone="red">
+                <Text style={[text.body, { color: color.redText }]}>{handoffError}</Text>
+              </Card>
+            ) : null}
+
             <Segmented
               value={qrSubMode}
               onChange={setQrSubMode}
@@ -258,15 +292,26 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                   />
                 </View>
                 <View style={styles.qr}>
-                  <RealQrCode value={ashaQrData || `ASHA-DATA-${selectedCluster}-DEFAULT`} size={isQrZoomed ? 260 : 200} />
+                  {ashaQrData ? (
+                    <RealQrCode value={ashaQrData} size={isQrZoomed ? 260 : 200} />
+                  ) : (
+                    <ActivityIndicator size="large" color={color.accent} />
+                  )}
                   <StatusPill tone="accent" label={`${current.count} ${tr('रिकॉर्ड', 'नोंदी')}`} />
                   <Text style={[text.caption, styles.center]}>{tr('एएनएम यह QR स्कैन करें', 'एएनएमने हा QR स्कॅन करावा')}</Text>
                 </View>
+                {/* After the ANM scans: mark these records as handed over to her (no fake code). */}
+                <Text style={[text.caption, styles.center]}>
+                  {assignedAnmPhone
+                    ? tr('एएनएम के स्कैन करने के बाद नीचे दबाएँ — ये रिकॉर्ड उन्हें सौंपे गए माने जाएँगे।', 'एएनएमने स्कॅन केल्यानंतर खाली दाबा — या नोंदी त्यांना दिल्या असे नोंदवले जाईल.')
+                    : tr('आपका एएनएम तय नहीं है — CHO से संपर्क करें।', 'तुमची एएनएम ठरलेली नाही — CHO शी संपर्क करा.')}
+                </Text>
                 <Button
-                  label={tr('स्कैन हो गया', 'स्कॅन झाले')}
+                  label={tr('एएनएम ने स्कैन कर लिया', 'एएनएमने स्कॅन केले')}
                   icon={CircleCheck}
                   loading={isSyncing}
-                  onPress={() => handleDirectScan('ASHA_DIRECT_QR_TRANSMITTED')}
+                  disabled={!assignedAnmPhone || !ashaQrData || current.count === 0}
+                  onPress={handleAnmScannedMyQr}
                 />
               </Card>
             ) : (

@@ -46,6 +46,18 @@ public class AnmService {
         return dto;
     }
 
+    /** anm_phone of the active ASHA record for this phone (compared on last 10 digits), if any. */
+    public Optional<String> findAssignedAnmPhone(String ashaPhone) {
+        String digits = ashaPhone == null ? "" : ashaPhone.replaceAll("[^0-9]", "");
+        if (digits.length() > 10) digits = digits.substring(digits.length() - 10);
+        if (digits.isEmpty()) return Optional.empty();
+        List<String> rows = jdbcTemplate.queryForList(
+                "SELECT anm_phone FROM clinicqueue.asha_workers WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = :p " +
+                        "AND (is_active IS NULL OR is_active = TRUE) AND anm_phone IS NOT NULL AND anm_phone <> '' LIMIT 1",
+                new MapSqlParameterSource("p", digits), String.class);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
     public Optional<AnmProfileDto> getByPhone(String phone) {
         String rawPhone = phone != null ? phone.replace("+91", "").trim() : "";
         String normPhone = phone != null ? com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone) : "";

@@ -1,28 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-} from 'react-native';
+/**
+ * NHM ASHA training (Me → प्रशिक्षण): module list with real progress, a reading view, and
+ * offline read-aloud (device TTS) for the whole module or any single point.
+ * Progress is stored per worker on the device; nothing is pre-marked complete.
+ */
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors } from '../theme/colors';
-import {
-  GraduationCap,
-  BookOpen,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  X,
-  Award,
-  Sparkles,
-  Volume2,
-  ShieldCheck,
-} from 'lucide-react-native';
+import { GraduationCap, Clock, CircleCheck, Circle, Volume2, Square, ChevronRight } from 'lucide-react-native';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+import { SpeechEngine } from '../voice/speechEngine';
+import { Card, Button, StatusPill, Sheet, IconBadge, color, radius, space, text, useTr } from '../ui';
 
 export interface NhmCourseModule {
   id: string;
@@ -36,7 +24,6 @@ export interface NhmCourseModule {
   descriptionMr: string;
   keyPointsHi: string[];
   keyPointsMr: string[];
-  completed: boolean;
 }
 
 const DEFAULT_MODULES: NhmCourseModule[] = [
@@ -62,13 +49,12 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
       '१८० दिवस आयएफए व ३६० कॅल्शियम गोळ्यांचे नियमित सेवन.',
       'धोक्याची लक्षणे: सूज, डोकेदुखी, अंधुक दिसणे, रक्तस्राव - तात्काळ रेफरल.',
     ],
-    completed: true,
   },
   {
     id: 'nhm-mod-2',
     moduleNumber: 2,
-    titleHi: 'बाल प्रतिरक्षण चक्र एवं कुपोषण प्रबंधन (Child Care & Vax)',
-    titleMr: 'बाल लसीकरण आणि कुपोषण व्यवस्थापन (Child Care & Vax)',
+    titleHi: 'बाल प्रतिरक्षण चक्र एवं कुपोषण प्रबंधन',
+    titleMr: 'बाल लसीकरण आणि कुपोषण व्यवस्थापन',
     categoryHi: 'बाल स्वास्थ्य एवं पोषण',
     categoryMr: 'बाल आरोग्य व पोषण',
     durationMinutes: 30,
@@ -86,7 +72,6 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
       '९-१२ महिने: एमआर-१, जेई-१, जीवनसत्त्व-ए चा पहिला डोस.',
       'एमयूएसी टेपद्वारे कुपोषण ओळखणे आणि पोषण पुनर्वसन केंद्रात (NRC) पाठवणे.',
     ],
-    completed: true,
   },
   {
     id: 'nhm-mod-3',
@@ -108,7 +93,6 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
       'सीबॅक फॉर्ममध्ये ४ किंवा अधिक गुण असल्यास सीएचओ कडे पाठवणे.',
       'रक्तदाब व मधुमेहाच्या रुग्णांची औषध नियमितता तपासणे.',
     ],
-    completed: true,
   },
   {
     id: 'nhm-mod-4',
@@ -130,7 +114,6 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
       'टीबी रुग्णाला दरमहा ₹५०० निक्षय पोषण योजनेसाठी बँक खाते जोडणे.',
       'ताप असल्यास मलेरिया आरडीटी किटने तात्काळ तपासणी.',
     ],
-    completed: false,
   },
   {
     id: 'nhm-mod-5',
@@ -152,565 +135,226 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
       'सत्र ठिकाणी स्वच्छता, पिण्याचे पाणी व वजन काटा खात्री करणे.',
       'किशोरी व स्तनदा मातांना पोषण आणि स्वच्छतेबाबत मार्गदर्शन करणे.',
     ],
-    completed: false,
   },
 ];
 
 export const NhmCoursesCard: React.FC = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
-  const [modules, setModules] = useState<NhmCourseModule[]>(DEFAULT_MODULES);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<NhmCourseModule | null>(null);
+  const tr = useTr();
+  const isMarathi = language === 'mr';
+  const locale = isMarathi ? 'mr-IN' : 'hi-IN';
 
-  const cleanPhone = user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : 'general';
-  const STORAGE_KEY = `@asha_${cleanPhone}_nhm_courses_v6`;
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState<NhmCourseModule | null>(null);
+  /** What is being read aloud: 'all' (whole module), a point index, or null. */
+  const [speaking, setSpeaking] = useState<'all' | number | null>(null);
+  const speakToken = useRef(0);
+
+  const phone = user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : 'general';
+  const STORAGE_KEY = `@asha_${phone}_nhm_progress_v7`;
 
   useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          setModules(JSON.parse(raw));
-        }
-      } catch {}
-    })();
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        const ids = raw ? JSON.parse(raw) : [];
+        setDone(new Set(Array.isArray(ids) ? ids : []));
+      })
+      .catch(() => {});
   }, [STORAGE_KEY]);
 
-  const toggleModuleCompletion = async (moduleId: string) => {
-    const updated = modules.map((m) =>
-      m.id === moduleId ? { ...m, completed: !m.completed } : m
-    );
-    setModules(updated);
-    if (selectedModule && selectedModule.id === moduleId) {
-      setSelectedModule({ ...selectedModule, completed: !selectedModule.completed });
-    }
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+  // Stop reading when the card unmounts (Me tab collapsed / screen left).
+  useEffect(() => () => SpeechEngine.stop(), []);
+
+  const toggleDone = (id: string) => {
+    setDone((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
   };
 
-  const completedCount = modules.filter((m) => m.completed).length;
-  const progressPercent = Math.round((completedCount / modules.length) * 100);
+  const title = (m: NhmCourseModule) => (isMarathi ? m.titleMr : m.titleHi);
+  const category = (m: NhmCourseModule) => (isMarathi ? m.categoryMr : m.categoryHi);
+  const description = (m: NhmCourseModule) => (isMarathi ? m.descriptionMr : m.descriptionHi);
+  const points = (m: NhmCourseModule) => (isMarathi ? m.keyPointsMr : m.keyPointsHi);
 
-  const isMarathi = language === 'mr';
+  const stopSpeaking = () => {
+    speakToken.current++;
+    SpeechEngine.stop();
+    setSpeaking(null);
+  };
+
+  const speak = (what: 'all' | number, textToRead: string) => {
+    if (speaking === what) {
+      stopSpeaking();
+      return;
+    }
+    SpeechEngine.stop();
+    const token = ++speakToken.current;
+    setSpeaking(what);
+    SpeechEngine.speak(textToRead, locale, 0.9, undefined, () => {
+      if (speakToken.current === token) setSpeaking(null);
+    }).catch(() => setSpeaking(null));
+  };
+
+  const readWholeModule = (m: NhmCourseModule) =>
+    [
+      `${tr('मॉड्यूल', 'मॉड्यूल')} ${m.moduleNumber}. ${title(m)}.`,
+      description(m),
+      tr('मुख्य बातें।', 'मुख्य मुद्दे.'),
+      ...points(m),
+    ].join(' ');
+
+  const closeModule = () => {
+    stopSpeaking();
+    setOpen(null);
+  };
+
+  const completed = DEFAULT_MODULES.filter((m) => done.has(m.id)).length;
+  const percent = Math.round((completed / DEFAULT_MODULES.length) * 100);
 
   return (
-    <>
-      {/* Home Screen Interactive Card */}
-      <View style={styles.cardContainer}>
-        <View style={styles.cardHeader}>
-          <View style={styles.badgeRow}>
-            <View style={styles.nhmBadge}>
-              <GraduationCap size={13} color="#047857" style={{ marginRight: 4 }} />
-              <Text style={styles.nhmBadgeText}>
-                {isMarathi ? 'राष्ट्रीय आरोग्य अभियान (NHM)' : 'राष्ट्रीय स्वास्थ्य मिशन (NHM)'}
-              </Text>
-            </View>
-            <View style={styles.statusPill}>
-              <Text style={styles.statusPillText}>
-                {completedCount}/{modules.length} {isMarathi ? 'पूर्ण' : 'पूर्ण (Completed)'}
-              </Text>
-            </View>
+    <View style={styles.wrap}>
+      <Card>
+        <View style={styles.headRow}>
+          <IconBadge icon={GraduationCap} tone="accent" />
+          <View style={styles.flex}>
+            <Text style={text.heading}>{tr('आशा प्रशिक्षण', 'आशा प्रशिक्षण')}</Text>
+            <Text style={text.caption}>{tr('राष्ट्रीय स्वास्थ्य मिशन', 'राष्ट्रीय आरोग्य अभियान')}</Text>
           </View>
-
-          <Text style={styles.cardTitle}>
-            {isMarathi ? 'आशा प्रशिक्षण आणि कौशल्य अभ्यासक्रम' : 'आशा प्रशिक्षण एवं क्षमता संवर्धन पाठ्यक्रम'}
-          </Text>
-          <Text style={styles.cardSubtitle}>
-            {isMarathi
-              ? 'अधिकृत राष्ट्रीय मार्गदर्शक तत्त्वे • माता, बाल व संसर्गजन्य रोग प्रोटोकॉल'
-              : 'आधिकारिक राष्ट्रीय दिशानिर्देश • मातृ, शिशु स्वास्थ्य एवं एनसीडी प्रोटोकॉल'}
-          </Text>
-
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-            </View>
-            <Text style={styles.progressText}>{progressPercent}% {isMarathi ? 'प्रगती' : 'प्रगति'}</Text>
-          </View>
+          <StatusPill
+            tone={completed === DEFAULT_MODULES.length ? 'green' : 'accent'}
+            label={`${completed}/${DEFAULT_MODULES.length}`}
+          />
         </View>
-
-        {/* CTA Button */}
-        <TouchableOpacity
-          style={styles.openCoursesBtn}
-          onPress={() => setShowModal(true)}
-          activeOpacity={0.8}
+        <View
+          style={styles.track}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ min: 0, max: 100, now: percent }}
+          accessibilityLabel={tr('प्रशिक्षण प्रगति', 'प्रशिक्षण प्रगती')}
         >
-          <BookOpen size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={styles.openCoursesBtnText}>
-            {isMarathi ? 'सर्व ५ अभ्यासक्रम मॉड्यूल पहा' : 'सभी ५ प्रशिक्षण मॉड्यूल देखें'}
-          </Text>
-          <ChevronRight size={16} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+          <View style={[styles.fill, { width: `${percent}%` }]} />
+        </View>
+      </Card>
 
-      {/* Full Courses Modal */}
-      <Modal visible={showModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-                  <Award size={18} color="#059669" style={{ marginRight: 6 }} />
-                  <Text style={styles.modalHeaderTitle}>
-                    {isMarathi ? 'NHM आशा अधिकृत अभ्यासक्रम' : 'NHM आशा आधिकारिक पाठ्यक्रम'}
+      {DEFAULT_MODULES.map((m) => {
+        const isDone = done.has(m.id);
+        return (
+          <Card key={m.id} tone={isDone ? 'green' : undefined} onPress={() => setOpen(m)} accessibilityLabel={title(m)}>
+            <View style={styles.moduleRow}>
+              <View style={[styles.number, isDone && styles.numberDone]}>
+                {isDone ? (
+                  <CircleCheck size={22} color={color.white} strokeWidth={2.2} />
+                ) : (
+                  <Text style={styles.numberText}>{m.moduleNumber}</Text>
+                )}
+              </View>
+              <View style={styles.flex}>
+                <Text style={text.heading} numberOfLines={2}>
+                  {title(m)}
+                </Text>
+                <View style={styles.metaRow}>
+                  <Clock size={14} color={color.muted} strokeWidth={2} />
+                  <Text style={text.caption}>
+                    {m.durationMinutes} {tr('मिनट', 'मिनिटे')} · {category(m)}
                   </Text>
                 </View>
-                <Text style={styles.modalHeaderSub}>
-                  {completedCount} / {modules.length} {isMarathi ? 'मॉड्यूल यशस्वीरित्या पूर्ण केले' : 'मॉड्यूल सफलतापूर्वक पूर्ण'}
-                </Text>
               </View>
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => {
-                  setShowModal(false);
-                  setSelectedModule(null);
-                }}
-              >
-                <X size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
+              <ChevronRight size={20} color={color.faint} strokeWidth={2} />
+            </View>
+          </Card>
+        );
+      })}
+
+      <Sheet
+        visible={!!open}
+        onClose={closeModule}
+        title={open ? `${open.moduleNumber}. ${title(open)}` : undefined}
+        closeLabel={tr('बंद करें', 'बंद करा')}
+      >
+        {open ? (
+          <ScrollView contentContainerStyle={styles.sheetBody}>
+            <View style={styles.metaRow}>
+              <StatusPill tone="accent" label={category(open)} />
+              <StatusPill tone="neutral" icon={Clock} label={`${open.durationMinutes} ${tr('मिनट', 'मिनिटे')}`} />
             </View>
 
-            {/* If Detail View Active */}
-            {selectedModule ? (
-              <ScrollView style={styles.detailScroll} showsVerticalScrollIndicator={false}>
-                <TouchableOpacity
-                  style={styles.backToModulesBtn}
-                  onPress={() => setSelectedModule(null)}
+            <Button
+              label={speaking === 'all' ? tr('रोकें', 'थांबवा') : tr('पूरा पाठ सुनें', 'संपूर्ण पाठ ऐका')}
+              icon={speaking === 'all' ? Square : Volume2}
+              variant={speaking === 'all' ? 'danger' : 'primary'}
+              onPress={() => speak('all', readWholeModule(open))}
+            />
+
+            <Text style={text.body}>{description(open)}</Text>
+
+            <Text style={text.label}>{tr('मुख्य बातें — छूकर सुनें', 'मुख्य मुद्दे — स्पर्श करून ऐका')}</Text>
+            {points(open).map((pt, i) => {
+              const active = speaking === i;
+              return (
+                <Pressable
+                  key={i}
+                  onPress={() => speak(i, pt)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${tr('सुनें', 'ऐका')}: ${pt}`}
+                  style={({ pressed }) => [styles.point, active && styles.pointActive, pressed && styles.pressed]}
                 >
-                  <Text style={styles.backToModulesText}>
-                    ← {isMarathi ? 'सर्व मॉड्यूल यादीकडे परत जा' : 'सभी मॉड्यूल सूची पर वापस जाएँ'}
-                  </Text>
-                </TouchableOpacity>
+                  <Text style={[text.body, styles.flex]}>{pt}</Text>
+                  {active ? (
+                    <Square size={18} color={color.red} fill={color.red} strokeWidth={2} />
+                  ) : (
+                    <Volume2 size={20} color={color.accent} strokeWidth={2} />
+                  )}
+                </Pressable>
+              );
+            })}
 
-                <View style={styles.detailHeaderBox}>
-                  <View style={styles.detailBadgeRow}>
-                    <Text style={styles.detailCategory}>
-                      {isMarathi ? selectedModule.categoryMr : selectedModule.categoryHi}
-                    </Text>
-                    <View style={styles.detailDuration}>
-                      <Clock size={12} color="#059669" style={{ marginRight: 4 }} />
-                      <Text style={styles.detailDurationText}>{selectedModule.durationMinutes} मिनट</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.detailTitle}>
-                    {selectedModule.moduleNumber}. {isMarathi ? selectedModule.titleMr : selectedModule.titleHi}
-                  </Text>
-                  <Text style={styles.detailDesc}>
-                    {isMarathi ? selectedModule.descriptionMr : selectedModule.descriptionHi}
-                  </Text>
-                </View>
-
-                {/* Key Protocols */}
-                <Text style={styles.sectionHeader}>
-                  {isMarathi ? '📌 मुख्य मार्गदर्शक तत्त्वे व कृती:' : '📌 मुख्य दिशानिर्देश एवं फील्ड प्रोटोकॉल:'}
-                </Text>
-                <View style={styles.keyPointsBox}>
-                  {(isMarathi ? selectedModule.keyPointsMr : selectedModule.keyPointsHi).map((pt, idx) => (
-                    <View key={idx} style={styles.pointRow}>
-                      <ShieldCheck size={16} color="#059669" style={{ marginRight: 8, marginTop: 2 }} />
-                      <Text style={styles.pointText}>{pt}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Audio Guide Callout */}
-                <View style={styles.audioGuideBox}>
-                  <Volume2 size={18} color="#D97706" style={{ marginRight: 8 }} />
-                  <Text style={styles.audioGuideText}>
-                    {isMarathi
-                      ? 'ध्वनी मार्गदर्शन: हे मार्गदर्शक तत्त्व तुमच्या स्थानिक भाषेत उपलब्ध आहे.'
-                      : 'ऑडियो मार्गदर्शन: यह दिशानिर्देश आपकी स्थानीय भाषा में फील्ड में उपयोग हेतु तैयार है।'}
-                  </Text>
-                </View>
-
-                {/* Complete Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.toggleCompleteBtn,
-                    selectedModule.completed && styles.toggleCompleteBtnDone,
-                  ]}
-                  onPress={() => toggleModuleCompletion(selectedModule.id)}
-                  activeOpacity={0.8}
-                >
-                  <CheckCircle2
-                    size={18}
-                    color="#FFFFFF"
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text style={styles.toggleCompleteBtnText}>
-                    {selectedModule.completed
-                      ? isMarathi ? '✓ पूर्ण झाले (Completed)' : '✓ मॉड्यूल पूर्ण (Completed)'
-                      : isMarathi ? 'मॉड्यूल पूर्ण म्हणून चिन्हांकित करा' : 'मॉड्यूल पूर्ण रूप से चिह्नित करें'}
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            ) : (
-              /* Module List View */
-              <ScrollView style={styles.moduleListScroll} showsVerticalScrollIndicator={false}>
-                {modules.map((mod) => (
-                  <TouchableOpacity
-                    key={mod.id}
-                    style={[styles.moduleCard, mod.completed && styles.moduleCardCompleted]}
-                    onPress={() => setSelectedModule(mod)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.moduleCardTop}>
-                      <View style={styles.moduleNumberBadge}>
-                        <Text style={styles.moduleNumberText}>0{mod.moduleNumber}</Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={styles.moduleCategory}>
-                          {isMarathi ? mod.categoryMr : mod.categoryHi}
-                        </Text>
-                        <Text style={styles.moduleTitle}>
-                          {isMarathi ? mod.titleMr : mod.titleHi}
-                        </Text>
-                      </View>
-                      {mod.completed ? (
-                        <CheckCircle2 size={22} color="#059669" />
-                      ) : (
-                        <ChevronRight size={20} color={Colors.textMuted} />
-                      )}
-                    </View>
-                    <Text style={styles.moduleDescSnippet} numberOfLines={2}>
-                      {isMarathi ? mod.descriptionMr : mod.descriptionHi}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-
-                {/* Certification Note */}
-                <View style={styles.certBox}>
-                  <Sparkles size={18} color="#059669" style={{ marginRight: 8 }} />
-                  <Text style={styles.certText}>
-                    {isMarathi
-                      ? 'सर्व ५ मॉड्यूल पूर्ण केल्यावर तुमचे वार्षिक कार्यप्रदर्शन राष्ट्रीय आरोग्य पोर्टलवर आपोआप नोंदवले जाईल.'
-                      : 'सभी ५ मॉड्यूल पूर्ण करने पर आपका वार्षिक कार्य निष्पादन राष्ट्रीय स्वास्थ्य पोर्टल पर सीधे दर्ज होगा।'}
-                  </Text>
-                </View>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-    </>
+            <Button
+              label={done.has(open.id) ? tr('पूरा हुआ — वापस लें', 'पूर्ण — परत घ्या') : tr('पूरा हुआ', 'पूर्ण झाले')}
+              icon={done.has(open.id) ? CircleCheck : Circle}
+              variant={done.has(open.id) ? 'secondary' : 'primary'}
+              onPress={() => toggleDone(open.id)}
+            />
+          </ScrollView>
+        ) : null}
+      </Sheet>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  cardContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: '#D1FAE5',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    padding: 16,
-    paddingBottom: 14,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  nhmBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  nhmBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#065F46',
-  },
-  statusPill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 22,
-    marginBottom: 3,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 17,
-    marginBottom: 12,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  progressBarBg: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#059669',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  openCoursesBtn: {
-    flexDirection: 'row',
+  wrap: { gap: space.md },
+  flex: { flex: 1 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  track: { height: 8, borderRadius: radius.pill, backgroundColor: color.lineSoft, overflow: 'hidden', marginTop: space.md },
+  fill: { height: 8, borderRadius: radius.pill, backgroundColor: color.accent },
+  moduleRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  number: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    backgroundColor: color.accentSoft,
   },
-  openCoursesBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginRight: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    paddingBottom: 24,
-  },
-  modalHeader: {
+  numberDone: { backgroundColor: color.green },
+  numberText: { fontSize: 18, fontWeight: '800', color: color.accent },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexWrap: 'wrap', marginTop: space.xs },
+  sheetBody: { gap: space.md, paddingBottom: space.xl },
+  point: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  modalHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  modalHeaderSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  closeBtn: {
-    padding: 6,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-  },
-  moduleListScroll: {
-    padding: 16,
-  },
-  moduleCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: color.line,
+    backgroundColor: color.surface,
   },
-  moduleCardCompleted: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  moduleCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  moduleNumberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moduleNumberText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#334155',
-  },
-  moduleCategory: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-    textTransform: 'uppercase',
-  },
-  moduleTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  moduleDescSnippet: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 17,
-  },
-  certBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  certText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#065F46',
-    lineHeight: 17,
-    fontWeight: '600',
-  },
-  detailScroll: {
-    padding: 16,
-  },
-  backToModulesBtn: {
-    marginBottom: 14,
-  },
-  backToModulesText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  detailHeaderBox: {
-    backgroundColor: '#F8FAFC',
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  detailBadgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  detailCategory: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#059669',
-    textTransform: 'uppercase',
-  },
-  detailDuration: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  detailDurationText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  detailTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 24,
-    marginBottom: 8,
-  },
-  detailDesc: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 19,
-  },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 10,
-  },
-  keyPointsBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  pointRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  pointText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 19,
-    fontWeight: '500',
-  },
-  audioGuideBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    marginBottom: 20,
-  },
-  audioGuideText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#92400E',
-    lineHeight: 17,
-  },
-  toggleCompleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#059669',
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginBottom: 30,
-  },
-  toggleCompleteBtnDone: {
-    backgroundColor: '#047857',
-  },
-  toggleCompleteBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
+  pointActive: { borderColor: color.red, backgroundColor: color.redSoft },
+  pressed: { transform: [{ scale: 0.98 }] },
 });

@@ -530,19 +530,19 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
         closeLabel={tr('बंद करें', 'बंद करा')}
       >
         <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-          <Field label={tr('पूरा नाम', 'पूर्ण नाव')} value={name} onChangeText={(v) => { setName(v); setFormError(null); }} autoFocus />
-          <Field label={tr('पिता / पति का नाम', 'वडील / पतीचे नाव')} value={fatherOrHusband} onChangeText={setFatherOrHusband} />
+          <Field label={tr('पूरा नाम', 'पूर्ण नाव')} voice="name" value={name} onChangeText={(v) => { setName(v); setFormError(null); }} autoFocus />
+          <Field label={tr('पिता / पति का नाम', 'वडील / पतीचे नाव')} voice="name" value={fatherOrHusband} onChangeText={setFatherOrHusband} />
           <View style={styles.twoCol}>
             <View style={styles.flex}>
-              <Field label={tr('उम्र (वर्ष)', 'वय (वर्षे)')} value={age} onChangeText={onAgeChange} keyboardType="number-pad" maxLength={3} />
+              <Field label={tr('उम्र (वर्ष)', 'वय (वर्षे)')} voice="age" value={age} onChangeText={onAgeChange} keyboardType="number-pad" maxLength={3} />
             </View>
             <View style={styles.flex}>
-              <Field label={tr('रिश्ता', 'नाते')} value={relationship} onChangeText={setRelationship} placeholder={tr('पत्नी / पुत्र', 'पत्नी / मुलगा')} />
+              <Field label={tr('रिश्ता', 'नाते')} voice="text" value={relationship} onChangeText={setRelationship} placeholder={tr('पत्नी / पुत्र', 'पत्नी / मुलगा')} />
             </View>
           </View>
           <Field label={tr('जन्म तिथि', 'जन्मतारीख')} value={dob} onChangeText={setDob} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" maxLength={10} />
           <Field
-            label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')}
+            label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
             value={phone}
             onChangeText={(v) => { setPhone(v.replace(/[^0-9]/g, '')); setFormError(null); }}
             keyboardType="phone-pad"

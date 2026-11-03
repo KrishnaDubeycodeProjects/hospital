@@ -27,6 +27,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { SyncApi, ChoSectorWorker } from '../api/syncApi';
+import { ChoBroadcastPanel } from '../components/ChoBroadcastPanel';
 import {
   Screen,
   Card,
@@ -233,6 +234,9 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
           }}
         />
 
+        {/* NHM work messages to the sector (compose · read / done counts · withdraw) */}
+        <ChoBroadcastPanel />
+
         <SectionTitle label={tr('कार्यकर्ता', 'कार्यकर्ते')} count={allWorkers.length} />
         {workersError ? (
           <Card tone="amber">
@@ -327,16 +331,16 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
               value={newRole}
               onChange={setNewRole}
             />
-            <Field label={tr('पूरा नाम', 'पूर्ण नाव')} value={newName} onChangeText={setNewName} />
+            <Field label={tr('पूरा नाम', 'पूर्ण नाव')} voice="name" value={newName} onChangeText={setNewName} />
             <Field
-              label={tr('मोबाइल नंबर', 'मोबाइल नंबर')}
+              label={tr('मोबाइल नंबर', 'मोबाइल नंबर')} voice="phone"
               value={newPhone}
               onChangeText={(v) => setNewPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
               keyboardType="number-pad"
               maxLength={10}
               placeholder="98765 43210"
             />
-            <Field label={tr('गाँव / उपकेंद्र', 'गाव / उपकेंद्र')} value={newVillage} onChangeText={setNewVillage} />
+            <Field label={tr('गाँव / उपकेंद्र', 'गाव / उपकेंद्र')} voice="text" value={newVillage} onChangeText={setNewVillage} />
             <Text style={text.label}>{tr('ऐप भाषा', 'ॲप भाषा')}</Text>
             <Segmented
               options={[
@@ -505,7 +509,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
       >
         <View style={styles.sheetBody}>
           <Field
-            label={tr('नैदानिक सलाह', 'वैद्यकीय सल्ला')}
+            label={tr('नैदानिक सलाह', 'वैद्यकीय सल्ला')} voice="long"
             value={adviceNotes}
             onChangeText={setAdviceNotes}
             multiline
