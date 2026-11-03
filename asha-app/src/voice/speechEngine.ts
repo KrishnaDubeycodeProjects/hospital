@@ -1,7 +1,7 @@
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import * as Speech from 'expo-speech';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { Dictation } from './dictation';
+import { ensureTtsVoice, prefetchLanguagePacks, refreshVoiceCache } from './languagePack';
 
 // Zero-cost, 100% offline speech synthesis using Expo Speech (Native OS TTS) & Web Speech API
 export class SpeechEngine {
@@ -13,14 +13,8 @@ export class SpeechEngine {
    * Designed specifically for rural field workers so they never have to manually configure settings.
    */
   static async initializeOfflineSpeech(): Promise<void> {
-    if (Platform.OS === 'android') {
-      try {
-        await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'hi-IN' }).catch(() => {});
-        await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'mr-IN' }).catch(() => {});
-      } catch (e) {
-        // Safe fallback on unsupported Android versions
-      }
-    }
+    // Downloads only models that are actually missing (no repeated system dialogs).
+    await prefetchLanguagePacks().catch(() => {});
   }
 
   static async speak(
@@ -84,11 +78,27 @@ export class SpeechEngine {
         return;
       }
     } else {
-      // Native Android & iOS via expo-speech (100% offline TextToSpeech engine)
+      // Native Android & iOS via expo-speech. The Hindi/Marathi voice must be installed
+      // first; otherwise the engine reads Devanagari with a foreign voice or stays silent.
       try {
+        const pack = await ensureTtsVoice(lang);
+        if (pack.status === 'missing') {
+          const mr = lang.toLowerCase().startsWith('mr');
+          Alert.alert(
+            mr ? 'आवाज डाउनलोड करा' : 'आवाज़ डाउनलोड करें',
+            mr
+              ? 'मराठी आवाज फोनमध्ये नाही. सेटिंगमध्ये "मराठी" आवाज डाउनलोड करा, मग पुन्हा ऐका.'
+              : 'हिंदी आवाज़ फ़ोन में नहीं है। सेटिंग में "हिंदी" आवाज़ डाउनलोड करें, फिर दोबारा सुनें।'
+          );
+          refreshVoiceCache();
+          this.isSpeakingNow = false;
+          if (onEnd) onEnd();
+          return;
+        }
         await Speech.stop();
         Speech.speak(text, {
           language: lang,
+          ...(pack.voice ? { voice: pack.voice } : {}),
           pitch: 1.0,
           rate: rate,
           onStart: () => {

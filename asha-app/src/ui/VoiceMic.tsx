@@ -4,7 +4,7 @@
  * short fields are replaced on each new attempt, comment fields (`long`) keep appending.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Animated } from 'react-native';
+import { Pressable, StyleSheet, Animated, Alert } from 'react-native';
 import { Mic, Square } from 'lucide-react-native';
 import { useLanguage } from '../context/LanguageContext';
 import { Dictation, speechLocale } from '../voice/dictation';
@@ -72,6 +72,20 @@ export const VoiceMic: React.FC<{
         const next = applySpokenValue(kind, base, t);
         if (next !== null) onChangeRef.current(next);
         notUnderstood = next === null;
+      },
+      onError: (code) => {
+        if (code !== 'language-pack-missing' && code !== 'language-pack-downloading') return;
+        const mr = language === 'mr';
+        Alert.alert(
+          mr ? 'भाषा डाउनलोड करा' : 'भाषा डाउनलोड करें',
+          code === 'language-pack-downloading'
+            ? mr
+              ? 'मराठी भाषा डाउनलोड होत आहे. पूर्ण झाल्यावर माइक पुन्हा दाबा.'
+              : 'हिंदी भाषा डाउनलोड हो रही है। पूरा होने पर माइक दोबारा दबाएँ।'
+            : mr
+            ? 'बोलून लिहिण्यासाठी आधी मराठी भाषा डाउनलोड करा. इंटरनेट चालू करून माइक पुन्हा दाबा.'
+            : 'बोलकर लिखने के लिए पहले हिंदी भाषा डाउनलोड करें। इंटरनेट चालू करके माइक दोबारा दबाएँ।'
+        );
       },
       onEnd: () => {
         sessionRef.current = null;

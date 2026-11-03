@@ -193,6 +193,8 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   // Helper to immediately push changes to the cloud if internet connectivity is available
   const syncIfOnline = useCallback(async () => {
     try {
+      // Every caller just wrote a new record: retry now rather than after an old backoff.
+      SyncApi.resetBackoff();
       const online = await SyncApi.pingServer();
       setIsOnline(online);
       if (online) {

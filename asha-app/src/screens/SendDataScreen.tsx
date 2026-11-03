@@ -150,6 +150,8 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
       setHandoffError(
         res.message === 'ANM_NOT_FOUND'
           ? tr('यह एएनएम कोड नहीं मिला। सही QR स्कैन करें।', 'हा एएनएम कोड सापडला नाही. योग्य QR स्कॅन करा.')
+          : res.message === 'SESSION_EXPIRED'
+          ? tr('सत्र समाप्त — पुनः लॉगिन करें। डेटा फोन में सुरक्षित है।', 'सत्र संपले — पुन्हा लॉगिन करा. डेटा फोनमध्ये सुरक्षित आहे.')
           : tr('भेजा नहीं जा सका, फिर कोशिश करें', 'पाठवता आले नाही, पुन्हा प्रयत्न करा')
       );
       return;

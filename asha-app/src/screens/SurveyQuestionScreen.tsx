@@ -19,6 +19,15 @@ import { useLanguage } from '../context/LanguageContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
 import {
+  sanitizeDecimal,
+  sanitizeInteger,
+  validateAdultWeight,
+  validateBp,
+  validateChildWeight,
+  validateHb,
+  validateTablets,
+} from '../services/formValidation';
+import {
   parseClinicalDate,
   formatClinicalDate,
   calculateEdd,
@@ -318,13 +327,41 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     speak(option);
   };
 
+  // Range checks per question; blocks Next/Save so impossible values never reach the outbox.
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const errorFor = (q: QuestionDef): string | null => {
+    switch (q.type) {
+      case 'date':
+        if (lmpError) return lmpError;
+        // Partly typed date (e.g. day only) must be completed or cleared.
+        if ((lmpParts.d || lmpParts.m || lmpParts.y) && !lmpComplete) return tr('पूरी तिथि लिखें', 'पूर्ण तारीख लिहा');
+        return null;
+      case 'custom_clinical':
+        return validateBp(answers.bp, tr) || validateAdultWeight(answers.weight, tr);
+      case 'number':
+        return q.fieldKey === 'hemoglobin'
+          ? validateHb(answers.hemoglobin, tr)
+          : q.fieldKey === 'childWeight'
+          ? validateChildWeight(answers.childWeight, tr)
+          : null;
+      case 'dual_number':
+        return validateTablets(answers.ironTablets, tr) || validateTablets(answers.calciumTablets, tr);
+      default:
+        return null;
+    }
+  };
+
   const handleNext = () => {
+    const err = errorFor(currentQ);
+    setFieldError(err);
+    if (err) return;
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex(currentIndex + 1);
     }
   };
 
   const handlePrev = () => {
+    setFieldError(null);
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
     }
@@ -334,6 +371,12 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     // Never attach a survey to a placeholder patient.
     if (!familyUnitId || !familyMemberId) {
       onBack();
+      return;
+    }
+    const badIndex = questions.findIndex((q) => errorFor(q) !== null);
+    if (badIndex >= 0) {
+      setCurrentIndex(badIndex);
+      setFieldError(errorFor(questions[badIndex]));
       return;
     }
     setIsSaving(true);
@@ -514,8 +557,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         {/* BP & weight */}
         {currentQ.type === 'custom_clinical' ? (
           <View style={styles.block}>
-            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)'), answers.bp, (v) => setAnswers({ ...answers, bp: v }), 'default', tr('रक्तचाप', 'रक्तदाब'), '120/80', 'bp')}
-            {renderNumberInput(tr('वजन (kg)', 'वजन (kg)'), answers.weight, (v) => setAnswers({ ...answers, weight: v }), 'numeric', tr('वजन किलोग्राम', 'वजन किलोग्रॅम'))}
+            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)'), answers.bp, (v) => { setFieldError(null); setAnswers({ ...answers, bp: v.replace(/[^0-9/]/g, '') }); }, 'default', tr('रक्तचाप', 'रक्तदाब'), '120/80', 'bp')}
+            {renderNumberInput(tr('वजन (kg)', 'वजन (kg)'), answers.weight, (v) => { setFieldError(null); setAnswers({ ...answers, weight: sanitizeDecimal(v) }); }, 'numeric', tr('वजन किलोग्राम', 'वजन किलोग्रॅम'))}
           </View>
         ) : null}
 
@@ -525,7 +568,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
             <TextInput
               style={styles.bigNumber}
               value={String(answers[currentQ.fieldKey] || '')}
-              onChangeText={(v) => setAnswers({ ...answers, [currentQ.fieldKey]: v })}
+              onChangeText={(v) => { setFieldError(null); setAnswers({ ...answers, [currentQ.fieldKey]: sanitizeDecimal(v) }); }}
+              maxLength={5}
               keyboardType="decimal-pad"
               placeholder="0.0"
               placeholderTextColor={color.faint}
@@ -537,8 +581,16 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         {/* IFA & calcium */}
         {currentQ.type === 'dual_number' ? (
           <View style={styles.block}>
-            {renderNumberInput(tr('IFA गोलियाँ (संख्या)', 'IFA गोळ्या (संख्या)'), answers.ironTablets, (v) => setAnswers({ ...answers, ironTablets: v }), 'numeric', tr('आयरन गोलियों की संख्या', 'लोह गोळ्यांची संख्या'))}
-            {renderNumberInput(tr('कैल्शियम गोलियाँ (संख्या)', 'कॅल्शियम गोळ्या (संख्या)'), answers.calciumTablets, (v) => setAnswers({ ...answers, calciumTablets: v }), 'numeric', tr('कैल्शियम गोलियों की संख्या', 'कॅल्शियम गोळ्यांची संख्या'))}
+            {renderNumberInput(tr('IFA गोलियाँ (संख्या)', 'IFA गोळ्या (संख्या)'), answers.ironTablets, (v) => { setFieldError(null); setAnswers({ ...answers, ironTablets: sanitizeInteger(v) }); }, 'numeric', tr('आयरन गोलियों की संख्या', 'लोह गोळ्यांची संख्या'))}
+            {renderNumberInput(tr('कैल्शियम गोलियाँ (संख्या)', 'कॅल्शियम गोळ्या (संख्या)'), answers.calciumTablets, (v) => { setFieldError(null); setAnswers({ ...answers, calciumTablets: sanitizeInteger(v) }); }, 'numeric', tr('कैल्शियम गोलियों की संख्या', 'कॅल्शियम गोळ्यांची संख्या'))}
+          </View>
+        ) : null}
+
+        {/* LMP errors already render beside the date boxes; avoid showing them twice. */}
+        {fieldError && fieldError !== lmpError ? (
+          <View style={styles.inlineRow}>
+            <AlertTriangle size={16} color={color.red} strokeWidth={2} />
+            <Text style={[styles.errorText, styles.flex]}>{fieldError}</Text>
           </View>
         ) : null}
 

@@ -3,6 +3,7 @@
  * From the ＋ sheet: `autoOpenCreate` opens the new-family form; `intent` shows members inline
  * so one tap reaches the member (to start a survey or a referral).
  */
+import { normalizePhone, validateHouseNumber, validateName, validatePhone } from '../services/formValidation';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Search, Mic, X, Plus, Users, ClipboardPlus, Route, HousePlus, ChevronRight, UserRound } from 'lucide-react-native';
@@ -87,15 +88,15 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
   };
 
   const handleCreateFamily = async () => {
-    const head = newHeadName.trim();
+    const head = newHeadName.trim().replace(/\s+/g, ' ');
     const house = newHouseNo.trim();
-    if (!head || !house) {
-      setFormError(tr('मुखिया नाम और घर नंबर भरें', 'प्रमुखाचे नाव व घर क्रमांक भरा'));
-      return;
-    }
-    const phoneDigits = newPhone.replace(/[^0-9]/g, '');
-    if (phoneDigits && phoneDigits.length !== 10) {
-      setFormError(tr('मोबाइल 10 अंक का हो', 'मोबाईल 10 अंकी हवा'));
+    const phoneDigits = normalizePhone(newPhone);
+    const error =
+      validateName(head, tr) ||
+      validateHouseNumber(house, tr) ||
+      validatePhone(newPhone, tr);
+    if (error) {
+      setFormError(error);
       return;
     }
     setSaving(true);

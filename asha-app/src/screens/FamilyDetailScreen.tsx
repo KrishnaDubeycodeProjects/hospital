@@ -3,6 +3,17 @@
  * household info · member list (tap → member; child → immunisation card) · add / delete member.
  * Same props as before.
  */
+import {
+  LIMITS,
+  ageFromDob,
+  normalizePhone,
+  validateAge,
+  validateAgeMatchesDob,
+  validateDob,
+  validateName,
+  validatePhone,
+  validatePregnancyAge,
+} from '../services/formValidation';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
 import {
@@ -190,7 +201,9 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
   const [savingMember, setSavingMember] = useState(false);
 
   const ageNum = Number(age);
-  const canBePregnant = gender === 'Female' && !isChild && (!age || ageNum >= 12);
+  // RCH eligible-couple range (15–49) per GOVERNMENT_RCH_ANMOL_SPECIFICATION.md
+  const canBePregnant =
+    gender === 'Female' && !isChild && (!age || (ageNum >= LIMITS.pregnancyAgeMin && ageNum <= LIMITS.pregnancyAgeMax));
   const canBeChild = !age || ageNum <= 18;
 
   const resetForm = () => {
@@ -212,7 +225,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
     const digits = v.replace(/[^0-9]/g, '');
     setAge(digits);
     const n = Number(digits);
-    if (digits && n < 12) {
+    if (digits && (n < LIMITS.pregnancyAgeMin || n > LIMITS.pregnancyAgeMax)) {
       setIsPregnant(false);
       setIsHrp(false);
     }
@@ -230,24 +243,35 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
 
   const handleSaveMember = async () => {
     if (!currentFamily) return;
-    if (!name.trim()) {
-      setFormError(tr('नाम भरें', 'नाव भरा'));
+    // Age may be typed or derived from DOB; both must agree when both are given.
+    const effectiveAge = age ? ageNum : dob.trim() ? ageFromDob(dob.trim()) : null;
+    const error =
+      validateName(name, tr) ||
+      validateName(fatherOrHusband, tr, false) ||
+      validateAge(age, tr) ||
+      validateDob(dob, tr) ||
+      validateAgeMatchesDob(age, dob, tr) ||
+      validatePhone(phone, tr) ||
+      (relationship.trim() && /[0-9]/.test(relationship) ? tr('रिश्ते में अंक नहीं', 'नात्यात अंक नसावेत') : null) ||
+      (isPregnant && gender !== 'Female' ? tr('केवल महिला गर्भवती हो सकती है', 'फक्त स्त्री गरोदर असू शकते') : null) ||
+      (isPregnant ? validatePregnancyAge(effectiveAge, tr) : null) ||
+      (isChild && effectiveAge != null && effectiveAge > LIMITS.childAgeMax
+        ? tr(`बच्चे की आयु ${LIMITS.childAgeMax} वर्ष तक`, `मुलाचे वय ${LIMITS.childAgeMax} वर्षांपर्यंत`)
+        : null);
+    if (error) {
+      setFormError(error);
       return;
     }
-    if (phone && phone.length !== 10) {
-      setFormError(tr('मोबाइल 10 अंक का हो', 'मोबाईल 10 अंकी हवा'));
-      return;
-    }
-    const parsedAge = age ? ageNum : undefined;
+    const parsedAge = effectiveAge ?? undefined;
     const pregnant = canBePregnant && isPregnant;
     setSavingMember(true);
     try {
       await addMember({
         familyUnitId: currentFamily.id,
-        name: name.trim(),
+        name: name.trim().replace(/\s+/g, ' '),
         initials: initialsOf(name) || 'FM',
         dob: dob.trim() || undefined,
-        phone: phone || undefined,
+        phone: normalizePhone(phone) || undefined,
         fatherOrHusbandName: fatherOrHusband.trim() || undefined,
         age: parsedAge,
         gender,
@@ -540,7 +564,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
               <Field label={tr('रिश्ता', 'नाते')} voice="text" value={relationship} onChangeText={setRelationship} placeholder={tr('पत्नी / पुत्र', 'पत्नी / मुलगा')} />
             </View>
           </View>
-          <Field label={tr('जन्म तिथि', 'जन्मतारीख')} value={dob} onChangeText={setDob} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" maxLength={10} />
+          <Field label={tr('जन्म तिथि', 'जन्मतारीख')} value={dob} onChangeText={(v) => { setDob(v.replace(/[^0-9/\-]/g, '')); setFormError(null); }} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" maxLength={10} error={dob.length === 10 ? validateDob(dob, tr) : null} />
           <Field
             label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
             value={phone}

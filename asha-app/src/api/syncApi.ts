@@ -231,6 +231,14 @@ export class SyncApi {
     return inFlightSync;
   }
 
+  /**
+   * Clears the failure backoff. Called after a new local write: fresh data deserves an
+   * immediate attempt instead of waiting out a backoff earned by an older failure.
+   */
+  static resetBackoff(): void {
+    registerSuccess();
+  }
+
   /** True while an outbox sync is running (lets callers skip redundant triggers). */
   static isSyncInFlight(): boolean {
     return inFlightSync !== null;
@@ -553,6 +561,35 @@ export class SyncApi {
     const isOnline = await this.pingServer();
 
     if (isOnline) {
+      // The server forwards only surveys it already holds. Upload the local outbox FIRST,
+      // otherwise forms filled offline never reach the ANM. A second pass catches records
+      // written while an already-running background sync was using an older snapshot.
+      const isFormItem = (i: OutboxItem) =>
+        ['CREATE_FAMILY', 'UPDATE_FAMILY', 'ADD_MEMBER', 'SUBMIT_SURVEY', 'UPDATE_CHILD_VACCINE'].includes(i.action);
+      for (let pass = 0; pass < 2; pass++) {
+        const pendingForms = (await OfflineStorageService.getPendingOutbox()).filter(isFormItem);
+        if (pendingForms.length === 0) break;
+        await this.syncOutbox(ashaPhone, sectionFilter, { force: true });
+      }
+      const stillPending = (await OfflineStorageService.getPendingOutbox()).filter(isFormItem);
+      if (stillPending.length > 0) {
+        // Forms not on the server yet: queue the hand-off; runSyncOutbox sends SEND_TO_ANM
+        // only after the uploads in the same run, so the ANM receives everything.
+        const count = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode, sectionFilter);
+        await OfflineStorageService.addToOutbox('SEND_TO_ANM', {
+          sectionFilter,
+          anmPhoneOrCode,
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          success: true,
+          mode: 'OFFLINE_QUEUED',
+          message: `Queued: ${stillPending.length} records still uploading.`,
+          syncedCount: count,
+          qrPayload: await OfflineStorageService.exportClusterDataJson(sectionFilter),
+        };
+      }
+
       try {
         const res = await fetch(
           `${BACKEND_BASE_URL}/api/sync/send-to-anm`,
@@ -577,6 +614,10 @@ export class SyncApi {
             message: 'ANM_NOT_FOUND',
             syncedCount: 0,
           };
+        }
+        if (res.status === 401 || res.status === 403) {
+          // Session expired: do not pretend the hand-off happened.
+          return { success: false, mode: 'ONLINE_SYNCED', message: 'SESSION_EXPIRED', syncedCount: 0 };
         }
         if (res.ok) {
           const sentCount = await OfflineStorageService.markSurveysSyncedToAnm(anmPhoneOrCode, sectionFilter);

@@ -6,6 +6,7 @@
  * to the active session only, so every mic button can share a single recognizer.
  */
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { ensureSttModel } from './languagePack';
 
 export interface DictationHandlers {
   /** Live (interim) transcript while the worker is speaking. */
@@ -65,10 +66,18 @@ export const Dictation = {
     notify();
 
     ExpoSpeechRecognitionModule.requestPermissionsAsync()
-      .then((perm) => {
+      .then(async (perm) => {
         if (current !== session) return;
         if (!perm.granted) {
           session.onError?.('not-allowed');
+          finish(session);
+          return;
+        }
+        // The language model must be on the device before listening starts.
+        const pack = await ensureSttModel(lang);
+        if (current !== session) return;
+        if (pack === 'missing' || pack === 'downloading') {
+          session.onError?.(pack === 'downloading' ? 'language-pack-downloading' : 'language-pack-missing');
           finish(session);
           return;
         }
@@ -79,11 +88,9 @@ export const Dictation = {
           continuous: false,
           androidIntentOptions: { EXTRA_PREFER_OFFLINE: true },
         };
-        try {
-          ExpoSpeechRecognitionModule.start({ ...base, requiresOnDeviceRecognition: true });
-        } catch {
-          ExpoSpeechRecognitionModule.start(base);
-        }
+        // On-device only when the model is confirmed installed; otherwise the recognizer
+        // would emit `language-not-supported` asynchronously (a try/catch cannot see it).
+        ExpoSpeechRecognitionModule.start(pack === 'ready' ? { ...base, requiresOnDeviceRecognition: true } : base);
       })
       .catch((err) => {
         if (current !== session) return;

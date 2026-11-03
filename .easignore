@@ -1,0 +1,19 @@
+# EAS Build archives from the repository root, so this file (not asha-app/.easignore) decides
+# what is uploaded. Only the mobile app is needed; backend, web frontend, docs and decks are not.
+/*
+!/asha-app/
+
+# Inside the app: dependencies are installed on the build server; reference material and
+# local build outputs are never part of the APK.
+/asha-app/node_modules/
+/asha-app/res/
+/asha-app/dist/
+/asha-app/.expo/
+/asha-app/android/.gradle/
+/asha-app/android/build/
+/asha-app/android/app/build/
+**/.cxx/
+**/local.properties
+*.apk
+*.aab
+npm-debug.*
