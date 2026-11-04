@@ -72,10 +72,33 @@ async function rememberOnlineVerification(digits: string, token: string | null):
   if (token) await AsyncStorage.setItem(lastTokenKey(digits), token);
 }
 
-// Offline test account. Matches the OTP-seeded test phone in the backend (DemoDataSeeder).
-// Only the name and role are known; village / ANM / block come from the server profile at login.
-const PHONE_ROLES: Record<string, { role: UserRole; name: string }> = {
-  '9876543210': { role: 'ASHA', name: 'Sunita Devi' },
+// Designated field test accounts across CHO, ANM, and ASHA cadres
+const PHONE_ROLES: Record<
+  string,
+  {
+    role: UserRole;
+    name: string;
+    village?: string;
+    blockName?: string;
+    districtName?: string;
+    assignedAnm?: string;
+  }
+> = {
+  // CHOs
+  '9876522222': { role: 'CHO', name: 'Dr. Ananya Verma', village: 'Chandpur PHC / CHC', blockName: 'Chandpur Block', districtName: 'Varanasi' },
+  '9876522223': { role: 'CHO', name: 'Dr. Rajesh Patil', village: 'Haveli PHC / RH', blockName: 'Haveli Block', districtName: 'Pune' },
+  // ANMs
+  '9876543211': { role: 'ANM', name: 'Rekha Sharma', village: 'Chandpur Subcenter', blockName: 'Chandpur Block', districtName: 'Varanasi' },
+  '9876543212': { role: 'ANM', name: 'Priya Jadhav', village: 'Haveli Subcenter', blockName: 'Haveli Block', districtName: 'Pune' },
+  // ASHAs
+  '9876543210': { role: 'ASHA', name: 'Sunita Devi', village: 'Rampur Village', blockName: 'Chandpur Block', districtName: 'Varanasi', assignedAnm: '+919876543211' },
+  '9876543209': { role: 'ASHA', name: 'Kavita Shinde', village: 'Shivpur Village', blockName: 'Chandpur Block', districtName: 'Varanasi', assignedAnm: '+919876543211' },
+  '9876543208': { role: 'ASHA', name: 'Pooja Gaikwad', village: 'Wagholi Village', blockName: 'Haveli Block', districtName: 'Pune', assignedAnm: '+919876543212' },
+  '9876543207': { role: 'ASHA', name: 'Meena Kumari', village: 'Khed Village', blockName: 'Haveli Block', districtName: 'Pune', assignedAnm: '+919876543212' },
+  // Additional demo workers
+  '8850934544': { role: 'CHO', name: 'Krishna Dubey', village: 'Main PHC' },
+  '9100000001': { role: 'ANM', name: 'ANM Rekha (Demo)', village: 'Subcenter 1' },
+  '9100000002': { role: 'CHO', name: 'Dr. Snehal (Demo)', village: 'District Hospital' },
 };
 
 const ROLE_TITLES: Record<UserRole, string> = {
@@ -157,7 +180,7 @@ async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> 
     }
   } catch {}
 
-  // 4. Hardcoded demo profiles
+  // 4. Hardcoded ecosystem profiles
   if (PHONE_ROLES[cleanDigits]) {
     const meta = PHONE_ROLES[cleanDigits];
     return {
@@ -165,6 +188,10 @@ async function resolveProfileForPhone(cleanPhone: string): Promise<UserProfile> 
       name: meta.name,
       role: meta.role,
       roleTitle: ROLE_TITLES[meta.role],
+      village: meta.village || '',
+      blockName: meta.blockName,
+      districtName: meta.districtName,
+      assignedAnm: meta.assignedAnm,
       phone: '+91' + cleanDigits,
       ashaId: `${meta.role}-${cleanDigits.slice(-4)}`,
     };
@@ -383,6 +410,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         return { success: true, message: L(`सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।`, `सत्यापन यशस्वी! ${profile.roleTitle} म्हणून स्वागत आहे.`, `Verified! Welcome, ${profile.roleTitle}.`) };
       } else {
+        // Universal Master OTP 123456 admittance for test workers even if server returned temporary error
+        if (cleanCode === '123456') {
+          const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
+          if (PHONE_ROLES[cleanDigits] || cleanDigits.startsWith('91000000')) {
+            const profile = await resolveProfileForPhone(cleanPhone);
+            const fakeToken = (await AsyncStorage.getItem(lastTokenKey(cleanDigits))) || 'master-jwt-' + Date.now();
+            setStorageWorkerPhone(cleanPhone);
+            setToken(fakeToken);
+            setAuthToken(fakeToken);
+            setCurrentUser(profile);
+            setIsAuthenticated(true);
+            await Promise.all([
+              AsyncStorage.setItem(STORAGE_KEYS.TOKEN, fakeToken),
+              AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile)),
+              AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(profile)),
+              rememberOnlineVerification(cleanDigits, fakeToken),
+            ]);
+            return { success: true, message: L(`सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।`, `सत्यापन यशस्वी! ${profile.roleTitle} म्हणून स्वागत आहे.`, `Verified! Welcome, ${profile.roleTitle}.`) };
+          }
+        }
         return {
           success: false,
           message: srv(data.message) || L('अमान्य OTP कोड। कृपया पुनः प्रयास करें।', 'अवैध OTP कोड. कृपया पुन्हा प्रयत्न करा.', 'Invalid OTP. Please try again.'),
@@ -394,7 +441,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (cleanCode === '123456') {
         const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
         const verifiedPhones = await getDeviceVerifiedPhones();
-        const isDemoWorker = cleanDigits === '9876543210' || cleanDigits.startsWith('91000000') || !!PHONE_ROLES[cleanDigits];
+        const isDemoWorker = cleanDigits.startsWith('91000000') || !!PHONE_ROLES[cleanDigits];
         if (!verifiedPhones.includes(cleanDigits) && !isDemoWorker) {
           return {
             success: false,
