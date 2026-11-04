@@ -5,82 +5,198 @@
  *  - STT: on-device recognizer model (Android 13+, Google on-device speech service).
  *  - TTS: installed Hindi/Marathi voice in the system TTS engine.
  *
- * Provides startup verification, explicit download triggers, and non-blocking fallback.
+ * STT model state is kept in a small observable store so the UI can:
+ *  - ask the worker to download the pack for *their selected language* (never silently),
+ *  - show live download status (banner) until the model is confirmed installed,
+ *  - keep the mic blocked while the download is still running.
  */
 import { Linking, Platform } from 'react-native';
 import * as Speech from 'expo-speech';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
+/** Legacy coarse status (kept for older call sites). */
 export type PackStatus = 'ready' | 'missing' | 'downloading' | 'unknown';
 
-const ON_DEVICE_SERVICE = 'com.google.android.as';
+/**
+ * - checking:    not probed yet
+ * - ready:       model installed, on-device dictation works offline
+ * - missing:     model can be downloaded but is not on the phone
+ * - downloading: download started (system dialog on Android 13, background on 14+)
+ * - scheduled:   Android queued the download for later (usually waits for Wi-Fi)
+ * - failed:      the download reported an error
+ * - unsupported: no on-device model API (Android ≤ 12, web, no Google speech service) →
+ *                dictation keeps using the normal (online) recognizer, nothing to download
+ */
+export type VoicePackState = 'checking' | 'ready' | 'missing' | 'downloading' | 'scheduled' | 'failed' | 'unsupported';
 
 const norm = (l: string) => l.replace('_', '-').toLowerCase();
 const baseOf = (l: string) => norm(l).split('-')[0];
 
-const sttReady = new Set<string>();
-const sttDownloading = new Map<string, Promise<PackStatus>>();
-const ttsVoice = new Map<string, string | null>(); // locale -> voice identifier
-let ttsInstallPrompted = false;
+// ---------------------------------------------------------------------------
+// STT model store
+// ---------------------------------------------------------------------------
 
-async function installedSttLocales(): Promise<{ installed: string[]; supported: string[] } | null> {
-  try {
-    const res = await ExpoSpeechRecognitionModule.getSupportedLocales({ androidRecognitionServicePackage: ON_DEVICE_SERVICE });
-    return { installed: (res.installedLocales || []).map(norm), supported: (res.locales || []).map(norm) };
-  } catch {
-    return null;
-  }
+const states = new Map<string, VoicePackState>();
+const listeners = new Set<() => void>();
+const pollers = new Map<string, { timer: ReturnType<typeof setInterval>; startedAt: number }>();
+
+const POLL_MS = 3000;
+/** Give up watching an unfinished download after this long (state falls back to `missing`). */
+const POLL_LIMIT_MS = 20 * 60 * 1000;
+
+/**
+ * Recognition services to ask for installed models. Devices differ: Pixels expose
+ * "Android System Intelligence", many others only "Speech Services by Google".
+ * `undefined` = the platform's default on-device recognizer.
+ */
+const SERVICE_CANDIDATES: (string | undefined)[] = [undefined, 'com.google.android.as', 'com.google.android.tts'];
+
+function setState(key: string, next: VoicePackState) {
+  if (states.get(key) === next) return;
+  states.set(key, next);
+  listeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {}
+  });
 }
 
-/** Current STT model state for a locale, without triggering a download. */
-export async function sttStatus(locale: string): Promise<PackStatus> {
-  if (Platform.OS !== 'android') return 'unknown';
-  const key = norm(locale);
-  if (sttReady.has(key)) return 'ready';
-  if (sttDownloading.has(key)) return 'downloading';
+/** Current state for a locale (synchronous; `checking` until first probed). */
+export function getVoicePackState(locale: string): VoicePackState {
+  return states.get(norm(locale)) ?? 'checking';
+}
+
+/** Re-render hook point: called whenever any locale's state changes. */
+export function subscribeVoicePacks(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
+async function queryLocales(): Promise<{ installed: string[]; supported: string[] } | null> {
+  for (const pkg of SERVICE_CANDIDATES) {
+    try {
+      const res = await ExpoSpeechRecognitionModule.getSupportedLocales(
+        pkg ? { androidRecognitionServicePackage: pkg } : {}
+      );
+      const installed = (res.installedLocales || []).map(norm);
+      const supported = (res.locales || []).map(norm);
+      if (installed.length > 0 || supported.length > 0) return { installed, supported };
+    } catch {
+      // package not on this phone / service error → try the next one
+    }
+  }
+  return null;
+}
+
+const listHas = (list: string[], key: string) => list.includes(key) || list.includes(baseOf(key));
+
+async function probe(key: string): Promise<VoicePackState> {
+  if (Platform.OS !== 'android') return 'unsupported';
+  if (typeof Platform.Version === 'number' && Platform.Version < 33) return 'unsupported';
   let onDevice = false;
   try {
     onDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition();
   } catch {}
-  if (!onDevice) return 'unknown';
-  const locales = await installedSttLocales();
-  // Android ≤ 12 or web/simulators return empty lists: state unknown (non-blocking).
-  if (!locales || (locales.installed.length === 0 && locales.supported.length === 0)) return 'unknown';
-  if (locales.installed.includes(key)) {
-    sttReady.add(key);
-    return 'ready';
-  }
+  if (!onDevice) return 'unsupported';
+  const locales = await queryLocales();
+  if (!locales) return 'unsupported';
+  if (listHas(locales.installed, key)) return 'ready';
   return 'missing';
 }
 
-/**
- * Makes sure the STT model is on the device, downloading it when missing.
- * Resolves `ready` only once the model is confirmed installed.
- */
-export async function ensureSttModel(locale: string): Promise<PackStatus> {
-  const key = norm(locale);
-  const status = await sttStatus(key);
-  if (status !== 'missing') return status;
-  const inflight = sttDownloading.get(key);
-  if (inflight) return inflight;
-
-  const run = (async (): Promise<PackStatus> => {
-    try {
-      const res = await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: key });
-      if (res.status === 'download_success') {
-        sttReady.add(key);
-        return 'ready';
-      }
-      return res.status === 'opened_dialog' ? 'downloading' : 'missing';
-    } catch {
-      return 'missing';
-    } finally {
-      sttDownloading.delete(key);
-    }
-  })();
-  sttDownloading.set(key, run);
-  return run;
+function stopPoll(key: string) {
+  const p = pollers.get(key);
+  if (p) clearInterval(p.timer);
+  pollers.delete(key);
 }
+
+/** While a download runs, re-check the installed list until the model shows up. */
+function startPoll(key: string) {
+  if (pollers.has(key)) return;
+  const startedAt = Date.now();
+  const timer = setInterval(async () => {
+    const next = await probe(key).catch(() => 'missing' as VoicePackState);
+    if (next === 'ready') {
+      stopPoll(key);
+      setState(key, 'ready');
+      return;
+    }
+    if (Date.now() - startedAt > POLL_LIMIT_MS) {
+      stopPoll(key);
+      // Dialog dismissed / download never finished: let the worker try again.
+      setState(key, 'missing');
+    }
+  }, POLL_MS);
+  pollers.set(key, { timer, startedAt });
+}
+
+/** Probe the device and update the store. Never triggers a download. */
+export async function refreshVoicePack(locale: string): Promise<VoicePackState> {
+  const key = norm(locale);
+  const before = states.get(key);
+  const next = await probe(key).catch(() => 'unsupported' as VoicePackState);
+  // A running download is only overridden by a confirmed install.
+  if ((before === 'downloading' || before === 'scheduled') && next !== 'ready') return before;
+  if (next === 'ready') stopPoll(key);
+  setState(key, next);
+  return next;
+}
+
+/**
+ * Start downloading the STT model for one locale (call only after the worker agreed).
+ * Resolves quickly with the new state; progress continues in the store.
+ */
+export async function downloadVoicePack(locale: string): Promise<VoicePackState> {
+  const key = norm(locale);
+  const now = await refreshVoicePack(key);
+  if (now === 'ready' || now === 'unsupported' || now === 'downloading' || now === 'scheduled') return now;
+
+  setState(key, 'downloading');
+  startPoll(key);
+
+  // Android 14+ resolves only when the download finishes; don't hold callers on it.
+  ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: key })
+    .then((res) => {
+      if (res.status === 'download_success') {
+        stopPoll(key);
+        setState(key, 'ready');
+      } else if (res.status === 'download_canceled') {
+        // Native maps Android's "onScheduled" to this: it will download later (e.g. on Wi-Fi).
+        setState(key, 'scheduled');
+      }
+      // 'opened_dialog' (Android 13): the poll confirms when the model is installed.
+    })
+    .catch((e: any) => {
+      const code = String(e?.code || e?.message || '');
+      if (/download_in_progress/i.test(code)) return; // a download is already running; keep polling
+      stopPoll(key);
+      setState(key, /not_supported/i.test(code) ? 'unsupported' : 'failed');
+    });
+
+  return 'downloading';
+}
+
+// ---- legacy wrappers ------------------------------------------------------
+
+/** Current STT model state for a locale, without triggering a download. */
+export async function sttStatus(locale: string): Promise<PackStatus> {
+  const s = await refreshVoicePack(locale);
+  return s === 'ready' ? 'ready' : s === 'downloading' || s === 'scheduled' ? 'downloading' : s === 'missing' || s === 'failed' ? 'missing' : 'unknown';
+}
+
+/** Kept for compatibility: no longer downloads silently — use downloadVoicePack after asking. */
+export async function ensureSttModel(locale: string): Promise<PackStatus> {
+  return sttStatus(locale);
+}
+
+// ---------------------------------------------------------------------------
+// TTS voices
+// ---------------------------------------------------------------------------
+
+const ttsVoice = new Map<string, string | null>(); // locale -> voice identifier
+let ttsInstallPrompted = false;
 
 /** Best installed TTS voice for the locale (offline `-local` voices first), or null. */
 async function findTtsVoice(locale: string): Promise<string | null | undefined> {
@@ -128,37 +244,29 @@ export function refreshVoiceCache(): void {
   ttsVoice.clear();
 }
 
-/** Startup check: verifies whether speech-to-text models need downloading */
-export async function checkVoiceModelReadiness(): Promise<{
+// ---------------------------------------------------------------------------
+// Startup helpers
+// ---------------------------------------------------------------------------
+
+/** Startup check for the worker's selected language only. */
+export async function checkVoiceModelReadiness(locale: string = 'hi-IN'): Promise<{
   needsDownload: boolean;
-  hiStatus: PackStatus;
-  mrStatus: PackStatus;
+  state: VoicePackState;
 }> {
-  if (Platform.OS !== 'android') {
-    return { needsDownload: false, hiStatus: 'unknown', mrStatus: 'unknown' };
-  }
-  const hi = await sttStatus('hi-IN');
-  const mr = await sttStatus('mr-IN');
-  const needsDownload = hi === 'missing' || mr === 'missing';
-  return { needsDownload, hiStatus: hi, mrStatus: mr };
+  const state = await refreshVoicePack(locale);
+  return { needsDownload: state === 'missing' || state === 'failed', state };
 }
 
-/** Initiates explicit download of offline Hindi and Marathi voice packs */
-export async function downloadAllVoiceModels(): Promise<void> {
+/** Download the selected language's STT model (after the worker agreed). */
+export async function downloadAllVoiceModels(locale: string = 'hi-IN'): Promise<void> {
   if (Platform.OS !== 'android') return;
-  try {
-    await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'hi-IN' }).catch(() => {});
-    await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'mr-IN' }).catch(() => {});
-    await ensureTtsVoice('hi-IN').catch(() => {});
-  } catch (e) {
-    console.warn('Voice model download error:', e);
-  }
+  await downloadVoicePack(locale).catch(() => {});
 }
 
-/** App start: fetch Hindi + Marathi + English STT models in the background. */
+/** App start: probe all three languages so the UI knows their state. Never downloads. */
 export async function prefetchLanguagePacks(): Promise<void> {
   for (const l of ['hi-IN', 'mr-IN', 'en-IN']) {
-    await ensureSttModel(l).catch(() => 'missing');
+    await refreshVoicePack(l).catch(() => 'unsupported');
     await findTtsVoice(l).catch(() => undefined);
   }
 }

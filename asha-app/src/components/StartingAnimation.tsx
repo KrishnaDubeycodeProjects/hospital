@@ -11,7 +11,8 @@ import {
   Pressable,
 } from 'react-native';
 import { Mic, Download, CheckCircle2, ArrowRight } from 'lucide-react-native';
-import { checkVoiceModelReadiness, downloadAllVoiceModels } from '../voice/languagePack';
+import { checkVoiceModelReadiness, downloadVoicePack } from '../voice/languagePack';
+import { speechLocale } from '../voice/dictation';
 import { getStoredLanguage, cachedLanguage, pick, type AppLanguage } from '../utils/storedLanguage';
 
 type BootStatus = 'boot' | 'ready' | 'session' | 'downloading' | 'done';
@@ -80,7 +81,9 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
     let isCancelled = false;
     let pollInterval: any = null;
 
-    checkVoiceModelReadiness()
+    // Only the worker's own language matters (the one her mic will use).
+    getStoredLanguage()
+      .then((lang) => checkVoiceModelReadiness(speechLocale(lang)))
       .then((res) => {
         if (isCancelled) return;
         if (res.needsDownload) {
@@ -125,34 +128,18 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
     setDownloading(true);
     setStatusText('downloading');
     try {
-      await downloadAllVoiceModels();
+      // Starts the download (system dialog on Android 13). Progress continues in the
+      // banner at the top of the app until the model is confirmed installed — no fake "ready".
+      const lang = await getStoredLanguage();
+      const state = await downloadVoicePack(speechLocale(lang));
+      if (state === 'ready') {
+        setDownloadSuccess(true);
+        setStatusText('done');
+      }
     } catch {}
-
-    // Poll for download readiness
-    const checkInterval = setInterval(async () => {
-      try {
-        const check = await checkVoiceModelReadiness();
-        if (!check.needsDownload) {
-          clearInterval(checkInterval);
-          setDownloading(false);
-          setDownloadSuccess(true);
-          setStatusText('done');
-          setTimeout(() => {
-            if (onAnimationFinish) onAnimationFinish();
-          }, 900);
-        }
-      } catch {}
-    }, 1500);
-
-    // After 8 seconds, if Android dialog handled it or user returns, enable smooth entry
     setTimeout(() => {
-      clearInterval(checkInterval);
-      setDownloading(false);
-      setDownloadSuccess(true);
-      setTimeout(() => {
-        if (onAnimationFinish) onAnimationFinish();
-      }, 700);
-    }, 8000);
+      if (onAnimationFinish) onAnimationFinish();
+    }, 1200);
   };
 
   const handleSkip = () => {
@@ -218,7 +205,7 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
             ) : downloading ? (
               <View style={styles.downloadingBox}>
                 <ActivityIndicator size="small" color="#059669" />
-                <Text style={styles.downloadingText}>{tr('मॉडल डाउनलोड हो रहा है... कृपया प्रतीक्षा करें', 'मॉडेल डाउनलोड होत आहे... कृपया थांबा', 'Downloading models... please wait')}</Text>
+                <Text style={styles.downloadingText}>{tr('डाउनलोड शुरू — स्थिति ऐप में ऊपर दिखेगी', 'डाउनलोड सुरू — स्थिती ॲपमध्ये वर दिसेल', 'Download started — status shows at the top of the app')}</Text>
               </View>
             ) : (
               <View style={styles.buttonCol}>

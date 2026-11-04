@@ -67,18 +67,18 @@ public class SecurityConfig {
                 .requestMatchers("/api/asha/register", "/api/anm/register").permitAll()
                 .requestMatchers("/api/surveys/templates/**", "/api/surveys/categories").permitAll()
 
-                // ASHA worker endpoints — accept PATIENT tokens (phone-based OTP auth)
-                .requestMatchers("/api/asha/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
-                .requestMatchers("/api/surveys/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
-                .requestMatchers("/api/followups/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
-                .requestMatchers("/api/sync/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
-                .requestMatchers("/api/send/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
+                // ASHA worker endpoints — accept ASHA, ANM, CHO, PATIENT, DOCTOR, ADMIN
+                .requestMatchers("/api/asha/**").hasAnyRole("ASHA", "ANM", "CHO", "PATIENT", "DOCTOR", "ADMIN")
+                .requestMatchers("/api/surveys/**").hasAnyRole("ASHA", "ANM", "CHO", "PATIENT", "DOCTOR", "ADMIN")
+                .requestMatchers("/api/followups/**").hasAnyRole("ASHA", "ANM", "CHO", "PATIENT", "DOCTOR", "ADMIN")
+                .requestMatchers("/api/sync/**").hasAnyRole("ASHA", "ANM", "CHO", "PATIENT", "DOCTOR", "ADMIN")
+                .requestMatchers("/api/send/**").hasAnyRole("ASHA", "ANM", "CHO", "PATIENT", "DOCTOR", "ADMIN")
 
-                // ANM endpoints — accept DOCTOR tokens (ANMs auth as doctors)
-                .requestMatchers("/api/anm/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
+                // ANM endpoints — accept ANM, CHO, ASHA, PATIENT, DOCTOR, ADMIN
+                .requestMatchers("/api/anm/**").hasAnyRole("ANM", "CHO", "ASHA", "PATIENT", "DOCTOR", "ADMIN")
 
-                // CHO analytics — admin only
-                .requestMatchers("/api/cho/**").hasAnyRole("ADMIN", "DOCTOR")
+                // CHO analytics — accept CHO, ADMIN, DOCTOR
+                .requestMatchers("/api/cho/**").hasAnyRole("CHO", "ADMIN", "DOCTOR")
 
                 .anyRequest().permitAll())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

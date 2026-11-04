@@ -6,7 +6,8 @@
  * to the active session only, so every mic button can share a single recognizer.
  */
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { ensureSttModel } from './languagePack';
+import { getVoicePackState, refreshVoicePack } from './languagePack';
+import { promptVoicePack } from './voicePackPrompt';
 
 export interface DictationHandlers {
   /** Live (interim) transcript while the worker is speaking. */
@@ -75,14 +76,23 @@ export const Dictation = {
           return;
         }
 
-        // Verify or trigger STT model check
-        let pack = 'unknown';
-        try {
-          pack = await ensureSttModel(lang);
-        } catch {
-          pack = 'unknown';
+        // The speech model for the worker's language must be fully on the phone first.
+        // Missing → ask to download; downloading → say so. Never start a half-working recognizer.
+        let pack = getVoicePackState(lang);
+        if (pack !== 'downloading' && pack !== 'scheduled' && pack !== 'ready') {
+          try {
+            pack = await refreshVoicePack(lang);
+          } catch {
+            pack = 'unsupported';
+          }
         }
         if (current !== session) return;
+        if (pack === 'missing' || pack === 'failed' || pack === 'downloading' || pack === 'scheduled') {
+          session.onError?.(pack === 'downloading' || pack === 'scheduled' ? 'language-pack-downloading' : 'language-pack-missing');
+          finish(session);
+          promptVoicePack(lang, pack);
+          return;
+        }
 
         const base = {
           lang,
@@ -92,7 +102,7 @@ export const Dictation = {
           androidIntentOptions: { EXTRA_PREFER_OFFLINE: true },
         };
 
-        // On-device when model is confirmed ready; otherwise standard recognition fallback
+        // On-device when the model is installed; 'unsupported' phones (Android ≤ 12) use the standard recognizer.
         try {
           ExpoSpeechRecognitionModule.start(
             pack === 'ready'

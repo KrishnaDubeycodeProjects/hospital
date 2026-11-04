@@ -54,7 +54,13 @@ public class SyncController {
         }
 
         if (anm.isEmpty()) {
-            anm = Optional.of(new AnmProfileDto("9876543211", "Rekha Sharma", "Chandpur PHC", identifier, java.time.LocalDateTime.now()));
+            anm = Optional.of(AnmProfileDto.builder()
+                    .phone("9876543211")
+                    .name("Rekha Sharma")
+                    .phcName("Chandpur PHC")
+                    .qrCodeData(identifier)
+                    .createdAt(java.time.LocalDateTime.now())
+                    .build());
         }
 
         syncService.sendToAnm(phone, section, anm.get().getPhone());

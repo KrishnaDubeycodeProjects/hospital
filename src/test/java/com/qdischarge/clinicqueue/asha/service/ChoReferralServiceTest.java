@@ -35,6 +35,14 @@ class ChoReferralServiceTest {
     }
 
     @Test
+    void workerActivityIsEmptyForWorkerOutsideSector() {
+        when(jdbc.queryForObject(anyString(), any(SqlParameterSource.class), eq(Integer.class))).thenReturn(0);
+
+        assertTrue(service.workerActivity("9876522222", "9111111111").isEmpty());
+        verify(jdbc, never()).queryForList(anyString(), any(SqlParameterSource.class));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void approveIsScopedToSectorAndReportsNotInSector() {
         when(jdbc.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class))).thenReturn(Collections.emptyList());

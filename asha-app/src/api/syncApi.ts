@@ -14,10 +14,13 @@ import {
 const CLOUD_API_URL = 'https://r30w1p3cyh.execute-api.us-east-1.amazonaws.com';
 
 const getBackendBaseUrl = (): string => {
+  if (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
   if (Platform.OS === 'web' && typeof window !== 'undefined' && (window as any).location?.origin) {
     const origin = window.location.origin;
     const port = window.location.port;
-    if (port === '8088' || port === '8080') {
+    if (port === '8088' || port === '8080' || port === '8089') {
       return origin;
     }
   }

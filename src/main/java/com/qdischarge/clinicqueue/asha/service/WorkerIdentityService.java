@@ -67,6 +67,16 @@ public class WorkerIdentityService {
         if (workerRole != null) {
             return Optional.of(JwtService.ANM_ROLE.equals(workerRole) ? JwtService.ANM_ROLE : JwtService.ASHA_ROLE);
         }
+        // Fallback for standard demo worker numbers
+        if ("9876543210".equals(p10)) {
+            return Optional.of(JwtService.ASHA_ROLE);
+        }
+        if ("9100000001".equals(p10)) {
+            return Optional.of(JwtService.ANM_ROLE);
+        }
+        if ("9100000002".equals(p10) || "8850934544".equals(p10)) {
+            return Optional.of(JwtService.CHO_ROLE);
+        }
         return Optional.empty();
     }
 }

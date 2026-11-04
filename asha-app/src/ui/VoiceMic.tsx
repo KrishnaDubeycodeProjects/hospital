@@ -4,7 +4,7 @@
  * short fields are replaced on each new attempt, comment fields (`long`) keep appending.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Animated, Alert } from 'react-native';
+import { Pressable, StyleSheet, Animated } from 'react-native';
 import { Mic, Square } from 'lucide-react-native';
 import { useLanguage } from '../context/LanguageContext';
 import { Dictation, speechLocale } from '../voice/dictation';
@@ -73,24 +73,8 @@ export const VoiceMic: React.FC<{
         if (next !== null) onChangeRef.current(next);
         notUnderstood = next === null;
       },
-      onError: (code) => {
-        if (code !== 'language-pack-missing' && code !== 'language-pack-downloading') return;
-        const L = (hi: string, mr: string, en: string) => (language === 'mr' ? mr : language === 'en' ? en : hi);
-        Alert.alert(
-          L('भाषा डाउनलोड करें', 'भाषा डाउनलोड करा', 'Download language'),
-          code === 'language-pack-downloading'
-            ? L(
-                'हिंदी भाषा डाउनलोड हो रही है। पूरा होने पर माइक दोबारा दबाएँ।',
-                'मराठी भाषा डाउनलोड होत आहे. पूर्ण झाल्यावर माइक पुन्हा दाबा.',
-                'English speech pack is downloading. Press the mic again when it finishes.',
-              )
-            : L(
-                'बोलकर लिखने के लिए पहले हिंदी भाषा डाउनलोड करें। इंटरनेट चालू करके माइक दोबारा दबाएँ।',
-                'बोलून लिहिण्यासाठी आधी मराठी भाषा डाउनलोड करा. इंटरनेट चालू करून माइक पुन्हा दाबा.',
-                'To dictate, first download the English speech pack. Turn on internet and press the mic again.',
-              )
-        );
-      },
+      // Language-pack prompts (download / downloading) are shown by Dictation itself.
+      onError: () => {},
       onEnd: () => {
         sessionRef.current = null;
         setListening(false);

@@ -70,6 +70,40 @@ class ChoSectorReferralControllerTest {
         verify(service, never()).listSectorWorkers(any());
     }
 
+    // ---------------- worker activity ----------------
+
+    @Test
+    void workerActivityReturnsTrendAndRecentForSectorWorker() {
+        when(currentUser.getChoPhone()).thenReturn(CHO);
+        Map<String, Object> activity = Map.of(
+                "daily", List.of(Map.of("date", "2026-11-04", "surveys", 3, "tasksDone", 1)),
+                "recent", List.of(Map.of("kind", "SURVEY", "category", "PREGNANCY")));
+        when(service.workerActivity(CHO, "9000000002")).thenReturn(activity);
+
+        ResponseEntity<?> res = controller.workerActivity("9000000002");
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getBody()).isEqualTo(activity);
+    }
+
+    @Test
+    void workerActivityOutsideSectorIsNotFound() {
+        when(currentUser.getChoPhone()).thenReturn(CHO);
+        when(service.workerActivity(CHO, "9111111111")).thenReturn(Map.of());
+
+        ResponseEntity<?> res = controller.workerActivity("9111111111");
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(error(res)).isEqualTo("NOT_IN_SECTOR");
+    }
+
+    @Test
+    void workerActivityRequiresIdentifiedCho() {
+        when(currentUser.getChoPhone()).thenReturn(null);
+        assertThat(controller.workerActivity("9000000002").getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(service, never()).workerActivity(any(), any());
+    }
+
     @Test
     void unidentifiedCallerGets401OnEveryEndpoint() {
         when(currentUser.getChoPhone()).thenReturn(null);

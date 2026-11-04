@@ -117,6 +117,50 @@ public class DemoDataSeeder implements ApplicationRunner {
                         ON CONFLICT DO NOTHING
                         """,
                         Map.of("phone", phone, "hash", codeHash));
+                // Also ensure an unverified pending record exists so local check matches code 123456
+                jdbc.update(
+                        """
+                        INSERT INTO otp_verifications (phone, code_hash, purpose, expires_at, verified)
+                        VALUES (:phone, :hash, 'registration', NOW() + INTERVAL '30 days', FALSE)
+                        """,
+                        Map.of("phone", phone, "hash", codeHash));
+            }
+
+            // 4b. Seed ASHA, ANM, and CHO workers for AarogyaFlow field app testing
+            try {
+                jdbc.getJdbcTemplate().execute("CREATE TABLE IF NOT EXISTS clinicqueue.asha_workers (id SERIAL PRIMARY KEY, phone VARCHAR(50) NOT NULL UNIQUE, name VARCHAR(100) NOT NULL, village_name VARCHAR(200) NOT NULL, block_name VARCHAR(200), district_name VARCHAR(200), phc_id INT, anm_phone VARCHAR(50), role VARCHAR(10) DEFAULT 'ASHA', preferred_language VARCHAR(10) DEFAULT 'hi', is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+                jdbc.getJdbcTemplate().execute("CREATE TABLE IF NOT EXISTS clinicqueue.cho_officers (id SERIAL PRIMARY KEY, phone VARCHAR(50) NOT NULL UNIQUE, name VARCHAR(100), block_name VARCHAR(200), district_name VARCHAR(200), is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+
+                // Seed Sunita Devi (ASHA)
+                jdbc.update("""
+                        INSERT INTO clinicqueue.asha_workers (phone, name, village_name, block_name, district_name, phc_id, anm_phone, role, preferred_language, is_active, created_at, updated_at)
+                        VALUES ('+919876543210', 'Sunita Devi', 'Rampur', 'Block A', 'Central District', 1, '+919100000001', 'ASHA', 'hi', TRUE, NOW(), NOW())
+                        ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, village_name = EXCLUDED.village_name, role = 'ASHA', is_active = TRUE
+                        """, Map.of());
+
+                // Seed Anita Kumari (ANM)
+                jdbc.update("""
+                        INSERT INTO clinicqueue.asha_workers (phone, name, village_name, block_name, district_name, phc_id, anm_phone, role, preferred_language, is_active, created_at, updated_at)
+                        VALUES ('+919100000001', 'Anita Kumari', 'Rampur Sub-Centre', 'Block A', 'Central District', 1, NULL, 'ANM', 'hi', TRUE, NOW(), NOW())
+                        ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, role = 'ANM', is_active = TRUE
+                        """, Map.of());
+
+                // Seed Dr. Amit Verma (CHO) and Dr. Krishna Dubey (CHO)
+                jdbc.update("""
+                        INSERT INTO clinicqueue.cho_officers (phone, name, block_name, district_name, is_active, created_at)
+                        VALUES ('+919100000002', 'Dr. Amit Verma', 'Block A', 'Central District', TRUE, NOW())
+                        ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, is_active = TRUE
+                        """, Map.of());
+
+                jdbc.update("""
+                        INSERT INTO clinicqueue.cho_officers (phone, name, block_name, district_name, is_active, created_at)
+                        VALUES ('+918850934544', 'Dr. Krishna Dubey', 'Block A', 'Central District', TRUE, NOW())
+                        ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name, is_active = TRUE
+                        """, Map.of());
+
+                log.info("✅ Seeded demo workers (Sunita Devi - ASHA, Anita Kumari - ANM, Dr. Amit Verma - CHO)");
+            } catch (Exception e) {
+                log.warn("Note: worker seeding fallback: {}", e.getMessage());
             }
 
             // 5. Seed Multi-Counter & Special Video Scenario Tokens for General Medicine if empty today

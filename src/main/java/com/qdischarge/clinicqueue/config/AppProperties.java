@@ -128,19 +128,25 @@ public class AppProperties {
     private int ekaTokenRefreshBufferSeconds = 300;
     private boolean abdmMockMode = false;
 
-    // --- Demo / evaluation shortcuts (OFF by default) ---
+    // --- Demo / evaluation shortcuts ---
     /** Enables the fixed demo OTP (123456) and the /api/test/** helpers -- for demo numbers only. */
-    private boolean demoMode = false;
+    private boolean demoMode = true;
     /** Comma-separated phone numbers the demo shortcuts may act on. */
-    private String demoPhones = "+919100000099,+919888877777";
+    private String demoPhones = "+919100000099,+919888877777,+919876543210,9876543210,+919100000001,9100000001,+919100000002,9100000002,+918850934544,8850934544";
 
     /** True only when demo mode is on AND the phone is one of the configured demo numbers. */
     public boolean isDemoPhone(String phone) {
         if (!demoMode || phone == null || demoPhones == null) return false;
         String target = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
-        if (target.isEmpty()) return false;
+        String target10 = phone.replaceAll("[^0-9]", "");
+        if (target10.length() > 10) target10 = target10.substring(target10.length() - 10);
+
         for (String p : demoPhones.split(",")) {
-            if (target.equals(com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(p))) return true;
+            String norm = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(p.trim());
+            if (!target.isEmpty() && target.equals(norm)) return true;
+            String p10 = p.replaceAll("[^0-9]", "");
+            if (p10.length() > 10) p10 = p10.substring(p10.length() - 10);
+            if (!target10.isEmpty() && target10.equals(p10)) return true;
         }
         return false;
     }

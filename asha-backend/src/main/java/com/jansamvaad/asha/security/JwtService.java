@@ -34,6 +34,9 @@ public class JwtService {
     public static final String ADMIN_ROLE = "ADMIN";
     public static final String PATIENT_ROLE = "PATIENT";
     public static final String DOCTOR_ROLE = "DOCTOR";
+    public static final String ASHA_ROLE = "ASHA";
+    public static final String ANM_ROLE = "ANM";
+    public static final String CHO_ROLE = "CHO";
 
     private final AppProperties appProperties;
     private SecretKey signingKey;
@@ -93,7 +96,8 @@ public class JwtService {
                     .parseSignedClaims(token)
                     .getPayload();
             String role = String.valueOf(claims.get(ROLE_CLAIM));
-            if (!ADMIN_ROLE.equals(role) && !PATIENT_ROLE.equals(role) && !DOCTOR_ROLE.equals(role)) {
+            if (!ADMIN_ROLE.equals(role) && !PATIENT_ROLE.equals(role) && !DOCTOR_ROLE.equals(role)
+                    && !ASHA_ROLE.equals(role) && !ANM_ROLE.equals(role) && !CHO_ROLE.equals(role)) {
                 return null;
             }
             Integer doctorId = claims.get(DOCTOR_ID_CLAIM, Integer.class);

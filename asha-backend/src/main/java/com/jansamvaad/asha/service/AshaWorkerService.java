@@ -45,13 +45,17 @@ public class AshaWorkerService {
     }
 
     public Optional<AshaWorkerDto> getByPhone(String phone) {
-        String sql = "SELECT * FROM clinicqueue.asha_workers WHERE phone = :phone";
-        try {
-            AshaWorkerDto dto = jdbcTemplate.queryForObject(sql, new MapSqlParameterSource("phone", phone), (rs, rowNum) -> mapAshaWorker(rs));
-            return Optional.ofNullable(dto);
-        } catch (EmptyResultDataAccessException e) {
-            return Optional.empty();
-        }
+        String rawPhone = phone != null ? phone.replace("+91", "").trim() : "";
+        String normPhone = phone != null && phone.trim().length() == 10 && !phone.startsWith("+") ? "+91" + phone.trim() : (phone != null ? phone.trim() : "");
+        String p10 = (phone != null ? phone : "").replaceAll("[^0-9]", "");
+        if (p10.length() > 10) p10 = p10.substring(p10.length() - 10);
+        String sql = "SELECT * FROM clinicqueue.asha_workers WHERE (phone = :phone OR phone = :rawPhone OR phone = :normPhone OR RIGHT(regexp_replace(phone, '[^0-9]', '', 'g'), 10) = :p10) LIMIT 1";
+        MapSqlParameterSource params = new MapSqlParameterSource("phone", phone)
+                .addValue("rawPhone", rawPhone)
+                .addValue("normPhone", normPhone)
+                .addValue("p10", p10);
+        List<AshaWorkerDto> list = jdbcTemplate.query(sql, params, (rs, rowNum) -> mapAshaWorker(rs));
+        return list.isEmpty() ? Optional.empty() : Optional.of(list.get(0));
     }
 
     public DashboardDto getDashboard(String ashaPhone) {

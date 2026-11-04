@@ -1,5 +1,12 @@
 server:
   port: ${PORT:8089}
+  tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_MAX_THREADS:250}
+      min-spare: ${SERVER_TOMCAT_MIN_SPARE_THREADS:25}
+    max-connections: ${SERVER_TOMCAT_MAX_CONNECTIONS:10000}
+    accept-count: ${SERVER_TOMCAT_ACCEPT_COUNT:200}
+    connection-timeout: 20000
 
 spring:
   config:
@@ -13,8 +20,11 @@ spring:
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:}
     hikari:
-      maximum-pool-size: ${DB_POOL_MAX_SIZE:5}
-      minimum-idle: ${DB_POOL_MIN_IDLE:1}
+      connection-timeout: 30000
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:50}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      idle-timeout: 60000
+      max-lifetime: 180000
 
   sql:
     init:

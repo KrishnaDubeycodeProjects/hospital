@@ -5,6 +5,7 @@ import { LanguageProvider } from './src/context/LanguageContext';
 import { OfflineDataProvider, useOfflineData } from './src/context/OfflineDataContext';
 import { Header } from './src/components/Header';
 import { FailedSyncBar } from './src/components/FailedSyncBar';
+import { VoicePackBanner } from './src/components/VoicePackBanner';
 import { BottomNav, TabKey, homeTabFor } from './src/components/BottomNav';
 import { AddActionSheet } from './src/components/AddActionSheet';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -266,6 +267,8 @@ const MainAppContent: React.FC = () => {
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         {!isSubScreen && <Header />}
         {!isFormFilling && <FailedSyncBar />}
+        {/* Speech-to-text pack for the selected language: ask to download, show progress until ready */}
+        <VoicePackBanner />
 
         <View style={styles.body}>{top ? renderSubScreen(top) : renderTabRoot()}</View>
 
@@ -299,7 +302,7 @@ const AppRootCoordinator: React.FC = () => {
   const [isStarting, setIsStarting] = React.useState(true);
 
   React.useEffect(() => {
-    // Automatically trigger offline language model downloads in the background for rural users
+    // Probe which speech packs are on the phone (never downloads without asking the worker)
     SpeechEngine.initializeOfflineSpeech().catch(() => {});
   }, []);
 
