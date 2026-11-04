@@ -108,10 +108,7 @@ public class ReferralController {
 
     @GetMapping("/public/patient")
     public ResponseEntity<Map<String, Object>> listPublicPatientReferrals(@RequestParam(required = false) String phone) {
-        if (phone == null || phone.isBlank()) {
-            return ResponseEntity.ok(ok(List.of()));
-        }
-        List<ReferralDto> referrals = referralService.listReferralsForPatient(phone.trim());
+        List<ReferralDto> referrals = referralService.listReferralsForPatient(currentUser.resolveReadablePhone(phone));
         return ResponseEntity.ok(ok(referrals));
     }
 

@@ -831,11 +831,6 @@ public class QueueManagerService {
             throw new IllegalArgumentException("Unknown category: \"" + category + "\". See GET /api/hospitals/categories for the valid list.");
         }
 
-        TokenDto active = getActiveToken(phone);
-        if (active != null) {
-            return new CreateTokenResult(true, getTokenDetails(String.valueOf(active.getId())));
-        }
-
         HospitalDto hospital;
         if (hospitalId != null) {
             hospital = hospitalService.getById(hospitalId);
@@ -844,6 +839,29 @@ public class QueueManagerService {
             }
         } else {
             hospital = hospitalService.getOperatingHospital();
+        }
+
+        // One active token per phone. Only hand back the existing token when it is for the
+        // SAME hospital + department + patient the caller is booking; otherwise silently
+        // returning it shows the patient a receipt for a different hospital/person.
+        TokenDto active = getActiveToken(phone);
+        if (active != null) {
+            Integer targetHospitalId = hospital != null ? hospital.getId() : null;
+            boolean sameHospital = java.util.Objects.equals(active.getHospitalId(), targetHospitalId);
+            boolean sameCategory = canonicalCategory.equalsIgnoreCase(String.valueOf(active.getCategory()));
+            String requestedName = (name == null || name.isBlank()) ? null : name.trim();
+            boolean samePatient = requestedName == null || requestedName.equalsIgnoreCase(String.valueOf(active.getName()).trim());
+            if (sameHospital && sameCategory && samePatient) {
+                return new CreateTokenResult(true, getTokenDetails(String.valueOf(active.getId())));
+            }
+            String activeHospitalName = "another hospital";
+            if (active.getHospitalId() != null) {
+                HospitalDto activeHospital = hospitalService.getById(active.getHospitalId());
+                if (activeHospital != null) activeHospitalName = activeHospital.getName();
+            }
+            throw new IllegalStateException("This phone number already has an active token (for "
+                    + active.getName() + ", " + active.getCategory() + " at " + activeHospitalName
+                    + "). Please complete or cancel it before booking a new one.");
         }
         if (hospital != null && !is24Hours(hospital) && hospital.getCloseTime() != null) {
             java.time.LocalTime now = java.time.LocalTime.now();

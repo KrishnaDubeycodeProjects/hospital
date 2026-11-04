@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { familyApi, setToken } from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import { familyApi } from '../api/client';
+import { useAuth, useLinkToken } from '../context/AuthContext';
 import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
 
@@ -41,13 +41,11 @@ export default function SelectPatient() {
   const img = params.get('img') || '';
   const token = params.get('token') || '';
 
-  useEffect(() => {
-    if (token) setToken('PATIENT', token);
-  }, [token]);
+  useLinkToken();
 
   const { patient } = useAuth();
   // Primary phone number
-  const rawPhone = params.get('phone') || patient?.subject || '';
+  const rawPhone = patient?.subject || params.get('phone') || '';
   const cleanPhoneStr = rawPhone ? rawPhone.replace(/\D/g, '') : '';
   const phoneNumber = cleanPhoneStr ? ('+91 ' + cleanPhoneStr.slice(-10)) : '+91 98765 43210';
 
@@ -60,7 +58,7 @@ export default function SelectPatient() {
     let isMounted = true;
     setLoading(true);
 
-    familyApi.listPublicMembers(cleanPhoneStr || '9876543210')
+    (cleanPhoneStr ? familyApi.listPublicMembers(cleanPhoneStr) : Promise.resolve([]))
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res) ? res : res?.data || [];
@@ -68,27 +66,15 @@ export default function SelectPatient() {
           setMembers(list);
           setSelectedId(list[0].id);
         } else {
-          const fallback = [
-            { id: 1, name: 'Kavish Ahuja', relationship: 'Self', age: 20, gender: 'Male' },
-            { id: 2, name: 'Sonia Ahuja', relationship: 'Mother', age: 48, gender: 'Female' },
-            { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male' },
-            { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male' },
-          ];
-          setMembers(fallback);
-          setSelectedId(1);
+          setMembers([]);
+          setSelectedId(null);
         }
       })
       .catch((err) => {
         console.warn('DB members fetch fallback:', err.message);
         if (!isMounted) return;
-        const fallback = [
-          { id: 1, name: 'Kavish Ahuja', relationship: 'Self', age: 20, gender: 'Male' },
-          { id: 2, name: 'Sonia Ahuja', relationship: 'Mother', age: 48, gender: 'Female' },
-          { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male' },
-          { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male' },
-        ];
-        setMembers(fallback);
-        setSelectedId(1);
+        setMembers([]);
+        setSelectedId(null);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -421,7 +407,7 @@ export default function SelectPatient() {
             {/* Add Family Member Button */}
             <button
               type="button"
-              onClick={() => navigate('/login/patient')}
+              onClick={() => navigate(patient ? '/patient/family' : '/login/patient')}
               style={{
                 marginTop: '4px',
                 width: '100%',

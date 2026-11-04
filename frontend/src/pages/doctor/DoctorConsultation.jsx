@@ -294,14 +294,14 @@ export default function DoctorConsultation() {
 
       // 1. First try publicPatientCourses with clean 10 digits
       try {
-        const pubRes = await courseApi.publicPatientCourses(cleanDigits || phone);
+        const pubRes = await courseApi.publicPatientCourses(cleanDigits || phone, 'DOCTOR');
         list = Array.isArray(pubRes) ? pubRes : (pubRes?.data || []);
       } catch (e) {}
 
       // 2. Also try with original phone (e.g. +91...)
       if (list.length === 0 && phone !== cleanDigits) {
         try {
-          const pubRes2 = await courseApi.publicPatientCourses(phone);
+          const pubRes2 = await courseApi.publicPatientCourses(phone, 'DOCTOR');
           list = Array.isArray(pubRes2) ? pubRes2 : (pubRes2?.data || []);
         } catch (e) {}
       }
@@ -507,11 +507,11 @@ export default function DoctorConsultation() {
           const cleanDigits = cleanPhone.replace(/[^0-9]/g, '').slice(-10);
           let list = [];
           try {
-            const pub = await courseApi.publicPatientCourses(cleanDigits || cleanPhone);
+            const pub = await courseApi.publicPatientCourses(cleanDigits || cleanPhone, 'DOCTOR');
             list = Array.isArray(pub) ? pub : (pub?.data || []);
           } catch (e) {}
           if (list.length === 0) {
-            const pub2 = await courseApi.publicPatientCourses(cleanPhone);
+            const pub2 = await courseApi.publicPatientCourses(cleanPhone, 'DOCTOR');
             list = Array.isArray(pub2) ? pub2 : (pub2?.data || []);
           }
           if (list.length === 0) {
@@ -610,7 +610,11 @@ export default function DoctorConsultation() {
     }
     setUploadingDoc(true);
     try {
-      const targetPhone = activeToken?.phone || selectedCourse?.patientPhone || '+919100000099';
+      const targetPhone = activeToken?.phone || selectedCourse?.patientPhone;
+      if (!targetPhone) {
+        toast.error('No patient phone on this consultation -- cannot attach the document.');
+        return;
+      }
       const targetName = activeToken?.name || selectedCourse?.patientName || 'Patient';
       const targetAge = activeToken?.age || selectedCourse?.patientAge;
 
@@ -689,7 +693,7 @@ export default function DoctorConsultation() {
     const title = customCourseTitle.trim() || `Care Episode - ${chiefComplaint?.slice(0, 32) || 'Consultation'}`;
     try {
       const created = await courseApi.create({
-        patientPhone: activeToken.phone || '+919100000099',
+        patientPhone: activeToken.phone,
         patientName: activeToken.name || 'Patient',
         title,
         diagnosis: diagnosis || chiefComplaint || 'Clinical Evaluation',
@@ -961,6 +965,10 @@ export default function DoctorConsultation() {
       toast.error('Cannot sign or dispatch: Patient record access has been revoked.');
       return;
     }
+    if (!selectedCourseId && !activeToken?.phone) {
+      toast.error('No patient phone on this consultation -- cannot save the prescription.');
+      return;
+    }
     setSavingEncounter(true);
     try {
       // 1. Resolve or create target care course
@@ -968,7 +976,7 @@ export default function DoctorConsultation() {
       if (!targetCourseId) {
         const episodeTitle = chiefComplaint ? `Care Episode - ${chiefComplaint.slice(0, 36)}` : 'General Consultation Episode';
         const newCourse = await courseApi.create({
-          patientPhone: activeToken?.phone || '+919100000099',
+          patientPhone: activeToken?.phone,
           patientName: activeToken?.name || 'Patient',
           title: episodeTitle,
           diagnosis: diagnosis || chiefComplaint || 'Clinical Evaluation',

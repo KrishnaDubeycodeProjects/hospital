@@ -117,9 +117,9 @@ export default function TokenDetail() {
   const tokenCode = token.tokenCode || token.displayTokenCode || `AF-${deptCode}${String(num).padStart(2, '0')}`;
   const tokenNum = token.dailyNumber ?? num;
   const aheadCount = token.status === 'serving' ? 0 : (token.peopleAhead ?? (token.queuePosition != null ? Math.max(0, token.queuePosition - 1) : 0));
-  const hospitalName = token.hospitalName || 'Aastha Hospital';
+  const hospitalName = token.hospitalName || 'Hospital';
   const departmentName = token.category || 'Cardiology';
-  const patientName = token.name || token.patientName || 'Kavish Ahuja';
+  const patientName = token.name || token.patientName || 'Patient';
   const gender = token.gender
     ? token.gender.charAt(0).toUpperCase() + token.gender.slice(1).toLowerCase()
     : 'Male';

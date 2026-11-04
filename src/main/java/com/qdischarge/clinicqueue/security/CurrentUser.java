@@ -60,6 +60,40 @@ public class CurrentUser {
         return decoded.subject();
     }
 
+    /**
+     * Whose phone-keyed records (history, family, courses, referrals, documents) this caller may read.
+     * A PATIENT only ever gets their own phone -- any ?phone= they pass is ignored, so a shared link or
+     * a guessed number cannot expose someone else's records. DOCTOR/ADMIN may look up the phone they name.
+     * Anonymous callers are rejected.
+     */
+    public String resolveReadablePhone(String requestedPhone) {
+        JwtService.DecodedToken decoded = get();
+        if (decoded == null) {
+            throw new SecurityException("Please log in to view these records.");
+        }
+        if (JwtService.PATIENT_ROLE.equals(decoded.role())) {
+            return decoded.subject();
+        }
+        if (JwtService.DOCTOR_ROLE.equals(decoded.role()) || JwtService.ADMIN_ROLE.equals(decoded.role())) {
+            if (requestedPhone == null || requestedPhone.isBlank()) {
+                throw new IllegalArgumentException("Phone number parameter is required.");
+            }
+            return requestedPhone.trim();
+        }
+        throw new SecurityException("Not allowed to view these records.");
+    }
+
+    /** True when the caller may read records owned by ownerPhone (own phone for PATIENT; DOCTOR/ADMIN always). */
+    public boolean canReadPhone(String ownerPhone) {
+        JwtService.DecodedToken decoded = get();
+        if (decoded == null) return false;
+        if (JwtService.DOCTOR_ROLE.equals(decoded.role()) || JwtService.ADMIN_ROLE.equals(decoded.role())) return true;
+        if (!JwtService.PATIENT_ROLE.equals(decoded.role())) return false;
+        String mine = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(decoded.subject());
+        String theirs = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ownerPhone);
+        return !mine.isEmpty() && mine.equals(theirs);
+    }
+
     /** The calling doctor's id (JWT claim). Throws if there's no valid ROLE_DOCTOR token -- SecurityConfig should already have rejected that request. */
     public int requireDoctorId() {
         JwtService.DecodedToken decoded = get();

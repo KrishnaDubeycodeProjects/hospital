@@ -49,6 +49,20 @@ export function setToken(role, token) {
   else localStorage.removeItem(STORAGE_KEYS[role]);
 }
 
+/**
+ * Auth for the phone-keyed lookups (history, family, courses, referrals, documents).
+ * The backend now requires a login for these and pins PATIENT callers to their own phone,
+ * so send the preferred role's token when present, else any other staff/patient session.
+ */
+export function authPrefer(role = 'PATIENT') {
+  const order = [role, 'PATIENT', 'DOCTOR', 'ADMIN'].filter((r, i, a) => a.indexOf(r) === i);
+  for (const r of order) {
+    const t = getToken(r);
+    if (t && !isExpired(t)) return { headers: { Authorization: `Bearer ${t}` } };
+  }
+  return {};
+}
+
 export function authFor(role) {
   const token = getToken(role);
   return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
@@ -245,14 +259,14 @@ export const doctorApi = {
 
 export const patientApi = {
   history: () => getD('/api/patients/history', authFor('PATIENT')),
-  publicHistory: (phone) => getD('/api/patients/public/history', { params: { phone } }),
+  publicHistory: (phone, role) => getD('/api/patients/public/history', { params: { phone }, ...authPrefer(role) }),
   uploadDocument: (formData) =>
     postD('/api/patients/documents', formData, {
       ...authFor('PATIENT'),
       params: extractFormDataParams(formData),
     }),
   documents: () => getD('/api/patients/documents', authFor('PATIENT')),
-  publicDocuments: (phone) => getD('/api/patients/public/documents', { params: { phone } }),
+  publicDocuments: (phone, role) => getD('/api/patients/public/documents', { params: { phone }, ...authPrefer(role) }),
   documentFileUrl: (id) => `${API_URL}/api/patients/documents/${id}/file`,
   publicDocumentFileUrl: (id, phone) => `${API_URL}/api/patients/public/documents/${id}/file${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`,
   acceptAccess: (code) => postD(`/api/patients/access/${encodeURIComponent(code)}/accept`, {}, authFor('PATIENT')),
@@ -283,7 +297,7 @@ export const courseApi = {
   publicDocumentDownloadUrl: (id, docId) => `${API_URL}/api/courses/public/${id}/documents/${docId}/download`,
   close: (id) => postD(`/api/courses/${id}/close`, {}, authFor('DOCTOR')),
   patientCourses: () => getD('/api/courses/patient', authFor('PATIENT')),
-  publicPatientCourses: (phone) => getD('/api/courses/public/patient', { params: { phone } }),
+  publicPatientCourses: (phone, role) => getD('/api/courses/public/patient', { params: { phone }, ...authPrefer(role) }),
 };
 
 // ----------------------------------------------------------- Referrals ----
@@ -295,7 +309,7 @@ export const referralApi = {
   priorContext: (courseId, toHospitalId) =>
     getD('/api/referrals/prior-context', { params: { courseId, toHospitalId }, ...authFor('DOCTOR') }),
   patientReferrals: () => getD('/api/referrals/patient', authFor('PATIENT')),
-  publicPatientReferrals: (phone) => getD('/api/referrals/public/patient', { params: { phone } }),
+  publicPatientReferrals: (phone, role) => getD('/api/referrals/public/patient', { params: { phone }, ...authPrefer(role) }),
   complete: (id) => postD(`/api/referrals/${id}/complete`, {}, authFor('DOCTOR')),
   cancel: (id) => postD(`/api/referrals/${id}/cancel`, {}, authFor('DOCTOR')),
 };
@@ -305,7 +319,7 @@ export const referralApi = {
 export const familyApi = {
   getUnit: () => getD('/api/family', authFor('PATIENT')),
   listMembers: () => getD('/api/family/members', authFor('PATIENT')),
-  listPublicMembers: (phone = '9876543210') => getD('/api/family/public/members', { params: { phone } }),
+  listPublicMembers: (phone, role) => getD('/api/family/public/members', { params: { phone }, ...authPrefer(role) }),
   addMember: (payload) => postD('/api/family/members', payload, authFor('PATIENT')),
   updateMember: (memberId, payload) => putD(`/api/family/members/${memberId}`, payload, authFor('PATIENT')),
   linkAbha: (memberId, payload) => postD(`/api/family/members/${memberId}/link-abha`, payload, authFor('PATIENT')),

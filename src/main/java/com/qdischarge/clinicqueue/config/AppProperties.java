@@ -128,6 +128,23 @@ public class AppProperties {
     private int ekaTokenRefreshBufferSeconds = 300;
     private boolean abdmMockMode = false;
 
+    // --- Demo / evaluation shortcuts (OFF by default) ---
+    /** Enables the fixed demo OTP (123456) and the /api/test/** helpers -- for demo numbers only. */
+    private boolean demoMode = false;
+    /** Comma-separated phone numbers the demo shortcuts may act on. */
+    private String demoPhones = "+919100000099,+919888877777";
+
+    /** True only when demo mode is on AND the phone is one of the configured demo numbers. */
+    public boolean isDemoPhone(String phone) {
+        if (!demoMode || phone == null || demoPhones == null) return false;
+        String target = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
+        if (target.isEmpty()) return false;
+        for (String p : demoPhones.split(",")) {
+            if (target.equals(com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(p))) return true;
+        }
+        return false;
+    }
+
     // --- Secure Document Storage ---
     private String storageUploadDir = "./storage/documents";
     private int storageMaxFileSizeMb = 10;

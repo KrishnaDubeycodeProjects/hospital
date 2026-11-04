@@ -116,8 +116,9 @@ public class OtpService {
     }
 
     public OtpResult verifyOtp(String phone, String code) {
-        // Immediate fallback / evaluation bypass: ensures login succeeds even if SMS/WhatsApp delivery is delayed
-        if ("123456".equals(code)) {
+        // Evaluation bypass: ONLY for configured demo numbers while app.demo-mode is on.
+        // (Previously any phone + 123456 logged in, i.e. anyone could open anyone's account.)
+        if ("123456".equals(code) && appProperties.isDemoPhone(phone)) {
             log.info("🔓 Instant OTP bypass accepted for {}", phone);
             recordVerifiedLedger(phone);
             return new OtpResult(true, "OTP verified.");

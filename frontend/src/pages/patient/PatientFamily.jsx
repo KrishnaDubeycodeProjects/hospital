@@ -1,19 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { abdmApi, familyApi, setToken } from '../../api/client';
+import { abdmApi, familyApi } from '../../api/client';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, Select, Spinner, Table } from '../../components/ui';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, useLinkToken } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export default function PatientFamily() {
   const [searchParams] = useSearchParams();
   const tokenParam = searchParams.get('token');
 
-  useEffect(() => {
-    if (tokenParam) {
-      setToken('PATIENT', tokenParam);
-    }
-  }, [tokenParam]);
+  useLinkToken();
 
   const { patient } = useAuth();
   const [familyUnit, setFamilyUnit] = useState(null);
@@ -88,22 +84,13 @@ export default function PatientFamily() {
         unit = await familyApi.getUnit();
         list = await familyApi.listMembers();
       } catch (authErr) {
-        const fallbackPhone = patient?.subject ? patient.subject.replace(/\D/g, '') : '9876543210';
-        list = await familyApi.listPublicMembers(fallbackPhone).catch(() => []);
+        // Not logged in (or session expired): show nothing rather than demo people.
+        list = [];
       }
 
-      const activePhone = patient?.subject ? patient.subject.replace(/\D/g, '') : '9876543210';
-      setFamilyUnit(unit || { headPhone: activePhone, headName: 'Kavish Ahuja' });
-      
-      if (!list || list.length === 0) {
-        list = [
-          { id: 1, name: 'Kavish Ahuja', relationship: 'self', age: 24, gender: 'male', abhaAddress: 'kavish@abdm', abhaNumber: '91-2808-1122-3344' },
-          { id: 2, name: 'Sonia Ahuja', relationship: 'mother', age: 48, gender: 'female', abhaAddress: 'sonia@abdm', abhaNumber: '91-3819-2233-4455' },
-          { id: 3, name: 'Subhash Ahuja', relationship: 'father', age: 52, gender: 'male', abhaAddress: 'subhash@abdm', abhaNumber: '91-4920-3344-5566' },
-          { id: 4, name: 'Ayush Ahuja', relationship: 'brother', age: 16, gender: 'male', abhaAddress: 'ayush@abdm', abhaNumber: '91-5031-4455-6677' },
-        ];
-      }
-      setMembers(list);
+      const activePhone = patient?.subject ? patient.subject.replace(/\D/g, '') : '';
+      setFamilyUnit(unit || { headPhone: activePhone, headName: '' });
+      setMembers(Array.isArray(list) ? list : []);
 
       // Load gateway live status
       try {
@@ -114,12 +101,7 @@ export default function PatientFamily() {
       }
     } catch (err) {
       console.warn('Family load fallback error:', err);
-      setMembers([
-        { id: 1, name: 'Kavish Ahuja', relationship: 'self', age: 24, gender: 'male', abhaAddress: 'kavish@abdm', abhaNumber: '91-2808-1122-3344' },
-        { id: 2, name: 'Sonia Ahuja', relationship: 'mother', age: 48, gender: 'female', abhaAddress: 'sonia@abdm', abhaNumber: '91-3819-2233-4455' },
-        { id: 3, name: 'Subhash Ahuja', relationship: 'father', age: 52, gender: 'male', abhaAddress: 'subhash@abdm', abhaNumber: '91-4920-3344-5566' },
-        { id: 4, name: 'Ayush Ahuja', relationship: 'brother', age: 16, gender: 'male', abhaAddress: 'ayush@abdm', abhaNumber: '91-5031-4455-6677' },
-      ]);
+      setMembers([]);
     } finally {
       setLoading(false);
     }

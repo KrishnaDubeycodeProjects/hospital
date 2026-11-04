@@ -51,8 +51,8 @@ export function CalendarIcon({ size = 15, color = 'currentColor', style = {} }) 
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { courseApi, familyApi, fetchAsObjectUrl, hospitalApi, patientApi, referralApi, setToken } from '../../api/client';
-import { useAuth } from '../../context/AuthContext';
+import { courseApi, familyApi, fetchAsObjectUrl, hospitalApi, patientApi, referralApi } from '../../api/client';
+import { useAuth, useLinkToken } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import AyushmanFooter from '../../components/AyushmanFooter';
 import { Modal, Spinner, fmtDateTime } from '../../components/ui';
@@ -168,11 +168,7 @@ export default function HealthRecordsScreen() {
   const toast = useToast();
 
   const tokenParam = searchParams.get('token');
-  useEffect(() => {
-    if (tokenParam) {
-      setToken('PATIENT', tokenParam);
-    }
-  }, [tokenParam]);
+  useLinkToken();
 
   // Active Tab: 'documents' | 'courses' | 'referrals' | 'history'
   const tabParam = searchParams.get('tab') || 'documents';
@@ -181,9 +177,9 @@ export default function HealthRecordsScreen() {
   // Dynamic Phone detection (authenticated session phone, search param, or default fallback)
   const phoneParam = searchParams.get('phone');
   const activePhone = useMemo(() => {
-    if (phoneParam && phoneParam.trim()) return phoneParam.trim();
     if (patient?.subject && patient.subject.trim()) return patient.subject.trim();
-    return '9100000099';
+    if (phoneParam && phoneParam.trim()) return phoneParam.trim();
+    return '';
   }, [phoneParam, patient]);
 
   // DB Data States
@@ -388,7 +384,7 @@ export default function HealthRecordsScreen() {
         }
       }
       let histList = Array.isArray(hist) ? hist : [];
-      if (histList.length === 0 && !activePhone.startsWith('+')) {
+      if (histList.length === 0 && activePhone && !activePhone.startsWith('+')) {
         try {
           const fbHist = await patientApi.publicHistory('+91' + activePhone.replace(/[^0-9]/g, '').slice(-10));
           if (Array.isArray(fbHist) && fbHist.length > 0) histList = fbHist;
@@ -2660,7 +2656,7 @@ export default function HealthRecordsScreen() {
               </div>
               <div>
                 <span style={{ color: '#64748B', display: 'block', fontSize: '11px' }}>ABHA ADDRESS</span>
-                <span style={{ color: '#0284C7', fontWeight: '700' }}>{selectedMember?.abhaAddress || 'kavish@abdm'}</span>
+                <span style={{ color: '#0284C7', fontWeight: '700' }}>{selectedMember?.abhaAddress || 'Not linked'}</span>
               </div>
               <div>
                 <span style={{ color: '#64748B', display: 'block', fontSize: '11px' }}>RECORD DATE &amp; TIME</span>

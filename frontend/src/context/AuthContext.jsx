@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { decodeJwt, getToken, isExpired, setToken as persistToken } from '../api/client';
 
 const AuthContext = createContext(null);
@@ -54,4 +55,39 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+/**
+ * Adopts a patient JWT handed over in a WhatsApp deep link (?token=...).
+ * - Only a valid, unexpired PATIENT token is accepted.
+ * - It never replaces a different patient who is already logged in on this
+ *   device, so a forwarded link can't silently switch you to someone else.
+ * - It goes through login() so AuthContext (and every `patient?.subject`
+ *   read) updates, then the token is stripped from the address bar so it
+ *   isn't re-shared, bookmarked or passed along to the next page.
+ */
+export function useLinkToken() {
+  const [params, setParams] = useSearchParams();
+  const { patient, login } = useAuth();
+  const linkToken = params.get('token');
+
+  useEffect(() => {
+    if (!linkToken) return;
+    const decoded = decodeJwt(linkToken);
+    const valid = decoded && decoded.role === 'PATIENT' && !isExpired(linkToken);
+    if (valid && (!patient || patient.subject === decoded.sub)) {
+      login('PATIENT', linkToken);
+    } else if (valid) {
+      console.warn('Ignoring link token for a different patient than the one logged in.');
+    }
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('token');
+        return next;
+      },
+      { replace: true }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkToken]);
 }

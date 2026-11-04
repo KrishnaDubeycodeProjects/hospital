@@ -277,10 +277,7 @@ public class CourseController {
 
     @GetMapping("/public/patient")
     public ResponseEntity<Map<String, Object>> listPublicPatientCourses(@RequestParam(required = false) String phone) {
-        if (phone == null || phone.isBlank()) {
-            return ResponseEntity.ok(ok(List.of()));
-        }
-        List<CourseDto> courses = courseService.listCoursesForPatient(phone.trim());
+        List<CourseDto> courses = courseService.listCoursesForPatient(currentUser.resolveReadablePhone(phone));
         return ResponseEntity.ok(ok(courses));
     }
 

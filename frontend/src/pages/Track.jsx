@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { queueApi, setToken } from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import { queueApi } from '../api/client';
+import { useAuth, useLinkToken } from '../context/AuthContext';
 import { cleanPhone } from '../utils/helpers';
 import AppHeader from '../components/AppHeader';
 import AyushmanFooter from '../components/AyushmanFooter';
@@ -24,11 +24,7 @@ export default function Track() {
   const queryPhone = searchParams.get('phone');
   const tokenParam = searchParams.get('token');
 
-  useEffect(() => {
-    if (tokenParam) {
-      setToken('PATIENT', tokenParam);
-    }
-  }, [tokenParam]);
+  useLinkToken();
 
   useEffect(() => {
     if (tokenIdParam) {

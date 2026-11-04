@@ -148,6 +148,11 @@ app:
   # Default single hospital, seeded into the "hospitals" table on first migration.
   abdm-mock-mode: ${ABDM_MOCK_MODE:false}
 
+  # Demo/evaluation shortcuts: fixed OTP 123456 + /api/test/** helpers. OFF unless DEMO_MODE=true,
+  # and even then they only work for the DEMO_PHONES numbers -- never for real patients.
+  demo-mode: ${DEMO_MODE:false}
+  demo-phones: ${DEMO_PHONES:+919100000099,+919888877777}
+
   # Location can be given as a DIGIPIN, or as lat/lon (a DIGIPIN is then derived).
   hospital-uri-slug: ${HOSPITAL_URI_SLUG:main}
   hospital-digipin: ${HOSPITAL_DIGIPIN:}

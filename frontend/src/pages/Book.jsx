@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { hospitalApi, locationApi, otpApi, queueApi, familyApi, setToken } from '../api/client';
-import { useAuth } from '../context/AuthContext';
+import { hospitalApi, locationApi, otpApi, queueApi, familyApi } from '../api/client';
+import { useAuth, useLinkToken } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { cleanPhone, formatApproxDistance } from '../utils/helpers';
 import AppHeader from '../components/AppHeader';
@@ -55,11 +55,7 @@ export default function Book() {
   const toast = useToast();
   const { login, patient } = useAuth();
 
-  useEffect(() => {
-    if (tokenParam) {
-      setToken('PATIENT', tokenParam);
-    }
-  }, [tokenParam]);
+  useLinkToken();
 
   // Flow State: 1. 'department' -> 2. 'family' -> 3. 'confirm'
   const [step, setStep] = useState(() => {
@@ -90,7 +86,9 @@ export default function Book() {
   const [selectedDept, setSelectedDept] = useState(params.get('category') || '');
 
   // Real Database Family Members state
-  const activeUserPhone = params.get('phone') || patient?.subject || '';
+  // A logged-in session always wins over a ?phone= URL param, so a shared/forwarded
+  // link can never make you book (or view) under someone else's number.
+  const activeUserPhone = patient?.subject || params.get('phone') || '';
   const cleanPhoneStr = activeUserPhone ? activeUserPhone.replace(/\D/g, '') : '';
   const primaryPhone = cleanPhoneStr ? `+91 ${cleanPhoneStr.slice(-10)}` : '+91 98765 43210';
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -161,7 +159,9 @@ export default function Book() {
     let isMounted = true;
 
     async function loadHospitalCategories() {
-      let activeSlug = hospitalSlug || slugParam;
+      // hospitalSlug is already seeded from ?slug=; falling back to slugParam here would
+      // snap a hospital switched in the modal back to the one in the URL.
+      let activeSlug = hospitalSlug;
       let matchedHospital = null;
 
       if (!activeSlug && hospitalId && hospitalsList.length > 0) {
@@ -253,13 +253,25 @@ export default function Book() {
     };
   }, [hospitalId, hospitalSlug, slugParam, hospitalsList]);
 
+  // The patient chosen on SelectPatient (passed in the URL), as a one-item list.
+  function paramMember() {
+    if (!patientNameParam) return [];
+    return [{
+      id: patientIdParam || 'from-link',
+      name: patientNameParam,
+      relationship: patientRelParam || 'Member',
+      age: patientAgeParam ? Number(patientAgeParam) : undefined,
+      gender: patientGenderParam || undefined,
+    }];
+  }
+
   // 2. Fetch Real Family Members from Database
   useEffect(() => {
     let isMounted = true;
     setLoadingMembers(true);
 
-    const targetQueryPhone = cleanPhone(phone) || cleanPhoneStr || '9876543210';
-    familyApi.listPublicMembers(targetQueryPhone)
+    const targetQueryPhone = cleanPhone(phone) || cleanPhoneStr;
+    (targetQueryPhone ? familyApi.listPublicMembers(targetQueryPhone) : Promise.resolve([]))
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res) ? res : res?.data || [];
@@ -275,37 +287,19 @@ export default function Book() {
             setSelectedMemberId((prev) => prev || list[0].id);
           }
         } else {
-          // Fallback if backend returned empty before seeding
-          const fallbackAhuja = [
-            { id: 1, name: 'Kavish Ahuja', relationship: 'Self', age: 20, gender: 'Male' },
-            { id: 2, name: 'Sonia Ahuja', relationship: 'Mother', age: 48, gender: 'Female' },
-            { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male' },
-            { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male' },
-          ];
-          if (patientNameParam && !fallbackAhuja.some((m) => m.name.toLowerCase() === patientNameParam.toLowerCase())) {
-            fallbackAhuja.unshift({
-              id: patientIdParam || 99,
-              name: patientNameParam,
-              relationship: patientRelParam || 'Member',
-              age: patientAgeParam ? Number(patientAgeParam) : 25,
-              gender: patientGenderParam || 'Male',
-            });
-          }
-          setFamilyMembers(fallbackAhuja);
-          setSelectedMemberId(patientIdParam || fallbackAhuja[0].id);
+          // No members on record yet: only offer the patient picked on the previous
+          // screen (never demo people), otherwise ask them to add one.
+          const fromParams = paramMember();
+          setFamilyMembers(fromParams);
+          setSelectedMemberId(fromParams.length ? fromParams[0].id : null);
         }
       })
       .catch((err) => {
         console.warn('Real DB family members fallback:', err.message);
         if (!isMounted) return;
-        const fallbackAhuja = [
-          { id: 1, name: 'Kavish Ahuja', relationship: 'Self', age: 20, gender: 'Male' },
-          { id: 2, name: 'Sonia Ahuja', relationship: 'Mother', age: 48, gender: 'Female' },
-          { id: 3, name: 'Subhash Ahuja', relationship: 'Father', age: 52, gender: 'Male' },
-          { id: 4, name: 'Ayush Ahuja', relationship: 'Brother', age: 16, gender: 'Male' },
-        ];
-        setFamilyMembers(fallbackAhuja);
-        setSelectedMemberId(1);
+        const fromParams = paramMember();
+        setFamilyMembers(fromParams);
+        setSelectedMemberId(fromParams.length ? fromParams[0].id : null);
       })
       .finally(() => {
         if (isMounted) setLoadingMembers(false);
@@ -420,6 +414,17 @@ export default function Book() {
       return;
     }
 
+    const bookingPhone = cleanPhone(phone) || cleanPhoneStr;
+    if (!bookingPhone) {
+      toast.error('Please log in with your phone number to book a token');
+      navigate('/login/patient');
+      return;
+    }
+    if (!hospitalId) {
+      toast.error('Please select a hospital');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
@@ -429,7 +434,7 @@ export default function Book() {
         age: parseInt(selectedMember.age, 10) || 20,
         gender: selectedMember.gender || 'Male',
         category: selectedDept,
-        phone: cleanPhone(phone) || cleanPhoneStr || '9876543210',
+        phone: bookingPhone,
         latitude: location?.latitude || 19.1895,
         longitude: location?.longitude || 72.9640,
       };
@@ -1339,7 +1344,7 @@ export default function Book() {
                 {/* Add Family Member Button */}
                 <button
                   type="button"
-                  onClick={() => navigate('/login/patient')}
+                  onClick={() => navigate(patient ? '/patient/family' : '/login/patient')}
                   style={{
                     marginTop: '4px',
                     width: '100%',

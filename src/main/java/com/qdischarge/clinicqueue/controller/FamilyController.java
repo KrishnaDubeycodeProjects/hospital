@@ -43,10 +43,7 @@ public class FamilyController {
 
     @GetMapping("/public/members")
     public ResponseEntity<Map<String, Object>> listPublicMembers(@RequestParam(name = "phone", required = false) String phone) {
-        if (phone == null || phone.trim().isBlank()) {
-            return ResponseEntity.badRequest().body(msg("Phone number parameter is required."));
-        }
-        List<FamilyMemberDto> members = familyUnitService.listMembersByCleanPhone(phone.trim());
+        List<FamilyMemberDto> members = familyUnitService.listMembersByCleanPhone(currentUser.resolveReadablePhone(phone));
         return ResponseEntity.ok(ok(members));
     }
 

@@ -110,18 +110,24 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/doctors/register", "/api/doctors/login").permitAll()
                         .requestMatchers("/api/doctors/**").hasRole("DOCTOR")
                         // Patient self-service requires PATIENT token
-                        .requestMatchers("/api/patients/public/**").permitAll()
+                        // Doctor QR access codes are looked up/claimed by code, not phone.
+                        .requestMatchers("/api/patients/public/access/**").permitAll()
+                        // Phone-keyed lookups need a login; CurrentUser#resolveReadablePhone pins
+                        // PATIENT callers to their own number.
+                        .requestMatchers("/api/patients/public/**").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
                         .requestMatchers("/api/patients/**").hasRole("PATIENT")
                         // Family Unit management (public lookup for booking flow, full management requires PATIENT)
-                        .requestMatchers(HttpMethod.GET, "/api/family/public/members").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/family/public/members").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
                         .requestMatchers("/api/family/**").hasRole("PATIENT")
                         // Course & Clinical Records
                         .requestMatchers("/api/courses/patient").hasRole("PATIENT")
+                        .requestMatchers("/api/courses/public/patient").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
                         .requestMatchers("/api/courses/public/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/courses/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/courses/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // Referral Engine
                         .requestMatchers("/api/referrals/patient").hasRole("PATIENT")
+                        .requestMatchers("/api/referrals/public/patient").hasAnyRole("PATIENT", "DOCTOR", "ADMIN")
                         .requestMatchers("/api/referrals/public/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/referrals/*/qr").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
@@ -139,6 +145,8 @@ public class SecurityConfig {
                         // Cross-sector oversight (read-only): system administrators only
                         .requestMatchers("/api/cho/**").hasRole("ADMIN")
                         // Test seeding endpoints accessible to ADMIN and DOCTOR
+                        // Gated by app.demo-mode + demo phone list inside TestEnvironmentController.
+                        .requestMatchers("/api/test/queue/inject").hasAnyRole("DOCTOR", "ADMIN")
                         .requestMatchers("/api/test/**").permitAll()
                         // Drugs & ABDM open/utility APIs
                         .requestMatchers("/api/drugs/**").permitAll()

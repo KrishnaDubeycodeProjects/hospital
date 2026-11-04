@@ -65,8 +65,10 @@ export default function Login() {
             </p>
           </div>
 
-          {/* 1-Click Demo Quick Access Above Form */}
-          <DemoCredentialsQuickBar activeRole={role} redirectTarget={redirectTarget} />
+          {/* 1-Click Demo Quick Access -- only in demo builds (VITE_DEMO_MODE=true; backend needs DEMO_MODE=true too) */}
+          {import.meta.env.VITE_DEMO_MODE === 'true' && (
+            <DemoCredentialsQuickBar activeRole={role} redirectTarget={redirectTarget} />
+          )}
 
           {/* Main Auth Card */}
           <div className="pro-auth-card">
@@ -128,7 +130,7 @@ function OtpAuthForm({ kind, redirectTarget }) {
   const [searchParams] = useSearchParams();
   const effectiveRedirect = redirectTarget || (searchParams.get('redirect') ? decodeURIComponent(searchParams.get('redirect')) : null);
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
-  const [phone, setPhone] = useState(kind === 'doctor' ? '9888877777' : '9100000099');
+  const [phone, setPhone] = useState('');
   const [stage, setStage] = useState('phone'); // 'phone' | 'otp' | 'profile'
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [errorMsg, setErrorMsg] = useState('');

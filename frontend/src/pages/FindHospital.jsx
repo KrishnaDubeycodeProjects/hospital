@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { hospitalApi, setToken } from '../api/client';
+import { hospitalApi } from '../api/client';
+import { useLinkToken } from '../context/AuthContext';
 import { isOpenNow, formatApproxDistance } from '../utils/helpers';
 import { useToast } from '../context/ToastContext';
 import AppHeader from '../components/AppHeader';
@@ -225,11 +226,7 @@ export default function FindHospital() {
   const latParam = searchParams.get('lat') ? parseFloat(searchParams.get('lat')) : null;
   const lonParam = searchParams.get('lon') ? parseFloat(searchParams.get('lon')) : null;
 
-  useEffect(() => {
-    if (tokenParam) {
-      setToken('PATIENT', tokenParam);
-    }
-  }, [tokenParam]);
+  useLinkToken();
 
   const [coords, setCoords] = useState(() => {
     if (latParam && lonParam && !isNaN(latParam) && !isNaN(lonParam)) {

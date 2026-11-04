@@ -96,25 +96,18 @@ public class PatientController {
 
     @GetMapping("/public/documents")
     public ResponseEntity<Map<String, Object>> publicDocuments(@RequestParam(required = false) String phone) {
-        if (phone == null || phone.isBlank()) {
-            return ResponseEntity.ok(ok(List.of()));
-        }
-        return ResponseEntity.ok(ok(patientDocumentService.listForPatient(phone.trim())));
+        return ResponseEntity.ok(ok(patientDocumentService.listForPatient(currentUser.resolveReadablePhone(phone))));
     }
 
     @GetMapping("/public/history")
     public ResponseEntity<Map<String, Object>> publicHistory(@RequestParam(required = false) String phone) {
-        if (phone == null || phone.isBlank()) {
-            return ResponseEntity.ok(ok(List.of()));
-        }
-        return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(phone.trim())));
+        return ResponseEntity.ok(ok(queueManagerService.getPatientHistory(currentUser.resolveReadablePhone(phone))));
     }
 
     @GetMapping("/documents/{id}/file")
     public ResponseEntity<?> documentFile(@PathVariable int id) {
-        String phone = currentUser.getPatientPhone();
         PatientDocumentDto meta = patientDocumentService.getMetadata(id);
-        if (meta == null) {
+        if (meta == null || !currentUser.canReadPhone(meta.getPatientPhone())) {
             return ResponseEntity.status(404).body(msg("Document not found."));
         }
         PatientDocumentService.FileContent file = patientDocumentService.getFile(id);
@@ -131,7 +124,7 @@ public class PatientController {
     @GetMapping("/public/documents/{id}/file")
     public ResponseEntity<?> publicDocumentFile(@PathVariable int id, @RequestParam(required = false) String phone) {
         PatientDocumentDto meta = patientDocumentService.getMetadata(id);
-        if (meta == null) {
+        if (meta == null || !currentUser.canReadPhone(meta.getPatientPhone())) {
             return ResponseEntity.status(404).body(msg("Document not found."));
         }
         PatientDocumentService.FileContent file = patientDocumentService.getFile(id);

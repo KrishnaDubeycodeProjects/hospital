@@ -15,9 +15,22 @@ import java.util.Map;
 public class TestEnvironmentController {
 
     private final TestEnvironmentService testEnvironmentService;
+    private final com.qdischarge.clinicqueue.config.AppProperties appProperties;
+
+    private ResponseEntity<?> notAvailable() {
+        return ResponseEntity.status(404).body(Map.of("success", false, "message", "Not found."));
+    }
+
+    private ResponseEntity<?> demoPhoneOnly() {
+        return ResponseEntity.status(403).body(Map.of("success", false,
+                "message", "Test helpers only work for the configured demo phone numbers."));
+    }
 
     @PostMapping("/patient/seed")
     public ResponseEntity<?> seedPatient(@RequestParam(required = false, defaultValue = "+919100000099") String phone) {
+        if (!appProperties.isDemoMode()) return notAvailable();
+        // This returns a login token for the phone -- never allow it for a real patient's number.
+        if (!appProperties.isDemoPhone(phone)) return demoPhoneOnly();
         TestEnvironmentService.TestPatientProfile profile = testEnvironmentService.seedPatientTestEnvironment(phone);
         return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -36,6 +49,8 @@ public class TestEnvironmentController {
         Integer age = req.get("age") instanceof Number n ? n.intValue() : 28;
         String gender = (String) req.get("gender");
         String phone = (String) req.get("phone");
+        if (!appProperties.isDemoMode()) return notAvailable();
+        if (phone != null && !phone.isBlank() && !appProperties.isDemoPhone(phone)) return demoPhoneOnly();
         String category = (String) req.get("category");
         Integer hospitalId = req.get("hospitalId") instanceof Number n ? n.intValue() : 1;
         String status = (String) req.get("status");
@@ -54,6 +69,7 @@ public class TestEnvironmentController {
 
     @GetMapping("/credentials")
     public ResponseEntity<?> getDemoCredentials() {
+        if (!appProperties.isDemoMode()) return notAvailable();
         return ResponseEntity.ok(Map.of(
                 "doctor", Map.of(
                         "phone", "+919888877777",
