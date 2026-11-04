@@ -34,19 +34,7 @@ import DoctorReferrals from './pages/doctor/DoctorReferrals';
 import DoctorAccess from './pages/doctor/DoctorAccess';
 import DoctorPatients from './pages/doctor/DoctorPatients';
 
-function AshaRedirect() {
-  React.useEffect(() => {
-    window.location.replace('/asha/index.html');
-  }, []);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif', gap: '12px' }}>
-      <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#004D40' }}>Opening ASHA Community Healthcare App...</div>
-      <div style={{ fontSize: '14px', color: '#64748B' }}>Please wait, redirecting to the official React Native ASHA application.</div>
-      <a href="/asha/index.html" style={{ marginTop: '10px', color: '#0284c7', fontWeight: 'bold' }}>Click here if not redirected automatically</a>
-    </div>
-  );
-}
+import AshaApp from './pages/asha/AshaApp';
 
 export default function App() {
   return (
@@ -70,11 +58,11 @@ export default function App() {
               <Route path="/records-select" element={<HealthRecordsScreen />} />
               <Route path="/demo/health-records" element={<HealthRecordsScreen />} />
 
-              {/* Dedicated ASHA Mobile Module App */}
-              <Route path="/asha" element={<AshaRedirect />} />
-              <Route path="/asha/*" element={<AshaRedirect />} />
-              <Route path="/asha-app" element={<AshaRedirect />} />
-              <Route path="/asha/mobile" element={<AshaRedirect />} />
+              {/* Dedicated ASHA Mobile Module App as a Separate Component */}
+              <Route path="/asha" element={<AshaApp />} />
+              <Route path="/asha-app" element={<AshaApp />} />
+              <Route path="/asha-worker" element={<AshaApp />} />
+              <Route path="/asha/mobile" element={<AshaApp />} />
               <Route path="/asha-dashboard" element={<AshaAdminDashboard />} />
 
               {/* Hospital Admin & Counter Staff Console */}

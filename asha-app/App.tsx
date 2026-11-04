@@ -1,324 +1,378 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, StyleSheet, SafeAreaView, StatusBar, Platform, BackHandler } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { OfflineDataProvider, useOfflineData } from './src/context/OfflineDataContext';
 import { Header } from './src/components/Header';
-import { BottomNav, TabKey } from './src/components/BottomNav';
-import { Colors } from './src/theme/colors';
+import { FailedSyncBar } from './src/components/FailedSyncBar';
+import { BottomNav, TabKey, homeTabFor } from './src/components/BottomNav';
+import { AddActionSheet } from './src/components/AddActionSheet';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { color } from './src/ui';
 import { FamilyMember } from './src/types/storage';
+import { DictationEventBridge } from './src/voice/dictation';
+import { StartingAnimation } from './src/components/StartingAnimation';
+import { VoiceRecognition, SpeechEngine } from './src/voice/speechEngine';
 
-// Screens
-import { HomeScreen } from './src/screens/HomeScreen';
-import { SectionFilterScreen } from './src/screens/SectionFilterScreen';
+// Auth (phone + OTP only — workers are registered by their CHO)
+import { LoginScreen } from './src/screens/LoginScreen';
+
+// Tab roots
+import { TodayScreen } from './src/screens/TodayScreen';
 import { FamiliesScreen } from './src/screens/FamiliesScreen';
+import { SyncScreen } from './src/screens/SyncScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
+import { AnmOpenFormsScreen } from './src/screens/AnmOpenFormsScreen';
+import { ChoDashboardScreen } from './src/screens/ChoDashboardScreen';
+
+// Sub-screens
 import { FamilyDetailScreen } from './src/screens/FamilyDetailScreen';
 import { MemberResponsesScreen } from './src/screens/MemberResponsesScreen';
 import { SurveyQuestionScreen } from './src/screens/SurveyQuestionScreen';
 import { FollowUpScreen } from './src/screens/FollowUpScreen';
 import { SendDataScreen } from './src/screens/SendDataScreen';
 import { SyncSuccessScreen } from './src/screens/SyncSuccessScreen';
-import { AnmOpenFormsScreen } from './src/screens/AnmOpenFormsScreen';
-import { AnmWorkerDetailScreen } from './src/screens/AnmWorkerDetailScreen';
+import { AnmWorkerDetailScreen, AnmMemberForms } from './src/screens/AnmWorkerDetailScreen';
 import { AnmFormDetailScreen } from './src/screens/AnmFormDetailScreen';
-import { ChoDashboardScreen } from './src/screens/ChoDashboardScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
 import { AshaMeetingsScreen } from './src/screens/AshaMeetingsScreen';
 
-type ScreenView =
-  | 'Home'
-  | 'SectionFilter'
-  | 'Families'
-  | 'FamilyDetail'
-  | 'MemberResponses'
-  | 'SurveyQuestion'
-  | 'FollowUps'
-  | 'Meetings'
-  | 'SendData'
-  | 'SyncSuccess'
-  | 'AnmOpenForms'
-  | 'AnmWorkerDetail'
-  | 'AnmFormDetail'
-  | 'ChoDashboard'
-  | 'Profile';
+/** Sub-screens pushed on top of the active tab (per-tab history; back pops). */
+type SubScreen =
+  | 'familyDetail'
+  | 'member'
+  | 'survey'
+  | 'followUps'
+  | 'meetings'
+  | 'sendData'
+  | 'syncSuccess'
+  | 'anmWorkerDetail'
+  | 'anmFormDetail';
+
+type SurveyType = 'PREGNANCY' | 'CHILD' | 'OTHER';
 
 const MainAppContent: React.FC = () => {
   const { user } = useAuth();
-  const { followUps } = useOfflineData();
-  const [activeTab, setActiveTab] = useState<TabKey>('Home');
-  const [currentScreen, setCurrentScreen] = useState<ScreenView>('Home');
-  const [surveyFormType, setSurveyFormType] = useState<'PREGNANCY' | 'CHILD' | 'OTHER'>('PREGNANCY');
+  const { followUps, pendingSyncCount, failedSyncCount } = useOfflineData();
 
-  // Navigation Parameters
-  const [selectedHouse, setSelectedHouse] = useState<{ houseNo: number; familyName: string }>({
-    houseNo: 12,
-    familyName: 'Verma',
+  const [activeTab, setActiveTab] = useState<TabKey>(homeTabFor(user.role));
+  const [stack, setStack] = useState<SubScreen[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [familiesIntent, setFamiliesIntent] = useState<{ intent: 'survey' | 'referral' | null; create: boolean }>({
+    intent: null,
+    create: false,
   });
+
+  // Navigation parameters
+  const [surveyFormType, setSurveyFormType] = useState<SurveyType>('PREGNANCY');
+  const [selectedHouse, setSelectedHouse] = useState<{ houseNo: number; familyName: string }>({ houseNo: 0, familyName: '' });
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
-  const [selectedFilterCategory, setSelectedFilterCategory] = useState<'Pregnancy' | 'Disease' | 'Child'>('Pregnancy');
-  const [selectedAshaWorker, setSelectedAshaWorker] = useState<{ name: string; village: string }>({
-    name: 'Sunita Devi',
-    village: 'Chandpur Village',
+  const [selectedAshaWorker, setSelectedAshaWorker] = useState<{ name: string; village: string; phone: string }>({
+    name: '',
+    village: '',
+    phone: '',
   });
+  const [selectedAnmMember, setSelectedAnmMember] = useState<AnmMemberForms | null>(null);
 
-  // Automatically react to role changes from header / profile
-  React.useEffect(() => {
-    setActiveTab('Home');
-    if (user.role === 'CHO') {
-      setCurrentScreen('ChoDashboard');
-    } else if (user.role === 'ANM') {
-      setCurrentScreen('AnmOpenForms');
-    } else {
-      setCurrentScreen('Home');
-    }
+  // Roles are immutable post-login; reset to the cadre home tab if the session changes.
+  useEffect(() => {
+    setActiveTab(homeTabFor(user.role));
+    setStack([]);
   }, [user.role]);
 
-  const pendingFollowUpsCount = followUps.filter((f) => !f.isCompleted).length;
+  const push = useCallback((s: SubScreen) => setStack((st) => [...st, s]), []);
+  const pop = useCallback(() => setStack((st) => st.slice(0, -1)), []);
+  const reset = useCallback(() => setStack([]), []);
+
+  // Android hardware back pops the sub-screen stack first.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (addOpen) {
+        setAddOpen(false);
+        return true;
+      }
+      if (stack.length > 0) {
+        pop();
+        return true;
+      }
+      if (activeTab !== homeTabFor(user.role)) {
+        setActiveTab(homeTabFor(user.role));
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [stack, activeTab, addOpen, pop, user.role]);
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
-    if (tab === 'Home') {
-      if (user.role === 'CHO') setCurrentScreen('ChoDashboard');
-      else if (user.role === 'ANM') setCurrentScreen('AnmOpenForms');
-      else setCurrentScreen('Home');
-    } else if (tab === 'Profile') {
-      setCurrentScreen('Profile');
-    } else if (user.role === 'ASHA') {
-      // Only ASHA can access these screens
-      if (tab === 'Families') setCurrentScreen('Families');
-      else if (tab === 'FollowUps') setCurrentScreen('FollowUps');
-      else if (tab === 'Meetings') setCurrentScreen('Meetings');
-    }
+    reset();
+    if (tab === 'families') setFamiliesIntent({ intent: null, create: false });
   };
 
-  const renderActiveScreen = () => {
-    if (user.role === 'CHO' && (currentScreen === 'Home' || currentScreen === 'ChoDashboard')) {
-      return <ChoDashboardScreen />;
-    }
-    if (user.role === 'ANM' && (currentScreen === 'Home' || currentScreen === 'AnmOpenForms')) {
-      return <AnmOpenFormsScreen />;
-    }
+  const openFamily = (houseNo: number, familyName: string) => {
+    setSelectedHouse({ houseNo, familyName });
+    push('familyDetail');
+  };
+  const openMember = (member: FamilyMember, houseNo: number, familyName: string) => {
+    setSelectedHouse({ houseNo, familyName });
+    setSelectedMember(member);
+    push('member');
+  };
+  const startSurvey = (type: SurveyType) => {
+    setSurveyFormType(type);
+    push('survey');
+  };
+  const surveyTypeFor = (m: FamilyMember | null): SurveyType =>
+    m?.isPregnant ? 'PREGNANCY' : m && (m.isChild || (m.age != null && m.age <= 5)) ? 'CHILD' : 'OTHER';
 
-    switch (currentScreen) {
-      case 'Home':
-        return (
-          <HomeScreen
-            onOpenPregnancyForm={(member, familyId) => {
-              setSelectedMember(member);
-              setSurveyFormType('PREGNANCY');
-              setCurrentScreen('SurveyQuestion');
-            }}
-            onOpenChildForm={(member, familyId) => {
-              setSelectedMember(member);
-              setSurveyFormType('CHILD');
-              setCurrentScreen('SurveyQuestion');
-            }}
-            onOpenOtherServiceForm={(member, familyId, serviceType) => {
-              setSelectedMember(member);
-              setSurveyFormType('OTHER');
-              setCurrentScreen('SurveyQuestion');
-            }}
-            onNavigateToSync={() => setCurrentScreen('SendData')}
-            onNavigateToFamilyDetail={(houseNo, familyName) => {
-              setSelectedHouse({ houseNo, familyName });
-              setCurrentScreen('FamilyDetail');
-            }}
-          />
-        );
+  const openFromAddSheet = (intent: 'survey' | 'referral' | null, create: boolean) => {
+    setFamiliesIntent({ intent, create });
+    setActiveTab('families');
+    reset();
+  };
 
-      case 'SectionFilter':
-        return (
-          <SectionFilterScreen
-            initialCategory={selectedFilterCategory}
-            onBack={() => setCurrentScreen('Home')}
-            onApply={() => setCurrentScreen('Home')}
-          />
-        );
-
-      case 'Families':
-        return (
-          <FamiliesScreen
-            onSelectFamily={(houseNo, familyName) => {
-              setSelectedHouse({ houseNo, familyName });
-              setCurrentScreen('FamilyDetail');
-            }}
-            onSelectMember={(member, houseNo, familyName) => {
-              setSelectedHouse({ houseNo, familyName });
-              setSelectedMember(member);
-              setCurrentScreen('MemberResponses');
-            }}
-          />
-        );
-
-      case 'FamilyDetail':
+  const renderSubScreen = (screen: SubScreen) => {
+    switch (screen) {
+      case 'familyDetail':
         return (
           <FamilyDetailScreen
             houseNo={selectedHouse.houseNo}
             familyName={selectedHouse.familyName}
-            onBack={() => setCurrentScreen('Home')}
+            onBack={pop}
             onSelectMember={(member) => {
               setSelectedMember(member);
-              setCurrentScreen('MemberResponses');
+              push('member');
             }}
-            onAddMember={() => setCurrentScreen('FamilyDetail')}
           />
         );
-
-      case 'MemberResponses':
+      case 'member':
         return selectedMember ? (
           <MemberResponsesScreen
             member={selectedMember}
             houseNo={selectedHouse.houseNo}
             familyName={selectedHouse.familyName}
-            onBack={() => setCurrentScreen('FamilyDetail')}
-            onStartNewSurvey={() => {
-              setSurveyFormType('PREGNANCY');
-              setCurrentScreen('SurveyQuestion');
-            }}
+            onBack={pop}
+            onStartNewSurvey={() => startSurvey(surveyTypeFor(selectedMember))}
           />
-        ) : (
-          <FamilyDetailScreen
-            houseNo={selectedHouse.houseNo}
-            familyName={selectedHouse.familyName}
-            onBack={() => setCurrentScreen('Home')}
-            onSelectMember={(member) => {
-              setSelectedMember(member);
-              setCurrentScreen('MemberResponses');
-            }}
-          />
-        );
-
-      case 'SurveyQuestion':
+        ) : null;
+      case 'survey':
         return (
           <SurveyQuestionScreen
-            onBack={() => setCurrentScreen('Home')}
-            onComplete={() => setCurrentScreen('Home')}
+            onBack={pop}
+            onComplete={pop}
             familyUnitId={selectedMember?.familyUnitId}
             familyMemberId={selectedMember?.id}
             memberName={selectedMember?.name}
             formType={surveyFormType}
           />
         );
-
-      case 'FollowUps':
-        return <FollowUpScreen />;
-
-      case 'Meetings':
-        return <AshaMeetingsScreen />;
-
-      case 'SendData':
-        return (
-          <SendDataScreen
-            onBack={() => setCurrentScreen('Home')}
-            onSuccess={() => setCurrentScreen('SyncSuccess')}
-          />
-        );
-
-      case 'SyncSuccess':
+      case 'followUps':
+        return <FollowUpScreen onBack={pop} />;
+      case 'meetings':
+        return <AshaMeetingsScreen onBack={pop} />;
+      case 'sendData':
+        return <SendDataScreen onBack={pop} onSuccess={() => push('syncSuccess')} />;
+      case 'syncSuccess':
         return (
           <SyncSuccessScreen
-            onSendAnother={() => setCurrentScreen('SendData')}
-            onBackToHome={() => setCurrentScreen('Home')}
-          />
-        );
-
-      case 'AnmOpenForms':
-        return (
-          <AnmOpenFormsScreen
-            onSelectAsha={(worker) => {
-              setSelectedAshaWorker({ name: worker.name, village: worker.village });
-              setCurrentScreen('AnmWorkerDetail');
+            onSendAnother={pop}
+            onBackToHome={() => {
+              reset();
+              setActiveTab(homeTabFor(user.role));
             }}
           />
         );
-
-      case 'AnmWorkerDetail':
+      case 'anmWorkerDetail':
         return (
           <AnmWorkerDetailScreen
             ashaName={selectedAshaWorker.name}
             village={selectedAshaWorker.village}
-            onBack={() => setCurrentScreen('AnmOpenForms')}
-            onSelectForm={() => setCurrentScreen('AnmFormDetail')}
+            ashaPhone={selectedAshaWorker.phone}
+            onBack={pop}
+            onSelectMember={(m) => {
+              setSelectedAnmMember(m);
+              push('anmFormDetail');
+            }}
           />
         );
-
-      case 'AnmFormDetail':
+      case 'anmFormDetail':
         return (
           <AnmFormDetailScreen
-            onBack={() => setCurrentScreen('AnmWorkerDetail')}
+            memberName={selectedAnmMember?.memberName}
+            forms={selectedAnmMember?.forms}
+            onBack={pop}
           />
         );
-
-      case 'ChoDashboard':
-        return <ChoDashboardScreen />;
-
-      case 'Profile':
       default:
-        return <ProfileScreen />;
+        return null;
     }
   };
 
-  const isFormFilling = currentScreen === 'SurveyQuestion';
+  const renderTabRoot = () => {
+    switch (activeTab) {
+      case 'today':
+        return <TodayScreen onOpenFamily={openFamily} onOpenMember={openMember} onOpenFollowUps={() => push('followUps')} />;
+      case 'families':
+        return (
+          <FamiliesScreen
+            intent={familiesIntent.intent}
+            autoOpenCreate={familiesIntent.create}
+            onSelectFamily={openFamily}
+            onSelectMember={openMember}
+          />
+        );
+      case 'sync':
+        return <SyncScreen onOpenSendToAnm={() => push('sendData')} />;
+      case 'anmQueue':
+      case 'anmWorkers':
+      case 'anmSession':
+        return (
+          <AnmOpenFormsScreen
+            view={activeTab === 'anmQueue' ? 'queue' : activeTab === 'anmWorkers' ? 'workers' : 'session'}
+            onSelectAsha={(worker) => {
+              setSelectedAshaWorker(worker);
+              push('anmWorkerDetail');
+            }}
+          />
+        );
+      case 'choReferrals':
+      case 'choWorkers':
+        return <ChoDashboardScreen view={activeTab === 'choReferrals' ? 'referrals' : 'workers'} />;
+      case 'me':
+      default:
+        return <ProfileScreen onOpenMeetings={() => push('meetings')} />;
+    }
+  };
+
+  const top = stack.length > 0 ? stack[stack.length - 1] : undefined;
+  const isFormFilling = top === 'survey';
+  const isSubScreen = stack.length > 0;
+
+  const pendingTasks = followUps.filter((f) => !f.isCompleted).length;
+  const badges: Partial<Record<TabKey, number>> = {
+    today: pendingTasks || undefined,
+    sync: failedSyncCount + pendingSyncCount || undefined,
+  };
 
   return (
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-        {/* Universal Top Header with Aarogya Flow branding and offline sync status */}
-        {!isFormFilling && <Header />}
+        {!isSubScreen && <Header />}
+        {!isFormFilling && <FailedSyncBar />}
 
-        {/* Main Screen Surface */}
-        <View style={styles.body}>{renderActiveScreen()}</View>
+        <View style={styles.body}>{top ? renderSubScreen(top) : renderTabRoot()}</View>
 
-        {/* Persistent Bottom Navigation Bar */}
         {!isFormFilling && (
           <BottomNav
+            role={user.role}
             activeTab={activeTab}
             onTabChange={handleTabChange}
-            followUpCount={pendingFollowUpsCount}
+            onAddPress={() => setAddOpen(true)}
+            badges={badges}
           />
         )}
+
+        <AddActionSheet
+          visible={addOpen}
+          onClose={() => setAddOpen(false)}
+          onNewFamily={() => openFromAddSheet(null, true)}
+          onStartSurvey={() => openFromAddSheet('survey', false)}
+          onReferral={() => openFromAddSheet('referral', false)}
+        />
+
+        {/* Routes native speech events to whichever mic is listening (no popup). */}
+        <DictationEventBridge />
       </SafeAreaView>
     </View>
   );
 };
 
+const AppRootCoordinator: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [isStarting, setIsStarting] = React.useState(true);
+
+  React.useEffect(() => {
+    // Automatically trigger offline language model downloads in the background for rural users
+    SpeechEngine.initializeOfflineSpeech().catch(() => {});
+  }, []);
+
+  if (isStarting || isLoading) {
+    return (
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <StartingAnimation
+            minDurationMs={2000}
+            onAnimationFinish={() => setIsStarting(false)}
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <View style={styles.outerContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+          <LoginScreen />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  return (
+    <LanguageProvider>
+      <OfflineDataProvider>
+        <MainAppContent />
+      </OfflineDataProvider>
+    </LanguageProvider>
+  );
+};
+
 export default function App() {
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <OfflineDataProvider>
-          <MainAppContent />
-        </OfflineDataProvider>
-      </LanguageProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRootCoordinator />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
+const isWeb = Platform.OS === 'web';
+
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   outerContainer: {
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: isWeb ? '#0F172A' : '#FFFFFF',
+    alignItems: isWeb ? 'center' : 'stretch',
+    justifyContent: isWeb ? 'center' : 'flex-start',
   },
   safeArea: {
     flex: 1,
     width: '100%',
-    maxWidth: 480,
+    maxWidth: isWeb ? 480 : undefined,
     height: '100%',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: isWeb ? '#000' : undefined,
+    shadowOffset: isWeb ? { width: 0, height: 4 } : undefined,
+    shadowOpacity: isWeb ? 0.25 : undefined,
+    shadowRadius: isWeb ? 16 : undefined,
+    elevation: isWeb ? 8 : 0,
     overflow: 'hidden',
   },
   body: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: color.canvas,
   },
 });

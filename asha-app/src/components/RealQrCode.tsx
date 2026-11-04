@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Image, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, StyleSheet, Text } from 'react-native';
+import Svg, { Rect, Path } from 'react-native-svg';
 import QRCode from 'qrcode';
 
 interface RealQrCodeProps {
@@ -13,62 +14,68 @@ export const RealQrCode: React.FC<RealQrCodeProps> = ({
   size = 180,
   label,
 }) => {
-  const [qrUri, setQrUri] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qrData = useMemo(() => {
+    try {
+      const safeValue =
+        typeof value === 'string' && value.trim()
+          ? value.trim()
+          : typeof value === 'object' && value !== null
+          ? JSON.stringify(value)
+          : 'ANM-QR-SESSION-ACTIVE';
 
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-
-    const safeValue =
-      typeof value === 'string' && value.trim()
-        ? value.trim()
-        : typeof value === 'object' && value !== null
-        ? JSON.stringify(value)
-        : 'ANM-QR-SESSION-ACTIVE';
-
-    QRCode.toDataURL(safeValue, {
-      width: Math.max(size * 2, 400),
-      margin: 2, // 2 modules required for quiet zone per ISO/IEC QR standard
-      color: {
-        dark: '#000000', // Pure black for 100% camera contrast and reliable binarization
-        light: '#FFFFFF',
-      },
-      errorCorrectionLevel: 'M',
-    })
-      .then((url) => {
-        if (isMounted) {
-          setQrUri(url);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.error('Error generating real QR:', err);
-        if (isMounted) setLoading(false);
+      const qr = QRCode.create(safeValue, {
+        errorCorrectionLevel: 'M',
       });
 
-    return () => {
-      isMounted = false;
-    };
+      const moduleCount = qr.modules.size;
+      const margin = 2;
+      const totalModules = moduleCount + margin * 2;
+      const cellSize = size / totalModules;
+
+      let pathOps = '';
+      for (let r = 0; r < moduleCount; r++) {
+        for (let c = 0; c < moduleCount; c++) {
+          if (qr.modules.get(r, c)) {
+            const x = (c + margin) * cellSize;
+            const y = (r + margin) * cellSize;
+            pathOps += `M${x},${y}h${cellSize}v${cellSize}h-${cellSize}z `;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        size,
+        pathOps,
+      };
+    } catch (err) {
+      console.error('Error generating pure SVG QR:', err);
+      return { success: false, size, pathOps: '' };
+    }
   }, [value, size]);
 
   return (
     <View style={styles.container}>
-      {loading ? (
-        <View style={[styles.placeholder, { width: size, height: size }]}>
-          <ActivityIndicator size="large" color="#1A6B4A" />
-        </View>
-      ) : qrUri ? (
-        <Image
-          source={{ uri: qrUri }}
-          style={{ width: size, height: size, borderRadius: 8 }}
-          resizeMode="contain"
-        />
-      ) : (
-        <View style={[styles.placeholder, { width: size, height: size }]}>
-          <Text style={styles.errorText}>QR कोड लोड नहीं हुआ</Text>
-        </View>
-      )}
+      <View
+        style={[
+          styles.qrBox,
+          {
+            width: size,
+            height: size,
+          },
+        ]}
+      >
+        {qrData.success ? (
+          <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+            <Rect x={0} y={0} width={size} height={size} fill="#FFFFFF" />
+            <Path d={qrData.pathOps} fill="#000000" />
+          </Svg>
+        ) : (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>QR कोड लोड नहीं हुआ</Text>
+          </View>
+        )}
+      </View>
       {label ? <Text style={styles.label}>{label}</Text> : null}
     </View>
   );
@@ -79,13 +86,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  placeholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
+  qrBox: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   errorText: {
     fontSize: 11,

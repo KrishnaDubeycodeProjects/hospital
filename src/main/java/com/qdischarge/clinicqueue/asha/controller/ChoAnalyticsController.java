@@ -3,14 +3,16 @@ package com.qdischarge.clinicqueue.asha.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * System-administrator (ROLE_ADMIN) read-only oversight across all sectors.
+ * CHOs use the sector-scoped endpoints in {@link ChoSectorReferralController}.
+ */
 @RestController
 @RequestMapping("/api/cho")
 @RequiredArgsConstructor
@@ -32,7 +34,7 @@ public class ChoAnalyticsController {
     }
 
     /**
-     * Returns all referrals and follow-up tasks for the CHO Admin dashboard with full patient details.
+     * All referrals and follow-up tasks across sectors (ADMIN oversight, read-only).
      */
     @GetMapping("/referrals")
     public ResponseEntity<List<Map<String, Object>>> getChoReferrals() {
@@ -80,79 +82,9 @@ public class ChoAnalyticsController {
         return ResponseEntity.ok(list);
     }
 
-    /**
-     * CHO Admin approves a referral.
-     */
-    @PostMapping("/referrals/{id}/approve")
-    public ResponseEntity<Map<String, Object>> approveReferral(@PathVariable int id) {
-        log.info("CHO approving referral task {}", id);
-        String sql = "UPDATE clinicqueue.follow_up_tasks SET status = 'APPROVED_CHO', completed_at = NOW() WHERE id = :id";
-        jdbcTemplate.update(sql, Map.of("id", id));
-
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("success", true);
-        resp.put("message", "Referral approved successfully by CHO.");
-        return ResponseEntity.ok(resp);
-    }
-
-    /**
-     * CHO Admin records teleconsultation advice and prescriptions.
-     */
-    @PostMapping("/referrals/{id}/advice")
-    public ResponseEntity<Map<String, Object>> recordTeleconsultAdvice(
-            @PathVariable int id,
-            @RequestBody Map<String, String> body) {
-        String advice = body.getOrDefault("advice", "");
-        log.info("CHO recording teleconsult advice for task {}: {}", id, advice);
-
-        String sql = """
-            UPDATE clinicqueue.follow_up_tasks
-            SET description = COALESCE(description, '') || E'\\n[CHO Teleconsult Advice]: ' || :advice,
-                status = 'APPROVED_CHO',
-                completed_at = NOW()
-            WHERE id = :id
-        """;
-        jdbcTemplate.update(sql, Map.of("id", id, "advice", advice));
-
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("success", true);
-        resp.put("message", "Teleconsult advice recorded successfully.");
-        return ResponseEntity.ok(resp);
-    }
-
-    /**
-     * ASHA Worker refers a patient directly to the CHO Admin.
-     */
-    @PostMapping("/referrals/from-asha")
-    public ResponseEntity<Map<String, Object>> createReferralFromAsha(@RequestBody Map<String, Object> body) {
-        log.info("ASHA submitting referral to CHO: {}", body);
-        Integer familyUnitId = body.get("familyUnitId") != null ? ((Number) body.get("familyUnitId")).intValue() : 1;
-        Integer memberId = body.get("memberId") != null ? ((Number) body.get("memberId")).intValue() : 1;
-        String ashaPhone = (String) body.getOrDefault("ashaPhone", "9876543210");
-        String reason = (String) body.getOrDefault("reason", "ASHA Field Referral to CHO");
-        String vitals = (String) body.getOrDefault("vitals", "");
-        String urgency = (String) body.getOrDefault("urgency", "urgent_7d");
-
-        String sql = """
-            INSERT INTO clinicqueue.follow_up_tasks
-            (family_unit_id, family_member_id, asha_worker_phone, task_type, title, description, due_date, status, created_at)
-            VALUES
-            (:familyUnitId, :memberId, :ashaPhone, 'ASHA_TO_CHO_REFERRAL', :title, :description, CURRENT_DATE + 7, 'PENDING', NOW())
-            RETURNING id
-        """;
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("familyUnitId", familyUnitId)
-                .addValue("memberId", memberId)
-                .addValue("ashaPhone", ashaPhone)
-                .addValue("title", "[ASHA to CHO Referral] " + reason)
-                .addValue("description", "Vitals: " + vitals + " • Priority: " + urgency);
-
-        Integer newId = jdbcTemplate.queryForObject(sql, params, Integer.class);
-
-        Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("success", true);
-        resp.put("taskId", newId);
-        resp.put("message", "Referral successfully transmitted to CHO Admin.");
-        return ResponseEntity.ok(resp);
-    }
+    // Removed (physical referral model, no teleconsultation):
+    //  - POST /referrals/{id}/approve  -> unscoped; CHOs validate via POST /api/asha/referrals/{id}/approve
+    //  - POST /referrals/{id}/advice   -> teleconsultation advice (out of scope)
+    //  - POST /referrals/from-asha     -> defaulted to family/member 1 and phone 9876543210;
+    //                                     ASHA referrals arrive through the offline sync outbox
 }

@@ -101,12 +101,33 @@ public class WhatsAppService {
         runSequenced(phone, () -> sendTextMessageSync(phone, text));
     }
 
+    // Meta Cloud API interactive-message limits. Exceeding any of these makes Meta reject the whole
+    // payload (HTTP 400), which previously dropped the user to a plain-text fallback with no buttons.
+    static final int MAX_HEADER = 60;
+    static final int MAX_BODY = 1024;
+    static final int MAX_FOOTER = 60;
+    static final int MAX_BUTTON_TITLE = 20;
+    static final int MAX_REPLY_BUTTONS = 3;
+    static final int MAX_ROW_TITLE = 24;
+    static final int MAX_ROW_DESC = 72;
+    static final int MAX_SECTION_TITLE = 24;
+    static final int MAX_LIST_ROWS = 10;
+    static final int MAX_ID = 200;
+
+    /** Truncates to at most {@code max} code points so emoji / Devanagari surrogate pairs are never split. */
+    static String clip(String s, int max) {
+        if (s == null) return null;
+        String t = s.trim();
+        if (t.codePointCount(0, t.length()) <= max) return t;
+        return t.substring(0, t.offsetByCodePoints(0, max)).trim();
+    }
+
     private String resolveFooter(String footer) {
         String effective = (footer != null && !footer.isBlank()) ? footer : appProperties.getClinicName();
         if (effective == null || effective.isBlank() || "qdischarge".equalsIgnoreCase(effective.trim())) {
             return "AarogyaFlow";
         }
-        return effective.trim();
+        return clip(effective, MAX_FOOTER);
     }
 
     /**
@@ -125,35 +146,39 @@ public class WhatsAppService {
                 return;
             }
 
-            // Meta limits reply buttons to max 3
-            List<WaButton> limitedButtons = buttons.size() > 3 ? buttons.subList(0, 3) : buttons;
+            if (buttons.size() > MAX_REPLY_BUTTONS) {
+                log.warn("⚠️ {} reply buttons requested; Meta allows {}. Extra buttons dropped.", buttons.size(), MAX_REPLY_BUTTONS);
+            }
 
             Map<String, Object> interactiveObj = new LinkedHashMap<>();
             interactiveObj.put("type", "button");
 
             if (title != null && !title.isBlank()) {
-                interactiveObj.put("header", Map.of("type", "text", "text", title));
+                interactiveObj.put("header", Map.of("type", "text", "text", clip(title, MAX_HEADER)));
             }
 
-            interactiveObj.put("body", Map.of("text", description != null && !description.isBlank() ? description : "Please select:"));
+            interactiveObj.put("body", Map.of("text", clip(description != null && !description.isBlank() ? description : "Please select:", MAX_BODY)));
 
             String effectiveFooter = resolveFooter(footer);
             if (effectiveFooter != null && !effectiveFooter.isBlank()) {
                 interactiveObj.put("footer", Map.of("text", effectiveFooter));
             }
 
+            // Meta rejects the message if button ids or titles repeat, or are blank.
             List<Map<String, Object>> buttonList = new ArrayList<>();
-            for (WaButton btn : limitedButtons) {
-                // Button title has a maximum of 20 characters in Meta API
-                String display = btn.displayText() != null ? btn.displayText() : btn.id();
-                if (display.length() > 20) {
-                    display = display.substring(0, 20);
-                }
-                Map<String, Object> replyObj = Map.of(
-                        "id", btn.id(),
-                        "title", display
-                );
-                buttonList.add(Map.of("type", "reply", "reply", replyObj));
+            java.util.Set<String> seenIds = new java.util.HashSet<>();
+            java.util.Set<String> seenTitles = new java.util.HashSet<>();
+            for (WaButton btn : buttons) {
+                if (buttonList.size() >= MAX_REPLY_BUTTONS) break;
+                if (btn == null || btn.id() == null || btn.id().isBlank()) continue;
+                String id = clip(btn.id(), MAX_ID);
+                String display = clip(btn.displayText() != null && !btn.displayText().isBlank() ? btn.displayText() : btn.id(), MAX_BUTTON_TITLE);
+                if (!seenIds.add(id) || !seenTitles.add(display)) continue;
+                buttonList.add(Map.of("type", "reply", "reply", Map.of("id", id, "title", display)));
+            }
+            if (buttonList.isEmpty()) {
+                sendTextMessageSync(cleaned, description != null ? description : title);
+                return;
             }
 
             interactiveObj.put("action", Map.of("buttons", buttonList));
@@ -190,20 +215,20 @@ public class WhatsAppService {
             String cleaned = formatPhone(phone);
             if (cleaned.isEmpty()) return;
 
-            // Truncate button label to 20 chars if required by Meta API
-            String btnText = buttonText != null && !buttonText.isBlank() ? buttonText : "Open";
-            if (btnText.length() > 20) {
-                btnText = btnText.substring(0, 20);
+            if (urlTarget == null || urlTarget.isBlank()) {
+                sendTextMessageSync(cleaned, description != null ? description : title);
+                return;
             }
+            String btnText = clip(buttonText != null && !buttonText.isBlank() ? buttonText : "Open", MAX_BUTTON_TITLE);
 
             Map<String, Object> interactiveObj = new LinkedHashMap<>();
             interactiveObj.put("type", "cta_url");
 
             if (title != null && !title.isBlank()) {
-                interactiveObj.put("header", Map.of("type", "text", "text", title));
+                interactiveObj.put("header", Map.of("type", "text", "text", clip(title, MAX_HEADER)));
             }
 
-            interactiveObj.put("body", Map.of("text", description != null && !description.isBlank() ? description : "Tap below to proceed:"));
+            interactiveObj.put("body", Map.of("text", clip(description != null && !description.isBlank() ? description : "Tap below to proceed:", MAX_BODY)));
 
             String effectiveFooter = resolveFooter(footer);
             if (effectiveFooter != null && !effectiveFooter.isBlank()) {
@@ -239,6 +264,18 @@ public class WhatsAppService {
         });
     }
 
+    /**
+     * Sends native Meta OTP interactive message with a copy-code button, or a quick-reply button with the OTP code.
+     */
+    public void sendCopyCodeOtpMessage(String phone, String code, int ttlMinutes) {
+        // sendButtonsMessage is already sequenced and falls back to text on rejection, so no extra
+        // wrapping is needed (the old nested runSequenced queued the message twice per phone).
+        List<WaButton> buttons = List.of(new WaButton("otp_" + code, code));
+        sendButtonsMessage(phone, "AarogyaFlow",
+                "Your OTP is: *" + code + "*\n\nValid for " + ttlMinutes + " minutes. Do not share it with anyone.",
+                buttons, "AarogyaFlow");
+    }
+
     public void sendPollMessage(String phone, String question, List<String> options) {
         runSequenced(phone, () -> {
             String text = question + "\n\n" + String.join("\n", options);
@@ -259,40 +296,50 @@ public class WhatsAppService {
                 return;
             }
 
-            String btnLabel = buttonText != null && !buttonText.isBlank() ? buttonText : "Select";
-            if (btnLabel.length() > 20) {
-                btnLabel = btnLabel.substring(0, 20);
-            }
+            String btnLabel = clip(buttonText != null && !buttonText.isBlank() ? buttonText : "Select", MAX_BUTTON_TITLE);
 
+            // Meta: max 10 rows across ALL sections, unique row ids, non-empty sections,
+            // and a section title is mandatory whenever more than one section is sent.
             List<Map<String, Object>> sectionList = new ArrayList<>();
+            java.util.Set<String> seenIds = new java.util.HashSet<>();
+            int totalRows = 0;
             for (WaListSection section : sections) {
+                if (section == null || section.rows() == null) continue;
                 List<Map<String, Object>> rowList = new ArrayList<>();
                 for (WaListRow row : section.rows()) {
-                    String rowTitle = row.title();
-                    if (rowTitle.length() > 24) rowTitle = rowTitle.substring(0, 24);
+                    if (totalRows >= MAX_LIST_ROWS) break;
+                    if (row == null || row.id() == null || row.id().isBlank()) continue;
+                    String id = clip(row.id(), MAX_ID);
+                    if (!seenIds.add(id)) continue;
+                    String rowTitle = clip(row.title() != null && !row.title().isBlank() ? row.title() : row.id(), MAX_ROW_TITLE);
 
                     Map<String, Object> rowMap = new LinkedHashMap<>();
-                    rowMap.put("id", row.id());
+                    rowMap.put("id", id);
                     rowMap.put("title", rowTitle);
                     if (row.description() != null && !row.description().isBlank()) {
-                        String desc = row.description();
-                        if (desc.length() > 72) desc = desc.substring(0, 72);
-                        rowMap.put("description", desc);
+                        rowMap.put("description", clip(row.description(), MAX_ROW_DESC));
                     }
                     rowList.add(rowMap);
+                    totalRows++;
                 }
+                if (rowList.isEmpty()) continue;
+                String secTitle = section.title() != null && !section.title().isBlank() ? section.title() : "Options";
                 sectionList.add(Map.of(
-                        "title", section.title() != null ? section.title() : "Options",
+                        "title", clip(secTitle, MAX_SECTION_TITLE),
                         "rows", rowList
                 ));
+            }
+            if (sectionList.isEmpty()) {
+                sendTextMessageSync(cleaned, description != null ? description : title);
+                return;
             }
 
             Map<String, Object> interactiveObj = new LinkedHashMap<>();
             interactiveObj.put("type", "list");
             if (title != null && !title.isBlank()) {
-                interactiveObj.put("header", Map.of("type", "text", "text", title));
+                interactiveObj.put("header", Map.of("type", "text", "text", clip(title, MAX_HEADER)));
             }
-            interactiveObj.put("body", Map.of("text", description != null && !description.isBlank() ? description : "Please choose an option:"));
+            interactiveObj.put("body", Map.of("text", clip(description != null && !description.isBlank() ? description : "Please choose an option:", MAX_BODY)));
             String effectiveFooter = resolveFooter(footer);
             if (effectiveFooter != null && !effectiveFooter.isBlank()) {
                 interactiveObj.put("footer", Map.of("text", effectiveFooter));
@@ -405,6 +452,10 @@ public class WhatsAppService {
                 int status = e.getRawStatusCode();
                 String error = extractError(e);
                 log.warn("⚠️ Meta API request failed (status {}): {}. Attempt {}/{}", status, error, attempts, maxAttempts);
+                boolean retryable = status == 429 || status >= 500;
+                if (!retryable) {
+                    throw e;
+                }
                 if (attempts >= maxAttempts) {
                     log.error("❌ All retry attempts exhausted for phone {}", cleanedPhone);
                     throw e;

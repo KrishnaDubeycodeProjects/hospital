@@ -32,257 +32,147 @@ export default function AshaAdminDashboard() {
   // Selected ASHA Worker for drilldown modal
   const [selectedWorker, setSelectedWorker] = useState(null);
 
-  // Teleconsultation & Approval Modal State
-  const [teleconsultPatient, setTeleconsultPatient] = useState(null);
+  // Referral validation (triage / transport sign-off) modal state
+  const [validationTarget, setValidationTarget] = useState(null);
   const [approvedReferralIds, setApprovedReferralIds] = useState(new Set());
-  const [doctorNotes, setDoctorNotes] = useState('');
+  const [validationNote, setValidationNote] = useState('');
   const [showNotesSuccess, setShowNotesSuccess] = useState(false);
   const [bottomNav, setBottomNav] = useState('dashboard');
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   // ASHA Workers Data
-  const [workers, setWorkers] = useState([
-    {
-      id: 'w1',
-      avatar: 'SD',
-      avatarBg: '#dcfce7',
-      avatarColor: '#15803d',
-      name: 'Sunita Devi',
-      village: 'Chandpur',
-      phone: '+91 98765 43210',
-      families: 24,
-      surveys: 7,
-      referrals: 4,
-      hrpCount: 2,
-      ncdCount: 5,
-      lastActive: '10 मिनट पहले',
-    },
-    {
-      id: 'w2',
-      avatar: 'MK',
-      avatarBg: '#dcfce7',
-      avatarColor: '#15803d',
-      name: 'Meera Kumari',
-      village: 'Rampur',
-      phone: '+91 98765 43211',
-      families: 18,
-      surveys: 24,
-      referrals: 2,
-      hrpCount: 1,
-      ncdCount: 4,
-      lastActive: '25 मिनट पहले',
-    },
-    {
-      id: 'w3',
-      avatar: 'LB',
-      avatarBg: '#dcfce7',
-      avatarColor: '#15803d',
-      name: 'Lalita Bai',
-      village: 'Kheda',
-      phone: '+91 98765 43212',
-      families: 22,
-      surveys: 31,
-      referrals: 4,
-      hrpCount: 1,
-      ncdCount: 6,
-      lastActive: '1 घंटा पहले',
-    },
-    {
-      id: 'w4',
-      avatar: 'PS',
-      avatarBg: '#dcfce7',
-      avatarColor: '#15803d',
-      name: 'Pooja Sharma',
-      village: 'Barkheda',
-      phone: '+91 98765 43213',
-      families: 20,
-      surveys: 19,
-      referrals: 1,
-      hrpCount: 0,
-      ncdCount: 3,
-      lastActive: '2 घंटे पहले',
-    },
-  ]);
+  const [workers, setWorkers] = useState([]);
 
-  // Fetch live CHO analytics and referrals on mount
-  useEffect(() => {
-    let mounted = true;
-    const fetchLiveChoData = async () => {
-      try {
-        const [analyticsRes, referralsRes] = await Promise.allSettled([
-          choApi.getAnalytics(),
-          choApi.getReferrals()
-        ]);
-        if (mounted && analyticsRes.status === 'fulfilled' && Array.isArray(analyticsRes.value)) {
-          const liveList = analyticsRes.value;
-          if (liveList.length > 0) {
-            setWorkers((prev) => {
-              return prev.map((w) => {
-                const live = liveList.find((l) => l.asha_phone === w.phone.replace(/\D/g, '') || l.asha_name === w.name);
-                if (live) {
-                  return {
-                    ...w,
-                    families: live.family_count ?? w.families,
-                    surveys: live.survey_count ?? w.surveys,
-                    referrals: live.referral_missed_count ?? w.referrals,
-                  };
-                }
-                return w;
-              });
-            });
-          }
-        }
-        if (mounted && referralsRes.status === 'fulfilled' && Array.isArray(referralsRes.value)) {
-          const liveRefs = referralsRes.value;
-          if (liveRefs.length > 0) {
-            setCriticalReferrals((prev) => {
-              const formatted = liveRefs.map((r) => ({
-                id: `ref-${r.id}`,
-                name: r.member_name || r.family_head_name || 'Beneficiary',
-                age: 28,
-                gender: 'महिला',
-                houseNo: r.house_number || 12,
-                village: 'Chandpur',
-                phone: '+91 98765 00012',
-                abhaId: '91-6234-8890-1452',
-                workerName: 'Sunita Devi',
-                doctorName: 'CHO (Ayushman Arogya Mandir)',
-                prescriptions: 'Active clinical review required',
-                prescriptionDeadline: '3 दिन शेष',
-                reason: r.title || 'Referral follow-up',
-                tier: 'urgent_7d',
-                daysLeft: 3,
-                condition: r.description || 'Priority clinical follow-up',
-                vitals: 'BP 120/80',
-                referralSource: 'ASHA Field Referral',
-              }));
-              return [...formatted, ...prev.filter(p => !formatted.some(f => f.id === p.id))];
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('CHO live data fetch note:', err);
-      }
-    };
-    fetchLiveChoData();
-    return () => { mounted = false; };
+  // Live CHO sector data (workers + referrals). No sample patients or invented vitals.
+  const [sectorStatus, setSectorStatus] = useState(choApi.hasSession() ? 'loading' : 'no-session');
+
+  const GENDER_HI = { Female: 'महिला', Male: 'पुरुष', Other: 'अन्य' };
+  const AVATAR_TONES = [['#dcfce7', '#15803d'], ['#e0f2fe', '#0369a1'], ['#fef3c7', '#b45309'], ['#f3e8ff', '#7c3aed']];
+
+  const formatDate = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('hi-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const daysUntil = (iso) => {
+    if (!iso) return null;
+    const due = new Date(iso);
+    if (isNaN(due.getTime())) return null;
+    return Math.ceil((due.getTime() - Date.now()) / 86400000);
+  };
+
+  const loadSector = React.useCallback(async () => {
+    if (!choApi.hasSession()) {
+      setSectorStatus('no-session');
+      return;
+    }
+    setSectorStatus('loading');
+    const [workersRes, referralsRes] = await Promise.allSettled([choApi.getSectorWorkers(), choApi.getReferrals()]);
+    const denied = [workersRes, referralsRes].some(
+      (r) => r.status === 'rejected' && [401, 403].includes(r.reason?.response?.status)
+    );
+    if (denied) {
+      setSectorStatus('denied');
+      return;
+    }
+    if (workersRes.status === 'fulfilled' && Array.isArray(workersRes.value)) {
+      setWorkers(
+        workersRes.value.map((w, i) => ({
+          id: `w-${w.phone}`,
+          avatar: String(w.name || '?').split(' ').map((x) => x[0] || '').join('').slice(0, 2).toUpperCase(),
+          avatarBg: AVATAR_TONES[i % AVATAR_TONES.length][0],
+          avatarColor: AVATAR_TONES[i % AVATAR_TONES.length][1],
+          name: w.name || '—',
+          village: w.villageName || '—',
+          phone: w.phone || '',
+          role: w.role || 'ASHA',
+          families: Number(w.familyCount) || 0,
+          surveys: Number(w.surveyCount) || 0,
+          referrals: Number(w.referralCount) || 0,
+          hrpCount: Number(w.pregnantCount) || 0,
+          ncdCount: Number(w.ncdCount) || 0,
+          lastActive: w.lastActive ? formatDate(w.lastActive) : '—',
+        }))
+      );
+    }
+    if (referralsRes.status === 'fulfilled' && Array.isArray(referralsRes.value)) {
+      const rows = referralsRes.value;
+      setCriticalReferrals(
+        rows.map((r) => {
+          const left = daysUntil(r.dueDate);
+          return {
+            id: `ref-${r.id}`,
+            serverId: r.id,
+            name: r.patientName || r.familyHeadName || '—',
+            age: r.age != null ? r.age : '—',
+            gender: GENDER_HI[r.gender] || '—',
+            houseNo: r.houseNumber || '—',
+            village: r.villageName || '—',
+            phone: r.patientPhone || '',
+            abhaId: '',
+            workerName: r.ashaWorkerName || r.ashaWorkerPhone || '—',
+            doctorName: '',
+            prescriptions: '',
+            prescriptionDeadline: '',
+            reason: r.title || r.taskType || '—',
+            tier: left != null && left <= 7 ? 'urgent_7d' : 'semi_urgent_14d',
+            daysLeft: left != null ? Math.max(left, 0) : '—',
+            condition: r.description || '',
+            vitals: r.description || '—',
+            referralSource: r.taskType === 'REFERRAL_MISSED' ? 'अस्पताल रेफरल' : 'आशा फील्ड रेफरल',
+            choNote: r.choNote || '',
+            approved: r.status === 'APPROVED_CHO',
+          };
+        })
+      );
+      setApprovedReferralIds(new Set(rows.filter((r) => r.status === 'APPROVED_CHO').map((r) => `ref-${r.id}`)));
+    }
+    setSectorStatus('ready');
   }, []);
 
-  // Critical Referrals List
-  const [criticalReferrals, setCriticalReferrals] = useState([
-    {
-      id: 'ref-1',
-      name: 'Sita Bai',
-      age: 26,
-      gender: 'महिला',
-      houseNo: 14,
-      village: 'Chandpur',
-      phone: '+91 98765 00014',
-      abhaId: '91-6234-8890-1452',
-      workerName: 'Sunita Devi',
-      doctorName: 'Dr. Ananya Roy (District Hospital)',
-      prescriptions: 'Tab IFA 100mg BID, Inj Iron Sucrose 200mg (2 doses)',
-      prescriptionDeadline: '28 Oct 2026 (5 दिन शेष)',
-      reason: 'गंभीर एनीमिया (Hb 6.8 g/dL) - उच्च जोखिम गर्भावस्था (HRP)',
-      tier: 'urgent_7d',
-      daysLeft: 2,
-      condition: 'Severe Anaemia in 3rd Trimester',
-      vitals: 'BP 108/68 · Hb 6.8 g/dL · FHR 142 bpm',
-      referralSource: 'ASHA Field Referral',
-    },
-    {
-      id: 'ref-2',
-      name: 'Ram Prasad',
-      age: 58,
-      gender: 'पुरुष',
-      houseNo: 22,
-      village: 'Rampur',
-      phone: '+91 98765 00022',
-      abhaId: '14-8872-3341-9920',
-      workerName: 'Meera Kumari',
-      doctorName: 'Dr. Rajesh Sharma (BHU Apex Cardiology)',
-      prescriptions: 'Tab Amlodipine 5mg OD, Tab Telmisartan 40mg OD',
-      prescriptionDeadline: '26 Oct 2026 (3 दिन शेष)',
-      reason: 'अनियंत्रित उच्च रक्तचाप (BP 185/110 mmHg) - स्ट्रोक जोखिम',
-      tier: 'urgent_7d',
-      daysLeft: 1,
-      condition: 'Severe Hypertension Stage 2',
-      vitals: 'BP 185/110 mmHg · Pulse 88 · RBS 164 mg/dL',
-      referralSource: 'Hospital Doctor Referral',
-    },
-    {
-      id: 'ref-3',
-      name: 'Radha Bai',
-      age: 29,
-      gender: 'महिला',
-      houseNo: 9,
-      village: 'Kheda',
-      phone: '+91 98765 00009',
-      abhaId: '91-7711-2094-8831',
-      workerName: 'Lalita Bai',
-      doctorName: 'Dr. S. K. Gupta (Endocrinology)',
-      prescriptions: 'Inj Insulin Regular 6U TID before meals',
-      prescriptionDeadline: '30 Oct 2026 (7 दिन शेष)',
-      reason: 'गर्भावधि मधुमेह (Gestational Diabetes) - RBS 218 mg/dL',
-      tier: 'semi_urgent_14d',
-      daysLeft: 5,
-      condition: 'Gestational Diabetes Mellitus',
-      vitals: 'RBS 218 mg/dL · Urine Albumin Nil · BP 122/80',
-      referralSource: 'CHC Specialist Referral',
-    },
-    {
-      id: 'ref-4',
-      name: 'Anita Sharma',
-      age: 3,
-      gender: 'बालक',
-      houseNo: 17,
-      village: 'Barkheda',
-      phone: '+91 98765 00017',
-      abhaId: '91-3329-8710-4491',
-      workerName: 'Pooja Sharma',
-      doctorName: 'CHO Dr. Arvind Pathak (Arogya Mandir)',
-      prescriptions: 'Therapeutic Nutrition F-75, Zinc Syrup 20mg OD',
-      prescriptionDeadline: '27 Oct 2026 (4 दिन शेष)',
-      reason: 'गंभीर तीव्र कुपोषण (SAM) - MUAC < 11.5 सेमी',
-      tier: 'urgent_7d',
-      daysLeft: 3,
-      condition: 'Severe Acute Malnutrition',
-      vitals: 'Weight 9.2 kg · MUAC 11.2 cm · Bilateral Edema+',
-      referralSource: 'ASHA Field Screening',
-    },
-  ]);
+  useEffect(() => {
+    loadSector();
+  }, [loadSector]);
 
-  const handleApproveReferral = async (id) => {
+  // Critical Referrals List
+  const [criticalReferrals, setCriticalReferrals] = useState([]);
+
+  const handleApproveReferral = async (id, note) => {
+    const target = criticalReferrals.find((r) => r.id === id);
+    if (!target || target.serverId == null) return false;
     try {
-      const rawId = String(id).replace('ref-', '');
-      await choApi.approveReferral(rawId);
+      await choApi.approveReferral(target.serverId, note);
     } catch (e) {
-      console.warn('Backend approval sync note:', e);
+      const status = e?.response?.status;
+      toast.error(
+        status === 404
+          ? 'यह रेफरल आपके सेक्टर में नहीं है।'
+          : status === 401 || status === 403
+          ? 'सीएचओ लॉगिन आवश्यक।'
+          : 'सत्यापन सहेजा नहीं गया। पुनः प्रयास करें।'
+      );
+      return false;
     }
     setApprovedReferralIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
-    toast.success('रेफरल सफलतापूर्वक स्वीकृत किया गया।');
+    toast.success('रेफरल सत्यापित।');
+    return true;
   };
 
-  const handleSaveTeleconsultAdvice = async () => {
-    if (teleconsultPatient) {
-      try {
-        const rawId = String(teleconsultPatient.id).replace('ref-', '');
-        await choApi.saveTeleconsultAdvice(rawId, { advice: doctorNotes });
-      } catch (e) {
-        console.warn('Backend teleconsult advice note:', e);
-      }
-      handleApproveReferral(teleconsultPatient.id);
-      setShowNotesSuccess(true);
-      setTimeout(() => {
-        setShowNotesSuccess(false);
-        setTeleconsultPatient(null);
-        setDoctorNotes('');
-      }, 1200);
-    }
+  const handleSaveValidation = async () => {
+    if (!validationTarget) return;
+    const ok = await handleApproveReferral(validationTarget.id, validationNote.trim());
+    if (!ok) return;
+    setShowNotesSuccess(true);
+    setTimeout(() => {
+      setShowNotesSuccess(false);
+      setValidationTarget(null);
+      setValidationNote('');
+    }, 1200);
   };
 
   const playVoiceBanner = () => {
@@ -471,6 +361,52 @@ export default function AshaAdminDashboard() {
             </button>
           </div>
         </header>
+
+        {/* CHO SECTOR SESSION STATUS (live data only) */}
+        {sectorStatus !== 'ready' && (
+          <div
+            role="status"
+            style={{
+              margin: '12px 16px 0',
+              padding: '12px 14px',
+              borderRadius: '12px',
+              border: sectorStatus === 'loading' ? '1px solid #bae6fd' : '1px solid #fecaca',
+              backgroundColor: sectorStatus === 'loading' ? '#f0f9ff' : '#fef2f2',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+            }}
+          >
+            <span style={{ fontSize: '13px', fontWeight: '700', color: sectorStatus === 'loading' ? '#075985' : '#991b1b', lineHeight: 1.4 }}>
+              {sectorStatus === 'loading' && 'सेक्टर डेटा लोड हो रहा है…'}
+              {sectorStatus === 'no-session' && 'सीएचओ लॉगिन आवश्यक'}
+              {sectorStatus === 'denied' && 'सीएचओ सत्यापन विफल — पुनः लॉगिन करें'}
+            </span>
+            {sectorStatus !== 'loading' && (
+              <button
+                type="button"
+                onClick={() => {
+                  choApi.logout();
+                  navigate('/login/cho?redirect=' + encodeURIComponent('/asha-dashboard'));
+                }}
+                style={{
+                  minHeight: '44px',
+                  padding: '0 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: '800',
+                  cursor: 'pointer',
+                }}
+              >
+                सीएचओ लॉगिन
+              </button>
+            )}
+          </div>
+        )}
 
         {/* SCROLLABLE MAIN BODY */}
         <main style={{ flex: 1, padding: '16px 16px 80px', overflowY: 'auto' }}>
@@ -961,6 +897,11 @@ export default function AshaAdminDashboard() {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {sectorStatus === 'ready' && criticalReferrals.length === 0 && (
+                      <div style={{ padding: '18px', textAlign: 'center', color: '#047857', fontWeight: '700', fontSize: '13px', border: '1px solid #a7f3d0', borderRadius: '12px', backgroundColor: '#ecfdf5' }}>
+                        ✓ कोई लंबित रेफरल नहीं
+                      </div>
+                    )}
                     {criticalReferrals.map((ref) => {
                       const isApproved = approvedReferralIds.has(ref.id);
                       return (
@@ -1054,7 +995,7 @@ export default function AshaAdminDashboard() {
                                 border: isApproved ? '1px solid #a7f3d0' : '1px solid #fecaca',
                               }}
                             >
-                              {isApproved ? '✓ स्वीकृत (Approved)' : `⚠️ ${ref.daysLeft} दिन शेष`}
+                              {isApproved ? '✓ सत्यापित' : `⚠️ ${ref.daysLeft} दिन शेष`}
                             </span>
                           </div>
 
@@ -1128,8 +1069,8 @@ export default function AshaAdminDashboard() {
                             <button
                               type="button"
                               onClick={() => {
-                                setTeleconsultPatient(ref);
-                                setDoctorNotes(`रोगी ${ref.name} (${ref.age}/${ref.gender}): ${ref.reason}। अस्पताल ओपीडी में त्वरित जांच व उपचार की अनुशंसा की गई।`);
+                                setValidationTarget(ref);
+                                setValidationNote('');
                               }}
                               style={{
                                 flex: 1,
@@ -1148,13 +1089,13 @@ export default function AshaAdminDashboard() {
                               }}
                             >
                               <Stethoscope size={15} color="#ffffff" />
-                              <span>टेली-परामर्श</span>
+                              <span>सत्यापन करें</span>
                             </button>
 
                             {!isApproved && (
                               <button
                                 type="button"
-                                onClick={() => handleApproveReferral(ref.id)}
+                                onClick={() => handleApproveReferral(ref.id, '')}
                                 style={{
                                   backgroundColor: '#dcfce7',
                                   color: '#15803d',
@@ -1372,8 +1313,8 @@ export default function AshaAdminDashboard() {
           </div>
         )}
 
-        {/* MODAL: TELECONSULTATION & APPROVAL */}
-        {teleconsultPatient && (
+        {/* MODAL: REFERRAL VALIDATION (TRIAGE / TRANSPORT SIGN-OFF) */}
+        {validationTarget && (
           <div
             style={{
               position: 'fixed',
@@ -1387,7 +1328,7 @@ export default function AshaAdminDashboard() {
               justifyContent: 'center',
               zIndex: 100,
             }}
-            onClick={() => setTeleconsultPatient(null)}
+            onClick={() => setValidationTarget(null)}
           >
             <div
               style={{
@@ -1405,15 +1346,15 @@ export default function AshaAdminDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <div>
                   <h3 style={{ fontSize: '17px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                    टेली-परामर्श एवं रेफरल अनुमोदन
+                    रेफरल सत्यापन एवं परिवहन
                   </h3>
                   <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0' }}>
-                    {teleconsultPatient.name} ({teleconsultPatient.age} वर्ष · {teleconsultPatient.gender})
+                    {validationTarget.name} ({validationTarget.age} वर्ष · {validationTarget.gender})
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setTeleconsultPatient(null)}
+                  onClick={() => setValidationTarget(null)}
                   style={{
                     width: '32px',
                     height: '32px',
@@ -1432,22 +1373,22 @@ export default function AshaAdminDashboard() {
 
               <div style={{ backgroundColor: '#fff1f2', padding: '12px', borderRadius: '12px', marginBottom: '14px' }}>
                 <div style={{ fontSize: '13px', fontWeight: '700', color: '#9f1239' }}>
-                  {teleconsultPatient.reason}
+                  {validationTarget.reason}
                 </div>
                 <div style={{ fontSize: '11.5px', color: '#be123c', marginTop: '3px' }}>
-                  वाइटल्स: {teleconsultPatient.vitals}
+                  वाइटल्स: {validationTarget.vitals}
                 </div>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                  सीएचओ डॉक्टर चिकित्सीय सलाह एवं निर्देश:
+                  ट्राइएज / परिवहन टिप्पणी:
                 </label>
                 <textarea
                   rows={4}
-                  value={doctorNotes}
-                  onChange={(e) => setDoctorNotes(e.target.value)}
-                  placeholder="दवाओं के नाम, खुराक व तत्काल अस्पताल भेजने के निर्देश दर्ज करें..."
+                  value={validationNote}
+                  onChange={(e) => setValidationNote(e.target.value)}
+                  placeholder="जैसे: 108 एम्बुलेंस से FRU भेजें"
                   style={{
                     width: '100%',
                     padding: '10px 12px',
@@ -1473,12 +1414,12 @@ export default function AshaAdminDashboard() {
                     fontSize: '14px',
                   }}
                 >
-                  ✓ टेली-परामर्श सलाह सुरक्षित व रेफरल स्वीकृत!
+                  ✓ रेफरल सत्यापित
                 </div>
               ) : (
                 <button
                   type="button"
-                  onClick={handleSaveTeleconsultAdvice}
+                  onClick={handleSaveValidation}
                   style={{
                     width: '100%',
                     backgroundColor: '#004d40',
@@ -1491,7 +1432,7 @@ export default function AshaAdminDashboard() {
                     cursor: 'pointer',
                   }}
                 >
-                  सलाह सहेजें एवं रेफरल स्वीकृत करें
+                  सत्यापित करें
                 </button>
               )}
             </div>

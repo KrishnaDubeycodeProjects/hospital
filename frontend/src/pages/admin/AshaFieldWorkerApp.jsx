@@ -1459,7 +1459,7 @@ export default function AshaFieldWorkerApp({ onSwitchRole }) {
         ? 'बाल कुपोषण एवं छूटा टीकाकरण'
         : member.condition
         ? member.condition
-        : 'विस्तृत जांच एवं टेली-परामर्श'
+        : 'विस्तृत जांच एवं रेफरल सत्यापन'
     );
     setReferralVitals(
       member.hb ? `Hb: ${member.hb}` : member.condition?.includes('BP') ? 'BP: 185/110 mmHg' : 'वाइटल्स सामान्य'

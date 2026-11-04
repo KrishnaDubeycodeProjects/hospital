@@ -1,497 +1,427 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  Modal,
-  ScrollView,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import { Search, Mic, Home, ChevronRight, Plus, X, User } from 'lucide-react-native';
+/**
+ * परिवार (Families) — searchable household list (big house number · members · R/A/G status).
+ * From the ＋ sheet: `autoOpenCreate` opens the new-family form; `intent` shows members inline
+ * so one tap reaches the member (to start a survey or a referral).
+ */
+import { normalizePhone, validateHouseNumber, validateName, validatePhone } from '../services/formValidation';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Search, Mic, X, Plus, Users, ClipboardPlus, Route, HousePlus, ChevronRight, UserRound } from 'lucide-react-native';
 import { StatusBadge } from '../components/StatusBadge';
 import { VoiceRecognition } from '../voice/speechEngine';
-import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
+import { extractSearchQuery } from '../voice/smartExtract';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
-import { FamilyMember } from '../types/storage';
+import { useAuth } from '../context/AuthContext';
+import { FamilyMember, FamilyUnit } from '../types/storage';
 import { fuzzySearchFamilies, SearchMatchResult } from '../services/fuzzySearch';
+import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
+import {
+  Button,
+  Card,
+  Chips,
+  EmptyState,
+  Field,
+  IconButton,
+  SkeletonRows,
+  StatusPill,
+  color,
+  radius,
+  space,
+  text,
+  tonePalette,
+  touch,
+  useTr,
+  elevation,
+} from '../ui';
 
 interface FamiliesScreenProps {
   onSelectFamily: (houseNo: number, familyName: string) => void;
   onSelectMember?: (member: FamilyMember, houseNo: number, familyName: string) => void;
+  /** From the ＋ sheet: highlight "choose a member" for a survey or a referral. */
+  intent?: 'survey' | 'referral' | null;
+  /** From the ＋ sheet: open the "new family" form immediately. */
+  autoOpenCreate?: boolean;
 }
 
-export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({
-  onSelectFamily,
-  onSelectMember,
-}) => {
-  const { families, members, addFamily } = useOfflineData();
-  const { t, localeCode } = useLanguage();
+type Filter = 'all' | 'due' | 'visited' | 'new';
+
+const houseNoOf = (f: FamilyUnit) => Number(f.houseNumber) || f.sequentialNumber;
+
+export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, onSelectMember, intent = null, autoOpenCreate = false }) => {
+  const tr = useTr();
+  const { families, members, addFamily, isLoading } = useOfflineData();
+  const { localeCode } = useLanguage();
+  const { user } = useAuth();
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<
-    'All' | 'Due' | 'Visited' | 'Not Visited'
-  >('All');
+  const [filter, setFilter] = useState<Filter>('all');
   const [isListening, setIsListening] = useState(false);
 
-  // New Family Modal State
+  // New family form
   const [showAddModal, setShowAddModal] = useState(false);
   const [newHeadName, setNewHeadName] = useState('');
   const [newHouseNo, setNewHouseNo] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (autoOpenCreate) setShowAddModal(true);
+  }, [autoOpenCreate]);
 
   const startVoiceSearch = () => {
     setIsListening(true);
     VoiceRecognition.start(
       localeCode,
-      (text) => {
-        setSearchQuery(text);
+      (spoken) => {
+        setSearchQuery(extractSearchQuery(spoken));
         setIsListening(false);
       },
-      (err) => {
-        console.warn('Voice error', err);
-        setIsListening(false);
-      }
+      () => setIsListening(false)
     );
   };
 
-  const handleCreateFamily = async () => {
-    if (!newHeadName.trim() || !newHouseNo.trim()) return;
-
-    await addFamily({
-      sequentialNumber: families.length + 1,
-      houseNumber: Number(newHouseNo) || newHouseNo,
-      headName: newHeadName.trim(),
-      primaryPhone: newPhone.trim() || '+91 98765 00000',
-      villageName: 'Chandpur',
-      visitIntervalDays: 15,
-      nextVisitDate: 'मध्यम (Medium)',
-      lastVisitedAt: null,
-      ashaWorkerPhone: '9876543210',
-      status: '15days',
-      totalMembers: 1,
-      hasPregnancy: false,
-      hasDisease: false,
-      hasChild: false,
-      toiletType: 'Septic Tank',
-      waterSource: 'Handpump',
-      bplCard: true,
-      casteCategory: 'OBC',
-      religion: 'Hindu',
-      markedForHomeVisit: true,
-    });
-
-    setNewHeadName('');
-    setNewHouseNo('');
-    setNewPhone('');
+  const closeForm = () => {
     setShowAddModal(false);
+    setFormError(null);
   };
 
-  // Perform intelligent fuzzy search across family folders & members with ranking
-  const searchResults: SearchMatchResult[] = fuzzySearchFamilies(
-    searchQuery,
-    families,
-    members
-  );
+  const handleCreateFamily = async () => {
+    const head = newHeadName.trim().replace(/\s+/g, ' ');
+    const house = newHouseNo.trim();
+    const phoneDigits = normalizePhone(newPhone);
+    const error =
+      validateName(head, tr) ||
+      validateHouseNumber(house, tr) ||
+      validatePhone(newPhone, tr);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+    setSaving(true);
+    try {
+      await addFamily({
+        // Next free number (families.length + 1 collided with existing numbers after a delete)
+        sequentialNumber: families.reduce((max, f) => Math.max(max, Number(f.sequentialNumber) || 0), 0) + 1,
+        houseNumber: Number(house) || house,
+        headName: head,
+        primaryPhone: phoneDigits, // optional — members share the head's phone
+        villageName: user?.village || '',
+        visitIntervalDays: 15,
+        nextVisitDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+        lastVisitedAt: null,
+        ashaWorkerPhone: getStorageWorkerPhone(),
+        status: '15days',
+        totalMembers: 1,
+        hasPregnancy: false,
+        hasDisease: false,
+        hasChild: false,
+        markedForHomeVisit: true,
+      });
+      setNewHeadName('');
+      setNewHouseNo('');
+      setNewPhone('');
+      closeForm();
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  // Apply quick filter on top of search ranking
-  const filteredResults = searchResults.filter(({ family }) => {
-    const isDue = family.status === '7days' || family.status === '15days' || family.status === '30days';
-    const isVisited = family.status === 'visited';
-    const isNotVisited = family.status === 'noData';
-
-    if (activeFilter === 'Due') return isDue;
-    if (activeFilter === 'Visited') return isVisited;
-    if (activeFilter === 'Not Visited') return isNotVisited;
+  const searchResults: SearchMatchResult[] = fuzzySearchFamilies(searchQuery, families, members);
+  const filtered = searchResults.filter(({ family }) => {
+    if (filter === 'due') return family.status === '7days' || family.status === '15days' || family.status === '30days';
+    if (filter === 'visited') return family.status === 'visited';
+    if (filter === 'new') return family.status === 'noData';
     return true;
   });
 
-  const filterLabels: Record<string, string> = {
-    All: t('allFilter'),
-    Due: t('dueFilter'),
-    Visited: t('visitedFilter'),
-    'Not Visited': t('notVisitedFilter'),
+  const counts = useMemo(
+    () => ({
+      due: families.filter((f) => f.status === '7days' || f.status === '15days' || f.status === '30days').length,
+      visited: families.filter((f) => f.status === 'visited').length,
+      fresh: families.filter((f) => f.status === 'noData').length,
+    }),
+    [families]
+  );
+
+  const membersOf = (familyId: string) => members.filter((m) => m.familyUnitId === familyId);
+
+  const pickMember = (m: FamilyMember, f: FamilyUnit) => {
+    if (onSelectMember) onSelectMember(m, houseNoOf(f), f.headName);
+    else onSelectFamily(houseNoOf(f), f.headName);
+  };
+
+  const intentTone = intent === 'referral' ? 'red' : 'green';
+  const intentPalette = tonePalette(intentTone);
+
+  const renderFamily = ({ item }: { item: SearchMatchResult }) => {
+    const { family, matchedMember } = item;
+    const house = houseNoOf(family);
+    const fm = membersOf(family.id);
+    const statusTone = tonePalette(family.status === '7days' ? 'red' : family.status === '15days' ? 'amber' : family.status === 'visited' ? 'green' : 'neutral');
+    return (
+      <View style={styles.cardWrap}>
+        <Pressable
+          onPress={() => onSelectFamily(house, family.headName)}
+          accessibilityRole="button"
+          accessibilityLabel={`${tr('घर', 'घर')} ${house}, ${family.headName}`}
+          style={({ pressed }) => [styles.familyCard, pressed && styles.pressed]}
+        >
+          <View style={[styles.houseNo, { backgroundColor: statusTone.bg }]}>
+            <Text style={[text.display, { color: statusTone.text }]}>{house < 10 ? `0${house}` : house}</Text>
+          </View>
+          <View style={styles.familyText}>
+            <Text style={text.heading} numberOfLines={1}>
+              {family.headName}
+            </Text>
+            <View style={styles.metaRow}>
+              <Users size={14} color={color.muted} strokeWidth={2} />
+              <Text style={text.caption}>
+                {fm.length || family.totalMembers} {tr('सदस्य', 'सदस्य')}
+              </Text>
+            </View>
+            <StatusBadge type={family.status} />
+          </View>
+          <ChevronRight size={20} color={color.faint} strokeWidth={2} />
+        </Pressable>
+
+        {/* Intent mode (＋ sheet): members inline, one tap to the member */}
+        {intent && fm.length > 0 ? (
+          <View style={styles.memberChips}>
+            {fm.map((m) => (
+              <Pressable
+                key={m.id}
+                onPress={() => pickMember(m, family)}
+                accessibilityRole="button"
+                accessibilityLabel={m.name}
+                style={({ pressed }) => [styles.memberChip, { borderColor: intentPalette.line }, pressed && styles.pressed]}
+              >
+                <UserRound size={16} color={intentPalette.fg} strokeWidth={2} />
+                <Text style={styles.memberChipText} numberOfLines={1}>
+                  {m.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {!intent && matchedMember ? (
+          <Pressable
+            onPress={() => pickMember(matchedMember, family)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.matchRow, pressed && styles.pressed]}
+          >
+            <UserRound size={16} color={color.accent} strokeWidth={2} />
+            <Text style={[text.label, styles.flex]} numberOfLines={1}>
+              {matchedMember.name}
+            </Text>
+            {matchedMember.relationship ? <StatusPill tone="neutral" label={matchedMember.relationship} /> : null}
+          </Pressable>
+        ) : null}
+      </View>
+    );
   };
 
   return (
     <View style={styles.container}>
-      {/* Top Search Bar with Mic button & Typo Tolerance */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Search size={18} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+      <View style={styles.top}>
+        {intent ? (
+          <View style={[styles.intentBanner, { backgroundColor: intentPalette.bg, borderColor: intentPalette.line }]}>
+            {intent === 'referral' ? (
+              <Route size={20} color={intentPalette.fg} strokeWidth={2} />
+            ) : (
+              <ClipboardPlus size={20} color={intentPalette.fg} strokeWidth={2} />
+            )}
+            <Text style={[text.label, { color: intentPalette.text }]}>
+              {intent === 'referral' ? tr('सदस्य चुनें — रेफरल', 'सदस्य निवडा — संदर्भ') : tr('सदस्य चुनें — जांच', 'सदस्य निवडा — तपासणी')}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.searchRow}>
+          <Search size={20} color={color.muted} strokeWidth={2} />
           <TextInput
             style={styles.searchInput}
-            placeholder={isListening ? t('searchListening') : t('searchPlaceholder')}
-            placeholderTextColor={Colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            placeholder={isListening ? tr('सुन रहे हैं…', 'ऐकत आहे…') : tr('नाम या घर नंबर', 'नाव किंवा घर क्रमांक')}
+            placeholderTextColor={color.faint}
+            accessibilityLabel={tr('खोजें', 'शोधा')}
           />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: 4 }}>
-              <X size={16} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            style={[styles.micBtn, isListening && styles.micBtnActive]}
-            onPress={startVoiceSearch}
-            activeOpacity={0.7}
+          {searchQuery ? <IconButton icon={X} label={tr('साफ़ करें', 'साफ करा')} onPress={() => setSearchQuery('')} /> : null}
+          <IconButton icon={Mic} tone="accent" filled={isListening} label={tr('बोलकर खोजें', 'बोलून शोधा')} onPress={startVoiceSearch} />
+        </View>
+
+        <View style={styles.filterRow}>
+          <View style={styles.flex}>
+            <Chips
+              value={filter}
+              onChange={setFilter}
+              options={[
+                { key: 'all', label: tr('सभी', 'सर्व'), count: families.length },
+                { key: 'due', label: tr('देय', 'देय'), count: counts.due, tone: 'amber' },
+                { key: 'visited', label: tr('पूर्ण', 'पूर्ण'), count: counts.visited, tone: 'green' },
+                { key: 'new', label: tr('नए', 'नवीन'), count: counts.fresh, tone: 'neutral' },
+              ]}
+            />
+          </View>
+          <Pressable
+            onPress={() => setShowAddModal(true)}
+            accessibilityRole="button"
+            accessibilityLabel={tr('नया परिवार', 'नवीन कुटुंब')}
+            style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
           >
-            <Mic size={18} color={isListening ? '#FFFFFF' : Colors.primary} />
-          </TouchableOpacity>
+            <Plus size={24} color={color.white} strokeWidth={2.4} />
+          </Pressable>
         </View>
       </View>
 
-      {/* Quick Filter Chips + Add Household Button */}
-      <View style={styles.filterRowContainer}>
-        <View style={styles.filterChipsRow}>
-          {(['All', 'Due', 'Visited', 'Not Visited'] as const).map((filter) => {
-            const isActive = activeFilter === filter;
-            return (
-              <TouchableOpacity
-                key={filter}
-                style={[styles.filterChip, isActive && styles.activeFilterChip]}
-                onPress={() => setActiveFilter(filter)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    isActive && styles.activeFilterChipText,
-                  ]}
-                >
-                  {filterLabels[filter]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+      {isLoading && families.length === 0 ? (
+        <View style={styles.listPad}>
+          <SkeletonRows count={5} />
         </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.family.id}
+          renderItem={renderFamily}
+          contentContainerStyle={styles.listPad}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <EmptyState
+              icon={searchQuery ? Search : HousePlus}
+              tone={searchQuery ? 'neutral' : 'accent'}
+              title={searchQuery ? tr('कोई परिवार नहीं मिला', 'कुटुंब सापडले नाही') : tr('अभी कोई परिवार नहीं', 'अद्याप कुटुंब नाही')}
+              action={
+                searchQuery ? undefined : (
+                  <Button label={tr('नया परिवार', 'नवीन कुटुंब')} icon={Plus} full={false} onPress={() => setShowAddModal(true)} />
+                )
+              }
+            />
+          }
+        />
+      )}
 
-        <TouchableOpacity
-          style={styles.addFamilyBtn}
-          onPress={() => setShowAddModal(true)}
-          activeOpacity={0.85}
-        >
-          <Plus size={15} color="#FFFFFF" />
-          <Text style={styles.addFamilyBtnText}>{t('add')}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Household FlatList */}
-      <FlatList
-        data={filteredResults}
-        keyExtractor={(item) => item.family.id}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <VoiceGuideBanner
-            sectionTitle="गाँव परिवार रजिस्टर"
-            guideTextHi="यहाँ परिवार मुखिया और सदस्यों की सूची है। नाम में कुछ अक्षर गलत होने पर भी खोज सटीक परिणाम दिखाती है।"
-            guideTextMr="येथे कुटुंब प्रमुख आणि सदस्यांची यादी आहे. स्पेलिंगमध्ये त्रुटी असली तरीही शोध अचूक काम करतो."
-            guideTextEn="Master registry of village families. Typo-tolerant search automatically matches both heads and members."
-          />
-        }
-        renderItem={({ item }) => {
-          const { family, matchedMember } = item;
-          return (
-            <View style={styles.cardContainer}>
-              {/* Main Family Card (Clean Minimalist Info) */}
-              <TouchableOpacity
-                style={styles.familyCard}
-                onPress={() =>
-                  onSelectFamily(Number(family.houseNumber), family.headName)
-                }
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconCircle}>
-                  <Home size={18} color={Colors.primary} />
-                </View>
-
-                <View style={styles.cardInfo}>
-                  {/* Just Family Head Name */}
-                  <Text style={styles.familyName}>{family.headName}</Text>
-                  {/* General Info: House # and total members */}
-                  <Text style={styles.generalInfo}>
-                    मकान #{family.houseNumber} • {family.totalMembers} सदस्य
-                  </Text>
-                </View>
-
-                <View style={styles.badgeWrapper}>
-                  <StatusBadge type={family.status} label={family.nextVisitDate} />
-                  <ChevronRight size={18} color={Colors.primary} style={{ marginTop: 4 }} />
-                </View>
-              </TouchableOpacity>
-
-              {/* Matched Member Pill (If a member was matched by search) */}
-              {matchedMember && (
-                <TouchableOpacity
-                  style={styles.matchedMemberPill}
-                  onPress={() => {
-                    if (onSelectMember) {
-                      onSelectMember(matchedMember, Number(family.houseNumber), family.headName);
-                    } else {
-                      onSelectFamily(Number(family.houseNumber), family.headName);
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <User size={13} color="#0369A1" style={{ marginRight: 5 }} />
-                  <Text style={styles.matchedMemberText}>
-                    मिला सदस्य:{' '}
-                    <Text style={{ fontWeight: '700' }}>{matchedMember.name}</Text> ({matchedMember.relationship}, {matchedMember.age} वर्ष)
-                  </Text>
-                  <ChevronRight size={14} color="#0369A1" style={{ marginLeft: 4 }} />
-                </TouchableOpacity>
-              )}
+      {/* New family form */}
+      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={closeForm}>
+        <Pressable style={styles.scrim} onPress={closeForm} accessibilityLabel={tr('बंद करें', 'बंद करा')} />
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={text.title}>{tr('नया परिवार', 'नवीन कुटुंब')}</Text>
+              <IconButton icon={X} label={tr('बंद करें', 'बंद करा')} onPress={closeForm} />
             </View>
-          );
-        }}
-      />
-
-      {/* Add Household Modal */}
-      <Modal visible={showAddModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('addHouseholdTitle')}</Text>
-              <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                <X size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView>
-              <Text style={styles.inputLabel}>{t('familyNameLabel')}</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="उदा. राजेश वर्मा"
-                placeholderTextColor={Colors.textMuted}
-                value={newHeadName}
-                onChangeText={setNewHeadName}
+            <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+              <Field label={tr('मुखिया का नाम', 'कुटुंबप्रमुखाचे नाव')} voice="name" value={newHeadName} onChangeText={(v) => { setNewHeadName(v); setFormError(null); }} autoFocus />
+              <Field label={tr('घर नंबर', 'घर क्रमांक')} voice="house" value={newHouseNo} onChangeText={(v) => { setNewHouseNo(v.replace(/[^0-9A-Za-z/-]/g, '')); setFormError(null); }} keyboardType="number-pad" maxLength={6} />
+              <Field
+                label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
+                value={newPhone}
+                onChangeText={(v) => { setNewPhone(v.replace(/[^0-9]/g, '')); setFormError(null); }}
+                keyboardType="phone-pad"
+                maxLength={10}
+                helper={tr('सभी सदस्य यही नंबर उपयोग करेंगे', 'सर्व सदस्य हाच क्रमांक वापरतील')}
               />
-
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>{t('houseNumberLabel')}</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="उदा. 25"
-                    keyboardType="numeric"
-                    placeholderTextColor={Colors.textMuted}
-                    value={newHouseNo}
-                    onChangeText={setNewHouseNo}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>{t('phoneLabel')}</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="9876543210"
-                    keyboardType="phone-pad"
-                    placeholderTextColor={Colors.textMuted}
-                    value={newPhone}
-                    onChangeText={setNewPhone}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.createBtn}
-                onPress={handleCreateFamily}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.createBtnText}>{t('saveLocally')}</Text>
-              </TouchableOpacity>
+              {formError ? (
+                <Card tone="red">
+                  <Text style={[text.label, { color: color.redText }]}>{formError}</Text>
+                </Card>
+              ) : null}
+              <Button label={tr('सहेजें', 'जतन करा')} icon={HousePlus} loading={saving} onPress={handleCreateFamily} />
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  searchSection: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 6,
-    backgroundColor: '#FFFFFF',
-  },
-  searchBar: {
+  container: { flex: 1, backgroundColor: color.canvas },
+  flex: { flex: 1 },
+  top: { paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md },
+  intentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.textPrimary,
-  },
-  micBtn: {
-    padding: 6,
-    borderRadius: 16,
-  },
-  micBtnActive: {
-    backgroundColor: Colors.primary,
-  },
-  filterRowContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  filterChipsRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  filterChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-  },
-  activeFilterChip: {
-    backgroundColor: Colors.primary,
-  },
-  filterChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  activeFilterChipText: {
-    color: '#FFFFFF',
-  },
-  addFamilyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    gap: 3,
-  },
-  addFamilyBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  listContent: {
-    padding: 14,
-    paddingBottom: 40,
-  },
-  cardContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    gap: space.sm,
+    minHeight: touch,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-    overflow: 'hidden',
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    minHeight: 56,
+    paddingLeft: space.md,
+    borderRadius: radius.control,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: color.surface,
+  },
+  searchInput: { flex: 1, fontSize: 17, fontWeight: '600', color: color.ink, paddingVertical: space.sm, marginLeft: space.sm },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  addBtn: {
+    width: touch,
+    height: touch,
+    borderRadius: radius.control,
+    backgroundColor: color.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listPad: { padding: space.lg, gap: space.md, paddingBottom: space.xxl * 2 },
+  cardWrap: { gap: space.sm },
   familyCard: {
-    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  familyName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  generalInfo: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  badgeWrapper: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-  },
-  matchedMemberPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9FF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0F2FE',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  matchedMemberText: {
-    fontSize: 11,
-    color: '#0369A1',
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    marginTop: 10,
-  },
-  modalInput: {
-    backgroundColor: '#F9FAFB',
+    gap: space.md,
+    padding: space.md,
+    backgroundColor: color.surface,
+    borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.textPrimary,
+    borderColor: color.line,
+    ...elevation.card,
   },
-  createBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.92 },
+  houseNo: { width: 64, height: 64, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
+  familyText: { flex: 1, gap: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  memberChips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingLeft: space.sm },
+  memberChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
+    gap: 6,
+    minHeight: touch,
+    maxWidth: '100%',
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    backgroundColor: color.surface,
   },
-  createBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+  memberChipText: { ...text.label },
+  matchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: touch,
+    paddingHorizontal: space.lg,
+    marginLeft: space.lg,
+    borderRadius: radius.control,
+    backgroundColor: color.accentSoft,
   },
+  scrim: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.45)' },
+  sheet: {
+    backgroundColor: color.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.xl,
+    maxHeight: 620,
+  },
+  sheetHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: color.line, marginTop: space.sm },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: space.sm },
+  form: { gap: space.lg, paddingBottom: space.lg },
 });

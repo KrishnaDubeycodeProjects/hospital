@@ -15,6 +15,11 @@ import java.time.LocalDateTime;
 public class MemberDto {
     private Integer id;
     private Integer familyUnitId;
+
+    /** Offline client UUID this member was created with (sync contract v2). */
+    private String clientUuid;
+    /** Client UUID of the owning family, so the app can re-link without numeric IDs. */
+    private String familyClientUuid;
     private String name;
     private LocalDate dob;
     private Integer age;

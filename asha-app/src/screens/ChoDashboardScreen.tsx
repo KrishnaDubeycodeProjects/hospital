@@ -1,1126 +1,616 @@
-import React, { useState } from 'react';
+/**
+ * CHO sector screen. Bottom-tab view selects the content:
+ *   - 'referrals' (रेफरल): sector KPIs + open referrals with approve / clinical advice.
+ *   - 'workers'   (आशा):   ASHA & ANM roster + CHO onboarding (the only way workers are registered).
+ */
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Linking, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  Linking,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import {
-  Users,
-  FileText,
-  CheckCircle,
-  AlertTriangle,
-  Stethoscope,
-  PhoneCall,
-  Check,
-  X,
-  Building2,
-  Calendar,
   Activity,
-  ShieldAlert,
+  Check,
+  CircleCheck,
   Phone,
   Pill,
   Clock,
   ShieldCheck,
-  Send,
+  UserPlus,
+  FileText,
+  Calendar,
+  AlertTriangle,
+  ChevronRight,
+  MapPin,
+  ClipboardList,
+  Users,
+  RefreshCw,
 } from 'lucide-react-native';
+import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
-import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
+import { SyncApi, ChoSectorWorker } from '../api/syncApi';
+import { ChoBroadcastPanel } from '../components/ChoBroadcastPanel';
+import {
+  Screen,
+  Card,
+  Stat,
+  SectionTitle,
+  StatusPill,
+  Button,
+  ListRow,
+  Field,
+  Segmented,
+  EmptyState,
+  Sheet,
+  color,
+  radius,
+  space,
+  text,
+  useTr,
+} from '../ui';
 
-export const ChoDashboardScreen: React.FC = () => {
+const AUTH_WORKERS_KEY = '@cho_authorized_workers_v6';
+
+type WorkerRow = {
+  id: string;
+  name: string;
+  role: 'ASHA' | 'ANM';
+  village: string;
+  phone: string;
+  families: number;
+  surveys: number;
+  referrals: number;
+  isChoAdded: boolean;
+};
+
+export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = ({ view = 'referrals' }) => {
+  const { addWorkerByCho } = useAuth();
   const { families, members, followUps, surveys, approveReferralByCho } = useOfflineData();
+  const tr = useTr();
 
-  // Active Tab: 'Overview' | 'Workers' | 'Referrals'
-  const [activeTab, setActiveTab] = useState<'Overview' | 'Workers' | 'Referrals'>('Overview');
+  // ---- Workers ----
+  const [authorizedWorkers, setAuthorizedWorkers] = useState<any[]>([]);
+  const [selectedWorker, setSelectedWorker] = useState<WorkerRow | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newRole, setNewRole] = useState<'ASHA' | 'ANM'>('ASHA');
+  const [newVillage, setNewVillage] = useState('');
+  const [newLang, setNewLang] = useState<'hi' | 'mr'>('hi');
+  const [addLoading, setAddLoading] = useState(false);
+  const [addStatus, setAddStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Selected ASHA Worker for drilldown modal
-  const [selectedWorker, setSelectedWorker] = useState<any>(null);
+  const loadAuthorizedWorkers = async () => {
+    try {
+      const raw = await AsyncStorage.getItem(AUTH_WORKERS_KEY);
+      if (raw) setAuthorizedWorkers(JSON.parse(raw));
+    } catch {}
+  };
 
-  // Teleconsultation & Approval Modal State
-  const [teleconsultPatient, setTeleconsultPatient] = useState<any>(null);
-  const [approvedReferralIds, setApprovedReferralIds] = useState<Set<string>>(new Set());
-  const [doctorNotes, setDoctorNotes] = useState('');
-  const [showNotesSuccess, setShowNotesSuccess] = useState(false);
+  // Live sector roster from GET /api/asha/cho/workers.
+  const [sectorWorkers, setSectorWorkers] = useState<ChoSectorWorker[]>([]);
+  const [workersLoading, setWorkersLoading] = useState(true);
+  const [workersError, setWorkersError] = useState(false);
 
-  // Live Metrics Calculation
-  const totalFamiliesCount = families.length;
-  const pregnantCount = members.filter((m) => m.isPregnant).length;
-  const hrpCount = members.filter((m) => m.isPregnant && m.isHrp).length;
-  const ncdCount = members.filter((m) => m.hasChronicCondition || m.isNcdPatient).length;
-  const urgentTasks = followUps.filter((f) => !f.isCompleted);
+  const loadSectorWorkers = async () => {
+    setWorkersLoading(true);
+    setWorkersError(false);
+    try {
+      setSectorWorkers(await SyncApi.getChoSectorWorkers());
+    } catch {
+      setWorkersError(true);
+    } finally {
+      setWorkersLoading(false);
+    }
+  };
 
-  const workersPerformance = [
-    {
-      id: 'w1',
-      name: 'Sunita Devi',
-      village: 'Chandpur',
-      phone: '+91 98765 43210',
-      families: families.length,
-      surveys: surveys.length,
-      referrals: urgentTasks.length,
-    },
-    {
-      id: 'w2',
-      name: 'Meera Kumari',
-      village: 'Rampur',
-      phone: '+91 98765 43211',
-      families: 18,
-      surveys: 24,
-      referrals: 2,
-    },
-    {
-      id: 'w3',
-      name: 'Lalita Bai',
-      village: 'Kheda',
-      phone: '+91 98765 43212',
-      families: 22,
-      surveys: 31,
-      referrals: 4,
-    },
-    {
-      id: 'w4',
-      name: 'Pooja Sharma',
-      village: 'Barkheda',
-      phone: '+91 98765 43213',
-      families: 20,
-      surveys: 19,
-      referrals: 1,
-    },
-  ];
+  useEffect(() => {
+    loadAuthorizedWorkers();
+    loadSectorWorkers();
+  }, []);
 
-  const handleApproveReferral = async (id: string) => {
-    setApprovedReferralIds((prev) => {
+  const resetAddForm = () => {
+    setNewName('');
+    setNewPhone('');
+    setNewVillage('');
+    setNewRole('ASHA');
+    setNewLang('hi');
+    setAddStatus(null);
+  };
+
+  const handleAddWorker = async () => {
+    if (!newName.trim()) {
+      setAddStatus({ type: 'error', text: tr('नाम डालें', 'नाव टाका') });
+      return;
+    }
+    const digits = newPhone.replace(/[^0-9]/g, '');
+    if (digits.length !== 10) {
+      setAddStatus({ type: 'error', text: tr('10 अंकों का नंबर डालें', '10 अंकी नंबर टाका') });
+      return;
+    }
+    setAddLoading(true);
+    setAddStatus(null);
+    const result = await addWorkerByCho({
+      name: newName.trim(),
+      phone: digits,
+      role: newRole,
+      village: newVillage.trim(),
+      preferredLanguage: newLang,
+    });
+    setAddLoading(false);
+    if (result.success) {
+      setAddStatus({ type: 'success', text: result.message });
+      await loadAuthorizedWorkers();
+      loadSectorWorkers();
+      setTimeout(() => {
+        setShowAdd(false);
+        resetAddForm();
+      }, 1600);
+    } else {
+      setAddStatus({ type: 'error', text: result.message });
+    }
+  };
+
+  // ---- Referrals ----
+  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+  const [adviceTask, setAdviceTask] = useState<any>(null);
+  const [adviceNotes, setAdviceNotes] = useState('');
+  const [adviceSaved, setAdviceSaved] = useState(false);
+
+  const markApproved = (id: string) =>
+    setApprovedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
+
+  const handleApprove = async (id: string) => {
+    markApproved(id);
     await approveReferralByCho(id);
   };
 
-  const handleSaveTeleconsultAdvice = async () => {
-    if (teleconsultPatient) {
-      await approveReferralByCho(teleconsultPatient.id, doctorNotes);
-      setApprovedReferralIds((prev) => {
-        const next = new Set(prev);
-        next.add(teleconsultPatient.id);
-        return next;
-      });
-      setShowNotesSuccess(true);
-      setTimeout(() => {
-        setShowNotesSuccess(false);
-        setTeleconsultPatient(null);
-        setDoctorNotes('');
-      }, 1500);
-    }
+  const handleSaveAdvice = async () => {
+    if (!adviceTask) return;
+    await approveReferralByCho(adviceTask.id, adviceNotes);
+    markApproved(adviceTask.id);
+    setAdviceSaved(true);
+    setTimeout(() => {
+      setAdviceSaved(false);
+      setAdviceTask(null);
+      setAdviceNotes('');
+    }, 1500);
   };
 
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* CHO Specific Header with Official HWC Branding */}
-        <View style={styles.choBanner}>
-          <View style={styles.choBannerIcon}>
-            <Building2 size={24} color={Colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.choTitle}>आयुष्मान आरोग्य मंदिर (HWC)</Text>
-            <Text style={styles.choSub}>कम्युनिटी हेल्थ ऑफिसर (CHO) कार्यक्षेत्र पोर्टल</Text>
-          </View>
-        </View>
+  // ---- Metrics (all derived from live data; nothing typed in by hand) ----
+  const sectorReferrals = followUps.filter((f) => f.referredToCho || f.choStatus);
+  const isApprovedTask = (f: { id: string; choStatus?: string }) => approvedIds.has(f.id) || f.choStatus === 'APPROVED_CHO';
+  const pendingReferralCount = sectorReferrals.filter((f) => !f.isCompleted && !isApprovedTask(f)).length;
+  const approvedReferralCount = sectorReferrals.filter((f) => isApprovedTask(f)).length;
+  const urgentTasks = followUps.filter((f) => !f.isCompleted);
 
-        {/* Offline Audio Guidance for CHO */}
-        <VoiceGuideBanner
-          sectionTitle="सीएचओ सेक्टर अवलोकन (CHO Dashboard)"
-          guideTextHi="सीएचओ डैशबोर्ड में आपका स्वागत है। यहाँ आप अपने सेक्टर की आशा कार्यकर्ताओं की प्रगति, उच्च जोखिम रेफरल और टेली-परामर्श का प्रबंधन कर सकते हैं।"
-          guideTextMr="सीएचओ डॅशबोर्डवर आपले स्वागत आहे. येथे आपण आशा कार्यकर्त्यांची प्रगती आणि उच्च-जोखीम रेफरल्सचे व्यवस्थापन करू शकता."
-          guideTextEn="Welcome to CHO Health Officer portal. Review ASHA worker coverage, approve urgent referrals, and conduct teleconsultations."
+  const tenDigits = (p: string) => (p || '').replace(/[^0-9]/g, '').slice(-10);
+  const serverPhones = new Set(sectorWorkers.map((w) => tenDigits(w.phone)));
+
+  const allWorkers: WorkerRow[] = [
+    ...sectorWorkers.map((w) => ({
+      id: `s-${tenDigits(w.phone)}`,
+      name: w.name,
+      role: (String(w.role).toUpperCase() === 'ANM' ? 'ANM' : 'ASHA') as 'ASHA' | 'ANM',
+      village: w.villageName || '',
+      phone: w.phone,
+      families: w.familyCount,
+      surveys: w.surveyCount,
+      referrals: w.pendingReferralCount,
+      isChoAdded: false,
+    })),
+    // Workers this CHO just authorized on this device that the server list doesn't show yet.
+    ...authorizedWorkers
+      .filter((w) => w?.phone && !serverPhones.has(tenDigits(w.phone)))
+      .map((w) => ({
+        id: w.id || `w-${w.phone}`,
+        name: w.name,
+        role: (w.role === 'ANM' ? 'ANM' : 'ASHA') as 'ASHA' | 'ANM',
+        village: w.village || '',
+        phone: w.phone,
+        families: 0,
+        surveys: 0,
+        referrals: 0,
+        isChoAdded: true,
+      })),
+  ];
+
+  const roleLabel = (r: 'ASHA' | 'ANM') => (r === 'ANM' ? tr('एएनएम', 'एएनएम') : tr('आशा', 'आशा'));
+
+  // =============================================================================================
+  // Workers view
+  // =============================================================================================
+  if (view === 'workers') {
+    return (
+      <Screen>
+        <Button
+          label={tr('कार्यकर्ता जोड़ें', 'कार्यकर्ता जोडा')}
+          icon={UserPlus}
+          onPress={() => {
+            resetAddForm();
+            setShowAdd(true);
+          }}
         />
 
-        {/* CHO Navigation Tabs */}
-        <View style={styles.tabRow}>
-          {(['Overview', 'Workers', 'Referrals'] as const).map((tab) => {
-            const isActive = activeTab === tab;
+        {/* NHM work messages to the sector (compose · read / done counts · withdraw) */}
+        <ChoBroadcastPanel />
+
+        <SectionTitle label={tr('कार्यकर्ता', 'कार्यकर्ते')} count={allWorkers.length} />
+        {workersError ? (
+          <Card tone="amber">
+            <Text style={text.body}>{tr('कार्यकर्ता सूची लोड नहीं हुई', 'कार्यकर्ता यादी लोड झाली नाही')}</Text>
+            <Button label={tr('फिर से कोशिश करें', 'पुन्हा प्रयत्न करा')} icon={RefreshCw} variant="secondary" onPress={loadSectorWorkers} />
+          </Card>
+        ) : null}
+        {!workersLoading && !workersError && allWorkers.length === 0 ? (
+          <EmptyState icon={Users} title={tr('कोई आशा कार्यकर्ता पंजीकृत नहीं है', 'कोणतीही आशा कार्यकर्ती नोंदणीकृत नाही')} />
+        ) : null}
+        <View style={styles.list}>
+          {allWorkers.map((w) => (
+            <Card key={w.id} onPress={() => setSelectedWorker(w)} accessibilityLabel={w.name}>
+              <View style={styles.workerHead}>
+                <View style={[styles.avatar, w.role === 'ANM' && styles.avatarAnm]}>
+                  <Text style={[styles.avatarText, w.role === 'ANM' && styles.avatarTextAnm]}>
+                    {w.name
+                      .split(' ')
+                      .map((p) => p[0])
+                      .join('')
+                      .slice(0, 2)}
+                  </Text>
+                </View>
+                <View style={styles.flex}>
+                  <Text style={text.heading} numberOfLines={1}>
+                    {w.name}
+                  </Text>
+                  {w.village ? (
+                    <Text style={text.caption} numberOfLines={1}>
+                      {w.village}
+                    </Text>
+                  ) : null}
+                </View>
+                <StatusPill tone={w.role === 'ANM' ? 'neutral' : 'accent'} label={roleLabel(w.role)} />
+                <ChevronRight size={20} color={color.faint} strokeWidth={2} />
+              </View>
+              <View style={styles.statRow}>
+                <Stat value={w.families} label={tr('परिवार', 'कुटुंबे')} />
+                <Stat value={w.surveys} label={tr('सर्वे', 'सर्वे')} />
+                <Stat value={w.referrals} label={tr('रेफरल', 'रेफरल')} tone={w.referrals > 0 ? 'red' : 'neutral'} />
+              </View>
+              {w.isChoAdded ? (
+                <View style={styles.pillLeft}>
+                  <StatusPill tone="green" icon={ShieldCheck} label={tr('सीएचओ अधिकृत', 'सीएचओ अधिकृत')} />
+                </View>
+              ) : null}
+            </Card>
+          ))}
+        </View>
+
+        {/* Worker detail */}
+        <Sheet
+          visible={!!selectedWorker}
+          onClose={() => setSelectedWorker(null)}
+          title={selectedWorker?.name}
+          closeLabel={tr('बंद करें', 'बंद करा')}
+        >
+          {selectedWorker ? (
+            <View style={styles.sheetBody}>
+              <ListRow icon={MapPin} title={selectedWorker.village || '—'} subtitle={roleLabel(selectedWorker.role)} />
+              <ListRow
+                icon={Phone}
+                title={selectedWorker.phone}
+                subtitle={tr('कॉल करें', 'कॉल करा')}
+                onPress={() => Linking.openURL(`tel:${selectedWorker.phone}`)}
+              />
+              <View style={styles.statRow}>
+                <Stat value={selectedWorker.families} label={tr('परिवार', 'कुटुंबे')} />
+                <Stat value={selectedWorker.surveys} label={tr('सर्वे', 'सर्वे')} />
+                <Stat value={selectedWorker.referrals} label={tr('रेफरल', 'रेफरल')} tone={selectedWorker.referrals > 0 ? 'red' : 'neutral'} />
+              </View>
+            </View>
+          ) : null}
+        </Sheet>
+
+        {/* CHO onboarding */}
+        <Sheet
+          visible={showAdd}
+          onClose={() => setShowAdd(false)}
+          title={tr('नया कार्यकर्ता', 'नवीन कार्यकर्ता')}
+          closeLabel={tr('बंद करें', 'बंद करा')}
+        >
+          <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
+            {addStatus ? <StatusBanner type={addStatus.type} message={addStatus.text} /> : null}
+
+            <Text style={text.label}>{tr('पद', 'पद')}</Text>
+            <Segmented
+              options={[
+                { key: 'ASHA', label: tr('आशा', 'आशा') },
+                { key: 'ANM', label: tr('एएनएम', 'एएनएम') },
+              ]}
+              value={newRole}
+              onChange={setNewRole}
+            />
+            <Field label={tr('पूरा नाम', 'पूर्ण नाव')} voice="name" value={newName} onChangeText={setNewName} />
+            <Field
+              label={tr('मोबाइल नंबर', 'मोबाइल नंबर')} voice="phone"
+              value={newPhone}
+              onChangeText={(v) => setNewPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
+              keyboardType="number-pad"
+              maxLength={10}
+              placeholder="98765 43210"
+            />
+            <Field label={tr('गाँव / उपकेंद्र', 'गाव / उपकेंद्र')} voice="text" value={newVillage} onChangeText={setNewVillage} />
+            <Text style={text.label}>{tr('ऐप भाषा', 'ॲप भाषा')}</Text>
+            <Segmented
+              options={[
+                { key: 'hi', label: 'हिंदी' },
+                { key: 'mr', label: 'मराठी' },
+              ]}
+              value={newLang}
+              onChange={setNewLang}
+            />
+            <Button label={tr('अधिकृत करें', 'अधिकृत करा')} icon={ShieldCheck} loading={addLoading} onPress={handleAddWorker} />
+          </ScrollView>
+        </Sheet>
+      </Screen>
+    );
+  }
+
+  // =============================================================================================
+  // Referrals view
+  // =============================================================================================
+  return (
+    <Screen>
+      <View style={styles.statGrid}>
+        <View style={styles.statCell}>
+          <Card tone="amber">
+            <Stat value={pendingReferralCount} label={tr('लंबित रेफरल', 'प्रलंबित रेफरल')} tone="amber" />
+          </Card>
+        </View>
+        <View style={styles.statCell}>
+          <Card tone="green">
+            <Stat value={approvedReferralCount} label={tr('सत्यापित रेफरल', 'सत्यापित रेफरल')} tone="green" />
+          </Card>
+        </View>
+      </View>
+
+      <SectionTitle label={tr('खुले रेफरल', 'खुले रेफरल')} count={urgentTasks.length} />
+
+      {urgentTasks.length === 0 ? (
+        <EmptyState icon={CircleCheck} title={tr('कोई रेफरल नहीं', 'रेफरल नाही')} />
+      ) : (
+        <View style={styles.list}>
+          {urgentTasks.map((task: any) => {
+            const isApproved = approvedIds.has(task.id) || task.choStatus === 'APPROVED_CHO';
             return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tabBtn, isActive && styles.tabBtnActive]}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.tabBtnText, isActive && styles.tabBtnTextActive]}>
-                  {tab === 'Overview'
-                    ? '📊 सेक्टर अवलोकन'
-                    : tab === 'Workers'
-                    ? '👩‍⚕️ आशा कार्यकर्ता'
-                    : `⚠️ गंभीर रेफरल (${urgentTasks.length})`}
-                </Text>
-              </TouchableOpacity>
+              <Card key={task.id} tone={isApproved ? 'green' : 'red'}>
+                {/* Patient */}
+                <View style={styles.refHead}>
+                  <View style={styles.flex}>
+                    <Text style={text.heading} numberOfLines={2}>
+                      {task.name}
+                    </Text>
+                    <Text style={text.caption} numberOfLines={1}>
+                      {[
+                        task.age ? `${task.age} ${tr('वर्ष', 'वर्षे')}` : null,
+                        task.gender || null,
+                        task.houseNumber ? `${tr('घर', 'घर')} ${task.houseNumber}` : null,
+                        task.villageName || null,
+                      ]
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </Text>
+                  </View>
+                  <StatusPill
+                    tone={isApproved ? 'green' : 'red'}
+                    icon={isApproved ? Check : AlertTriangle}
+                    label={isApproved ? tr('स्वीकृत', 'मंजूर') : tr('अति-आवश्यक', 'अति-तातडीचे')}
+                  />
+                </View>
+
+                <Text style={[text.body, styles.reason]}>{task.taskType}</Text>
+
+                {/* Contact + ABHA */}
+                {task.phone || task.abhaNumber ? (
+                  <View style={styles.chipRow}>
+                    {task.phone ? (
+                      <Pressable
+                        onPress={() => Linking.openURL(`tel:${task.phone}`)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${tr('कॉल करें', 'कॉल करा')} ${task.phone}`}
+                        style={({ pressed }) => [styles.callChip, pressed && styles.pressed]}
+                      >
+                        <Phone size={16} color={color.accent} strokeWidth={2} />
+                        <Text style={[text.label, { color: color.accentPressed }]}>{task.phone}</Text>
+                      </Pressable>
+                    ) : null}
+                    {task.abhaNumber ? <StatusPill tone="green" icon={ShieldCheck} label={`ABHA ${task.abhaNumber}`} /> : null}
+                  </View>
+                ) : null}
+
+                {/* Condition & vitals */}
+                {task.condition || task.vitals ? (
+                  <View style={[styles.infoBox, styles.infoNeutral]}>
+                    {task.condition ? (
+                      <InfoLine icon={Activity} label={tr('निदान', 'निदान')} value={task.condition} />
+                    ) : null}
+                    {task.vitals ? (
+                      <InfoLine icon={ClipboardList} label={tr('जाँच', 'तपासणी')} value={task.vitals} />
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {/* Prescription */}
+                {task.prescriptionDetails ? (
+                  <View style={[styles.infoBox, styles.infoAmber]}>
+                    <InfoLine icon={Pill} label={tr('दवा', 'औषध')} value={task.prescriptionDetails} tint={color.amberText} />
+                    {task.prescriptionDeadline ? (
+                      <InfoLine icon={Clock} label={tr('समयसीमा', 'मुदत')} value={task.prescriptionDeadline} tint={color.redText} />
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {/* Source + due */}
+                <View style={styles.metaRow}>
+                  <Text style={[text.caption, styles.flex]} numberOfLines={1}>
+                    {task.doctorName
+                      ? `${tr('डॉक्टर', 'डॉक्टर')} ${task.doctorName}`
+                      : `${tr('आशा', 'आशा')} ${task.ashaWorkerPhone || ''}`}
+                  </Text>
+                  {task.dueDate ? (
+                    <View style={styles.inline}>
+                      <Calendar size={14} color={color.muted} strokeWidth={2} />
+                      <Text style={text.caption}>{task.dueDate}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {task.choAdvice ? (
+                  <View style={[styles.infoBox, styles.infoAccent]}>
+                    <InfoLine icon={FileText} label={tr('सीएचओ सलाह', 'सीएचओ सल्ला')} value={task.choAdvice} tint={color.accentPressed} />
+                  </View>
+                ) : null}
+
+                {/* Actions */}
+                <View style={styles.actions}>
+                  <View style={styles.flex}>
+                    <Button
+                      label={isApproved ? tr('स्वीकृत', 'मंजूर') : tr('स्वीकृत करें', 'मंजूर करा')}
+                      icon={Check}
+                      disabled={isApproved}
+                      onPress={() => handleApprove(task.id)}
+                    />
+                  </View>
+                  <View style={styles.flex}>
+                    <Button
+                      label={tr('सलाह लिखें', 'सल्ला लिहा')}
+                      icon={FileText}
+                      variant="secondary"
+                      onPress={() => {
+                        setAdviceNotes('');
+                        setAdviceTask(task);
+                      }}
+                    />
+                  </View>
+                </View>
+              </Card>
             );
           })}
         </View>
-
-        {/* ===================== TAB 1: OVERVIEW ===================== */}
-        {activeTab === 'Overview' && (
-          <View>
-            {/* Live KPI Grid */}
-            <View style={styles.kpiGrid}>
-              <View style={styles.kpiCard}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: '#EFF6FF' }]}>
-                  <Users size={18} color="#2563EB" />
-                </View>
-                <Text style={styles.kpiValue}>4 आशा</Text>
-                <Text style={styles.kpiTitle}>सक्रिय आशा कार्यकर्ता</Text>
-              </View>
-
-              <View style={styles.kpiCard}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: Colors.primaryLight }]}>
-                  <FileText size={18} color={Colors.primary} />
-                </View>
-                <Text style={styles.kpiValue}>{totalFamiliesCount} घर</Text>
-                <Text style={styles.kpiTitle}>पंजीकृत परिवार</Text>
-              </View>
-
-              <View style={styles.kpiCard}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: '#FEF2F2' }]}>
-                  <ShieldAlert size={18} color={Colors.urgentRed} />
-                </View>
-                <Text style={[styles.kpiValue, { color: Colors.urgentRed }]}>{hrpCount} HRP</Text>
-                <Text style={styles.kpiTitle}>उच्च जोखिम गर्भवती</Text>
-              </View>
-
-              <View style={styles.kpiCard}>
-                <View style={[styles.kpiIconWrap, { backgroundColor: '#FDF2F8' }]}>
-                  <Activity size={18} color="#BE185D" />
-                </View>
-                <Text style={[styles.kpiValue, { color: '#BE185D' }]}>{ncdCount} रोगी</Text>
-                <Text style={styles.kpiTitle}>NCD कैंसर / BP रोगी</Text>
-              </View>
-            </View>
-
-            {/* Critical Action Card: Direct Teleconsultation */}
-            <View style={styles.actionCard}>
-              <View style={styles.actionCardHeader}>
-                <Stethoscope size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                <Text style={styles.actionCardTitle}>तत्काल टेली-परामर्श एवं रेफरल अनुमोदन</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.actionCardBtn}
-                onPress={() => setActiveTab('Referrals')}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.actionCardBtnText}>रेफरल समीक्षा करें ({urgentTasks.length})</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Disease Distribution Line Listing Summary */}
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>गैर-संचारी रोग (NCD) एवं कैंसर स्थिति</Text>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>उच्च रक्तचाप (Hypertension):</Text>
-                <Text style={styles.statValue}>12 मरीज (नियमित दवा पर)</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>मधुमेह (Diabetes):</Text>
-                <Text style={styles.statValue}>8 मरीज (रक्त शर्करा नियंत्रित)</Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>मुख / स्तन कैंसर स्क्रीनिंग:</Text>
-                <Text style={styles.statValue}>2 मरीज (बीएचयू रेफरल)</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* ===================== TAB 2: WORKERS ===================== */}
-        {activeTab === 'Workers' && (
-          <View>
-            <Text style={styles.sectionHeading}>सेक्टर की आशा कार्यकर्ताओं की कार्य प्रगति</Text>
-            {workersPerformance.map((worker) => (
-              <View key={worker.id} style={styles.workerCard}>
-                <View style={styles.workerHeader}>
-                  <View style={styles.workerAvatar}>
-                    <Text style={styles.workerAvatarText}>
-                      {worker.name
-                        .split(' ')
-                        .map((w: string) => w[0])
-                        .join('')}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.workerName}>{worker.name}</Text>
-                    <Text style={styles.workerVillage}>
-                      गाँव: {worker.village} • {worker.phone}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.workerViewBtn}
-                    onPress={() => setSelectedWorker(worker)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.workerViewBtnText}>विवरण देखें</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Worker Stats */}
-                <View style={styles.workerStatsRow}>
-                  <View style={styles.workerStatItem}>
-                    <Text style={styles.workerStatNum}>{worker.families}</Text>
-                    <Text style={styles.workerStatLbl}>परिवार</Text>
-                  </View>
-                  <View style={styles.workerStatItem}>
-                    <Text style={styles.workerStatNum}>{worker.surveys}</Text>
-                    <Text style={styles.workerStatLbl}>सर्वेक्षण पूर्ण</Text>
-                  </View>
-                  <View style={styles.workerStatItem}>
-                    <Text
-                      style={[
-                        styles.workerStatNum,
-                        worker.referrals > 0 && { color: Colors.urgentRed },
-                      ]}
-                    >
-                      {worker.referrals}
-                    </Text>
-                    <Text style={styles.workerStatLbl}>लंबित रेफरल</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* ===================== TAB 3: REFERRALS ===================== */}
-        {activeTab === 'Referrals' && (
-          <View>
-            <Text style={styles.sectionHeading}>
-              उच्च-प्राथमिकता अस्पताल रेफरल एवं टेली-परामर्श सूची
-            </Text>
-            {urgentTasks.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <CheckCircle size={36} color={Colors.visitedGreen} />
-                <Text style={styles.emptyTitle}>कोई लंबित रेफरल नहीं है!</Text>
-                <Text style={styles.emptySub}>सभी मरीजों का अनुवर्ती कार्य पूर्ण हो चुका है।</Text>
-              </View>
-            ) : (
-              urgentTasks.map((task) => {
-                const isApproved = approvedReferralIds.has(task.id) || task.choStatus === 'APPROVED_CHO';
-                return (
-                  <View key={task.id} style={styles.referralCard}>
-                    <View style={styles.referralHeader}>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Text style={styles.patientName}>
-                            {task.name} {task.age ? `(${task.age} वर्ष${task.gender ? ` • ${task.gender}` : ''})` : ''}
-                          </Text>
-                          {task.houseNumber && (
-                            <Text style={styles.referralHousePill}>
-                              घर #{task.houseNumber} • {task.villageName || 'गाँव'}
-                            </Text>
-                          )}
-                        </View>
-
-                        {/* Attached Contact Number & ABHA ID Number */}
-                        <View style={styles.patientNumbersRow}>
-                          {task.phone && (
-                            <TouchableOpacity
-                              style={styles.phoneBadgeBtn}
-                              onPress={() => Linking.openURL(`tel:${task.phone}`)}
-                              activeOpacity={0.7}
-                            >
-                              <Phone size={11} color="#0284C7" style={{ marginRight: 4 }} />
-                              <Text style={styles.phoneBadgeText}>{task.phone}</Text>
-                              <Text style={styles.callNowHint}>कॉल</Text>
-                            </TouchableOpacity>
-                          )}
-                          {task.abhaNumber && (
-                            <View style={styles.abhaBadgePill}>
-                              <ShieldCheck size={11} color="#059669" style={{ marginRight: 3 }} />
-                              <Text style={styles.abhaBadgeText}>ABHA: {task.abhaNumber}</Text>
-                            </View>
-                          )}
-                        </View>
-
-                        <Text style={styles.referralReason}>{task.taskType}</Text>
-
-                        {/* Clinical Condition & Vitals */}
-                        {(task.condition || task.vitals) && (
-                          <View style={styles.vitalsBox}>
-                            {task.condition && (
-                              <Text style={styles.vitalsConditionText}>निदान: {task.condition}</Text>
-                            )}
-                            {task.vitals && (
-                              <Text style={styles.vitalsReadingText}>जाँच: {task.vitals}</Text>
-                            )}
-                          </View>
-                        )}
-
-                        {/* Doctor Prescriptions & Prescription Deadline */}
-                        {task.prescriptionDetails && (
-                          <View style={styles.rxDeadlineBox}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Pill size={11} color="#B45309" style={{ marginRight: 4 }} />
-                              <Text style={styles.rxLabel}>दवा सलाह:</Text>
-                            </View>
-                            <Text style={styles.rxDetails}>{task.prescriptionDetails}</Text>
-                            {task.prescriptionDeadline && (
-                              <View style={styles.deadlineRow}>
-                                <Clock size={11} color="#DC2626" style={{ marginRight: 4 }} />
-                                <Text style={styles.deadlineHighlight}>
-                                  समयसीमा: {task.prescriptionDeadline}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
-
-                        {/* Referring Source & ASHA Details */}
-                        <View style={styles.referralMetaRow}>
-                          <Text style={styles.referralAshaSource}>
-                            रेफरल स्रोत: {task.doctorName ? `डॉक्टर ${task.doctorName}` : `आशा कार्यकर्ता (${task.ashaWorkerPhone})`}
-                          </Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
-                            <Calendar size={11} color={Colors.textSecondary} style={{ marginRight: 3 }} />
-                            <Text style={styles.referralDueDate}>{task.dueDate}</Text>
-                          </View>
-                        </View>
-
-                        {/* Existing CHO Advice if recorded */}
-                        {task.choAdvice && (
-                          <View style={styles.existingAdviceBox}>
-                            <Text style={styles.existingAdviceLabel}>सीएचओ परामर्श टिप्पणी:</Text>
-                            <Text style={styles.existingAdviceText}>"{task.choAdvice}"</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <View
-                        style={[
-                          styles.urgencyBadge,
-                          isApproved && styles.urgencyBadgeApproved,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.urgencyBadgeText,
-                            isApproved && styles.urgencyBadgeTextApproved,
-                          ]}
-                        >
-                          {isApproved ? '✓ अनुमोदित' : 'अति-आवश्यक'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* CHO Functional Actions */}
-                    <View style={styles.referralActionsRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.approveBtn,
-                          isApproved && styles.approveBtnDone,
-                        ]}
-                        onPress={() => handleApproveReferral(task.id)}
-                        disabled={isApproved}
-                        activeOpacity={0.8}
-                      >
-                        <Check size={14} color={isApproved ? Colors.visitedGreen : '#FFFFFF'} style={{ marginRight: 4 }} />
-                        <Text
-                          style={[
-                            styles.approveBtnText,
-                            isApproved && styles.approveBtnTextDone,
-                          ]}
-                        >
-                          {isApproved ? 'अनुमोदित' : 'रेफरल स्वीकृत करें'}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.teleconsultBtn}
-                        onPress={() => setTeleconsultPatient(task)}
-                        activeOpacity={0.8}
-                      >
-                        <PhoneCall size={14} color="#0369A1" style={{ marginRight: 4 }} />
-                        <Text style={styles.teleconsultBtnText}>टेली-परामर्श व दवा सलाह</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })
-            )}
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Worker Detail Modal (Drilldown) */}
-      {selectedWorker && (
-        <Modal visible={!!selectedWorker} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>{selectedWorker.name}</Text>
-                  <Text style={styles.modalSub}>
-                    आशा कार्यकर्ता • {selectedWorker.village}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => setSelectedWorker(null)}>
-                  <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView>
-                <Text style={styles.modalSectionTitle}>आवंटित परिवार एवं कवरेज</Text>
-                <View style={styles.workerDetailBox}>
-                  <Text style={styles.workerDetailItem}>
-                    • कुल पंजीकृत घर: {selectedWorker.families}
-                  </Text>
-                  <Text style={styles.workerDetailItem}>
-                    • पूर्ण किए गए स्वास्थ्य सर्वे: {selectedWorker.surveys}
-                  </Text>
-                  <Text style={styles.workerDetailItem}>
-                    • सक्रिय रेफरल मामले: {selectedWorker.referrals}
-                  </Text>
-                  <Text style={styles.workerDetailItem}>
-                    • संपर्क नंबर: {selectedWorker.phone}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.closeModalBtn}
-                  onPress={() => setSelectedWorker(null)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.closeModalBtnText}>बंद करें</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
       )}
 
-      {/* Teleconsultation & Clinical Advice Modal */}
-      {teleconsultPatient && (
-        <Modal visible={!!teleconsultPatient} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View>
-                  <Text style={styles.modalTitle}>टेली-परामर्श एवं चिकित्सा निर्देश</Text>
-                  <Text style={styles.modalSub}>रोगी: {teleconsultPatient.name}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setTeleconsultPatient(null)}>
-                  <X size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.inputLabel}>सीएचओ चिकित्सा परामर्श एवं निर्देश:</Text>
-              <TextInput
-                style={styles.modalInputArea}
-                placeholder="रोगी को तत्काल प्राथमिक स्वास्थ्य केंद्र (PHC) भिजवाएं। IFA गोलियां एवं BP की निगरानी जारी रखें..."
-                placeholderTextColor={Colors.textMuted}
-                value={doctorNotes}
-                onChangeText={setDoctorNotes}
-                multiline
-              />
-
-              {showNotesSuccess && (
-                <View style={styles.successPill}>
-                  <Check size={14} color="#15803D" style={{ marginRight: 4 }} />
-                  <Text style={styles.successPillText}>निर्देश दर्ज कर आशा को प्रेषित किए गए!</Text>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={styles.saveAdviceBtn}
-                onPress={handleSaveTeleconsultAdvice}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.saveAdviceBtnText}>निर्देश सहेजें एवं रेफरल स्वीकृत करें</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-      )}
-    </View>
+      {/* Clinical advice */}
+      <Sheet
+        visible={!!adviceTask}
+        onClose={() => setAdviceTask(null)}
+        title={adviceTask?.name}
+        closeLabel={tr('बंद करें', 'बंद करा')}
+      >
+        <View style={styles.sheetBody}>
+          <Field
+            label={tr('नैदानिक सलाह', 'वैद्यकीय सल्ला')} voice="long"
+            value={adviceNotes}
+            onChangeText={setAdviceNotes}
+            multiline
+            helper={tr('आशा को भेजी जाएगी', 'आशाला पाठवला जाईल')}
+          />
+          {adviceSaved ? <StatusBanner type="success" message={tr('सलाह भेजी गई', 'सल्ला पाठवला')} /> : null}
+          <Button label={tr('सहेजें व स्वीकृत करें', 'जतन व मंजूर करा')} icon={Check} onPress={handleSaveAdvice} />
+        </View>
+      </Sheet>
+    </Screen>
   );
 };
 
+// ---------------------------------------------------------------------------------------------
+
+const InfoLine: React.FC<{ icon: React.ComponentType<any>; label: string; value: string; tint?: string }> = ({
+  icon: Icon,
+  label,
+  value,
+  tint = color.text,
+}) => (
+  <View style={styles.infoLine}>
+    <Icon size={16} color={tint} strokeWidth={2} />
+    <Text style={[text.body, styles.flex, { color: tint }]}>
+      <Text style={styles.infoLabel}>{label}: </Text>
+      {value}
+    </Text>
+  </View>
+);
+
+const StatusBanner: React.FC<{ type: 'success' | 'error'; message: string }> = ({ type, message }) => (
+  <View style={[styles.banner, type === 'error' ? styles.bannerError : styles.bannerOk]} accessibilityLiveRegion="polite">
+    {type === 'error' ? (
+      <AlertTriangle size={18} color={color.red} strokeWidth={2} />
+    ) : (
+      <CircleCheck size={18} color={color.green} strokeWidth={2} />
+    )}
+    <Text style={[text.body, styles.flex, { color: type === 'error' ? color.redText : color.greenText }]}>{message}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  content: {
-    padding: 14,
-    paddingBottom: 40,
-  },
-  choBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 12,
-  },
-  choBannerIcon: {
+  flex: { flex: 1 },
+  list: { gap: space.md },
+  pressed: { opacity: 0.85 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+
+  // KPI grid (2 × 2)
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -space.xs },
+  statCell: { width: '50%', padding: space.xs },
+
+  // Workers
+  workerHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: color.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  choTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  choSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  tabRow: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 7,
-  },
-  tabBtnActive: {
-    backgroundColor: Colors.primary,
-  },
-  tabBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  tabBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  kpiCard: {
-    width: '48.5%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-  },
-  kpiIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  kpiValue: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  kpiTitle: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  actionCard: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    marginBottom: 12,
-  },
-  actionCardHeader: {
+  avatarAnm: { backgroundColor: color.lineSoft },
+  avatarText: { fontSize: 15, fontWeight: '800', color: color.accentPressed },
+  avatarTextAnm: { color: color.text },
+  statRow: { flexDirection: 'row', gap: space.md, marginTop: space.md },
+  pillLeft: { flexDirection: 'row', marginTop: space.md },
+
+  // Referrals
+  refHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  reason: { marginTop: space.sm },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm, marginTop: space.md },
+  callChip: {
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-  },
-  actionCardTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E40AF',
-  },
-  actionCardSub: {
-    fontSize: 12,
-    color: '#3B82F6',
-    lineHeight: 16,
-    marginBottom: 10,
-  },
-  actionCardBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  actionCardBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: color.accentSoft,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: color.accentLine,
   },
-  summaryTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  statValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  sectionHeading: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 10,
-  },
-  workerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-  },
-  workerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  workerAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#DCFCE7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  workerAvatarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  workerName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  workerVillage: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  workerViewBtn: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  workerViewBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  workerStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    paddingTop: 8,
-  },
-  workerStatItem: {
-    alignItems: 'center',
-  },
-  workerStatNum: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  workerStatLbl: {
-    fontSize: 10,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  referralCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    marginBottom: 10,
-  },
-  referralHeader: {
+  infoBox: { marginTop: space.md, padding: space.md, borderRadius: radius.control, borderWidth: 1, gap: space.sm },
+  infoNeutral: { backgroundColor: color.canvas, borderColor: color.line },
+  infoAmber: { backgroundColor: color.amberSoft, borderColor: color.amberLine },
+  infoAccent: { backgroundColor: color.accentSoft, borderColor: color.accentLine },
+  infoLine: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  infoLabel: { fontWeight: '700' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md },
+  actions: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
+
+  // Sheets
+  sheetBody: { gap: space.lg, paddingBottom: space.lg },
+  banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  patientName: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  referralHousePill: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#0284C7',
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  patientNumbersRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  phoneBadgeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    gap: space.sm,
+    padding: space.md,
+    borderRadius: radius.control,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
   },
-  phoneBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  callNowHint: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#2563EB',
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 3,
-    marginLeft: 5,
-  },
-  abhaBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-  },
-  abhaBadgeText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#047857',
-  },
-  vitalsBox: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 6,
-    padding: 6,
-    marginVertical: 4,
-  },
-  vitalsConditionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  vitalsReadingText: {
-    fontSize: 10.5,
-    color: '#475569',
-    marginTop: 1,
-  },
-  rxDeadlineBox: {
-    backgroundColor: '#FFFBEB',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: 6,
-    padding: 6,
-    marginBottom: 4,
-  },
-  rxLabel: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#92400E',
-  },
-  rxDetails: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#78350F',
-    marginTop: 1,
-  },
-  deadlineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-  },
-  deadlineHighlight: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-  referralAshaSource: {
-    fontSize: 10.5,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  existingAdviceBox: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    borderRadius: 6,
-    padding: 6,
-    marginTop: 4,
-  },
-  existingAdviceLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#166534',
-  },
-  existingAdviceText: {
-    fontSize: 10.5,
-    color: '#14532D',
-    fontStyle: 'italic',
-  },
-  referralReason: {
-    fontSize: 12,
-    color: '#B91C1C',
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  referralMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  referralDueDate: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  urgencyBadge: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  urgencyBadgeApproved: {
-    backgroundColor: '#DCFCE7',
-  },
-  urgencyBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B91C1C',
-  },
-  urgencyBadgeTextApproved: {
-    color: '#15803D',
-  },
-  referralActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    paddingTop: 8,
-  },
-  approveBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  approveBtnDone: {
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  approveBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  approveBtnTextDone: {
-    color: '#15803D',
-  },
-  teleconsultBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  teleconsultBtnText: {
-    color: '#0369A1',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: 10,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  modalSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  modalSectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: 8,
-  },
-  workerDetailBox: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 16,
-  },
-  workerDetailItem: {
-    fontSize: 13,
-    color: Colors.textPrimary,
-    lineHeight: 22,
-  },
-  closeModalBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  closeModalBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-  },
-  modalInputArea: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 13,
-    color: Colors.textPrimary,
-    height: 90,
-    textAlignVertical: 'top',
-    marginBottom: 12,
-  },
-  successPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#DCFCE7',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-  successPillText: {
-    fontSize: 12,
-    color: '#15803D',
-    fontWeight: '700',
-  },
-  saveAdviceBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  saveAdviceBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
+  bannerError: { backgroundColor: color.redSoft, borderColor: color.redLine },
+  bannerOk: { backgroundColor: color.greenSoft, borderColor: color.greenLine },
 });

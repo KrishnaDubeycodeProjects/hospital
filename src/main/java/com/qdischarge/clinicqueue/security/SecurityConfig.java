@@ -127,9 +127,17 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/referrals/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.GET, "/api/referrals/**").hasAnyRole("DOCTOR", "PATIENT", "ADMIN")
                         // ASHA worker & community workflows
-                        .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").permitAll()
-                        .requestMatchers("/api/sync/**", "/api/followups/simulate-missed-referral").permitAll()
-                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**", "/api/anm/**", "/api/cho/**").hasAnyRole("ASHA", "ANM", "ADMIN", "DOCTOR", "PATIENT")
+                        // Worker onboarding is CHO-managed (no mobile self-registration)
+                        .requestMatchers(HttpMethod.POST, "/api/asha/register", "/api/anm/register").hasAnyRole("CHO", "ADMIN")
+                        // CHO sector referral validation: verified CHO token (or ADMIN) only
+                        .requestMatchers("/api/asha/cho/**").hasAnyRole("CHO", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/asha/referrals/*/approve").hasAnyRole("CHO", "ADMIN")
+                        // Offline sync & field-worker APIs: OTP-verified worker tokens (no PATIENT, no anonymous)
+                        .requestMatchers("/api/sync/**", "/api/followups/simulate-missed-referral").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN")
+                        .requestMatchers("/api/anm/**").hasAnyRole("ANM", "CHO", "ADMIN")
+                        .requestMatchers("/api/asha/**", "/api/surveys/**", "/api/followups/**").hasAnyRole("ASHA", "ANM", "CHO", "ADMIN", "DOCTOR")
+                        // Cross-sector oversight (read-only): system administrators only
+                        .requestMatchers("/api/cho/**").hasRole("ADMIN")
                         // Test seeding endpoints accessible to ADMIN and DOCTOR
                         .requestMatchers("/api/test/**").permitAll()
                         // Drugs & ABDM open/utility APIs

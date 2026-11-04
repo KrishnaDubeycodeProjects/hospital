@@ -25,6 +25,8 @@ const ROLES = [
   { key: 'patient', label: 'Patient', icon: UserCheck },
   { key: 'doctor', label: 'Doctor', icon: Stethoscope },
   { key: 'admin', label: 'Hospital Admin', icon: Building2 },
+  // Community Health Officer: OTP login with a server-verified CHO role (sector referral validation)
+  { key: 'cho', label: 'CHO', icon: ShieldCheck },
 ];
 
 export default function Login() {
@@ -92,6 +94,7 @@ export default function Login() {
             {role === 'patient' && <OtpAuthForm kind="patient" redirectTarget={redirectTarget} />}
             {role === 'doctor' && <OtpAuthForm kind="doctor" redirectTarget={redirectTarget} />}
             {role === 'admin' && <AdminAuthForm redirectTarget={redirectTarget} />}
+            {role === 'cho' && <OtpAuthForm kind="cho" redirectTarget={redirectTarget} />}
             
           </div>
 
@@ -247,7 +250,21 @@ function OtpAuthForm({ kind, redirectTarget }) {
     setVerifying(true);
     setErrorMsg('');
     try {
-      const res = await otpApi.verify(fullPhone, fullCode);
+      const res = kind === 'cho'
+        ? await otpApi.verifyWorker(fullPhone, fullCode)
+        : await otpApi.verify(fullPhone, fullCode);
+
+      if (kind === 'cho') {
+        // Only a server-verified CHO token opens the sector dashboard.
+        if (res.role !== 'CHO' || !res.token) {
+          setErrorMsg('यह नंबर पंजीकृत सीएचओ के रूप में सत्यापित नहीं है।');
+          return;
+        }
+        login('CHO', res.token);
+        toast.success('सीएचओ सत्यापन सफल।');
+        navigate(effectiveRedirect || '/asha-dashboard');
+        return;
+      }
 
       if (kind === 'patient') {
         login('PATIENT', res.token);
@@ -698,7 +715,7 @@ function AshaAuthForm() {
           ASHA &amp; CHO Community Care Portal
         </h2>
         <p className="pro-card-subtitle">
-          Household village censuses, maternal ANC/PNC monitoring, offline sync, and remote CHO teleconsultation reviews.
+          Household village censuses, maternal ANC/PNC monitoring, offline sync, and CHO referral validation and triage.
         </p>
       </div>
 
@@ -725,7 +742,7 @@ function AshaAuthForm() {
 
       <button
         type="button"
-        onClick={() => navigate('/asha')}
+        onClick={() => window.location.href = '/asha'}
         className="pro-primary-btn emerald"
         style={{ padding: '14px 18px' }}
       >

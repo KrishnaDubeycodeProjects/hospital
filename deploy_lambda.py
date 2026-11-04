@@ -19,10 +19,12 @@ import subprocess
 from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
+import urllib3
+urllib3.disable_warnings()
 
 try:
-    sys.stdout.reconfigure(encoding='utf-8')
-    sys.stderr.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+    sys.stderr.reconfigure(encoding='utf-8', line_buffering=True)
 except Exception:
     pass
 
@@ -94,11 +96,9 @@ def build_package() -> Path:
 
     print("\n📦 Packaging Spring Boot backend with Maven...")
     cmd = ["mvn.cmd" if os.name == "nt" else "mvn", "package", "-DskipTests"]
-    result = subprocess.run(cmd, cwd=WORKSPACE_DIR, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=WORKSPACE_DIR)
     if result.returncode != 0:
-        print("❌ Maven build failed:")
-        print(result.stdout[-1500:])
-        print(result.stderr[-1500:])
+        print("❌ Maven build failed with returncode", result.returncode)
         sys.exit(1)
     
     jars = sorted([p for p in target_dir.glob("*.jar") if not p.name.endswith("-sources.jar") and not p.name.startswith("original")], key=lambda p: p.stat().st_size, reverse=True)
@@ -112,8 +112,8 @@ def build_package() -> Path:
     return jar_path
 
 def deploy_to_lambda(session, role_arn: str, jar_path: Path, env_vars: dict, s3_bucket: str = "buckets132"):
-    s3_client = session.client("s3")
-    lambda_client = session.client("lambda")
+    s3_client = session.client("s3", verify=False)
+    lambda_client = session.client("lambda", verify=False)
     
     s3_key = f"lambda/{jar_path.name}"
     print(f"\n☁️ Uploading {jar_path.name} ({jar_path.stat().st_size / (1024*1024):.2f} MB) to s3://{s3_bucket}/{s3_key}...")
@@ -276,7 +276,7 @@ def main():
     session = boto3.Session(**session_kwargs)
 
     # 2. Validate credentials
-    sts = session.client("sts")
+    sts = session.client("sts", verify=False)
     try:
         identity = sts.get_caller_identity()
         print(f"👤 Authenticated as: {identity['Arn']} (Account: {identity['Account']})")
@@ -285,7 +285,7 @@ def main():
         sys.exit(1)
 
     # 3. Setup IAM Role
-    iam = session.client("iam")
+    iam = session.client("iam", verify=False)
     role_arn = get_or_create_execution_role(iam)
 
     # 4. Build Jar

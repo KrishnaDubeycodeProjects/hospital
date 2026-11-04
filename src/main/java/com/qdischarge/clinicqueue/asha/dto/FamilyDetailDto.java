@@ -18,6 +18,8 @@ import java.util.List;
 @AllArgsConstructor
 public class FamilyDetailDto {
     private Integer id;
+    /** Offline client UUID this family was created with (sync contract v2). */
+    private String clientUuid;
     private String primaryPhone;
     private String headName;
     private String villageName;

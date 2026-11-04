@@ -41,6 +41,13 @@ public class JwtService {
     public static final String PATIENT_ROLE = "PATIENT";
     public static final String DOCTOR_ROLE = "DOCTOR";
     public static final String ASHA_ROLE = "ASHA";
+    public static final String ANM_ROLE = "ANM";
+    public static final String CHO_ROLE = "CHO";
+
+    /** True for the three NHM field-worker cadres. */
+    public static boolean isWorkerRole(String role) {
+        return ASHA_ROLE.equals(role) || ANM_ROLE.equals(role) || CHO_ROLE.equals(role);
+    }
 
     private final AppProperties appProperties;
     private SecretKey signingKey;
@@ -88,12 +95,26 @@ public class JwtService {
     }
 
     public String generateAshaToken(String phone) {
-        return generateToken(phone, ASHA_ROLE, Map.of());
+        return generateWorkerToken(phone, ASHA_ROLE);
+    }
+
+    /**
+     * OTP-verified field-worker token: subject = normalized phone (+91XXXXXXXXXX), role = ASHA /
+     * ANM / CHO. Longer-lived than admin/patient tokens (see app.worker-jwt-expiry-days).
+     */
+    public String generateWorkerToken(String phone, String role) {
+        if (!isWorkerRole(role)) throw new IllegalArgumentException("Not a worker role: " + role);
+        int days = Math.max(1, appProperties.getWorkerJwtExpiryDays());
+        return generateToken(phone, role, Map.of(), Duration.ofDays(days));
     }
 
     private String generateToken(String subject, String role, Map<String, Object> extraClaims) {
+        return generateToken(subject, role, extraClaims, Duration.ofMinutes(appProperties.getJwtExpiryMinutes()));
+    }
+
+    private String generateToken(String subject, String role, Map<String, Object> extraClaims, Duration lifetime) {
         Instant now = Instant.now();
-        Instant expiry = now.plus(Duration.ofMinutes(appProperties.getJwtExpiryMinutes()));
+        Instant expiry = now.plus(lifetime);
         var builder = Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .subject(subject)
@@ -117,7 +138,7 @@ public class JwtService {
                     .parseSignedClaims(token)
                     .getPayload();
             String role = String.valueOf(claims.get(ROLE_CLAIM));
-            if (!ADMIN_ROLE.equals(role) && !PATIENT_ROLE.equals(role) && !DOCTOR_ROLE.equals(role) && !ASHA_ROLE.equals(role)) {
+            if (!ADMIN_ROLE.equals(role) && !PATIENT_ROLE.equals(role) && !DOCTOR_ROLE.equals(role) && !isWorkerRole(role)) {
                 return null;
             }
             Integer doctorId = claims.get(DOCTOR_ID_CLAIM, Integer.class);

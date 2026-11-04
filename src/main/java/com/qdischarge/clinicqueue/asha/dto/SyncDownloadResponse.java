@@ -20,6 +20,12 @@ public class SyncDownloadResponse {
     private List<MemberDto> members;
     private List<SurveyTemplateDto> templates;
     private List<FollowUpTaskDto> followUps;
+    private List<Integer> deletedFamilyIds;
+    private List<Integer> deletedMemberIds;
+
+    /** Client UUIDs of soft-deleted families / members (sync contract v2). */
+    private List<String> deletedFamilyClientUuids;
+    private List<String> deletedMemberClientUuids;
 
     /** ISO-8601 timestamp for the next sync's ?since= parameter */
     private String serverTimestamp;

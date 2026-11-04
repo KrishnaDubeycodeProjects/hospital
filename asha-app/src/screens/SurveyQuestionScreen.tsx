@@ -1,27 +1,39 @@
 import React, { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import {
-  ArrowLeft,
   Volume2,
-  CheckCircle,
-  ArrowRight,
   Check,
   Mic,
   FileText,
+  CalendarDays,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  Info,
 } from 'lucide-react-native';
+import { AppBar, Screen, Card, Button, IconButton, Field, StatusPill, color, radius, space, text, type, touch } from '../ui';
 import { SpeechEngine, VoiceRecognition } from '../voice/speechEngine';
+import type { VoiceKind } from '../voice/smartExtract';
 import { useLanguage } from '../context/LanguageContext';
 import { useOfflineData } from '../context/OfflineDataContext';
+import { getStorageWorkerPhone } from '../storage/OfflineStorageService';
+import {
+  sanitizeDecimal,
+  sanitizeInteger,
+  validateAdultWeight,
+  validateBp,
+  validateChildWeight,
+  validateHb,
+  validateTablets,
+} from '../services/formValidation';
+import {
+  parseClinicalDate,
+  formatClinicalDate,
+  calculateEdd,
+  gestationalWeeks,
+  trimesterFromWeeks,
+} from '../services/maternalMath';
 
 interface SurveyQuestionScreenProps {
   onBack: () => void;
@@ -36,7 +48,7 @@ interface QuestionDef {
   id: string;
   number: number;
   title: string;
-  type: 'binary' | 'options' | 'number' | 'text' | 'dual_number' | 'custom_clinical';
+  type: 'binary' | 'options' | 'number' | 'text' | 'dual_number' | 'custom_clinical' | 'date';
   options?: string[];
   fieldKey: string;
   helperText?: string;
@@ -45,90 +57,99 @@ interface QuestionDef {
 export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   onBack,
   onComplete,
-  familyUnitId = 'f012-0000-0000-0012',
-  familyMemberId = 'm001-0000-0000-0001',
-  memberName = 'सुमन वर्मा',
+  familyUnitId = '',
+  familyMemberId = '',
+  memberName = '',
   formType = 'PREGNANCY',
 }) => {
-  const { ttsEnabled, localeCode } = useLanguage();
+  const { ttsEnabled, localeCode, language } = useLanguage();
+  const tr = (hi: string, mr: string) => (language === 'mr' ? mr : hi);
   const { submitSurvey } = useOfflineData();
 
   const pregnancyQuestions: QuestionDef[] = [
     {
       id: 'p1',
       number: 1,
-      title: 'क्या महिला गर्भवती है? (ANC)',
+      title: tr('क्या महिला गर्भवती है? (ANC)', 'स्त्री गरोदर आहे का? (ANC)'),
       type: 'binary',
       fieldKey: 'isPregnant',
-      options: ['हाँ', 'नहीं'],
+      options: [tr('हाँ', 'होय'), tr('नहीं', 'नाही')],
+    },
+    {
+      id: 'p_lmp',
+      number: 2,
+      title: tr('अंतिम मासिक धर्म तिथि (LMP)', 'शेवटची मासिक पाळीची तारीख (LMP)'),
+      type: 'date',
+      fieldKey: 'lmpDate',
+      helperText: tr('EDD = LMP + 9 माह + 7 दिन', 'EDD = LMP + 9 महिने + 7 दिवस'),
     },
     {
       id: 'p2',
       number: 2,
-      title: 'प्रसव पूर्व जाँच (ANC विजिट)',
+      title: tr('प्रसव पूर्व जाँच (ANC विजिट)', 'प्रसूतीपूर्व तपासणी (ANC भेट)'),
       type: 'options',
       fieldKey: 'ancVisit',
-      options: ['ANC 1', 'ANC 2', 'ANC 3', 'ANC 4', 'सभी पूर्ण'],
+      options: ['ANC 1', 'ANC 2', 'ANC 3', 'ANC 4', tr('सभी पूर्ण', 'सर्व पूर्ण')],
     },
     {
       id: 'p3',
       number: 3,
-      title: 'TT / Td टीका लगाया गया?',
+      title: tr('Td टीका लगाया गया?', 'Td लस दिली का?'),
       type: 'binary',
       fieldKey: 'ttGiven',
-      options: ['✓ लगाया गया', '✕ नहीं लगाया'],
+      options: [tr('✓ लगाया गया', '✓ दिली'), tr('✕ नहीं लगाया', '✕ दिली नाही')],
     },
     {
       id: 'p4',
       number: 4,
-      title: 'BP एवं वजन',
+      title: tr('बी.पी. एवं वजन', 'बी.पी. व वजन'),
       type: 'custom_clinical',
       fieldKey: 'bpAndWeight',
-      helperText: 'सामान्य BP: 120/80',
+      helperText: tr('सामान्य बी.पी.: 120/80', 'सामान्य बी.पी.: 120/80'),
     },
     {
       id: 'p5',
       number: 5,
-      title: 'हीमोग्लोबिन (g/dL)',
+      title: tr('हीमोग्लोबिन (g/dL)', 'हिमोग्लोबिन (g/dL)'),
       type: 'number',
       fieldKey: 'hemoglobin',
-      helperText: '11 से कम → एनीमिया (HRP)',
+      helperText: tr('11 से कम → एनीमिया (उच्च जोखिम)', '11 पेक्षा कमी → रक्तक्षय (उच्च जोखीम)'),
     },
     {
       id: 'p6',
       number: 6,
-      title: 'मूत्र जाँच (Urine)',
+      title: tr('मूत्र जाँच', 'लघवी तपासणी'),
       type: 'options',
       fieldKey: 'urine',
-      options: ['सामान्य', 'असामान्य (Protein+)', 'जाँच नहीं हुई'],
+      options: [tr('सामान्य', 'सामान्य'), tr('असामान्य (प्रोटीन+)', 'असामान्य (प्रथिने+)'), tr('जाँच नहीं हुई', 'तपासणी झाली नाही')],
     },
     {
       id: 'p7',
       number: 7,
-      title: 'पेट की जाँच हुई?',
+      title: tr('पेट की जाँच हुई?', 'पोटाची तपासणी झाली का?'),
       type: 'binary',
       fieldKey: 'abdominalExam',
-      options: ['✓ की गई', '✕ नहीं की गई'],
+      options: [tr('✓ की गई', '✓ केली'), tr('✕ नहीं की गई', '✕ केली नाही')],
     },
     {
       id: 'p8',
       number: 8,
-      title: 'IFA एवं कैल्शियम गोलियाँ',
+      title: tr('IFA एवं कैल्शियम गोलियाँ', 'IFA व कॅल्शियम गोळ्या'),
       type: 'dual_number',
       fieldKey: 'tablets',
-      helperText: 'लक्ष्य: 180 गोलियाँ प्रत्येक',
+      helperText: tr('लक्ष्य: 180 गोलियाँ प्रत्येक', 'लक्ष्य: प्रत्येकी 180 गोळ्या'),
     },
     {
       id: 'p9',
       number: 9,
-      title: 'सेवा की स्थिति',
+      title: tr('सेवा की स्थिति', 'सेवेची स्थिती'),
       type: 'options',
       fieldKey: 'serviceStatus',
       options: [
-        '✓ सेवा पूर्ण',
-        'लाभार्थी अनुपस्थित',
-        'लाभार्थी का इनकार',
-        'अस्पताल रेफरल',
+        tr('✓ सेवा पूर्ण', '✓ सेवा पूर्ण'),
+        tr('लाभार्थी अनुपस्थित', 'लाभार्थी अनुपस्थित'),
+        tr('लाभार्थी का इनकार', 'लाभार्थीचा नकार'),
+        tr('अस्पताल रेफरल', 'रुग्णालय संदर्भ'),
       ],
     },
   ];
@@ -137,42 +158,42 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     {
       id: 'c1',
       number: 1,
-      title: 'आज टीका लगाया गया?',
+      title: tr('आज टीका लगाया गया?', 'आज लस दिली का?'),
       type: 'binary',
       fieldKey: 'vaccineGiven',
-      options: ['✓ हाँ, टीका लगाया', '✕ नहीं लगाया'],
+      options: [tr('✓ हाँ, टीका लगाया', '✓ होय, लस दिली'), tr('✕ नहीं लगाया', '✕ दिली नाही')],
     },
     {
       id: 'c2',
       number: 2,
-      title: 'शिशु का वजन (kg)',
+      title: tr('शिशु का वजन (kg)', 'बाळाचे वजन (kg)'),
       type: 'number',
       fieldKey: 'childWeight',
-      helperText: 'वृद्धि मॉनिटरिंग',
+      helperText: tr('वृद्धि निगरानी', 'वाढ निरीक्षण'),
     },
     {
       id: 'c3',
       number: 3,
-      title: 'बीमारी / खतरे के लक्षण',
+      title: tr('बीमारी / खतरे के लक्षण', 'आजार / धोक्याची लक्षणे'),
       type: 'options',
       fieldKey: 'childCondition',
       options: [
-        'पूर्णतः स्वस्थ',
-        'खाँसी / सर्दी / बुखार',
-        'दस्त (ORS देय)',
-        'गंभीर — रेफरल आवश्यक',
+        tr('पूर्णतः स्वस्थ', 'पूर्णपणे निरोगी'),
+        tr('खाँसी / सर्दी / बुखार', 'खोकला / सर्दी / ताप'),
+        tr('दस्त (ORS देय)', 'जुलाब (ORS देय)'),
+        tr('गंभीर — रेफरल आवश्यक', 'गंभीर — संदर्भ आवश्यक'),
       ],
     },
     {
       id: 'c4',
       number: 4,
-      title: 'सत्र की स्थिति (रजिस्टर 18 अ)',
+      title: tr('सत्र की स्थिति (रजिस्टर 18 अ)', 'सत्राची स्थिती (रजिस्टर 18 अ)'),
       type: 'options',
       fieldKey: 'childStatus',
       options: [
-        '✓ टीकाकरण पूर्ण',
-        'माता-पिता अनुपस्थित',
-        'टीके से इनकार',
+        tr('✓ टीकाकरण पूर्ण', '✓ लसीकरण पूर्ण'),
+        tr('माता-पिता अनुपस्थित', 'पालक अनुपस्थित'),
+        tr('टीके से इनकार', 'लसीला नकार'),
       ],
     },
   ];
@@ -181,74 +202,88 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     {
       id: 'o1',
       number: 1,
-      title: 'सेवा का प्रकार',
+      title: tr('सेवा का प्रकार', 'सेवेचा प्रकार'),
       type: 'options',
       fieldKey: 'otherCategory',
       options: [
-        'परिवार नियोजन',
-        'धात्री माता (PNC)',
-        'किशोरी आयरन (WIFS)',
-        'NCD जाँच',
+        tr('परिवार नियोजन', 'कुटुंब नियोजन'),
+        tr('धात्री माता (PNC)', 'स्तनदा माता (PNC)'),
+        tr('किशोरी आयरन (WIFS)', 'किशोरी लोह (WIFS)'),
+        tr('NCD जाँच', 'NCD तपासणी'),
       ],
     },
     {
       id: 'o2',
       number: 2,
-      title: 'सामग्री / दवा वितरण',
+      title: tr('सामग्री / दवा वितरण', 'साहित्य / औषध वाटप'),
       type: 'options',
       fieldKey: 'suppliesGiven',
       options: [
-        'छाया / अंतरा / कंडोम',
-        'आयरन (WIFS) गोली दी',
-        'केवल परामर्श दिया',
-        'दवा अनुपलब्ध',
+        tr('छाया / अंतरा / कंडोम', 'छाया / अंतरा / निरोध'),
+        tr('आयरन (WIFS) गोली दी', 'लोह (WIFS) गोळी दिली'),
+        tr('केवल परामर्श दिया', 'फक्त समुपदेशन केले'),
+        tr('दवा अनुपलब्ध', 'औषध उपलब्ध नाही'),
       ],
     },
     {
       id: 'o3',
       number: 3,
-      title: 'सत्यापन (रजिस्टर 18 स)',
+      title: tr('सत्यापन (रजिस्टर 18 स)', 'पडताळणी (रजिस्टर 18 स)'),
       type: 'options',
       fieldKey: 'otherStatus',
       options: [
-        '✓ सेवा सफल',
-        'अगले सप्ताह फॉलो-अप',
-        'स्वास्थ्य केंद्र रेफरल',
+        tr('✓ सेवा सफल', '✓ सेवा यशस्वी'),
+        tr('अगले सप्ताह फॉलो-अप', 'पुढील आठवड्यात पाठपुरावा'),
+        tr('स्वास्थ्य केंद्र रेफरल', 'आरोग्य केंद्र संदर्भ'),
       ],
     },
   ];
 
-  const questions =
+  const questions = (
     formType === 'CHILD'
       ? childQuestions
       : formType === 'OTHER'
       ? otherQuestions
-      : pregnancyQuestions;
+      : pregnancyQuestions
+  ).map((q, i) => ({ ...q, number: i + 1 }));
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentQ = questions[currentIndex];
   const totalQuestions = questions.length;
 
-  const [answers, setAnswers] = useState<Record<string, any>>({
-    isPregnant: 'हाँ',
-    ancVisit: 'ANC 2',
-    ttGiven: '✓ लगाया गया',
-    bp: '120/80',
-    weight: '58',
-    hemoglobin: '10.4',
-    urine: 'सामान्य',
-    abdominalExam: '✓ की गई',
-    ironTablets: '100',
-    calciumTablets: '100',
-    serviceStatus: '✓ सेवा पूर्ण',
-    vaccineGiven: '✓ हाँ, टीका लगाया',
-    childWeight: '5.4',
-    childCondition: 'पूर्णतः स्वस्थ',
-    childStatus: '✓ टीकाकरण पूर्ण',
-    otherCategory: 'परिवार नियोजन',
-    suppliesGiven: 'छाया / अंतरा / कंडोम',
-    otherStatus: '✓ सेवा सफल',
-  });
+  // Start empty: unanswered questions must stay unrecorded, never pre-filled with sample clinical values.
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  // LMP entry as three large numeric boxes (DD / MM / YYYY); EDD auto-derived by Naegele's rule.
+  const [lmpParts, setLmpParts] = useState({ d: '', m: '', y: '' });
+  const lmpComplete = lmpParts.d.length > 0 && lmpParts.m.length > 0 && lmpParts.y.length === 4;
+  const lmpDate = lmpComplete ? parseClinicalDate(`${lmpParts.d}/${lmpParts.m}/${lmpParts.y}`) : null;
+  const lmpWeeks = lmpDate ? gestationalWeeks(lmpDate) : null;
+  const lmpIsFuture = lmpDate ? lmpDate.getTime() > Date.now() : false;
+  const lmpError: string | null = !lmpComplete
+    ? null
+    : !lmpDate
+    ? tr('अमान्य तिथि', 'अवैध तारीख')
+    : lmpIsFuture
+    ? tr('भविष्य की तिथि नहीं', 'भविष्यातील तारीख नाही')
+    : lmpWeeks === null
+    ? tr('45 सप्ताह से पुरानी', '45 आठवड्यांपेक्षा जुनी')
+    : null;
+  const lmpEdd = lmpDate && !lmpError ? calculateEdd(lmpDate) : null;
+
+  const updateLmpPart = (part: 'd' | 'm' | 'y', raw: string) => {
+    const next = { ...lmpParts, [part]: raw.replace(/[^0-9]/g, '') };
+    setLmpParts(next);
+    const complete = next.d.length > 0 && next.m.length > 0 && next.y.length === 4;
+    const parsed = complete ? parseClinicalDate(`${next.d}/${next.m}/${next.y}`) : null;
+    const valid = parsed !== null && parsed.getTime() <= Date.now() && gestationalWeeks(parsed) !== null;
+    setAnswers((prev) => {
+      const { lmpDate: _l, eddDate: _e, ...rest } = prev;
+      return valid && parsed
+        ? { ...rest, lmpDate: formatClinicalDate(parsed), eddDate: formatClinicalDate(calculateEdd(parsed)) }
+        : rest;
+    });
+  };
 
   const [isSaving, setIsSaving] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -260,7 +295,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       setIsListening(false);
     } else {
       setIsListening(true);
-      const speechLang = localeCode === 'en' ? 'en-IN' : localeCode === 'mr' ? 'mr-IN' : 'hi-IN';
+      const speechLang = language === 'mr' ? 'mr-IN' : 'hi-IN';
       VoiceRecognition.start(
         speechLang,
         (transcript) => {
@@ -292,26 +327,65 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     speak(option);
   };
 
+  // Range checks per question; blocks Next/Save so impossible values never reach the outbox.
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const errorFor = (q: QuestionDef): string | null => {
+    switch (q.type) {
+      case 'date':
+        if (lmpError) return lmpError;
+        // Partly typed date (e.g. day only) must be completed or cleared.
+        if ((lmpParts.d || lmpParts.m || lmpParts.y) && !lmpComplete) return tr('पूरी तिथि लिखें', 'पूर्ण तारीख लिहा');
+        return null;
+      case 'custom_clinical':
+        return validateBp(answers.bp, tr) || validateAdultWeight(answers.weight, tr);
+      case 'number':
+        return q.fieldKey === 'hemoglobin'
+          ? validateHb(answers.hemoglobin, tr)
+          : q.fieldKey === 'childWeight'
+          ? validateChildWeight(answers.childWeight, tr)
+          : null;
+      case 'dual_number':
+        return validateTablets(answers.ironTablets, tr) || validateTablets(answers.calciumTablets, tr);
+      default:
+        return null;
+    }
+  };
+
   const handleNext = () => {
+    const err = errorFor(currentQ);
+    setFieldError(err);
+    if (err) return;
     if (currentIndex < totalQuestions - 1) {
       setCurrentIndex(currentIndex + 1);
     }
   };
 
   const handlePrev = () => {
+    setFieldError(null);
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
     }
   };
 
   const handleSave = async () => {
+    // Never attach a survey to a placeholder patient.
+    if (!familyUnitId || !familyMemberId) {
+      onBack();
+      return;
+    }
+    const badIndex = questions.findIndex((q) => errorFor(q) !== null);
+    if (badIndex >= 0) {
+      setCurrentIndex(badIndex);
+      setFieldError(errorFor(questions[badIndex]));
+      return;
+    }
     setIsSaving(true);
     try {
       await submitSurvey({
         familyUnitId,
         familyMemberId,
         categoryCode: formType === 'OTHER' ? 'GENERAL' : formType,
-        ashaWorkerPhone: '9876543210',
+        ashaWorkerPhone: getStorageWorkerPhone(),
         answers: {
           ...answers,
           clinicalNote,
@@ -330,699 +404,343 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   };
 
   const isLastQuestion = currentIndex === totalQuestions - 1;
+  const progress = (currentIndex + 1) / totalQuestions;
+
+  const headerTitle =
+    formType === 'PREGNANCY'
+      ? tr('प्रसवपूर्व (18 ब)', 'प्रसूतीपूर्व (18 ब)')
+      : formType === 'CHILD'
+      ? tr('बाल स्वास्थ्य (18 अ)', 'बाल आरोग्य (18 अ)')
+      : tr('अन्य सेवाएँ (18 स)', 'इतर सेवा (18 स)');
+
+  /** Big tappable option card (≥56dp) with radio check. Stored value = shown label. */
+  const renderOption = (opt: string) => {
+    const selected = answers[currentQ.fieldKey] === opt;
+    return (
+      <Pressable
+        key={opt}
+        onPress={() => setAnswers({ ...answers, [currentQ.fieldKey]: opt })}
+        accessibilityRole="radio"
+        accessibilityState={{ selected }}
+        accessibilityLabel={opt}
+        style={({ pressed }) => [styles.option, selected && styles.optionActive, pressed && styles.pressed]}
+      >
+        <View style={[styles.radio, selected && styles.radioActive]}>
+          {selected ? <Check size={16} color={color.white} strokeWidth={2.4} /> : null}
+        </View>
+        <Text style={[styles.optionText, selected && styles.optionTextActive]}>{opt}</Text>
+        <IconButton icon={Volume2} label={tr('सुनें', 'ऐका')} onPress={() => handleSpeakOption(opt)} />
+      </Pressable>
+    );
+  };
+
+  const renderNumberInput = (
+    label: string,
+    value: string | undefined,
+    onChange: (v: string) => void,
+    keyboard: 'numeric' | 'decimal-pad' | 'default',
+    spoken: string,
+    placeholder?: string,
+    voiceKind: VoiceKind = keyboard === 'numeric' ? 'number' : 'decimal'
+  ) => (
+    <Field
+      label={label}
+      value={value ? String(value) : ''}
+      onChangeText={onChange}
+      keyboardType={keyboard}
+      placeholder={placeholder}
+      voice={voiceKind}
+      right={<IconButton icon={Volume2} label={tr('सुनें', 'ऐका')} onPress={() => speak(spoken)} />}
+    />
+  );
+
+  const footer = (
+    <View style={styles.footerRow}>
+      <View style={styles.footerBtn}>
+        <Button
+          label={tr('पिछला', 'मागे')}
+          icon={ChevronLeft}
+          variant="secondary"
+          disabled={currentIndex === 0}
+          onPress={handlePrev}
+        />
+      </View>
+      <View style={styles.footerBtn}>
+        {isLastQuestion ? (
+          <Button label={tr('सहेजें', 'जतन करा')} icon={CircleCheck} loading={isSaving} onPress={handleSave} />
+        ) : (
+          <Button label={tr('अगला', 'पुढे')} icon={ChevronRight} onPress={handleNext} />
+        )}
+      </View>
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View style={styles.container}>
+      <AppBar
+        title={headerTitle}
+        subtitle={memberName || undefined}
+        onBack={onBack}
+        backLabel={tr('वापस', 'मागे')}
+        right={<IconButton icon={Volume2} label={tr('प्रश्न सुनें', 'प्रश्न ऐका')} tone="accent" onPress={handleSpeakQuestion} />}
+      />
 
-      {/* TOP HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <ArrowLeft size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>
-            {formType === 'PREGNANCY'
-              ? 'प्रसवपूर्व (18 ब)'
-              : formType === 'CHILD'
-              ? 'बाल स्वास्थ्य (18 अ)'
-              : 'अन्य सेवाएँ (18 स)'}
+      {/* Progress */}
+      <View style={styles.progressWrap}>
+        <View style={styles.progressRow}>
+          <Text style={text.label}>
+            {tr('प्रश्न', 'प्रश्न')} {currentIndex + 1} / {totalQuestions}
           </Text>
-          <Text style={styles.headerMember}>{memberName}</Text>
+          <Text style={text.caption}>{Math.round(progress * 100)}%</Text>
         </View>
-
-        <TouchableOpacity onPress={handleSpeakQuestion} style={styles.voiceBtn} activeOpacity={0.7}>
-          <Volume2 size={20} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* PROGRESS BAR */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressHeaderRow}>
-          <Text style={styles.progressCounterText}>
-            प्रश्न {currentIndex + 1} / {totalQuestions}
-          </Text>
-          <Text style={styles.progressPercentText}>
-            {Math.round(((currentIndex + 1) / totalQuestions) * 100)}% पूर्ण
-          </Text>
-        </View>
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${((currentIndex + 1) / totalQuestions) * 100}%` as any },
-            ]}
-          />
+        <View style={styles.track}>
+          <View style={[styles.fill, { width: `${progress * 100}%` as any }]} />
         </View>
       </View>
 
-      {/* QUESTION CARD */}
-      <ScrollView contentContainerStyle={styles.scrollBody} keyboardShouldPersistTaps="handled">
-        <View style={styles.questionCard}>
-          {/* Question number badge + voice */}
-          <View style={styles.badgeRow}>
-            <View style={styles.questionBadge}>
-              <Text style={styles.questionBadgeText}>प्रश्न #{currentQ.number}</Text>
+      <Screen footer={footer}>
+        <Text style={styles.question}>{currentQ.title}</Text>
+
+        {/* Binary / options */}
+        {(currentQ.type === 'binary' || currentQ.type === 'options') && currentQ.options ? (
+          <View style={styles.options}>{currentQ.options.map(renderOption)}</View>
+        ) : null}
+
+        {/* LMP date → Naegele EDD, weeks, trimester */}
+        {currentQ.type === 'date' ? (
+          <View style={styles.block}>
+            <View style={styles.lmpRow}>
+              {([
+                ['d', tr('दिन', 'दिवस'), 2, '--'],
+                ['m', tr('माह', 'महिना'), 2, '--'],
+                ['y', tr('वर्ष', 'वर्ष'), 4, '----'],
+              ] as const).map(([part, label, max, hint]) => (
+                <View key={part} style={[styles.lmpCell, part === 'y' && styles.lmpCellWide]}>
+                  <Text style={text.label}>{label}</Text>
+                  <TextInput
+                    style={[styles.lmpInput, lmpError ? styles.lmpInputError : null]}
+                    value={lmpParts[part]}
+                    onChangeText={(v) => updateLmpPart(part, v)}
+                    keyboardType="number-pad"
+                    maxLength={max}
+                    placeholder={hint}
+                    placeholderTextColor={color.faint}
+                    accessibilityLabel={label}
+                  />
+                </View>
+              ))}
             </View>
-            <TouchableOpacity onPress={handleSpeakQuestion} style={styles.qVoiceBtn} activeOpacity={0.7}>
-              <Volume2 size={14} color={Colors.primary} />
-            </TouchableOpacity>
+
+            {lmpError ? (
+              <View style={styles.inlineRow}>
+                <AlertTriangle size={16} color={color.red} strokeWidth={2} />
+                <Text style={styles.errorText}>{lmpError}</Text>
+              </View>
+            ) : null}
+
+            {lmpEdd && lmpWeeks !== null ? (
+              <Card tone="green">
+                <View style={styles.inlineRow}>
+                  <CalendarDays size={18} color={color.green} strokeWidth={2} />
+                  <Text style={[text.label, { color: color.greenText }]}>{tr('संभावित प्रसव (EDD)', 'संभाव्य प्रसूती (EDD)')}</Text>
+                </View>
+                <Text style={[text.display, { color: color.green, marginTop: space.sm }]}>{formatClinicalDate(lmpEdd)}</Text>
+                <View style={[styles.inlineRow, { marginTop: space.md }]}>
+                  <StatusPill tone="green" label={`${lmpWeeks} ${tr('सप्ताह', 'आठवडे')}`} />
+                  <StatusPill tone="green" label={`${tr('तिमाही', 'तिमाही')} ${trimesterFromWeeks(lmpWeeks)}`} />
+                </View>
+              </Card>
+            ) : null}
           </View>
+        ) : null}
 
-          {/* Question Title only (no subtitle) */}
-          <Text style={styles.questionTitle}>{currentQ.title}</Text>
+        {/* BP & weight */}
+        {currentQ.type === 'custom_clinical' ? (
+          <View style={styles.block}>
+            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)'), answers.bp, (v) => { setFieldError(null); setAnswers({ ...answers, bp: v.replace(/[^0-9/]/g, '') }); }, 'default', tr('रक्तचाप', 'रक्तदाब'), '120/80', 'bp')}
+            {renderNumberInput(tr('वजन (kg)', 'वजन (kg)'), answers.weight, (v) => { setFieldError(null); setAnswers({ ...answers, weight: sanitizeDecimal(v) }); }, 'numeric', tr('वजन किलोग्राम', 'वजन किलोग्रॅम'))}
+          </View>
+        ) : null}
 
-          {/* ANSWER INPUT AREA */}
-          <View style={styles.answerArea}>
+        {/* Single number */}
+        {currentQ.type === 'number' ? (
+          <View style={styles.block}>
+            <TextInput
+              style={styles.bigNumber}
+              value={String(answers[currentQ.fieldKey] || '')}
+              onChangeText={(v) => { setFieldError(null); setAnswers({ ...answers, [currentQ.fieldKey]: sanitizeDecimal(v) }); }}
+              maxLength={5}
+              keyboardType="decimal-pad"
+              placeholder="0.0"
+              placeholderTextColor={color.faint}
+              accessibilityLabel={currentQ.title}
+            />
+          </View>
+        ) : null}
 
-            {/* 1. BINARY */}
-            {currentQ.type === 'binary' && currentQ.options && (
-              <View style={styles.binaryCol}>
-                {currentQ.options.map((opt) => {
-                  const isSelected = answers[currentQ.fieldKey] === opt;
-                  return (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.bigOptionBtn, isSelected && styles.bigOptionBtnActive]}
-                      onPress={() => setAnswers({ ...answers, [currentQ.fieldKey]: opt })}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                        {isSelected && <Check size={16} color="#FFFFFF" />}
-                      </View>
-                      <Text style={[styles.bigOptionText, isSelected && styles.bigOptionTextActive]}>
-                        {opt}
-                      </Text>
-                      {/* Voice icon per option */}
-                      <TouchableOpacity
-                        onPress={() => handleSpeakOption(opt)}
-                        style={styles.optionVoiceBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Volume2 size={14} color={isSelected ? Colors.primary : '#94A3B8'} />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  );
-                })}
+        {/* IFA & calcium */}
+        {currentQ.type === 'dual_number' ? (
+          <View style={styles.block}>
+            {renderNumberInput(tr('IFA गोलियाँ (संख्या)', 'IFA गोळ्या (संख्या)'), answers.ironTablets, (v) => { setFieldError(null); setAnswers({ ...answers, ironTablets: sanitizeInteger(v) }); }, 'numeric', tr('आयरन गोलियों की संख्या', 'लोह गोळ्यांची संख्या'))}
+            {renderNumberInput(tr('कैल्शियम गोलियाँ (संख्या)', 'कॅल्शियम गोळ्या (संख्या)'), answers.calciumTablets, (v) => { setFieldError(null); setAnswers({ ...answers, calciumTablets: sanitizeInteger(v) }); }, 'numeric', tr('कैल्शियम गोलियों की संख्या', 'कॅल्शियम गोळ्यांची संख्या'))}
+          </View>
+        ) : null}
+
+        {/* LMP errors already render beside the date boxes; avoid showing them twice. */}
+        {fieldError && fieldError !== lmpError ? (
+          <View style={styles.inlineRow}>
+            <AlertTriangle size={16} color={color.red} strokeWidth={2} />
+            <Text style={[styles.errorText, styles.flex]}>{fieldError}</Text>
+          </View>
+        ) : null}
+
+        {currentQ.helperText ? (
+          <View style={styles.inlineRow}>
+            <Info size={16} color={color.muted} strokeWidth={2} />
+            <Text style={[text.caption, styles.flex]}>{currentQ.helperText}</Text>
+          </View>
+        ) : null}
+
+        {/* Optional voice / typed note on the last question */}
+        {isLastQuestion ? (
+          <Card>
+            <View style={styles.noteHeader}>
+              <View style={styles.inlineRow}>
+                <FileText size={18} color={color.accent} strokeWidth={2} />
+                <Text style={text.label}>{tr('टिप्पणी (वैकल्पिक)', 'टीप (ऐच्छिक)')}</Text>
               </View>
-            )}
-
-            {/* 2. MULTI-OPTION */}
-            {currentQ.type === 'options' && currentQ.options && (
-              <View style={styles.optionsCol}>
-                {currentQ.options.map((opt) => {
-                  const isSelected = answers[currentQ.fieldKey] === opt;
-                  return (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.optionCard, isSelected && styles.optionCardActive]}
-                      onPress={() => setAnswers({ ...answers, [currentQ.fieldKey]: opt })}
-                      activeOpacity={0.8}
-                    >
-                      <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                        {isSelected && <Check size={14} color="#FFFFFF" />}
-                      </View>
-                      <Text style={[styles.optionCardText, isSelected && styles.optionCardTextActive]}>
-                        {opt}
-                      </Text>
-                      {/* Voice icon per option */}
-                      <TouchableOpacity
-                        onPress={() => handleSpeakOption(opt)}
-                        style={styles.optionVoiceBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Volume2 size={14} color={isSelected ? Colors.primary : '#94A3B8'} />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* 3. CUSTOM CLINICAL: BP & Weight */}
-            {currentQ.type === 'custom_clinical' && (
-              <View style={styles.clinicalBox}>
-                <View style={styles.inputGroup}>
-                  <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>BP (mmHg)</Text>
-                    <TouchableOpacity onPress={() => speak('रक्तचाप')} style={styles.inlineLabelVoice}>
-                      <Volume2 size={13} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <TextInput
-                    style={styles.textInput}
-                    value={answers.bp}
-                    onChangeText={(v) => setAnswers({ ...answers, bp: v })}
-                    placeholder="120/80"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-
-                <View style={[styles.inputGroup, { marginTop: 14 }]}>
-                  <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>वजन (kg)</Text>
-                    <TouchableOpacity onPress={() => speak('वजन किलोग्राम')} style={styles.inlineLabelVoice}>
-                      <Volume2 size={13} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <TextInput
-                    style={styles.textInput}
-                    value={answers.weight}
-                    onChangeText={(v) => setAnswers({ ...answers, weight: v })}
-                    keyboardType="numeric"
-                    placeholder="58"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                {currentQ.helperText && (
-                  <Text style={styles.helperNotice}>ℹ️ {currentQ.helperText}</Text>
-                )}
-              </View>
-            )}
-
-            {/* 4. NUMBER INPUT */}
-            {currentQ.type === 'number' && (
-              <View style={styles.singleInputWrap}>
-                <View style={styles.inputLabelRow}>
-                  <Text style={styles.inputLabel}>{currentQ.title}</Text>
-                  <TouchableOpacity onPress={() => speak(currentQ.title)} style={styles.inlineLabelVoice}>
-                    <Volume2 size={13} color={Colors.primary} />
-                  </TouchableOpacity>
-                </View>
-                <TextInput
-                  style={styles.bigNumberInput}
-                  value={String(answers[currentQ.fieldKey] || '')}
-                  onChangeText={(v) => setAnswers({ ...answers, [currentQ.fieldKey]: v })}
-                  keyboardType="decimal-pad"
-                  placeholder="0.0"
-                  placeholderTextColor="#9CA3AF"
-                />
-                {currentQ.helperText && (
-                  <Text style={styles.helperNotice}>ℹ️ {currentQ.helperText}</Text>
-                )}
-              </View>
-            )}
-
-            {/* 5. DUAL NUMBER (IFA & Calcium) */}
-            {currentQ.type === 'dual_number' && (
-              <View style={styles.clinicalBox}>
-                <View style={styles.inputGroup}>
-                  <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>IFA गोलियाँ (संख्या)</Text>
-                    <TouchableOpacity onPress={() => speak('आयरन गोलियों की संख्या')} style={styles.inlineLabelVoice}>
-                      <Volume2 size={13} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <TextInput
-                    style={styles.textInput}
-                    value={answers.ironTablets}
-                    onChangeText={(v) => setAnswers({ ...answers, ironTablets: v })}
-                    keyboardType="numeric"
-                    placeholder="100"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-
-                <View style={[styles.inputGroup, { marginTop: 14 }]}>
-                  <View style={styles.inputLabelRow}>
-                    <Text style={styles.inputLabel}>कैल्शियम गोलियाँ (संख्या)</Text>
-                    <TouchableOpacity onPress={() => speak('कैल्शियम गोलियों की संख्या')} style={styles.inlineLabelVoice}>
-                      <Volume2 size={13} color={Colors.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <TextInput
-                    style={styles.textInput}
-                    value={answers.calciumTablets}
-                    onChangeText={(v) => setAnswers({ ...answers, calciumTablets: v })}
-                    keyboardType="numeric"
-                    placeholder="100"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-                {currentQ.helperText && (
-                  <Text style={styles.helperNotice}>ℹ️ {currentQ.helperText}</Text>
-                )}
-              </View>
-            )}
-
-            {/* OPTIONAL CLINICAL NOTE WITH LIVE VOICE-TO-TEXT ON LAST QUESTION */}
-            {isLastQuestion && (
-              <View style={styles.voiceNoteCard}>
-                <View style={styles.voiceNoteHeader}>
-                  <View style={styles.voiceNoteTitleRow}>
-                    <FileText size={16} color={Colors.primary} style={{ marginRight: 6 }} />
-                    <Text style={styles.voiceNoteTitle}>
-                      टिप्पणी जोड़ें / Add Note (वैकल्पिक)
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.voiceMicBtn, isListening && styles.voiceMicBtnActive]}
-                    onPress={toggleVoiceRecognition}
-                    activeOpacity={0.8}
-                  >
-                    <Mic size={15} color={isListening ? '#FFFFFF' : Colors.primary} />
-                    <Text style={[styles.voiceMicBtnText, isListening && styles.voiceMicBtnTextActive]}>
-                      {isListening ? 'सुन रहे हैं... रोकें' : 'बोलकर लिखें'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.voiceNoteSub}>
-                  {isListening
-                    ? '🎙️ बोलिए... आपकी आवाज़ को टेक्स्ट में बदला जा रहा है।'
-                    : 'माइक दबाकर बोलें या यहाँ लिखें (वैकल्पिक टिप्पणी)'}
+              <Pressable
+                onPress={toggleVoiceRecognition}
+                accessibilityRole="button"
+                accessibilityLabel={isListening ? tr('रोकें', 'थांबवा') : tr('बोलकर लिखें', 'बोलून लिहा')}
+                style={[styles.micBtn, isListening && styles.micBtnActive]}
+              >
+                <Mic size={18} color={isListening ? color.white : color.accent} strokeWidth={2} />
+                <Text style={[styles.micText, isListening && styles.micTextActive]}>
+                  {isListening ? tr('रोकें', 'थांबवा') : tr('बोलकर लिखें', 'बोलून लिहा')}
                 </Text>
-
-                <TextInput
-                  style={styles.voiceNoteInput}
-                  value={clinicalNote}
-                  onChangeText={(txt) => {
-                    setClinicalNote(txt);
-                    setAnswers((prev) => ({ ...prev, clinicalNote: txt, remarks: txt }));
-                  }}
-                  placeholder="यहाँ अपनी टिप्पणी बोलें या टाइप करें (वैकल्पिक)..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-            )}
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* FIXED BOTTOM NAV: PREV / NEXT / SAVE */}
-      <View style={styles.bottomNavFixed}>
-        {currentIndex > 0 ? (
-          <TouchableOpacity style={styles.prevBtn} onPress={handlePrev} activeOpacity={0.8}>
-            <ArrowLeft size={18} color={Colors.textPrimary} style={{ marginRight: 6 }} />
-            <Text style={styles.prevBtnText}>पिछला</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ flex: 1 }} />
-        )}
-
-        {!isLastQuestion ? (
-          <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.85}>
-            <Text style={styles.nextBtnText}>अगला</Text>
-            <ArrowRight size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.saveBtn}
-            onPress={handleSave}
-            disabled={isSaving}
-            activeOpacity={0.85}
-          >
-            <CheckCircle size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.saveBtnText}>
-              {isSaving ? 'सहेजा जा रहा है...' : 'सहेजें'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </SafeAreaView>
+              </Pressable>
+            </View>
+            {isListening ? (
+              <Text style={[text.caption, { marginTop: space.sm }]}>{tr('बोलिए…', 'बोला…')}</Text>
+            ) : null}
+            <TextInput
+              style={styles.noteInput}
+              value={clinicalNote}
+              onChangeText={(txt) => {
+                setClinicalNote(txt);
+                setAnswers((prev) => ({ ...prev, clinicalNote: txt, remarks: txt }));
+              }}
+              placeholder={tr('यहाँ बोलें या लिखें', 'येथे बोला किंवा लिहा')}
+              placeholderTextColor={color.faint}
+              multiline
+              numberOfLines={3}
+              accessibilityLabel={tr('टिप्पणी', 'टीप')}
+            />
+          </Card>
+        ) : null}
+      </Screen>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  header: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  container: { flex: 1, backgroundColor: color.canvas },
+  flex: { flex: 1 },
+  pressed: { transform: [{ scale: 0.98 }] },
+  progressWrap: {
+    backgroundColor: color.surface,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    gap: space.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    borderBottomColor: color.line,
   },
-  backBtn: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-  },
-  headerCenter: {
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  headerTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  headerMember: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.primary,
-    marginTop: 1,
-  },
-  voiceBtn: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#ECFDF5',
-  },
-  progressContainer: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  progressHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  progressCounterText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  progressPercentText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  progressBarTrack: {
-    height: 5,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 3,
-  },
-  scrollBody: {
-    padding: 14,
-    paddingBottom: 100,
-  },
-  questionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 8,
-  },
-  questionBadge: {
-    backgroundColor: '#E0F2FE',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  questionBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-  },
-  qVoiceBtn: {
-    padding: 5,
-    borderRadius: 6,
-    backgroundColor: '#ECFDF5',
-  },
-  questionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    lineHeight: 24,
-    marginBottom: 18,
-  },
-  answerArea: {
-    marginTop: 0,
-  },
-  binaryCol: {
-    gap: 10,
-  },
-  bigOptionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  bigOptionBtnActive: {
-    backgroundColor: '#F0FDF4',
-    borderColor: Colors.primary,
-  },
-  radioCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  radioCircleActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary,
-  },
-  bigOptionText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#334155',
-    flex: 1,
-  },
-  bigOptionTextActive: {
-    color: Colors.primary,
-  },
-  optionVoiceBtn: {
-    padding: 6,
-    marginLeft: 4,
-    borderRadius: 6,
-  },
-  optionsCol: {
-    gap: 8,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-  },
-  optionCardActive: {
-    backgroundColor: '#F0FDF4',
-    borderColor: Colors.primary,
-  },
-  optionCardText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-    flex: 1,
-  },
-  optionCardTextActive: {
-    color: Colors.primary,
-    fontWeight: '700',
-  },
-  clinicalBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  inputGroup: {},
-  inputLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  inlineLabelVoice: {
-    padding: 3,
-    borderRadius: 4,
-    backgroundColor: '#ECFDF5',
-  },
-  textInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    fontSize: 15,
-    color: '#0F172A',
-    fontWeight: '600',
-  },
-  singleInputWrap: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  bigNumberInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: 12,
-    width: '70%',
-    textAlign: 'center',
-    paddingVertical: 14,
-    fontSize: 26,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginTop: 10,
-  },
-  helperNotice: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  bottomNavFixed: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    paddingBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  },
-  prevBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingVertical: 13,
-  },
-  prevBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  nextBtn: {
-    flex: 1.3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingVertical: 13,
-    elevation: 2,
-  },
-  nextBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  saveBtn: {
-    flex: 1.3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#059669',
-    borderRadius: 10,
-    paddingVertical: 13,
-    elevation: 2,
-  },
-  saveBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  voiceNoteCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 12,
-    marginTop: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  voiceNoteHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  voiceNoteTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 6,
-  },
-  voiceNoteTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  voiceMicBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryLight,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 16,
-    gap: 4,
-  },
-  voiceMicBtnActive: {
-    backgroundColor: '#EF4444',
-  },
-  voiceMicBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  voiceMicBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  voiceNoteSub: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  voiceNoteInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    padding: 10,
-    fontSize: 13,
-    color: Colors.textPrimary,
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  track: { height: 8, borderRadius: radius.pill, backgroundColor: color.lineSoft, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: radius.pill, backgroundColor: color.accent },
+  question: { ...type(22, '800'), marginTop: space.xs },
+  options: { gap: space.md },
+  option: {
     minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingLeft: space.lg,
+    paddingRight: space.xs,
+    backgroundColor: color.surface,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
+    borderColor: color.line,
+  },
+  optionActive: { borderColor: color.accent, backgroundColor: color.accentSoft },
+  radio: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: color.faint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioActive: { backgroundColor: color.accent, borderColor: color.accent },
+  optionText: { ...type(17, '700'), flex: 1 },
+  optionTextActive: { color: color.accentPressed },
+  block: { gap: space.lg },
+  inlineRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexWrap: 'wrap' },
+  errorText: { ...text.label, color: color.redText },
+  lmpRow: { flexDirection: 'row', gap: space.md },
+  lmpCell: { flex: 1, gap: space.sm },
+  lmpCellWide: { flex: 1.6 },
+  lmpInput: {
+    minHeight: 64,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: radius.control,
+    backgroundColor: color.surface,
+    fontSize: 24,
+    fontWeight: '800',
+    color: color.ink,
+    textAlign: 'center',
+  },
+  lmpInputError: { borderColor: color.red, backgroundColor: color.redSoft },
+  bigNumber: {
+    minHeight: 80,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: radius.card,
+    backgroundColor: color.surface,
+    fontSize: 36,
+    fontWeight: '800',
+    color: color.ink,
+    textAlign: 'center',
+  },
+  noteHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
+  micBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: touch,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: color.accentLine,
+    backgroundColor: color.accentSoft,
+  },
+  micBtnActive: { backgroundColor: color.red, borderColor: color.red },
+  micText: { ...type(14, '700', color.accent) },
+  micTextActive: { color: color.white },
+  noteInput: {
+    marginTop: space.md,
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: radius.control,
+    padding: space.md,
+    fontSize: 16,
+    color: color.ink,
     textAlignVertical: 'top',
   },
+  footerRow: { flexDirection: 'row', gap: space.md },
+  footerBtn: { flex: 1 },
 });

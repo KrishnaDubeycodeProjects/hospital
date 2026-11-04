@@ -1,9 +1,12 @@
 package com.qdischarge.clinicqueue.controller;
 
+import com.qdischarge.clinicqueue.asha.service.AshaWorkerService;
+import com.qdischarge.clinicqueue.asha.service.WorkerIdentityService;
 import com.qdischarge.clinicqueue.dto.OtpSendRequest;
 import com.qdischarge.clinicqueue.dto.OtpVerifyRequest;
 import com.qdischarge.clinicqueue.security.JwtService;
 import com.qdischarge.clinicqueue.service.OtpService;
+import com.qdischarge.clinicqueue.util.PhoneNormalizer;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Public, rate-limited (see RateLimitFilter) phone-number OTP endpoints.
@@ -32,6 +36,8 @@ public class OtpController {
 
     private final OtpService otpService;
     private final JwtService jwtService;
+    private final WorkerIdentityService workerIdentityService;
+    private final AshaWorkerService ashaWorkerService;
 
     @PostMapping("/send")
     public ResponseEntity<Map<String, Object>> send(@Valid @RequestBody OtpSendRequest request) {
@@ -46,7 +52,25 @@ public class OtpController {
         OtpService.OtpResult result = otpService.verifyOtp(request.phone(), request.code());
         Map<String, Object> body = body(result.success(), result.message());
         if (result.success()) {
-            body.put("token", jwtService.generatePatientToken(request.phone()));
+            // Field app: a registered ASHA / ANM / CHO gets a worker token whose subject is the
+            // OTP-proven phone. The role comes from server records only (never from the client).
+            if ("WORKER".equalsIgnoreCase(request.purpose())) {
+                Optional<String> workerRole = workerIdentityService.resolveWorkerRole(request.phone());
+                if (workerRole.isEmpty()) {
+                    Map<String, Object> err = body(false, "यह मोबाइल नंबर किसी आशा या स्वास्थ्य कार्यकर्ता के रूप में पंजीकृत नहीं है। कृपया अपने सीएचओ (CHO) से संपर्क करें।");
+                    err.put("registered", false);
+                    return ResponseEntity.status(403).body(err);
+                }
+                String role = workerRole.get();
+                String normPhone = PhoneNormalizer.normalize(request.phone());
+                body.put("token", jwtService.generateWorkerToken(normPhone, role));
+                body.put("role", role);
+                body.put("registered", true);
+                ashaWorkerService.getProfileForMe(normPhone, role).ifPresent(p -> body.put("profile", p));
+            } else {
+                body.put("token", jwtService.generatePatientToken(request.phone()));
+                body.put("role", JwtService.PATIENT_ROLE);
+            }
         }
         return ResponseEntity.status(result.success() ? 200 : 400).body(body);
     }

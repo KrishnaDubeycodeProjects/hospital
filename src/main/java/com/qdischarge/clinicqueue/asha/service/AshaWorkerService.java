@@ -28,8 +28,12 @@ public class AshaWorkerService {
 
     @Transactional
     public AshaWorkerDto register(AshaWorkerDto body) {
-        String sql = "INSERT INTO clinicqueue.asha_workers (phone, name, village_name, block_name, district_name, phc_id, anm_phone, is_active, created_at, updated_at) " +
-                "VALUES (:phone, :name, :villageName, :blockName, :districtName, :phcId, :anmPhone, true, NOW(), NOW())";
+        String lang = body.getPreferredLanguage() != null && !body.getPreferredLanguage().isBlank() 
+                ? body.getPreferredLanguage().trim().toLowerCase() : "hi";
+        // Only ASHA / ANM can be registered here; CHOs are provisioned (app.cho-phones / cho_officers).
+        String role = "ANM".equalsIgnoreCase(body.getRole() != null ? body.getRole().trim() : "") ? "ANM" : "ASHA";
+        String sql = "INSERT INTO clinicqueue.asha_workers (phone, name, village_name, block_name, district_name, phc_id, anm_phone, preferred_language, role, is_active, created_at, updated_at) " +
+                "VALUES (:phone, :name, :villageName, :blockName, :districtName, :phcId, :anmPhone, :prefLang, :role, true, NOW(), NOW())";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("phone", body.getPhone())
                 .addValue("name", body.getName())
@@ -37,17 +41,57 @@ public class AshaWorkerService {
                 .addValue("blockName", body.getBlockName())
                 .addValue("districtName", body.getDistrictName())
                 .addValue("phcId", body.getPhcId())
-                .addValue("anmPhone", body.getAnmPhone());
+                .addValue("anmPhone", body.getAnmPhone())
+                .addValue("prefLang", lang)
+                .addValue("role", role);
 
         jdbcTemplate.update(sql, params);
         log.info("Registered ASHA worker: {}", body.getPhone());
         return getByPhone(body.getPhone()).orElseThrow();
     }
 
+    /**
+     * Profile for the logged-in worker (GET /api/asha/me): the CHO-registered asha_workers row
+     * plus assigned household count; for CHOs (not in asha_workers) the cho_officers row.
+     */
+    public Optional<AshaWorkerDto> getProfileForMe(String phone, String role) {
+        String p10 = phone == null ? "" : phone.replaceAll("[^0-9]", "");
+        if (p10.length() > 10) p10 = p10.substring(p10.length() - 10);
+        MapSqlParameterSource params = new MapSqlParameterSource("p", p10);
+        String d10 = "RIGHT(regexp_replace(COALESCE(%s, ''), '[^0-9]', '', 'g'), 10)";
+
+        Optional<AshaWorkerDto> worker = getByPhone(phone);
+        if (worker.isEmpty() && "CHO".equals(role)) {
+            List<AshaWorkerDto> cho = jdbcTemplate.query(
+                    "SELECT id, phone, name, block_name, district_name FROM clinicqueue.cho_officers WHERE " +
+                            String.format(d10, "phone") + " = :p LIMIT 1", params,
+                    (rs, rn) -> AshaWorkerDto.builder()
+                            .id(rs.getInt("id"))
+                            .phone(rs.getString("phone"))
+                            .name(rs.getString("name"))
+                            .blockName(rs.getString("block_name"))
+                            .districtName(rs.getString("district_name"))
+                            .role("CHO")
+                            .isActive(true)
+                            .build());
+            worker = cho.isEmpty()
+                    ? Optional.of(AshaWorkerDto.builder().phone(phone).role("CHO").isActive(true).build())
+                    : Optional.of(cho.get(0));
+        }
+        worker.ifPresent(w -> {
+            if (w.getRole() == null) w.setRole(role);
+            Integer households = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM clinicqueue.family_units WHERE " + String.format(d10, "asha_worker_phone") +
+                            " = :p AND (is_deleted IS NULL OR is_deleted = FALSE)", params, Integer.class);
+            w.setHouseholdCount(households != null ? households : 0);
+        });
+        return worker;
+    }
+
     public Optional<AshaWorkerDto> getByPhone(String phone) {
         String rawPhone = phone != null ? phone.replace("+91", "").trim() : "";
         String normPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(phone);
-        String sql = "SELECT * FROM clinicqueue.asha_workers WHERE phone = :phone OR phone = :rawPhone OR phone = :normPhone OR phone = '+919876543210' OR phone = '9876543210' LIMIT 1";
+        String sql = "SELECT * FROM clinicqueue.asha_workers WHERE (phone = :phone OR phone = :rawPhone OR phone = :normPhone) LIMIT 1";
         MapSqlParameterSource params = new MapSqlParameterSource("phone", phone)
                 .addValue("rawPhone", rawPhone)
                 .addValue("normPhone", normPhone);
@@ -58,7 +102,7 @@ public class AshaWorkerService {
     public DashboardDto getDashboard(String ashaPhone) {
         String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
         String normPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ashaPhone);
-        String ashaSql = "SELECT * FROM clinicqueue.asha_workers WHERE phone = :phone OR phone = :rawPhone OR phone = :normPhone OR phone = '+919876543210' OR phone = '9876543210' LIMIT 1";
+        String ashaSql = "SELECT * FROM clinicqueue.asha_workers WHERE (phone = :phone OR phone = :rawPhone OR phone = :normPhone) LIMIT 1";
         MapSqlParameterSource params = new MapSqlParameterSource("phone", ashaPhone)
                 .addValue("rawPhone", rawPhone)
                 .addValue("normPhone", normPhone);
@@ -71,12 +115,12 @@ public class AshaWorkerService {
         final AshaWorkerDto worker = workers.isEmpty() ? new AshaWorkerDto() : workers.get(0);
 
         String statsSql = "SELECT " +
-                "(SELECT COUNT(*) FROM clinicqueue.family_units WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL)) as total_families, " +
-                "(SELECT COUNT(m.id) FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON m.family_unit_id = f.id WHERE (f.asha_worker_phone = :phone OR f.asha_worker_phone = :rawPhone OR f.asha_worker_phone = '9876543210' OR f.asha_worker_phone = '+919876543210' OR f.asha_worker_phone IS NULL)) as total_members, " +
-                "(SELECT COUNT(*) FROM clinicqueue.survey_responses WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)) as surveys_this_month, " +
-                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND due_date < CURRENT_DATE AND status = 'PENDING') as overdue_follow_ups, " +
-                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND due_date >= CURRENT_DATE AND status = 'PENDING') as upcoming_follow_ups, " +
-                "(SELECT COUNT(*) FROM clinicqueue.survey_responses WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) AND synced_to_anm = FALSE) as pending_sync_count";
+                "(SELECT COUNT(*) FROM clinicqueue.family_units WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = :normPhone) AND (is_deleted = false OR is_deleted IS NULL)) as total_families, " +
+                "(SELECT COUNT(m.id) FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON m.family_unit_id = f.id WHERE (f.asha_worker_phone = :phone OR f.asha_worker_phone = :rawPhone OR f.asha_worker_phone = :normPhone) AND (m.is_deleted = false OR m.is_deleted IS NULL) AND (f.is_deleted = false OR f.is_deleted IS NULL)) as total_members, " +
+                "(SELECT COUNT(*) FROM clinicqueue.survey_responses WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = :normPhone) AND EXTRACT(MONTH FROM created_at) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)) as surveys_this_month, " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = :normPhone) AND due_date < CURRENT_DATE AND status = 'PENDING') as overdue_follow_ups, " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = :normPhone) AND due_date >= CURRENT_DATE AND status = 'PENDING') as upcoming_follow_ups, " +
+                "(SELECT COUNT(*) FROM clinicqueue.survey_responses WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = :normPhone) AND synced_to_anm = FALSE) as pending_sync_count";
 
         return jdbcTemplate.queryForObject(statsSql, params, (rs, rowNum) -> {
             DashboardDto dto = new DashboardDto();
@@ -94,8 +138,11 @@ public class AshaWorkerService {
 
     public List<FamilyDetailDto> listFamilies(String ashaPhone, String search, String sort) {
         String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
-        StringBuilder sql = new StringBuilder("SELECT * FROM clinicqueue.family_units WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = '9876543210' OR asha_worker_phone = '+919876543210' OR asha_worker_phone IS NULL) ");
-        MapSqlParameterSource params = new MapSqlParameterSource("phone", ashaPhone).addValue("rawPhone", rawPhone);
+        String normPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ashaPhone);
+        StringBuilder sql = new StringBuilder("SELECT * FROM clinicqueue.family_units WHERE (asha_worker_phone = :phone OR asha_worker_phone = :rawPhone OR asha_worker_phone = :normPhone) AND (is_deleted = false OR is_deleted IS NULL) ");
+        MapSqlParameterSource params = new MapSqlParameterSource("phone", ashaPhone)
+                .addValue("rawPhone", rawPhone)
+                .addValue("normPhone", normPhone);
         if (search != null && !search.trim().isEmpty()) {
             sql.append("AND (head_name ILIKE :search OR house_number ILIKE :search) ");
             params.addValue("search", "%" + search + "%");
@@ -114,7 +161,7 @@ public class AshaWorkerService {
         FamilyDetailDto family = jdbcTemplate.queryForObject(sql, new MapSqlParameterSource("id", familyId), (rs, rowNum) -> mapFamilyDetail(rs));
         
         if (family != null) {
-            String membersSql = "SELECT * FROM clinicqueue.family_members WHERE family_unit_id = :id ORDER BY created_at ASC";
+            String membersSql = "SELECT * FROM clinicqueue.family_members WHERE family_unit_id = :id AND (is_deleted = false OR is_deleted IS NULL) ORDER BY created_at ASC";
             List<MemberDto> members = jdbcTemplate.query(membersSql, new MapSqlParameterSource("id", familyId), (rs, rowNum) -> mapMember(rs));
             family.setMembers(members);
         }
@@ -122,25 +169,29 @@ public class AshaWorkerService {
     }
 
     public List<FamilyGridDto> getGridData(String ashaPhone, String sectionFilter) {
+        String rawPhone = ashaPhone != null ? ashaPhone.replace("+91", "").trim() : "";
+        String normPhone = com.qdischarge.clinicqueue.util.PhoneNormalizer.normalize(ashaPhone);
         StringBuilder sql = new StringBuilder("SELECT f.*, " +
-                "(SELECT COUNT(*) FROM clinicqueue.family_members WHERE family_unit_id = f.id) as member_count, " +
-                "EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.is_pregnant = true) as has_pregnancy_data, " +
-                "EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.has_chronic_condition = true) as has_disease_data, " +
-                "EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.age <= 5) as has_child_data " +
-                "FROM clinicqueue.family_units f WHERE (f.asha_worker_phone = :phone OR f.asha_worker_phone = '9876543210') ");
+                "(SELECT COUNT(*) FROM clinicqueue.family_members WHERE family_unit_id = f.id AND (is_deleted = false OR is_deleted IS NULL)) as member_count, " +
+                "EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.is_pregnant = true AND (m.is_deleted = false OR m.is_deleted IS NULL)) as has_pregnancy_data, " +
+                "EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.has_chronic_condition = true AND (m.is_deleted = false OR m.is_deleted IS NULL)) as has_disease_data, " +
+                "EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.age <= 5 AND (m.is_deleted = false OR m.is_deleted IS NULL)) as has_child_data " +
+                "FROM clinicqueue.family_units f WHERE (f.asha_worker_phone = :phone OR f.asha_worker_phone = :rawPhone OR f.asha_worker_phone = :normPhone) AND (f.is_deleted = false OR f.is_deleted IS NULL) ");
         
         if (sectionFilter != null && !sectionFilter.trim().isEmpty() && !sectionFilter.equalsIgnoreCase("ALL")) {
             if ("PREGNANCY".equalsIgnoreCase(sectionFilter)) {
-                sql.append("AND EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.is_pregnant = true) ");
+                sql.append("AND EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.is_pregnant = true AND (m.is_deleted = false OR m.is_deleted IS NULL)) ");
             } else if ("DISEASE".equalsIgnoreCase(sectionFilter) || "NCD".equalsIgnoreCase(sectionFilter)) {
-                sql.append("AND EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.has_chronic_condition = true) ");
+                sql.append("AND EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.has_chronic_condition = true AND (m.is_deleted = false OR m.is_deleted IS NULL)) ");
             } else if ("CHILD".equalsIgnoreCase(sectionFilter)) {
-                sql.append("AND EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.age <= 5) ");
+                sql.append("AND EXISTS(SELECT 1 FROM clinicqueue.family_members m WHERE m.family_unit_id = f.id AND m.age <= 5 AND (m.is_deleted = false OR m.is_deleted IS NULL)) ");
             }
         }
         sql.append("ORDER BY COALESCE(NULLIF(regexp_replace(COALESCE(f.house_number, ''), '\\D', '', 'g'), ''), '0')::integer ASC, f.sequential_number ASC");
 
-        MapSqlParameterSource params = new MapSqlParameterSource("phone", ashaPhone);
+        MapSqlParameterSource params = new MapSqlParameterSource("phone", ashaPhone)
+                .addValue("rawPhone", rawPhone)
+                .addValue("normPhone", normPhone);
 
         return jdbcTemplate.query(sql.toString(), params, (rs, rowNum) -> {
             FamilyGridDto dto = new FamilyGridDto();
@@ -177,8 +228,8 @@ public class AshaWorkerService {
 
     @Transactional
     public FamilyDetailDto createFamily(String ashaPhone, FamilyGridDto body) {
-        String sql = "INSERT INTO clinicqueue.family_units (head_name, house_number, sequential_number, asha_worker_phone, created_at, updated_at) " +
-                "VALUES (:headName, :houseNumber, :sequentialNumber, :ashaPhone, NOW(), NOW()) RETURNING id";
+        String sql = "INSERT INTO clinicqueue.family_units (head_name, house_number, sequential_number, asha_worker_phone, is_deleted, created_at, updated_at) " +
+                "VALUES (:headName, :houseNumber, :sequentialNumber, :ashaPhone, false, NOW(), NOW()) RETURNING id";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("headName", body.getHeadName())
                 .addValue("houseNumber", body.getHouseNumber())
@@ -190,8 +241,8 @@ public class AshaWorkerService {
 
     @Transactional
     public MemberDto addMember(Integer familyId, MemberDto body) {
-        String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, created_at, updated_at) " +
-                "VALUES (:familyId, :name, :dob, :age, :gender, :relationship, :phone, NOW(), NOW()) RETURNING id";
+        String sql = "INSERT INTO clinicqueue.family_members (family_unit_id, name, dob, age, gender, relationship, phone, is_deleted, created_at, updated_at) " +
+                "VALUES (:familyId, :name, :dob, :age, :gender, :relationship, :phone, false, NOW(), NOW()) RETURNING id";
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("familyId", familyId)
                 .addValue("name", body.getName())
@@ -222,7 +273,7 @@ public class AshaWorkerService {
 
     @Transactional
     public void deleteMember(Integer memberId) {
-        String sql = "DELETE FROM clinicqueue.family_members WHERE id = :id";
+        String sql = "UPDATE clinicqueue.family_members SET is_deleted = true, updated_at = NOW() WHERE id = :id";
         jdbcTemplate.update(sql, new MapSqlParameterSource("id", memberId));
     }
 
@@ -248,6 +299,13 @@ public class AshaWorkerService {
         dto.setDistrictName(rs.getString("district_name"));
         dto.setPhcId(rs.getObject("phc_id", Integer.class));
         dto.setAnmPhone(rs.getString("anm_phone"));
+        try {
+            dto.setPreferredLanguage(rs.getString("preferred_language"));
+        } catch (Exception ignored) {}
+        try {
+            String role = rs.getString("role");
+            dto.setRole(role != null ? role.toUpperCase() : "ASHA");
+        } catch (Exception ignored) {}
         dto.setIsActive(rs.getBoolean("is_active"));
         java.sql.Timestamp created = rs.getTimestamp("created_at");
         if (created != null) dto.setCreatedAt(created.toLocalDateTime());

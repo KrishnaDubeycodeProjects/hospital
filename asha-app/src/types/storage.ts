@@ -1,7 +1,8 @@
 export type GridStatusType = '7days' | '15days' | '30days' | 'visited' | 'noData';
 
 export interface FamilyUnit {
-  id: string; // UUID
+  id: string; // UUID (client-generated; sent to server as clientUuid)
+  serverId?: number; // Server row id, learned from the sync v2 per-record acknowledgement
   sequentialNumber: number;
   houseNumber: number | string;
   headName: string;
@@ -28,13 +29,14 @@ export interface FamilyUnit {
 }
 
 export interface FamilyMember {
-  id: string; // UUID
+  id: string; // UUID (client-generated; sent to server as clientUuid)
+  serverId?: number; // Server row id, learned from the sync v2 per-record acknowledgement
   familyUnitId: string;
   name: string;
   initials: string;
   dob?: string; // Date of birth (DD/MM/YYYY)
-  age: number;
-  gender: 'Male' | 'Female' | 'Other';
+  age?: number; // Optional: unknown for some downloaded records (never invented)
+  gender?: 'Male' | 'Female' | 'Other'; // Optional: unknown for some downloaded records
   relationship: string;
   phone?: string; // Member personal phone number (Optional 10-digit mobile)
   fatherOrHusbandName?: string;
@@ -147,7 +149,9 @@ export interface FollowUpTask {
 export type OutboxAction =
   | 'CREATE_FAMILY'
   | 'UPDATE_FAMILY'
+  | 'DELETE_FAMILY'
   | 'ADD_MEMBER'
+  | 'DELETE_MEMBER'
   | 'SUBMIT_SURVEY'
   | 'COMPLETE_FOLLOWUP'
   | 'SAVE_MEETING'
@@ -155,7 +159,7 @@ export type OutboxAction =
   | 'SEND_TO_ANM'
   | 'CREATE_REFERRAL'
   | 'APPROVE_REFERRAL'
-  | 'RECORD_TELECONSULT';
+  | 'CHO_APPROVE_REFERRAL'; // CHO sector validation of a server referral (physical triage / transport)
 
 export interface OutboxItem {
   id: string;
@@ -165,4 +169,6 @@ export interface OutboxItem {
   createdAt: string;
   syncedAt?: string;
   retryCount: number;
+  /** Server rejection reason code (sync v2), e.g. FAMILY_NOT_FOUND, PHONE_IN_USE */
+  lastError?: string;
 }

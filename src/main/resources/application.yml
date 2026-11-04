@@ -99,6 +99,14 @@ app:
   admin-password-hash: ${ADMIN_PASSWORD_HASH:}
   jwt-secret: ${JWT_SECRET:}
   jwt-expiry-minutes: ${JWT_EXPIRY_MINUTES:60}
+  # Field-worker (ASHA / ANM / CHO) tokens: workers sync after hours or days offline, so a
+  # 60-minute token would force an OTP before every sync. Lost-phone exposure is bounded by this.
+  worker-jwt-expiry-days: ${WORKER_JWT_EXPIRY_DAYS:30}
+  # Trust X-ASHA-Phone / X-ANM-Phone as identity WITHOUT a verified token. Local development
+  # only -- in production identity comes from the OTP-issued worker JWT.
+  allow-header-identity: ${ALLOW_HEADER_IDENTITY:false}
+  # Comma-separated CHO phone numbers (bootstrap; cho_officers table rows are also honoured).
+  cho-phones: ${CHO_PHONES:}
 
   webhook-verify-token: ${WEBHOOK_VERIFY_TOKEN:}
   allowed-origins: ${ALLOWED_ORIGINS:https://hospital-ten-blond.vercel.app,https://frontend-nu-blond-1ea9x4z95l.vercel.app,https://hospital.princete.com,https://princete.com,https://www.princete.com,http://princete.com,http://www.princete.com,http://localhost:5173,http://localhost:3000,http://localhost:8088}

@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { useAuth } from './AuthContext';
+import { useLanguage } from './LanguageContext';
 import {
   FamilyUnit,
   FamilyMember,
@@ -9,7 +13,7 @@ import {
   AnmSessionFolder,
   OutboxItem,
 } from '../types/storage';
-import { OfflineStorageService } from '../storage/OfflineStorageService';
+import { OfflineStorageService, setStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { SyncApi, SyncResult } from '../api/syncApi';
 
 interface OfflineDataContextType {
@@ -22,13 +26,19 @@ interface OfflineDataContextType {
   anmSessions: AnmSessionFolder[];
   outbox: OutboxItem[];
   pendingSyncCount: number;
+  /** Outbox records the server rejected (kept locally, never deleted). */
+  failedSyncCount: number;
+  /** Re-queue every failed record and sync immediately. */
+  retryFailedRecords: () => Promise<SyncResult | null>;
   isLoading: boolean;
   isSyncing: boolean;
   isOnline: boolean;
   lastSyncResult: SyncResult | null;
   refreshData: () => Promise<void>;
   addFamily: (family: Omit<FamilyUnit, 'id' | 'updatedAt'>) => Promise<FamilyUnit>;
+  deleteFamily: (id: string) => Promise<void>;
   addMember: (member: Omit<FamilyMember, 'id' | 'updatedAt'>) => Promise<FamilyMember>;
+  deleteMember: (memberId: string) => Promise<void>;
   submitSurvey: (
     survey: Omit<SurveyResponse, 'id' | 'createdAt' | 'syncedToAnm'>
   ) => Promise<SurveyResponse>;
@@ -60,7 +70,7 @@ interface OfflineDataContextType {
     memberName?: string
   ) => Promise<{ task: any; family: any; syncedOnline: boolean }>;
   markFamilyVisited: (familyId: string, priority: '7days' | '15days' | '30days') => Promise<void>;
-  sendToAnm: (sectionFilter?: string, anmCode?: string) => Promise<SyncResult>;
+  sendToAnm: (sectionFilter: string, anmCode: string) => Promise<SyncResult>;
   createReferralToCho: (params: {
     familyUnitId: string;
     familyMemberId: string;
@@ -84,6 +94,7 @@ const OfflineDataContext = createContext<OfflineDataContextType | undefined>(und
 export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { user } = useAuth();
   const [families, setFamilies] = useState<FamilyUnit[]>([]);
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpTask[]>([]);
@@ -98,9 +109,23 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
 
   const prevOnlineRef = useRef(false);
+  const netInfoConnectedRef = useRef<boolean | null>(null);
+  const { language } = useLanguage();
+  const languageRef = useRef(language);
+  languageRef.current = language;
+
+  // Synchronize storage partition whenever active user/phone switches
+  useEffect(() => {
+    if (user?.phone) {
+      setStorageWorkerPhone(user.phone);
+    }
+  }, [user?.phone]);
 
   const refreshData = useCallback(async () => {
     try {
+      if (user?.phone) {
+        setStorageWorkerPhone(user.phone);
+      }
       await OfflineStorageService.initialize();
       const [fams, mems, flws, srvs, vaxs, mtgs, anmSess, obox] = await Promise.all([
         OfflineStorageService.getFamilies(),
@@ -125,32 +150,60 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.phone]);
 
-  const triggerSync = useCallback(async (): Promise<SyncResult> => {
-    setIsSyncing(true);
-    try {
-      const result = await SyncApi.syncOutbox();
-      setLastSyncResult(result);
-      await refreshData();
-      return result;
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [refreshData]);
+  /**
+   * Core sync runner. `force` bypasses the failure backoff (used for manual taps);
+   * automatic triggers respect it. Never syncs before a worker is logged in, so records
+   * are never uploaded/downloaded under a placeholder phone.
+   */
+  const runSync = useCallback(
+    async (force: boolean): Promise<SyncResult> => {
+      const cleanPhone = user?.phone ? user.phone.replace(/[^0-9]/g, '').slice(-10) : '';
+      if (cleanPhone.length !== 10) {
+        return {
+          success: false,
+          mode: 'OFFLINE_QUEUED',
+          message: languageRef.current === 'mr' ? 'लॉगिननंतर सिंक होईल' : 'लॉगिन के बाद सिंक होगा',
+          syncedCount: 0,
+        };
+      }
+      setIsSyncing(true);
+      try {
+        const result = await SyncApi.syncOutbox(cleanPhone, 'CHILD_VAX', {
+          lang: languageRef.current,
+          force,
+          role: user?.role,
+        });
+        setLastSyncResult(result);
+        await refreshData();
+        return result;
+      } finally {
+        setIsSyncing(SyncApi.isSyncInFlight());
+      }
+    },
+    [user?.phone, user?.role, refreshData]
+  );
+
+  // Manual sync (header button, Send Data screen) — always attempts immediately.
+  const triggerSync = useCallback(() => runSync(true), [runSync]);
+  // Automatic sync (heartbeat, reconnect, after local writes) — respects backoff.
+  const autoSync = useCallback(() => runSync(false), [runSync]);
 
   // Helper to immediately push changes to the cloud if internet connectivity is available
   const syncIfOnline = useCallback(async () => {
     try {
+      // Every caller just wrote a new record: retry now rather than after an old backoff.
+      SyncApi.resetBackoff();
       const online = await SyncApi.pingServer();
       setIsOnline(online);
       if (online) {
-        await triggerSync();
+        await autoSync();
       }
     } catch (e) {
       console.warn('Sync check failed:', e);
     }
-  }, [triggerSync]);
+  }, [autoSync]);
 
   // Network connectivity listener and auto-synchronization:
   // Immediately synchronizes queued operations as soon as the device/browser reconnects to the internet!
@@ -170,9 +223,9 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         const pendingItems = await OfflineStorageService.getPendingOutbox();
         const hasPending = pendingItems.length > 0;
 
-        if (online && (!prevOnlineRef.current || hasPending)) {
+        if (online && (!prevOnlineRef.current || hasPending) && !SyncApi.isSyncInFlight()) {
           console.log(`🌐 Online connection active (${pendingItems.length} pending records). Auto-synchronizing with cloud...`);
-          await triggerSync();
+          await autoSync();
         }
         prevOnlineRef.current = online;
       } catch (err) {
@@ -197,22 +250,42 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       prevOnlineRef.current = false;
     };
 
-    if (typeof window !== 'undefined') {
+    // 1. Native mobile connectivity listener via NetInfo (instantaneous connection change detection)
+    // Only an offline -> online transition triggers a sync; NetInfo also fires on
+    // subscribe and on every reachability/wifi-detail change, which previously caused
+    // a burst of overlapping syncs.
+    const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
+      const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+      const wasConnected = netInfoConnectedRef.current;
+      netInfoConnectedRef.current = isConnected;
+      setIsOnline(isConnected);
+      if (isConnected && wasConnected !== true) {
+        console.log('⚡ [NetInfo] Mobile network ONLINE! Triggering immediate cloud sync...');
+        performConnectivityCheck();
+      } else if (!isConnected) {
+        prevOnlineRef.current = false;
+        console.log('📴 [NetInfo] Mobile network OFFLINE. Local storage active.');
+      }
+    });
+
+    // 2. Web browser fallback event listener
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('online', handleOnlineEvent);
       window.addEventListener('offline', handleOfflineEvent);
     }
 
-    // Active heartbeat check every 5 seconds to ensure changes sync quickly even without window events
+    // 3. Active heartbeat check every 5 seconds to ensure pending records auto-sync
     const interval = setInterval(performConnectivityCheck, 5000);
 
     return () => {
+      unsubscribeNetInfo();
       clearInterval(interval);
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('online', handleOnlineEvent);
         window.removeEventListener('offline', handleOfflineEvent);
       }
     };
-  }, [refreshData, triggerSync]);
+  }, [refreshData, autoSync]);
 
   const addFamily = async (
     family: Omit<FamilyUnit, 'id' | 'updatedAt'>
@@ -223,6 +296,12 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     return created;
   };
 
+  const deleteFamily = async (id: string): Promise<void> => {
+    await OfflineStorageService.deleteFamily(id);
+    await refreshData();
+    syncIfOnline().catch(() => {});
+  };
+
   const addMember = async (
     member: Omit<FamilyMember, 'id' | 'updatedAt'>
   ): Promise<FamilyMember> => {
@@ -230,6 +309,12 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
     await refreshData();
     syncIfOnline().catch(() => {});
     return created;
+  };
+
+  const deleteMember = async (memberId: string): Promise<void> => {
+    await OfflineStorageService.deleteMember(memberId);
+    await refreshData();
+    syncIfOnline().catch(() => {});
   };
 
   const submitSurvey = async (
@@ -289,7 +374,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const sendToAnm = async (
     sectionFilter: string = 'ALL',
-    anmCode: string = 'ANM-CHANDPUR-01'
+    anmCode: string
   ): Promise<SyncResult> => {
     setIsSyncing(true);
     try {
@@ -375,7 +460,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
       recordsCount: 0,
       studyType: data.studyType || `${data.category} Field Study`,
       notes: data.notes || '',
-      location: data.location || 'Chandpur Health Centre',
+      location: data.location || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -405,6 +490,14 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const pendingSyncCount = outbox.filter((i) => i.status === 'PENDING').length;
+  const failedSyncCount = outbox.filter((i) => i.status === 'FAILED').length;
+
+  const retryFailedRecords = async (): Promise<SyncResult | null> => {
+    const requeued = await OfflineStorageService.requeueFailedOutbox();
+    await refreshData();
+    if (requeued === 0) return null;
+    return triggerSync();
+  };
 
   return (
     <OfflineDataContext.Provider
@@ -418,13 +511,17 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         anmSessions,
         outbox,
         pendingSyncCount,
+        failedSyncCount,
+        retryFailedRecords,
         isLoading,
         isSyncing,
         isOnline,
         lastSyncResult,
         refreshData,
         addFamily,
+        deleteFamily,
         addMember,
+        deleteMember,
         submitSurvey,
         updateChildVaccine,
         saveMeeting,

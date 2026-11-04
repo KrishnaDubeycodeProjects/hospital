@@ -20,6 +20,20 @@ public class AshaWorkerDto {
     private String districtName;
     private Integer phcId;
     private String anmPhone;
+    /** Cadre assigned at CHO registration: ASHA (default) or ANM. Immutable after registration. */
+    private String role;
+
+    /**
+     * Response only: 30-day worker JWT, returned when the registering caller proved ownership of
+     * this phone (OTP-verified token for the same number), so the app can sync immediately.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private String authToken;
+
+    /** Response only (GET /me): households assigned to / registered by this worker. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    private Integer householdCount;
+    private String preferredLanguage;
     private Boolean isActive;
     private LocalDateTime createdAt;
 }

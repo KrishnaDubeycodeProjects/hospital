@@ -37,7 +37,7 @@ class CourseSecurityTest {
     void testPatientAccess_MatchingPhone_Granted() {
         when(currentUser.isPatient()).thenReturn(true);
         when(currentUser.getPatientPhone()).thenReturn("+919876543210");
-        when(jdbc.queryForObject(contains("FROM courses WHERE id = :courseId"), anyMap(), eq(Integer.class)))
+        when(jdbc.queryForObject(contains("FROM courses"), anyMap(), eq(Integer.class)))
                 .thenReturn(1);
 
         assertTrue(courseSecurity.canAccessCourse(auth, 101));
@@ -47,7 +47,7 @@ class CourseSecurityTest {
     void testPatientAccess_MismatchedPhone_Denied() {
         when(currentUser.isPatient()).thenReturn(true);
         when(currentUser.getPatientPhone()).thenReturn("+919876543210");
-        when(jdbc.queryForObject(contains("FROM courses WHERE id = :courseId"), anyMap(), eq(Integer.class)))
+        when(jdbc.queryForObject(contains("FROM courses"), anyMap(), eq(Integer.class)))
                 .thenReturn(0);
 
         assertFalse(courseSecurity.canAccessCourse(auth, 101));
@@ -91,8 +91,13 @@ class CourseSecurityTest {
                 .thenReturn(0);
         when(jdbc.queryForObject(contains("FROM course_referrals"), anyMap(), eq(Integer.class)))
                 .thenReturn(0);
-        // Has approved access grant
-        when(jdbc.queryForObject(contains("FROM access_grants ag"), anyMap(), eq(Integer.class)))
+        when(jdbc.query(contains("SELECT patient_phone FROM courses"), anyMap(), any(org.springframework.jdbc.core.RowMapper.class)))
+                .thenReturn(java.util.List.of("+919876543210"));
+        // Not revoked
+        when(jdbc.queryForObject(contains("revoked_at IS NOT NULL"), anyMap(), eq(Integer.class)))
+                .thenReturn(0);
+        // Has approved active access grant
+        when(jdbc.queryForObject(contains("ag.revoked_at IS NULL"), anyMap(), eq(Integer.class)))
                 .thenReturn(1);
 
         assertTrue(courseSecurity.canAccessCourse(auth, 101));

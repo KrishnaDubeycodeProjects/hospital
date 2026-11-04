@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type LanguageCode = 'hi' | 'en' | 'mr';
+/** Strictly Hindi and Marathi (zero English UI). */
+export type LanguageCode = 'hi' | 'mr';
 
 interface LanguageContextType {
   language: LanguageCode;
@@ -182,176 +183,6 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     assignedAnm: 'संबंधित एएनएम का नाम / फ़ोन',
     appLanguage: 'एप्लिकेशन भाषा (App Language)',
     profileSaved: 'प्रोफ़ाइल विवरण सफलतापूर्वक सहेजे गए!',
-  },
-  en: {
-    // Branding & Navigation
-    appTitle: 'Aarogya Flow',
-    appSubtitle: 'Care Closer. Healthier Tomorrow.',
-    grid: 'Grid',
-    families: 'Families',
-    followups: 'Follow-ups',
-    meetings: 'Meetings',
-    profile: 'Profile',
-    more: 'Profile',
-
-    // Common Buttons
-    saveLocally: 'Save Locally',
-    saveMemberLocally: 'Save Member Locally',
-    saveProfileChanges: 'Save Profile Changes',
-    back: 'Back',
-    next: 'Next',
-    saveAndComplete: 'Save & Complete',
-    saving: 'Saving...',
-    close: 'Close',
-    edit: 'Edit',
-    add: 'Add',
-    send: 'Send',
-    yes: 'Yes',
-    no: 'No',
-
-    // Grid Screen
-    all: 'All',
-    pregnancy: 'Pregnancy',
-    disease: 'Disease',
-    child: 'Child',
-    selectFilter: 'Select Section Filter',
-    sendDataToAnm: 'Send Data to ANM',
-    sevenDays: 'Severe (High Priority)',
-    fifteenDays: 'Medium (Review / ANC)',
-    thirtyDays: 'Normal (Routine Check)',
-    visited: 'Visited',
-    noData: 'No Data',
-    viewMembers: 'View Members',
-    lastVisited: 'Last Visited',
-    nextVisit: 'Next Visit',
-
-    // Rural Natural Heatmap & Home Navigation (Dead-Simple)
-    allHouses: 'All (24 Houses)',
-    suchi: 'List',
-    childHealth: 'Child Health',
-    otherServices: 'Other Services',
-    houseList: 'House List',
-    registerList: 'Register List',
-    villageHousesTitle: '24 Village Houses',
-    villageHousesSubtitle: 'Color shows visit priority • Tap any house',
-    legend7Days: 'Severe (High Priority)',
-    legend15Days: 'Medium (Review / ANC)',
-    legend30Days: 'Normal (Routine Check)',
-    legendVisited: 'Visited (All Good)',
-    legendNoData: 'Pending / New Info',
-    anmDataSender: 'Send Records to ANM',
-    anmDataSub: 'Securely sync your offline recorded visits',
-    pendingLabel: 'Pending',
-    vaccination: 'Vaccination',
-    ncdDisease: 'Disease Check',
-    sendToAnmBtn: 'Send to ANM',
-    online: 'Online',
-    syncing: 'Syncing...',
-    saved: 'Saved',
-    allPregnant: 'All Pregnant',
-    ancDue: 'ANC Due',
-    highRiskHrp: 'High Risk (HRP)',
-    vaxDue: 'Vaccine Due',
-    fillForm: 'Fill Form',
-    vaxGiven: 'Vaccine Given',
-    allChildren: 'All Children',
-    growthWeight: 'Growth & Weight',
-    familyPlanning: 'Family Planning',
-    lactatingMother: 'Lactating Mother',
-    adolescentHealth: 'Adolescent Health',
-    register18b: 'Register 18 B',
-    register18a: 'Register 18 A',
-    register18c: 'Register 18 C',
-    expectedList: 'Expected Pregnant List',
-    childDueList: 'Child Due List',
-    otherBeneficiaries: 'Other Beneficiaries',
-
-    // Families Screen
-    searchPlaceholder: 'Search by name or house no.',
-    searchListening: 'Listening... please speak',
-    allFilter: 'All',
-    dueFilter: 'Due',
-    visitedFilter: 'Visited',
-    notVisitedFilter: 'Not Visited',
-    addHousehold: 'Add Household',
-    addHouseholdTitle: 'Add New Household',
-    familyNameLabel: 'Family / Head Name',
-    houseNumberLabel: 'House Number',
-    phoneLabel: 'Primary Contact Phone',
-    dobLabel: 'Head Date of Birth (DD/MM/YYYY)',
-    villageLabel: 'Village Name',
-    membersCount: 'Members',
-
-    // Family Details
-    familyFolder: 'Family Folder',
-    familyMembers: 'Family Members',
-    addMemberBtn: '+ Add Member',
-    addMemberTitle: 'Add Family Member',
-    fullNameLabel: 'Full Name',
-    ageLabel: 'Age',
-    relationshipLabel: 'Relationship',
-    genderLabel: 'Gender',
-    female: 'Female',
-    male: 'Male',
-    other: 'Other',
-    pregnant: 'Pregnant',
-    chronicIssue: 'Chronic Issue',
-    lastSurvey: 'Last Survey',
-
-    // Survey
-    pregnancyCare: 'Pregnancy Care',
-    speak: 'Speak',
-    tapToSpeakObservation: 'Tap to speak observation',
-    listening: 'Listening...',
-    spokenNotesLabel: 'Spoken Clinical Notes:',
-    firstPregnancyQuestion: "Is this the beneficiary's first pregnancy? (Answer: Yes or No)",
-    lmpLabel: 'Last Menstrual Period (LMP)',
-    highRiskSymptomsLabel: 'Any Identified High-Risk Symptoms?',
-
-    pending: 'Pending',
-    completed: 'Completed',
-    noPendingTasks: 'No pending follow-ups! All clear.',
-    noCompletedTasks: 'No completed tasks recorded yet.',
-    missedReferrals: 'Missed Hospital Referrals',
-    urgentReferralAlert: '⚠️ Hospital Referral Missed: Urgent visit required!',
-    referral15Alert: '⚠️ Hospital Referral Review: Follow-up visit due soon.',
-    memberHealthProfile: 'Member Health Profile',
-    clinicalSummary: 'Smart Clinical Summary',
-    tapToListenSummary: 'Tap to Listen (Offline Voice)',
-    speakingSummary: 'Speaking Summary...',
-    stopSpeaking: 'Stop Audio',
-    viewDetailedResponses: 'View Detailed Questionnaire',
-    hideDetailedResponses: 'Hide Details',
-    startNewSurvey: '+ Record New Survey',
-    keyFindings: 'Key Findings & Important Indicators',
-
-    // Send Data & Sync
-    sendDataTitle: 'Send Data to ANM',
-    selectCareSection: 'Select Care Section to Send:',
-    localDataReady: 'Local Data Ready for Sync',
-    scanAnmQr: 'Scan ANM QR Code',
-    scanQrSubtitle: 'Point camera at the open form QR code on ANM phone',
-    privacyNote: 'Only data for the selected section will be transferred.',
-    enterCodeManually: 'Enter ANM Name / Code Manually',
-    hideManualInput: 'Hide Manual Input',
-    autoSyncServer: 'Auto-Sync to Cloud / Server',
-    connecting: 'Connecting...',
-    dataSentSuccess: 'Data Sent Successfully!',
-    dataSentSubtitle: 'Your filled forms have been synchronized with ANM.',
-    sendAnotherForm: 'Send Another Form',
-    backToHome: 'Back to Home',
-
-    // Profile Screen
-    profileTitle: 'ASHA Worker Profile',
-    workerDetails: 'Worker Details',
-    workerName: 'Worker Name',
-    roleLabel: 'Role / Designation',
-    villageSubCenter: 'Village / Sub-Center',
-    workerPhone: 'Phone Number',
-    ashaId: 'ASHA Registration ID',
-    assignedAnm: 'Assigned ANM Name / Phone',
-    appLanguage: 'Application Language',
-    profileSaved: 'Profile details saved successfully!',
   },
   mr: {
     // Branding & Navigation
@@ -543,8 +374,11 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
       .then((savedLang) => {
-        if (savedLang === 'hi' || savedLang === 'en' || savedLang === 'mr') {
+        if (savedLang === 'hi' || savedLang === 'mr') {
           setLanguageState(savedLang);
+        } else if (savedLang) {
+          // Legacy 'en' (or unknown) preference from older builds → Hindi.
+          AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, 'hi').catch(() => {});
         }
       })
       .catch(() => {});
@@ -557,12 +391,11 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   const localeMap: Record<LanguageCode, string> = {
     hi: 'hi-IN',
-    en: 'en-IN',
     mr: 'mr-IN',
   };
 
   const t = (key: string): string => {
-    return translations[language]?.[key] || translations.en[key] || key;
+    return translations[language]?.[key] || translations.hi[key] || key;
   };
 
   return (

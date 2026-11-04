@@ -1,0 +1,18 @@
+node_modules/
+.expo/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Android build outputs and intermediate files
+android/.gradle/
+android/app/build/
+android/build/
+android/.cxx/
+android/app/.cxx/
+**/local.properties
+*local.properties
+local.properties
+/res/
+/dist/
+*.apk

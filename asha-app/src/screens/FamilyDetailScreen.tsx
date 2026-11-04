@@ -1,37 +1,64 @@
+/**
+ * परिवार फ़ोल्डर (Family detail) — house header · mark visit (R/A/neutral revisit priority) ·
+ * household info · member list (tap → member; child → immunisation card) · add / delete member.
+ * Same props as before.
+ */
+import {
+  LIMITS,
+  ageFromDob,
+  normalizePhone,
+  validateAge,
+  validateAgeMatchesDob,
+  validateDob,
+  validateName,
+  validatePhone,
+  validatePregnancyAge,
+} from '../services/formValidation';
 import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-} from 'react-native';
-import { Colors } from '../theme/colors';
-import {
-  ArrowLeft,
-  Home,
-  ChevronRight,
   Plus,
-  X,
-  Activity,
   Phone,
-  Calendar,
-  AlertTriangle,
-  Droplets,
-  Bath,
-  CreditCard,
   UserCheck,
+  TriangleAlert,
+  Bath,
+  Droplets,
+  CreditCard,
+  Users,
+  Baby,
   ShieldAlert,
+  HeartPulse,
   Syringe,
+  Trash2,
+  ChevronRight,
+  UserPlus,
+  CircleCheck,
 } from 'lucide-react-native';
 import { StatusBadge } from '../components/StatusBadge';
-import { VoiceGuideBanner } from '../components/VoiceGuideBanner';
 import { ChildVaccinationModal } from '../components/ChildVaccinationModal';
 import { useOfflineData } from '../context/OfflineDataContext';
-import { useLanguage } from '../context/LanguageContext';
-import { FamilyMember } from '../types/storage';
+import { ChildVaccinationRecord, FamilyMember } from '../types/storage';
+import {
+  AppBar,
+  Button,
+  Card,
+  Chips,
+  Field,
+  IconButton,
+  SectionTitle,
+  Segmented,
+  Sheet,
+  StatusPill,
+  Tone,
+  color,
+  elevation,
+  radius,
+  space,
+  text,
+  tonePalette,
+  touch,
+  useTr,
+} from '../ui';
 
 interface FamilyDetailScreenProps {
   houseNo: number;
@@ -41,1251 +68,675 @@ interface FamilyDetailScreenProps {
   onAddMember?: () => void;
 }
 
-export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({
-  houseNo = 12,
-  familyName = 'Verma',
-  onBack,
-  onSelectMember,
-}) => {
-  const { families, members, childVaccinations, addMember, markFamilyVisited } = useOfflineData();
-  const { t, language } = useLanguage();
+type Priority = '7days' | '15days' | '30days';
+type Gender = 'Female' | 'Male' | 'Other';
 
-  // Locate the family
+const initialsOf = (n: string) =>
+  n
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+const toneOfStatus = (s?: string): Tone =>
+  s === '7days' ? 'red' : s === '15days' ? 'amber' : s === 'visited' ? 'green' : 'neutral';
+
+export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo, familyName, onBack, onSelectMember }) => {
+  const tr = useTr();
+  const { families, members, childVaccinations, addMember, markFamilyVisited, deleteMember, deleteFamily } = useOfflineData();
+
   const currentFamily =
-    families.find((f) => f.houseNumber.toString() === houseNo.toString()) ||
-    families.find((f) => f.headName.toLowerCase() === familyName.toLowerCase()) ||
-    families[0];
+    families.find((f) => String(f.houseNumber) === String(houseNo)) ||
+    families.find((f) => f.headName.toLowerCase() === familyName.toLowerCase());
 
-  const rawFamilyMembers = currentFamily
-    ? members.filter((m) => m.familyUnitId === currentFamily.id)
-    : [];
+  const rawMembers = currentFamily ? members.filter((m) => m.familyUnitId === currentFamily.id) : [];
 
-  // Guarantee family data is never invisible; fallback to primary family head if members empty
+  // No members synced yet → show the head so the family is never empty (no invented age / gender)
   const familyMembers: FamilyMember[] =
-    rawFamilyMembers.length > 0
-      ? rawFamilyMembers
+    rawMembers.length > 0
+      ? rawMembers
       : currentFamily
       ? [
           {
             id: `head-${currentFamily.id}`,
             familyUnitId: currentFamily.id,
             name: currentFamily.headName,
-            initials: currentFamily.headName
-              .split(' ')
-              .map((n: string) => n[0])
-              .join('')
-              .slice(0, 2)
-              .toUpperCase(),
-            age: 42,
-            gender: 'Male',
-            relationship: 'मुखिया (Family Head)',
+            initials: initialsOf(currentFamily.headName),
+            relationship: tr('मुखिया', 'कुटुंबप्रमुख'),
             phone: currentFamily.primaryPhone,
             isAbhaLinked: false,
-            isPregnant: currentFamily.hasPregnancy,
-            hasChronicCondition: currentFamily.hasDisease,
-            isChild: currentFamily.hasChild,
+            isPregnant: !!currentFamily.hasPregnancy,
+            hasChronicCondition: !!currentFamily.hasDisease,
+            isChild: !!currentFamily.hasChild,
             updatedAt: new Date().toISOString(),
           },
         ]
       : [];
 
-  // Child Vaccination Modal State
-  const [selectedChildRecord, setSelectedChildRecord] = useState<any>(null);
-  const [showVaxModal, setShowVaxModal] = useState(false);
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
-  // Revisit Priority Modal State
-  const [showPriorityModal, setShowPriorityModal] = useState(false);
-  const [visitSuccessMsg, setVisitSuccessMsg] = useState<string | null>(null);
+  // Visit priority sheet
+  const [showPriority, setShowPriority] = useState(false);
+  const [savingVisit, setSavingVisit] = useState(false);
+  const recordVisit = async (p: Priority) => {
+    if (!currentFamily) return;
+    setSavingVisit(true);
+    try {
+      await markFamilyVisited(currentFamily.id, p);
+      setShowPriority(false);
+      flash(tr('भेंट दर्ज हुई', 'भेट नोंदवली'));
+    } finally {
+      setSavingVisit(false);
+    }
+  };
 
-  // Add Member Modal State
-  const [showModal, setShowModal] = useState(false);
+  // Delete member
+  const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null);
+  const confirmDelete = async () => {
+    if (!memberToDelete) return;
+    const n = memberToDelete.name;
+    await deleteMember(memberToDelete.id);
+    setMemberToDelete(null);
+    flash(`${n} — ${tr('हटाया गया', 'काढले')}`);
+  };
+
+  // Delete family (migration / created in error). Soft-deleted on the server via the DELETE_FAMILY tombstone.
+  const [confirmFamilyDelete, setConfirmFamilyDelete] = useState(false);
+  const [deletingFamily, setDeletingFamily] = useState(false);
+  const handleDeleteFamily = async () => {
+    if (!currentFamily) return;
+    setDeletingFamily(true);
+    try {
+      await deleteFamily(currentFamily.id);
+      setConfirmFamilyDelete(false);
+      onBack();
+    } finally {
+      setDeletingFamily(false);
+    }
+  };
+
+  // Immunisation card
+  const [vaxRecord, setVaxRecord] = useState<ChildVaccinationRecord | null>(null);
+  const openVaccination = (m: FamilyMember) => {
+    const record: ChildVaccinationRecord =
+      childVaccinations.find((c) => c.childMemberId === m.id) ||
+      childVaccinations.find((c) => c.childName.toLowerCase() === m.name.toLowerCase()) || {
+        // No record yet → empty card (every dose shows as not recorded; nothing is pre-marked "Given")
+        id: `vax-${m.id}`,
+        familyUnitId: currentFamily?.id || m.familyUnitId,
+        childMemberId: m.id,
+        childName: m.name,
+        fatherName: m.fatherOrHusbandName || currentFamily?.headName || '—',
+        gender: m.gender || 'Other',
+        dob: m.dob || '—',
+        ageMonths: m.age != null ? m.age * 12 : 0,
+        phone: m.phone || currentFamily?.primaryPhone,
+        vaccines: {},
+        updatedAt: new Date().toISOString(),
+      };
+    setVaxRecord(record);
+  };
+
+  // Add member form
+  const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
+  const [fatherOrHusband, setFatherOrHusband] = useState('');
   const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
-  const [fatherOrHusband, setFatherOrHusband] = useState('');
   const [age, setAge] = useState('');
-  const [gender, setGender] = useState<'Female' | 'Male' | 'Other'>('Female');
-  const [relationship, setRelationship] = useState('Member');
-  const [education, setEducation] = useState<FamilyMember['education']>('High School');
-  const [maritalStatus, setMaritalStatus] = useState<FamilyMember['maritalStatus']>('Married');
+  const [relationship, setRelationship] = useState('');
+  const [gender, setGender] = useState<Gender>('Female');
   const [isPregnant, setIsPregnant] = useState(false);
   const [isHrp, setIsHrp] = useState(false);
   const [isChild, setIsChild] = useState(false);
   const [hasChronic, setHasChronic] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [savingMember, setSavingMember] = useState(false);
 
-  const handleOpenVaccination = (member: FamilyMember) => {
-    // Look up existing child vaccination record or create virtual
-    const record =
-      childVaccinations.find((c) => c.childMemberId === member.id) ||
-      childVaccinations.find((c) => c.childName.toLowerCase() === member.name.toLowerCase()) || {
-        id: `vax-${member.id}`,
-        familyUnitId: currentFamily?.id || 'f012',
-        childMemberId: member.id,
-        childName: member.name,
-        fatherName: member.fatherOrHusbandName || currentFamily?.headName || 'पिता',
-        gender: member.gender,
-        dob: member.dob || '01/01/2024',
-        ageMonths: member.age * 12 || 12,
-        phone: member.phone || currentFamily?.primaryPhone,
-        mctsCode: `MCTS-${member.id.substring(0, 6)}`,
-        vaccines: {
-          BCG: 'Given',
-          'OPV-0': 'Given',
-          'Hepatitis-B-0': 'Given',
-          'OPV-1': 'Given',
-          'Pentavalent-1': 'Given',
-          'fIPV-1': 'Given',
-          'Rotavirus-1': 'Given',
-          'PCV-1': 'Given',
-          'OPV-2': 'Due',
-          'Pentavalent-2': 'Due',
-          'Rotavirus-2': 'Due',
-        },
-        updatedAt: new Date().toISOString(),
-      };
+  const ageNum = Number(age);
+  // RCH eligible-couple range (15–49) per GOVERNMENT_RCH_ANMOL_SPECIFICATION.md
+  const canBePregnant =
+    gender === 'Female' && !isChild && (!age || (ageNum >= LIMITS.pregnancyAgeMin && ageNum <= LIMITS.pregnancyAgeMax));
+  const canBeChild = !age || ageNum <= 18;
 
-    setSelectedChildRecord(record);
-    setShowVaxModal(true);
-  };
-
-  const handleSaveMember = async () => {
-    if (!name.trim() || !currentFamily) return;
-
-    const initials = name
-      .trim()
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .substring(0, 2)
-      .toUpperCase();
-
-    const parsedAge = Number(age) || (isChild ? 1 : 25);
-    const canBePregnant = gender === 'Female' && !isChild && parsedAge >= 12;
-
-    await addMember({
-      familyUnitId: currentFamily.id,
-      name: name.trim(),
-      initials: initials || 'FM',
-      dob: dob.trim() || undefined,
-      phone: phone.trim() || undefined,
-      fatherOrHusbandName: fatherOrHusband.trim() || undefined,
-      age: parsedAge,
-      gender,
-      relationship: relationship.trim() || 'सदस्य',
-      education,
-      maritalStatus,
-      isAbhaLinked: false,
-      isPregnant: canBePregnant && isPregnant,
-      isHrp: canBePregnant && isHrp,
-      isChild: isChild || parsedAge <= 5,
-      hasChronicCondition: hasChronic,
-      chronicConditionType: hasChronic ? 'Chronic General' : undefined,
-    });
-
+  const resetForm = () => {
     setName('');
+    setFatherOrHusband('');
     setDob('');
     setPhone('');
-    setFatherOrHusband('');
     setAge('');
+    setRelationship('');
+    setGender('Female');
     setIsPregnant(false);
     setIsHrp(false);
     setIsChild(false);
     setHasChronic(false);
-    setShowModal(false);
+    setFormError(null);
   };
+
+  const onAgeChange = (v: string) => {
+    const digits = v.replace(/[^0-9]/g, '');
+    setAge(digits);
+    const n = Number(digits);
+    if (digits && (n < LIMITS.pregnancyAgeMin || n > LIMITS.pregnancyAgeMax)) {
+      setIsPregnant(false);
+      setIsHrp(false);
+    }
+    if (n > 0 && n <= 5) setIsChild(true);
+    else if (n > 18) setIsChild(false);
+  };
+
+  const onGenderChange = (g: Gender) => {
+    setGender(g);
+    if (g !== 'Female') {
+      setIsPregnant(false);
+      setIsHrp(false);
+    }
+  };
+
+  const handleSaveMember = async () => {
+    if (!currentFamily) return;
+    // Age may be typed or derived from DOB; both must agree when both are given.
+    const effectiveAge = age ? ageNum : dob.trim() ? ageFromDob(dob.trim()) : null;
+    const error =
+      validateName(name, tr) ||
+      validateName(fatherOrHusband, tr, false) ||
+      validateAge(age, tr) ||
+      validateDob(dob, tr) ||
+      validateAgeMatchesDob(age, dob, tr) ||
+      validatePhone(phone, tr) ||
+      (relationship.trim() && /[0-9]/.test(relationship) ? tr('रिश्ते में अंक नहीं', 'नात्यात अंक नसावेत') : null) ||
+      (isPregnant && gender !== 'Female' ? tr('केवल महिला गर्भवती हो सकती है', 'फक्त स्त्री गरोदर असू शकते') : null) ||
+      (isPregnant ? validatePregnancyAge(effectiveAge, tr) : null) ||
+      (isChild && effectiveAge != null && effectiveAge > LIMITS.childAgeMax
+        ? tr(`बच्चे की आयु ${LIMITS.childAgeMax} वर्ष तक`, `मुलाचे वय ${LIMITS.childAgeMax} वर्षांपर्यंत`)
+        : null);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+    const parsedAge = effectiveAge ?? undefined;
+    const pregnant = canBePregnant && isPregnant;
+    setSavingMember(true);
+    try {
+      await addMember({
+        familyUnitId: currentFamily.id,
+        name: name.trim().replace(/\s+/g, ' '),
+        initials: initialsOf(name) || 'FM',
+        dob: dob.trim() || undefined,
+        phone: normalizePhone(phone) || undefined,
+        fatherOrHusbandName: fatherOrHusband.trim() || undefined,
+        age: parsedAge,
+        gender,
+        relationship: relationship.trim() || tr('सदस्य', 'सदस्य'),
+        isAbhaLinked: false,
+        isPregnant: pregnant,
+        isHrp: pregnant && isHrp,
+        isChild: isChild || (parsedAge != null && parsedAge <= 5),
+        hasChronicCondition: hasChronic,
+        chronicConditionType: hasChronic ? 'Chronic General' : undefined,
+      });
+      resetForm();
+      setShowAdd(false);
+      flash(tr('सदस्य जोड़ा गया', 'सदस्य जोडला'));
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const status = currentFamily?.status;
+  const statusTone = tonePalette(toneOfStatus(status));
+  const visited = status === 'visited';
+  const urgent = status === '7days' || !!currentFamily?.nextVisitDate?.includes('Missed Referral');
+  const headPhone = currentFamily?.primaryPhone;
+
+  const infoRows = [
+    { icon: Bath, label: tr('शौचालय', 'शौचालय'), value: currentFamily?.toiletType },
+    { icon: Droplets, label: tr('पेयजल', 'पिण्याचे पाणी'), value: currentFamily?.waterSource },
+    {
+      icon: CreditCard,
+      label: tr('राशन कार्ड', 'रेशन कार्ड'),
+      value: currentFamily?.bplCard == null ? undefined : currentFamily.bplCard ? 'BPL' : tr('गैर-BPL', 'बिगर-BPL'),
+    },
+    {
+      icon: Users,
+      label: tr('वर्ग', 'प्रवर्ग'),
+      value: [currentFamily?.casteCategory, currentFamily?.religion].filter(Boolean).join(' • ') || undefined,
+    },
+  ].filter((r) => !!r.value);
+
+  const priorities: { key: Priority; tone: Tone; title: string; sub: string }[] = [
+    { key: '7days', tone: 'red', title: tr('7 दिन में', '7 दिवसांत'), sub: tr('गंभीर — जल्दी देखें', 'गंभीर — लवकर पाहा') },
+    { key: '15days', tone: 'amber', title: tr('15 दिन में', '15 दिवसांत'), sub: tr('मध्यम — ANC / समीक्षा', 'मध्यम — ANC / आढावा') },
+    { key: '30days', tone: 'neutral', title: tr('30 दिन में', '30 दिवसांत'), sub: tr('सामान्य जांच', 'नियमित तपासणी') },
+  ];
 
   return (
     <View style={styles.container}>
-      {/* Top Navigation Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <ArrowLeft size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>{familyName} {t('families')}</Text>
-          <Text style={styles.headerSub}>{t('houseNumberLabel')}: {houseNo}</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.addBtnHeader}
-          onPress={() => setShowModal(true)}
-          activeOpacity={0.8}
-        >
-          <Plus size={20} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Offline Audio Guide Banner */}
-        <VoiceGuideBanner
-          sectionName="पारिवारिक विवरण एवं सदस्य स्वास्थ्य (Family Folder)"
-          explanationHi="यहाँ परिवार का विवरण और सदस्य सूची है। ग्राम सर्वे का डेटा जैसे शौचालय और पेयजल की स्थिति देखें, और सदस्य पर टैप करके स्वास्थ्य जाँच फॉर्म खोलें।"
-          explanationMr="येथे कुटुंबाचा तपशील आणि सदस्य यादी आहे. ग्राम सर्वेक्षणाचा डेटा जसे की शौचालय आणि पिण्याचे पाणी पहा आणि सदस्यावर टॅप करून फॉर्म उघडा."
-          explanationEn="Here are the family details and member roster. Review gram survey data including sanitation and water source, and tap any member to open health forms."
-        />
-
-        {/* Master House Info Card */}
-        <View style={styles.houseCard}>
-          <View style={styles.houseIconCircle}>
-            <Home size={24} color={Colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.houseCardTitle}>{t('houseNumberLabel')}: {houseNo}</Text>
-            <Text style={styles.houseCardSub}>
-              {currentFamily?.headName || familyName} {t('families')} • {currentFamily?.villageName || 'Chandpur'}
-            </Text>
-            {/* Contact Details */}
-            <View style={styles.houseMetaRow}>
-              <Phone size={12} color={Colors.textSecondary} style={{ marginRight: 4 }} />
-              <Text style={styles.houseMetaText}>
-                {currentFamily?.primaryPhone || '+91 98765 00000'}
-              </Text>
-              {currentFamily?.headDob && (
-                <>
-                  <Text style={styles.houseMetaDivider}>•</Text>
-                  <Calendar size={12} color={Colors.textSecondary} style={{ marginRight: 4 }} />
-                  <Text style={styles.houseMetaText}>
-                    DOB: {currentFamily.headDob}
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
-          {currentFamily && (
-            <StatusBadge type={currentFamily.status} label={currentFamily.nextVisitDate} />
-          )}
-        </View>
-
-        {/* Household Visit & Revisit Priority Action */}
-        <View style={styles.visitActionBar}>
-          <TouchableOpacity
-            style={[
-              styles.markVisitedBtn,
-              currentFamily?.status === 'visited' && styles.markVisitedBtnDone,
-            ]}
-            onPress={() => setShowPriorityModal(true)}
-            activeOpacity={0.85}
-          >
-            <UserCheck size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={styles.markVisitedBtnText}>
-              {currentFamily?.status === 'visited'
-                ? (language === 'hi' ? '✓ भेंट की (प्राथमिकता बदलें)' : language === 'mr' ? '✓ भेट दिली (प्राधान्य बदला)' : '✓ Mark Visited (Update Priority)')
-                : (language === 'hi' ? 'भेंट की' : language === 'mr' ? 'भेट दिली' : 'Mark Visited')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {visitSuccessMsg ? (
-          <View style={styles.visitToast}>
-            <Text style={styles.visitToastText}>{visitSuccessMsg}</Text>
-          </View>
-        ) : null}
-
-        {/* Section 3: Gram Survey Registry Card (Sanitation, Water, BPL, Caste) */}
-        <View style={styles.gramSurveyCard}>
-          <Text style={styles.gramSurveyTitle}>📋 ग्राम सर्वे पंजी (Household Master)</Text>
-          <View style={styles.surveyGrid}>
-            <View style={styles.surveyGridItem}>
-              <Bath size={14} color="#0284C7" style={{ marginRight: 6 }} />
-              <View>
-                <Text style={styles.surveyLabel}>शौचालय (Sanitation)</Text>
-                <Text style={styles.surveyValue}>
-                  {currentFamily?.toiletType || 'पक्का शौचालय (Septic)'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.surveyGridItem}>
-              <Droplets size={14} color="#0284C7" style={{ marginRight: 6 }} />
-              <View>
-                <Text style={styles.surveyLabel}>पेयजल (Drinking Water)</Text>
-                <Text style={styles.surveyValue}>
-                  {currentFamily?.waterSource || 'हैंडपंप (Handpump)'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.surveyGridItem}>
-              <CreditCard size={14} color="#059669" style={{ marginRight: 6 }} />
-              <View>
-                <Text style={styles.surveyLabel}>राशन कार्ड (Ration/BPL)</Text>
-                <Text style={styles.surveyValue}>
-                  {currentFamily?.bplCard ? '✓ BPL धारक' : 'गैर-BPL'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.surveyGridItem}>
-              <UserCheck size={14} color="#7C3AED" style={{ marginRight: 6 }} />
-              <View>
-                <Text style={styles.surveyLabel}>वर्ग एवं धर्म (Category)</Text>
-                <Text style={styles.surveyValue}>
-                  {currentFamily?.casteCategory || 'OBC'} • {currentFamily?.religion || 'Hindu'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Missed Hospital Referral Alert Banner */}
-        {(currentFamily?.status === '7days' ||
-          currentFamily?.status === '15days' ||
-          currentFamily?.nextVisitDate?.includes('Missed Referral')) && (
-          <View
-            style={[
-              styles.referralAlertBanner,
-              currentFamily?.status === '15days' && styles.referralAlertBannerPink,
-            ]}
-          >
-            <View
-              style={[
-                styles.alertIconCircle,
-                currentFamily?.status === '15days' && styles.alertIconCirclePink,
-              ]}
-            >
-              <AlertTriangle
-                size={18}
-                color={currentFamily?.status === '15days' ? '#BE185D' : '#DC2626'}
-              />
-            </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text
-                style={[
-                  styles.alertTitle,
-                  currentFamily?.status === '15days' && styles.alertTitlePink,
-                ]}
-              >
-                {currentFamily?.status === '7days'
-                  ? t('urgentReferralAlert')
-                  : t('referral15Alert')}
-              </Text>
-              <Text style={styles.alertSub}>
-                {currentFamily?.nextVisitDate || 'अस्पताल भेंट छूटी हुई'}. उच्च-प्राथमिकता गृह भेंट आवश्यक है।
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Section Heading with Count */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>
-            {t('familyMembers')} ({familyMembers.length})
-          </Text>
-          <TouchableOpacity
-            style={styles.addMemberTextBtn}
-            onPress={() => setShowModal(true)}
-          >
-            <Text style={styles.addMemberText}>{t('addMemberBtn')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Members List */}
-        {familyMembers.map((member) => {
-          const isReallyPregnant = member.gender === 'Female' && member.isPregnant && (!member.age || member.age >= 12);
-          const isReallyChild = member.isChild || (member.age && member.age <= 5);
-
-          return (
-            <View key={member.id} style={styles.memberCardContainer}>
-              <TouchableOpacity
-                style={styles.memberCard}
-                onPress={() => onSelectMember(member)}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.memberAvatar,
-                    isReallyPregnant && styles.pregnantAvatar,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.avatarInitials,
-                      isReallyPregnant && styles.pregnantInitials,
-                    ]}
-                  >
-                    {member.initials}
-                  </Text>
-                </View>
-
-                <View style={styles.memberInfo}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.memberName}>{member.name}</Text>
-                    {isReallyPregnant && (
-                      <View style={styles.pregnantBadge}>
-                        <Text style={styles.pregnantBadgeText}>{t('pregnant')}</Text>
-                      </View>
-                    )}
-                  {member.isHrp && (
-                    <View style={styles.hrpBadge}>
-                      <ShieldAlert size={11} color="#B91C1C" style={{ marginRight: 2 }} />
-                      <Text style={styles.hrpBadgeText}>उच्च जोखिम (HRP)</Text>
-                    </View>
-                  )}
-                  {member.hasChronicCondition && (
-                    <View style={styles.diseaseBadge}>
-                      <Activity size={12} color="#DC2626" style={{ marginRight: 2 }} />
-                      <Text style={styles.diseaseBadgeText}>
-                        {member.ncdDiagnosis || member.chronicConditionType || t('chronicIssue')}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Demographics & Relationship */}
-                <Text style={styles.memberSub}>
-                  {member.gender} • {member.age} वर्ष • {member.relationship}
-                  {member.fatherOrHusbandName ? ` • पिता/पति: ${member.fatherOrHusbandName}` : ''}
-                </Text>
-
-                {/* Member DOB, Education, Phone */}
-                <View style={styles.memberContactRow}>
-                  {member.dob && (
-                    <View style={styles.memberMetaItem}>
-                      <Calendar size={11} color={Colors.textSecondary} style={{ marginRight: 3 }} />
-                      <Text style={styles.memberContactText}>DOB: {member.dob}</Text>
-                    </View>
-                  )}
-                  {member.education && (
-                    <Text style={styles.memberContactText}>• {member.education}</Text>
-                  )}
-                  {member.phone && (
-                    <View style={styles.memberMetaItem}>
-                      <Phone size={11} color={Colors.textSecondary} style={{ marginRight: 3 }} />
-                      <Text style={styles.memberContactText}>{member.phone}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {member.lastSurveyDate && (
-                  <Text style={styles.lastSurveyText}>
-                    {t('lastSurvey')}: {member.lastSurveyDate}
-                  </Text>
-                )}
-              </View>
-
-              <ChevronRight size={20} color={Colors.primary} />
-            </TouchableOpacity>
-
-            {/* Child Immunization Direct CTA Button */}
-            {(member.isChild || member.age <= 5) && (
-              <TouchableOpacity
-                style={styles.vaxCtaBtn}
-                onPress={() => handleOpenVaccination(member)}
-                activeOpacity={0.8}
-              >
-                <Syringe size={14} color="#0369A1" style={{ marginRight: 6 }} />
-                <Text style={styles.vaxCtaText}>
-                  💉 बाल टीकाकरण पंजी देखें (Universal Immunization Card)
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        );
-      })}
-      </ScrollView>
-
-      {/* Child Vaccination Schedule Modal */}
-      <ChildVaccinationModal
-        visible={showVaxModal}
-        childRecord={selectedChildRecord}
-        onClose={() => setShowVaxModal(false)}
+      <AppBar
+        title={currentFamily?.headName || familyName}
+        subtitle={`${tr('घर', 'घर')} ${houseNo}`}
+        onBack={onBack}
+        backLabel={tr('वापस', 'मागे')}
+        right={<IconButton icon={UserPlus} tone="accent" label={tr('सदस्य जोड़ें', 'सदस्य जोडा')} onPress={() => setShowAdd(true)} />}
       />
 
-      {/* Add Member Modal */}
-      <Modal visible={showModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('addMemberTitle')}</Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <X size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* House header */}
+        <Card>
+          <View style={styles.headRow}>
+            <View style={[styles.houseBadge, { backgroundColor: statusTone.bg }]}>
+              <Text style={[text.display, { color: statusTone.text }]}>{houseNo < 10 ? `0${houseNo}` : houseNo}</Text>
             </View>
-
-            <ScrollView>
-              <Text style={styles.inputLabel}>{t('fullNameLabel')}</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="उदा. सुनीता वर्मा"
-                placeholderTextColor={Colors.textMuted}
-                value={name}
-                onChangeText={setName}
-              />
-
-              <Text style={styles.inputLabel}>पिता / पति का नाम</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="उदा. राजेश वर्मा"
-                placeholderTextColor={Colors.textMuted}
-                value={fatherOrHusband}
-                onChangeText={setFatherOrHusband}
-              />
-
-              {/* Date of Birth & Phone */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>जन्म तारीख (DD/MM/YYYY)</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="12/04/1998"
-                    placeholderTextColor={Colors.textMuted}
-                    value={dob}
-                    onChangeText={setDob}
-                  />
+            <View style={styles.flex}>
+              <Text style={text.heading} numberOfLines={1}>
+                {currentFamily?.headName || familyName}
+              </Text>
+              <Text style={text.caption} numberOfLines={1}>
+                {[currentFamily?.villageName, `${familyMembers.length} ${tr('सदस्य', 'सदस्य')}`].filter(Boolean).join(' • ')}
+              </Text>
+              {status ? (
+                <View style={styles.pillRow}>
+                  <StatusBadge type={status} />
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>फ़ोन नंबर (वैकल्पिक)</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="9876543210"
-                    keyboardType="phone-pad"
-                    placeholderTextColor={Colors.textMuted}
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
-              </View>
+              ) : null}
+            </View>
+            {headPhone ? (
+              <IconButton icon={Phone} tone="accent" filled label={tr('कॉल करें', 'कॉल करा')} onPress={() => Linking.openURL(`tel:${headPhone}`)} />
+            ) : null}
+          </View>
 
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>{t('ageLabel')}</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="24"
-                    keyboardType="numeric"
-                    placeholderTextColor={Colors.textMuted}
-                    value={age}
-                    onChangeText={(val) => {
-                      setAge(val);
-                      const num = Number(val);
-                      if (num < 12) {
-                        setIsPregnant(false);
-                        setIsHrp(false);
-                      }
-                      if (num > 0 && num <= 5) {
-                        setIsChild(true);
-                      } else if (num > 18) {
-                        setIsChild(false);
-                      }
-                    }}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>{t('relationshipLabel')}</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="पत्नी / पुत्र / पुत्री"
-                    placeholderTextColor={Colors.textMuted}
-                    value={relationship}
-                    onChangeText={setRelationship}
-                  />
-                </View>
-              </View>
+          <View style={styles.headAction}>
+            <Button
+              label={visited ? tr('प्राथमिकता बदलें', 'प्राधान्य बदला') : tr('भेंट पूर्ण', 'भेट पूर्ण')}
+              icon={visited ? CircleCheck : UserCheck}
+              variant={visited ? 'secondary' : 'primary'}
+              onPress={() => setShowPriority(true)}
+              disabled={!currentFamily}
+            />
+          </View>
+        </Card>
 
-              {/* Gender Selector */}
-              <Text style={styles.inputLabel}>{t('genderLabel')}</Text>
-              <View style={styles.genderRow}>
-                {(['Female', 'Male', 'Other'] as const).map((g) => (
-                  <TouchableOpacity
-                    key={g}
-                    style={[styles.genderBtn, gender === g && styles.genderBtnActive]}
-                    onPress={() => {
-                      setGender(g);
-                      if (g === 'Male') {
-                        setIsPregnant(false);
-                        setIsHrp(false);
-                      }
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.genderBtnText,
-                        gender === g && styles.genderBtnTextActive,
-                      ]}
-                    >
-                      {g === 'Female' ? t('female') : g === 'Male' ? t('male') : t('other')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+        {urgent ? (
+          <Card tone="red">
+            <View style={styles.alertRow}>
+              <TriangleAlert size={24} color={color.red} strokeWidth={2} />
+              <Text style={[text.label, styles.flex, { color: color.redText }]}>
+                {tr('7 दिन में भेंट ज़रूरी', '7 दिवसांत भेट आवश्यक')}
+              </Text>
+            </View>
+          </Card>
+        ) : null}
 
-              {/* Quick Health Flags - Child or Male CANNOT be pregnant */}
-              <View style={styles.flagRow}>
-                {gender === 'Female' && !isChild && (!age || Number(age) >= 12) && (
-                  <TouchableOpacity
-                    style={[styles.flagBtn, isPregnant && styles.flagBtnActive]}
-                    onPress={() => {
-                      const nextPreg = !isPregnant;
-                      setIsPregnant(nextPreg);
-                      if (nextPreg) {
-                        setIsChild(false);
-                      }
-                    }}
-                  >
-                    <Text style={[styles.flagText, isPregnant && styles.flagTextActive]}>
-                      {isPregnant ? `✓ ${t('pregnant')}` : `+ ${t('pregnant')}`}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+        {/* Household info — only fields that were actually recorded */}
+        {infoRows.length > 0 ? (
+          <Card>
+            <View style={styles.infoGrid}>
+              {infoRows.map((r) => {
+                const Icon = r.icon;
+                return (
+                  <View key={r.label} style={styles.infoItem}>
+                    <Icon size={20} color={color.muted} strokeWidth={2} />
+                    <View style={styles.flex}>
+                      <Text style={text.micro}>{r.label}</Text>
+                      <Text style={text.label} numberOfLines={2}>
+                        {r.value}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </Card>
+        ) : null}
 
-                {gender === 'Female' && isPregnant && (
-                  <TouchableOpacity
-                    style={[styles.flagBtn, isHrp && styles.flagBtnActiveHrp]}
-                    onPress={() => setIsHrp(!isHrp)}
-                  >
-                    <Text style={[styles.flagText, isHrp && styles.flagTextActiveHrp]}>
-                      {isHrp ? '✓ उच्च जोखिम (HRP)' : '+ उच्च जोखिम'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+        <SectionTitle
+          label={tr('सदस्य', 'सदस्य')}
+          count={familyMembers.length}
+          action={<Button label={tr('जोड़ें', 'जोडा')} icon={Plus} variant="ghost" full={false} onPress={() => setShowAdd(true)} />}
+        />
 
-                {(!age || Number(age) <= 18) && (
-                  <TouchableOpacity
-                    style={[styles.flagBtn, isChild && styles.flagBtnActiveChild]}
-                    onPress={() => {
-                      const nextChild = !isChild;
-                      setIsChild(nextChild);
-                      if (nextChild) {
-                        setIsPregnant(false);
-                        setIsHrp(false);
-                      }
-                    }}
-                  >
-                    <Text style={[styles.flagText, isChild && styles.flagTextActiveChild]}>
-                      {isChild ? '✓ बालक (टीकाकरण)' : '+ बालक (Child)'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleSaveMember}
-                activeOpacity={0.85}
+        {familyMembers.map((m) => {
+          const pregnant = m.gender === 'Female' && m.isPregnant && (m.age == null || m.age >= 12);
+          const child = !!m.isChild || (m.age != null && m.age <= 5);
+          const isVirtualHead = m.id.startsWith('head-');
+          const meta = [
+            m.gender === 'Female' ? tr('महिला', 'स्त्री') : m.gender === 'Male' ? tr('पुरुष', 'पुरुष') : m.gender ? tr('अन्य', 'इतर') : null,
+            m.age != null ? `${m.age} ${tr('वर्ष', 'वर्षे')}` : null,
+            m.relationship,
+          ]
+            .filter(Boolean)
+            .join(' • ');
+          const avatarTone = tonePalette(pregnant ? 'accent' : m.hasChronicCondition ? 'red' : child ? 'amber' : 'neutral');
+          return (
+            <View key={m.id} style={styles.memberWrap}>
+              <Pressable
+                onPress={() => onSelectMember(m)}
+                accessibilityRole="button"
+                accessibilityLabel={m.name}
+                style={({ pressed }) => [styles.memberCard, pressed && styles.pressed]}
               >
-                <Text style={styles.saveBtnText}>{t('saveMemberLocally')}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+                <View style={[styles.avatar, { backgroundColor: avatarTone.bg }]}>
+                  <Text style={[styles.avatarText, { color: avatarTone.text }]}>{m.initials || initialsOf(m.name)}</Text>
+                </View>
+                <View style={styles.memberText}>
+                  <Text style={text.heading} numberOfLines={1}>
+                    {m.name}
+                  </Text>
+                  {meta ? (
+                    <Text style={text.caption} numberOfLines={1}>
+                      {meta}
+                    </Text>
+                  ) : null}
+                  {pregnant || m.isHrp || m.hasChronicCondition || child ? (
+                    <View style={styles.pillRow}>
+                      {pregnant ? <StatusPill tone="accent" icon={Baby} label={tr('गर्भवती', 'गरोदर')} /> : null}
+                      {m.isHrp ? <StatusPill tone="red" icon={ShieldAlert} label="HRP" /> : null}
+                      {m.hasChronicCondition ? <StatusPill tone="red" icon={HeartPulse} label={m.ncdDiagnosis || 'NCD'} /> : null}
+                      {child ? <StatusPill tone="amber" icon={Syringe} label={tr('शिशु', 'बाळ')} /> : null}
+                    </View>
+                  ) : null}
+                </View>
+                {!isVirtualHead ? (
+                  <IconButton icon={Trash2} tone="red" label={`${m.name} ${tr('हटाएं', 'काढा')}`} onPress={() => setMemberToDelete(m)} />
+                ) : null}
+                <ChevronRight size={20} color={color.faint} strokeWidth={2} />
+              </Pressable>
 
-      {/* Revisit Priority Modal (Red, Pink, Yellow) */}
-      <Modal visible={showPriorityModal} transparent animationType="fade">
-        <View style={styles.priorityModalOverlay}>
-          <View style={styles.priorityModalContent}>
-            <View style={styles.priorityModalHeader}>
-              <Text style={styles.priorityModalTitle}>पुनः भेंट प्राथमिकता चुनें</Text>
-              <TouchableOpacity onPress={() => setShowPriorityModal(false)}>
-                <X size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
+              {child ? (
+                <Pressable
+                  onPress={() => openVaccination(m)}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.vaxRow, pressed && styles.pressed]}
+                >
+                  <Syringe size={20} color={color.amberText} strokeWidth={2} />
+                  <Text style={[text.label, styles.flex, { color: color.amberText }]}>{tr('टीकाकरण कार्ड', 'लसीकरण कार्ड')}</Text>
+                  <ChevronRight size={18} color={color.amberText} strokeWidth={2} />
+                </Pressable>
+              ) : null}
             </View>
-            <Text style={styles.priorityModalSub}>
-              गृह भेंट दर्ज करने हेतु पुनः भेंट की प्राथमिकता चुनें:
-            </Text>
+          );
+        })}
 
-            <TouchableOpacity
-              style={[styles.priorityOptionCard, styles.priorityCardRed]}
-              onPress={async () => {
-                if (currentFamily) {
-                  await markFamilyVisited(currentFamily.id, '7days');
-                  setVisitSuccessMsg('✓ गृह भेंट दर्ज! प्राथमिकता: गंभीर (उच्च प्राथमिकता)');
-                  setTimeout(() => setVisitSuccessMsg(null), 4000);
-                }
-                setShowPriorityModal(false);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.priorityColorDot, { backgroundColor: '#EF4444' }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.priorityTitle, { color: '#DC2626' }]}>🔴 गंभीर (Severe)</Text>
-                <Text style={styles.priorityDesc}>उच्च प्राथमिकता • अति आवश्यक निगरानी</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.priorityOptionCard, styles.priorityCardPink]}
-              onPress={async () => {
-                if (currentFamily) {
-                  await markFamilyVisited(currentFamily.id, '15days');
-                  setVisitSuccessMsg('✓ गृह भेंट दर्ज! प्राथमिकता: मध्यम (समीक्षा / ANC)');
-                  setTimeout(() => setVisitSuccessMsg(null), 4000);
-                }
-                setShowPriorityModal(false);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.priorityColorDot, { backgroundColor: '#EC4899' }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.priorityTitle, { color: '#BE185D' }]}>🌸 मध्यम (Medium)</Text>
-                <Text style={styles.priorityDesc}>मध्यम प्राथमिकता • गर्भवती (ANC) व समीक्षा</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.priorityOptionCard, styles.priorityCardYellow]}
-              onPress={async () => {
-                if (currentFamily) {
-                  await markFamilyVisited(currentFamily.id, '30days');
-                  setVisitSuccessMsg('✓ गृह भेंट दर्ज! प्राथमिकता: सामान्य (नियमित जाँच)');
-                  setTimeout(() => setVisitSuccessMsg(null), 4000);
-                }
-                setShowPriorityModal(false);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={[styles.priorityColorDot, { backgroundColor: '#F59E0B' }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.priorityTitle, { color: '#B45309' }]}>🟡 सामान्य (Normal)</Text>
-                <Text style={styles.priorityDesc}>नियमित स्वास्थ्य जाँच</Text>
-              </View>
-            </TouchableOpacity>
+        {currentFamily ? (
+          <View style={styles.deleteFamilyWrap}>
+            <Button
+              label={tr('परिवार हटाएं (स्थलांतरण)', 'कुटुंब काढा (स्थलांतर)')}
+              icon={Trash2}
+              variant="danger"
+              onPress={() => setConfirmFamilyDelete(true)}
+            />
           </View>
+        ) : null}
+      </ScrollView>
+
+      {toast ? (
+        <View style={styles.toast} accessibilityLiveRegion="polite">
+          <CircleCheck size={20} color={color.white} strokeWidth={2} />
+          <Text style={[text.label, { color: color.white }]}>{toast}</Text>
         </View>
-      </Modal>
+      ) : null}
+
+      {/* Revisit priority */}
+      <Sheet visible={showPriority} onClose={() => setShowPriority(false)} title={tr('अगली भेंट कब?', 'पुढील भेट कधी?')} closeLabel={tr('बंद करें', 'बंद करा')}>
+        <View style={styles.sheetBody}>
+          {priorities.map((p) => {
+            const pal = tonePalette(p.tone);
+            return (
+              <Pressable
+                key={p.key}
+                disabled={savingVisit}
+                onPress={() => recordVisit(p.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`${p.title}, ${p.sub}`}
+                style={({ pressed }) => [styles.priorityCard, { backgroundColor: pal.bg, borderColor: pal.line }, pressed && styles.pressed]}
+              >
+                <View style={[styles.priorityDot, { backgroundColor: p.tone === 'neutral' ? color.faint : pal.fg }]} />
+                <View style={styles.flex}>
+                  <Text style={[text.heading, { color: pal.text }]}>{p.title}</Text>
+                  <Text style={text.caption}>{p.sub}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Sheet>
+
+      {/* Delete member confirmation */}
+      <Sheet visible={!!memberToDelete} onClose={() => setMemberToDelete(null)} title={tr('सदस्य हटाएं?', 'सदस्य काढायचा?')} closeLabel={tr('बंद करें', 'बंद करा')}>
+        <View style={styles.sheetBody}>
+          <Text style={text.body}>{memberToDelete?.name}</Text>
+          <Button label={tr('हटाएं', 'काढा')} icon={Trash2} variant="danger" onPress={confirmDelete} />
+          <Button label={tr('रद्द करें', 'रद्द करा')} variant="secondary" onPress={() => setMemberToDelete(null)} />
+        </View>
+      </Sheet>
+
+      {/* Delete family confirmation */}
+      <Sheet
+        visible={confirmFamilyDelete}
+        onClose={() => setConfirmFamilyDelete(false)}
+        title={tr('क्या आप इस परिवार को हटाना चाहते हैं?', 'तुम्हाला हे कुटुंब काढायचे आहे का?')}
+        closeLabel={tr('बंद करें', 'बंद करा')}
+      >
+        <View style={styles.sheetBody}>
+          <Text style={text.body}>
+            {currentFamily ? `${tr('घर', 'घर')} ${currentFamily.houseNumber} — ${currentFamily.headName}` : ''}
+          </Text>
+          <Text style={text.caption}>
+            {tr('परिवार और उसके सभी सदस्य सक्रिय सूची से हट जाएंगे।', 'कुटुंब आणि त्याचे सर्व सदस्य सक्रिय यादीतून काढले जातील.')}
+          </Text>
+          <Button
+            label={tr('हाँ, परिवार हटाएं', 'होय, कुटुंब काढा')}
+            icon={Trash2}
+            variant="danger"
+            loading={deletingFamily}
+            onPress={handleDeleteFamily}
+          />
+          <Button label={tr('रद्द करें', 'रद्द करा')} variant="secondary" onPress={() => setConfirmFamilyDelete(false)} />
+        </View>
+      </Sheet>
+
+      {/* Add member */}
+      <Sheet
+        visible={showAdd}
+        onClose={() => {
+          setShowAdd(false);
+          setFormError(null);
+        }}
+        title={tr('नया सदस्य', 'नवीन सदस्य')}
+        closeLabel={tr('बंद करें', 'बंद करा')}
+      >
+        <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+          <Field label={tr('पूरा नाम', 'पूर्ण नाव')} voice="name" value={name} onChangeText={(v) => { setName(v); setFormError(null); }} autoFocus />
+          <Field label={tr('पिता / पति का नाम', 'वडील / पतीचे नाव')} voice="name" value={fatherOrHusband} onChangeText={setFatherOrHusband} />
+          <View style={styles.twoCol}>
+            <View style={styles.flex}>
+              <Field label={tr('उम्र (वर्ष)', 'वय (वर्षे)')} voice="age" value={age} onChangeText={onAgeChange} keyboardType="number-pad" maxLength={3} />
+            </View>
+            <View style={styles.flex}>
+              <Field label={tr('रिश्ता', 'नाते')} voice="text" value={relationship} onChangeText={setRelationship} placeholder={tr('पत्नी / पुत्र', 'पत्नी / मुलगा')} />
+            </View>
+          </View>
+          <Field label={tr('जन्म तिथि', 'जन्मतारीख')} value={dob} onChangeText={(v) => { setDob(v.replace(/[^0-9/\-]/g, '')); setFormError(null); }} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" maxLength={10} error={dob.length === 10 ? validateDob(dob, tr) : null} />
+          <Field
+            label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
+            value={phone}
+            onChangeText={(v) => { setPhone(v.replace(/[^0-9]/g, '')); setFormError(null); }}
+            keyboardType="phone-pad"
+            maxLength={10}
+          />
+
+          <Text style={text.label}>{tr('लिंग', 'लिंग')}</Text>
+          <Segmented
+            value={gender}
+            onChange={onGenderChange}
+            options={[
+              { key: 'Female', label: tr('महिला', 'स्त्री') },
+              { key: 'Male', label: tr('पुरुष', 'पुरुष') },
+              { key: 'Other', label: tr('अन्य', 'इतर') },
+            ]}
+          />
+
+          <Text style={text.label}>{tr('स्वास्थ्य', 'आरोग्य')}</Text>
+          <View style={styles.flagRow}>
+            {canBePregnant ? (
+              <FlagToggle
+                label={tr('गर्भवती', 'गरोदर')}
+                icon={Baby}
+                tone="accent"
+                on={isPregnant}
+                onPress={() => {
+                  const next = !isPregnant;
+                  setIsPregnant(next);
+                  if (!next) setIsHrp(false);
+                  if (next) setIsChild(false);
+                }}
+              />
+            ) : null}
+            {canBePregnant && isPregnant ? (
+              <FlagToggle label="HRP" icon={ShieldAlert} tone="red" on={isHrp} onPress={() => setIsHrp(!isHrp)} />
+            ) : null}
+            {canBeChild ? (
+              <FlagToggle
+                label={tr('शिशु', 'बाळ')}
+                icon={Syringe}
+                tone="amber"
+                on={isChild}
+                onPress={() => {
+                  const next = !isChild;
+                  setIsChild(next);
+                  if (next) {
+                    setIsPregnant(false);
+                    setIsHrp(false);
+                  }
+                }}
+              />
+            ) : null}
+            <FlagToggle label="NCD" icon={HeartPulse} tone="red" on={hasChronic} onPress={() => setHasChronic(!hasChronic)} />
+          </View>
+
+          {formError ? (
+            <Card tone="red">
+              <Text style={[text.label, { color: color.redText }]}>{formError}</Text>
+            </Card>
+          ) : null}
+          <Button label={tr('सहेजें', 'जतन करा')} icon={UserPlus} loading={savingMember} onPress={handleSaveMember} />
+        </ScrollView>
+      </Sheet>
+
+      <ChildVaccinationModal visible={!!vaxRecord} childRecord={vaxRecord} onClose={() => setVaxRecord(null)} />
     </View>
   );
 };
 
+/** Big on/off health flag (48 dp, icon + short label, tone fill when on). */
+const FlagToggle: React.FC<{ label: string; icon: typeof Baby; tone: Tone; on: boolean; onPress: () => void }> = ({
+  label,
+  icon: Icon,
+  tone,
+  on,
+  onPress,
+}) => {
+  const p = tonePalette(tone);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: on }}
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.flag,
+        { backgroundColor: on ? p.fg : color.surface, borderColor: on ? p.fg : color.line },
+        pressed && styles.pressed,
+      ]}
+    >
+      <Icon size={18} color={on ? color.white : p.fg} strokeWidth={2} />
+      <Text style={[text.label, { color: on ? color.white : color.ink }]}>{label}</Text>
+    </Pressable>
+  );
+};
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 45,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBtn: {
-    padding: 6,
-  },
-  addBtnHeader: {
-    padding: 6,
-  },
-  headerTitleWrap: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  headerSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  content: {
-    padding: 14,
-    paddingBottom: 40,
-  },
-  houseCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 12,
-  },
-  houseIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  houseCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  houseCardSub: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  houseMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  houseMetaText: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  houseMetaDivider: {
-    marginHorizontal: 5,
-    fontSize: 10,
-    color: Colors.textMuted,
-  },
-  // Gram Survey Card
-  gramSurveyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 14,
-  },
-  gramSurveyTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: 10,
-  },
-  surveyGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  surveyGridItem: {
-    flexBasis: '47%',
-    flexGrow: 1,
-    minWidth: 130,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  surveyLabel: {
-    fontSize: 10,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  surveyValue: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: 1,
-  },
-  referralAlertBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-  },
-  referralAlertBannerPink: {
-    backgroundColor: '#FDF2F8',
-    borderColor: '#FBCFE8',
-  },
-  alertIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  alertIconCirclePink: {
-    backgroundColor: '#FCE7F3',
-  },
-  alertTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#B91C1C',
-    marginBottom: 2,
-  },
-  alertTitlePink: {
-    color: '#BE185D',
-  },
-  alertSub: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    lineHeight: 15,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  addMemberTextBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  addMemberText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.primary,
-  },
-  memberCardContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
+  deleteFamilyWrap: { marginTop: space.xl },
+  container: { flex: 1, backgroundColor: color.canvas },
+  flex: { flex: 1 },
+  content: { padding: space.lg, gap: space.md, paddingBottom: space.xxl * 2 },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.92 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  houseBadge: { width: 64, height: 64, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
+  headAction: { marginTop: space.md },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: 4 },
+  alertRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.md },
+  infoItem: { width: '50%', flexDirection: 'row', alignItems: 'flex-start', gap: space.sm, paddingRight: space.sm },
+  memberWrap: { gap: space.sm },
   memberCard: {
-    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  memberAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  pregnantAvatar: {
-    backgroundColor: '#FEE2E2',
-  },
-  avatarInitials: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  pregnantInitials: {
-    color: Colors.urgentRed,
-  },
-  memberInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  memberName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginRight: 4,
-  },
-  pregnantBadge: {
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-  },
-  pregnantBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.urgentRed,
-  },
-  hrpBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    gap: space.md,
+    padding: space.md,
+    backgroundColor: color.surface,
+    borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: '#FECACA',
-    paddingVertical: 2,
-    paddingHorizontal: 5,
-    borderRadius: 4,
+    borderColor: color.line,
+    ...elevation.card,
   },
-  hrpBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B91C1C',
-  },
-  diseaseBadge: {
+  avatar: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 18, fontWeight: '800' },
+  memberText: { flex: 1, gap: 2 },
+  vaxRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
+    gap: space.sm,
+    minHeight: touch,
+    paddingHorizontal: space.lg,
+    marginLeft: space.lg,
+    borderRadius: radius.control,
+    backgroundColor: color.amberSoft,
+    borderWidth: 1,
+    borderColor: color.amberLine,
   },
-  diseaseBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#DC2626',
+  toast: {
+    position: 'absolute',
+    left: space.lg,
+    right: space.lg,
+    bottom: space.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: touch,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.control,
+    backgroundColor: color.green,
   },
-  memberSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 3,
+  sheetBody: { gap: space.md },
+  priorityCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: 72,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
   },
-  memberContactRow: {
+  priorityDot: { width: 16, height: 16, borderRadius: 8 },
+  form: { gap: space.lg, paddingBottom: space.lg },
+  twoCol: { flexDirection: 'row', gap: space.md },
+  flagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  flag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 3,
-  },
-  memberMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberContactText: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  lastSurveyText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
-  vaxCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0F9FF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0F2FE',
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-  },
-  vaxCtaText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0369A1',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    marginTop: 10,
-  },
-  modalInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.textPrimary,
-  },
-  genderRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  genderBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  genderBtnActive: {
-    backgroundColor: Colors.primary,
-  },
-  genderBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  genderBtnTextActive: {
-    color: '#FFFFFF',
-  },
-  flagRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 14,
-  },
-  flagBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  flagBtnActive: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  flagBtnActiveHrp: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#DC2626',
-  },
-  flagBtnActiveChild: {
-    backgroundColor: '#E0F2FE',
-    borderWidth: 1,
-    borderColor: '#7DD3FC',
-  },
-  flagText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  flagTextActive: {
-    color: Colors.urgentRed,
-  },
-  flagTextActiveHrp: {
-    color: '#B91C1C',
-    fontWeight: '700',
-  },
-  flagTextActiveChild: {
-    color: '#0369A1',
-    fontWeight: '700',
-  },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  saveBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  // Visit Action Bar
-  visitActionBar: {
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  markVisitedBtn: {
-    backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  markVisitedBtnDone: {
-    backgroundColor: '#059669',
-  },
-  markVisitedBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  visitToast: {
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    alignItems: 'center',
-  },
-  visitToastText: {
-    color: '#065F46',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  // Revisit Priority Modal
-  priorityModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  priorityModalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  priorityModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  priorityModalTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  priorityModalSub: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginBottom: 16,
-  },
-  priorityOptionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
+    minHeight: touch,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
     borderWidth: 1.5,
-  },
-  priorityCardRed: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#F87171',
-  },
-  priorityCardPink: {
-    backgroundColor: '#FDF2F8',
-    borderColor: '#F472B6',
-  },
-  priorityCardYellow: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FCD34D',
-  },
-  priorityColorDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    marginRight: 12,
-  },
-  priorityTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  priorityDesc: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    fontWeight: '500',
   },
 });

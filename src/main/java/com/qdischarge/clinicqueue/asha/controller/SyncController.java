@@ -64,19 +64,13 @@ public class SyncController {
             anm = anmService.getByPhone(identifier);
         }
 
-        // Gracefully resolve any ANM QR session code (e.g. ANM-QR-*, ANM-*) or fallback to primary ANM
+        // Unknown / empty code → the ASHA's own assigned ANM. Never a hard-coded default ANM:
+        // that would hand one ASHA's patient records to an unrelated nurse.
         if (anm.isEmpty()) {
-            anm = anmService.getByPhone("9876543211");
+            anm = anmService.findAssignedAnmPhone(phone).flatMap(anmService::getByPhone);
         }
-
         if (anm.isEmpty()) {
-            anm = Optional.of(AnmProfileDto.builder()
-                .phone("9876543211")
-                .name("Rekha Sharma")
-                .phcName("Chandpur PHC")
-                .qrCodeData(identifier)
-                .createdAt(java.time.LocalDateTime.now())
-                .build());
+            return ResponseEntity.unprocessableEntity().build();
         }
 
         syncService.sendToAnm(phone, section, anm.get().getPhone());
