@@ -8,7 +8,13 @@ import {
   Platform,
   Easing,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
+import { Mic, Download, CheckCircle2, ArrowRight } from 'lucide-react-native';
+import { checkVoiceModelReadiness, downloadAllVoiceModels } from '../voice/languagePack';
+import { getStoredLanguage, cachedLanguage, pick, type AppLanguage } from '../utils/storedLanguage';
+
+type BootStatus = 'boot' | 'ready' | 'session' | 'downloading' | 'done';
 
 interface StartingAnimationProps {
   onAnimationFinish?: () => void;
@@ -22,7 +28,25 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const contentFadeAnim = useRef(new Animated.Value(0)).current;
-  const [statusText, setStatusText] = useState('डिजिटल स्वास्थ्य प्रणाली प्रारंभ हो रही है...');
+  const cardFadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Rendered outside <LanguageProvider>: read the saved language directly.
+  const [language, setLanguage] = useState<AppLanguage>(cachedLanguage());
+  useEffect(() => {
+    getStoredLanguage().then(setLanguage);
+  }, []);
+  const tr = (hi: string, mr: string, en: string) => pick(language, hi, mr, en);
+  const [status, setStatusText] = useState<BootStatus>('boot');
+  const statusText = {
+    boot: tr('डिजिटल स्वास्थ्य प्रणाली प्रारंभ हो रही है...', 'डिजिटल आरोग्य प्रणाली सुरू होत आहे...', 'Starting digital health system...'),
+    ready: tr('ऑफ़लाइन डेटाबेस और भाषा मॉडल तैयार...', 'ऑफलाइन डेटाबेस आणि भाषा मॉडेल तयार...', 'Offline database and language models ready...'),
+    session: tr('सुरक्षित सत्र सत्यापित (NHM Portal)...', 'सुरक्षित सत्र सत्यापित (NHM Portal)...', 'Secure session verified (NHM Portal)...'),
+    downloading: tr('ऑफ़लाइन आवाज़ मॉडल डाउनलोड हो रहा है...', 'ऑफलाइन आवाज मॉडेल डाउनलोड होत आहे...', 'Downloading offline voice models...'),
+    done: tr('✅ आवाज़ मॉडल सफलतापूर्वक तैयार!', '✅ आवाज मॉडेल यशस्वीरित्या तयार!', '✅ Voice models ready!'),
+  }[status];
+  const [needsDownload, setNeedsDownload] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   const logoSource =
     Platform.OS === 'web'
@@ -30,7 +54,7 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
       : require('../../assets/aarogya_flow_icon_transparent_hd.png');
 
   useEffect(() => {
-    // 1. Entrance animation (Clear logo fade & gentle scale)
+    // 1. Entrance animation
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 1,
@@ -52,32 +76,93 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
       }),
     ]).start();
 
-    // 2. Status message updates
-    const timer1 = setTimeout(() => {
-      setStatusText('ऑफ़लाइन डेटाबेस और सिंक तैयार हो रहा है...');
-    }, 800);
+    // 2. Check offline voice model status
+    let isCancelled = false;
+    let pollInterval: any = null;
 
-    const timer2 = setTimeout(() => {
-      setStatusText('सुरक्षित सत्र सत्यापित (NHM Portal)...');
-    }, 1500);
+    checkVoiceModelReadiness()
+      .then((res) => {
+        if (isCancelled) return;
+        if (res.needsDownload) {
+          // Voice pack needs downloading - prompt the user
+          setNeedsDownload(true);
+          Animated.timing(cardFadeAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }).start();
+        } else {
+          // All voice models already ready or unsupported platform -> proceed automatically
+          setTimeout(() => {
+            if (!isCancelled) setStatusText('ready');
+          }, 800);
 
-    const finishTimer = setTimeout(() => {
-      if (onAnimationFinish) {
-        onAnimationFinish();
-      }
-    }, minDurationMs);
+          setTimeout(() => {
+            if (!isCancelled) setStatusText('session');
+          }, 1500);
+
+          setTimeout(() => {
+            if (!isCancelled && onAnimationFinish) {
+              onAnimationFinish();
+            }
+          }, minDurationMs);
+        }
+      })
+      .catch(() => {
+        // Fallback on error: proceed into app
+        setTimeout(() => {
+          if (!isCancelled && onAnimationFinish) onAnimationFinish();
+        }, minDurationMs);
+      });
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(finishTimer);
+      isCancelled = true;
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, []);
+
+  const handleStartDownload = async () => {
+    setDownloading(true);
+    setStatusText('downloading');
+    try {
+      await downloadAllVoiceModels();
+    } catch {}
+
+    // Poll for download readiness
+    const checkInterval = setInterval(async () => {
+      try {
+        const check = await checkVoiceModelReadiness();
+        if (!check.needsDownload) {
+          clearInterval(checkInterval);
+          setDownloading(false);
+          setDownloadSuccess(true);
+          setStatusText('done');
+          setTimeout(() => {
+            if (onAnimationFinish) onAnimationFinish();
+          }, 900);
+        }
+      } catch {}
+    }, 1500);
+
+    // After 8 seconds, if Android dialog handled it or user returns, enable smooth entry
+    setTimeout(() => {
+      clearInterval(checkInterval);
+      setDownloading(false);
+      setDownloadSuccess(true);
+      setTimeout(() => {
+        if (onAnimationFinish) onAnimationFinish();
+      }, 700);
+    }, 8000);
+  };
+
+  const handleSkip = () => {
+    if (onAnimationFinish) onAnimationFinish();
+  };
 
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.contentBox, { opacity: fadeAnim }]}>
-        {/* Clear Logo — No blue highlights, glow rings, or borders */}
+        {/* Crystal-clear Emblem Logo */}
         <Animated.View
           style={[
             styles.logoContainer,
@@ -86,46 +171,85 @@ export const StartingAnimation: React.FC<StartingAnimationProps> = ({
             },
           ]}
         >
-          <Image
-            source={logoSource}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
+          <Image source={logoSource} style={styles.logoImage} resizeMode="contain" />
         </Animated.View>
 
         {/* Brand Titles & Indian Flag NHM Line */}
-        <Animated.View
-          style={[
-            styles.textContainer,
-            {
-              opacity: contentFadeAnim,
-            },
-          ]}
-        >
-          <Text style={styles.appTitle}>आरोग्य प्रवाह</Text>
-          <Text style={styles.appTitleEn}>Aarogya Flow</Text>
+        <Animated.View style={[styles.textContainer, { opacity: contentFadeAnim }]}>
+          <Text style={styles.appTitle}>{tr('आरोग्य प्रवाह', 'आरोग्य प्रवाह', 'Aarogya Flow')}</Text>
+          {language !== 'en' ? <Text style={styles.appTitleEn}>Aarogya Flow</Text> : null}
 
-          {/* NHM line with Indian flag below the logo */}
           <View style={styles.badgeRow}>
             <View style={styles.nhmBadge}>
               <Text style={styles.flagEmoji}>🇮🇳</Text>
-              <Text style={styles.nhmBadgeText}>राष्ट्रीय स्वास्थ्य मिशन (NHM)</Text>
+              <Text style={styles.nhmBadgeText}>{tr('राष्ट्रीय स्वास्थ्य मिशन (NHM)', 'राष्ट्रीय आरोग्य अभियान (NHM)', 'National Health Mission (NHM)')}</Text>
             </View>
           </View>
 
-          <Text style={styles.tagline}>सशक्त आशा • स्वस्थ परिवार • सुरक्षित समाज</Text>
+          <Text style={styles.tagline}>{tr('सशक्त आशा • स्वस्थ परिवार • सुरक्षित समाज', 'सक्षम आशा • निरोगी कुटुंब • सुरक्षित समाज', 'Empowered ASHA • Healthy family • Safe society')}</Text>
         </Animated.View>
 
-        {/* In-Between Loading Feature (Clean Spinner rather than sliding) */}
-        <Animated.View style={[styles.loadingBox, { opacity: contentFadeAnim }]}>
-          <ActivityIndicator size="small" color="#059669" style={styles.spinner} />
-          <Text style={styles.statusLabel}>{statusText}</Text>
-        </Animated.View>
+        {/* Interactive Voice Model Download Card (Displayed if offline voice models are missing) */}
+        {needsDownload ? (
+          <Animated.View style={[styles.voiceCard, { opacity: cardFadeAnim }]}>
+            <View style={styles.voiceCardHead}>
+              <View style={styles.micIconCircle}>
+                <Mic size={22} color="#059669" strokeWidth={2.2} />
+              </View>
+              <View style={styles.voiceCardHeadText}>
+                <Text style={styles.voiceCardTitle}>{tr('ऑफ़लाइन आवाज़ मॉडल', 'ऑफलाइन आवाज मॉडेल', 'Offline voice models')}</Text>
+                <Text style={styles.voiceCardTitleEn}>Offline Voice Pack Setup</Text>
+              </View>
+            </View>
+
+            <Text style={styles.voiceCardDesc}>
+              {tr(
+                'बिना इंटरनेट बोलकर फॉर्म भरने और आवाज़ सुनने के लिए ऑफ़लाइन वॉइस मॉडल डाउनलोड आवश्यक है।',
+                'इंटरनेटशिवाय बोलून फॉर्म भरण्यासाठी आणि आवाज ऐकण्यासाठी ऑफलाइन व्हॉइस मॉडेल डाउनलोड आवश्यक आहे.',
+                'Download the offline voice models to fill forms by voice and hear audio without internet.',
+              )}
+            </Text>
+
+            {downloadSuccess ? (
+              <View style={styles.successBox}>
+                <CheckCircle2 size={20} color="#16A34A" strokeWidth={2.2} />
+                <Text style={styles.successText}>{tr('आवाज़ मॉडल तैयार! ऐप खुल रहा है...', 'आवाज मॉडेल तयार! ॲप उघडत आहे...', 'Voice models ready! Opening the app...')}</Text>
+              </View>
+            ) : downloading ? (
+              <View style={styles.downloadingBox}>
+                <ActivityIndicator size="small" color="#059669" />
+                <Text style={styles.downloadingText}>{tr('मॉडल डाउनलोड हो रहा है... कृपया प्रतीक्षा करें', 'मॉडेल डाउनलोड होत आहे... कृपया थांबा', 'Downloading models... please wait')}</Text>
+              </View>
+            ) : (
+              <View style={styles.buttonCol}>
+                <Pressable
+                  style={styles.downloadBtn}
+                  onPress={handleStartDownload}
+                  accessibilityRole="button"
+                >
+                  <Download size={18} color="#FFFFFF" strokeWidth={2.2} />
+                  <Text style={styles.downloadBtnText}>{tr('मॉडल डाउनलोड करें', 'मॉडेल डाउनलोड करा', 'Download models')}</Text>
+                </Pressable>
+
+                <Pressable style={styles.skipBtn} onPress={handleSkip} accessibilityRole="button">
+                  <Text style={styles.skipBtnText}>{tr('बाद में करें • ऐप खोलें', 'नंतर करा • ॲप उघडा', 'Later • Open app')}</Text>
+                  <ArrowRight size={16} color="#64748B" strokeWidth={2} />
+                </Pressable>
+              </View>
+            )}
+          </Animated.View>
+        ) : (
+          /* Normal Loading Indicator */
+          <Animated.View style={[styles.loadingBox, { opacity: contentFadeAnim }]}>
+            <ActivityIndicator size="small" color="#059669" style={styles.spinner} />
+            <Text style={styles.statusLabel}>{statusText}</Text>
+          </Animated.View>
+        )}
       </Animated.View>
 
       {/* Official Footer Notice */}
       <View style={styles.footerContainer}>
-        <Text style={styles.footerText}>🇮🇳 स्वास्थ्य एवं परिवार कल्याण मंत्रालय</Text>
+        <Text style={styles.footerText}>🇮🇳 {tr('स्वास्थ्य एवं परिवार कल्याण मंत्रालय', 'आरोग्य व कुटुंब कल्याण मंत्रालय', 'Ministry of Health and Family Welfare')}</Text>
         <Text style={styles.footerSubText}>Ministry of Health and Family Welfare, Govt. of India</Text>
       </View>
     </View>
@@ -140,7 +264,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   contentBox: {
     alignItems: 'center',
@@ -148,29 +272,28 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 360,
   },
-  // Pure clear logo: zero borders, zero blue aura, zero background box
   logoContainer: {
-    width: 120,
-    height: 120,
+    width: 104,
+    height: 104,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   logoImage: {
-    width: 116,
-    height: 116,
+    width: 100,
+    height: 100,
   },
   textContainer: {
     alignItems: 'center',
   },
   appTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: 0.5,
   },
   appTitleEn: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#059669',
     letterSpacing: 1.2,
@@ -178,43 +301,150 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   badgeRow: {
-    marginTop: 10,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 6,
   },
   nhmBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     gap: 6,
   },
   flagEmoji: {
-    fontSize: 14,
+    fontSize: 13,
   },
   nhmBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#0F172A',
   },
   tagline: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
     fontWeight: '500',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
-  // Loading feature in between rather than sliding bar
-  loadingBox: {
-    marginTop: 32,
+  voiceCard: {
+    width: '100%',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 24,
+    alignItems: 'stretch',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  voiceCardHead: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  micIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  voiceCardHeadText: {
+    flex: 1,
+  },
+  voiceCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  voiceCardTitleEn: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  voiceCardDesc: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  buttonCol: {
+    gap: 8,
+  },
+  downloadBtn: {
+    backgroundColor: '#059669',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  downloadBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  skipBtn: {
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  skipBtnText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  downloadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
+    paddingVertical: 12,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 10,
+  },
+  downloadingText: {
+    fontSize: 13,
+    color: '#065F46',
+    fontWeight: '600',
+  },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 10,
+  },
+  successText: {
+    fontSize: 13,
+    color: '#166534',
+    fontWeight: '700',
+  },
+  loadingBox: {
+    marginTop: 28,
+    alignItems: 'center',
+    gap: 8,
   },
   spinner: {
-    transform: [{ scale: 1.1 }],
+    transform: [{ scale: 1.05 }],
   },
   statusLabel: {
     fontSize: 12,
@@ -224,7 +454,7 @@ const styles = StyleSheet.create({
   },
   footerContainer: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 20,
     alignItems: 'center',
   },
   footerText: {

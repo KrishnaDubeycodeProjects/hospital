@@ -16,6 +16,7 @@ import java.util.Map;
  *
  * <ul>
  *   <li>{@code GET  /api/asha/cho/workers} — workers in the CHO's sector with activity counts</li>
+ *   <li>{@code GET  /api/asha/cho/workers/{phone}/activity} — daily trend + recent activity of one sector worker</li>
  *   <li>{@code GET  /api/asha/cho/referrals?scope=pending|all} — referrals from every ASHA in the CHO's sector</li>
  *   <li>{@code POST /api/asha/referrals/{id}/approve} — validate a referral (physical triage / transport sign-off)</li>
  * </ul>
@@ -52,6 +53,15 @@ public class ChoSectorReferralController {
         if (cho == null || cho.isBlank()) return error(HttpStatus.UNAUTHORIZED, "UNIDENTIFIED_CALLER");
         if (choReferralService.sectorSize(cho) == 0) return error(HttpStatus.FORBIDDEN, "NO_SECTOR");
         return ResponseEntity.ok(choReferralService.listSectorWorkers(cho));
+    }
+
+    @GetMapping("/cho/workers/{phone}/activity")
+    public ResponseEntity<?> workerActivity(@PathVariable String phone) {
+        String cho = currentUser.getChoPhone();
+        if (cho == null || cho.isBlank()) return error(HttpStatus.UNAUTHORIZED, "UNIDENTIFIED_CALLER");
+        Map<String, Object> activity = choReferralService.workerActivity(cho, phone);
+        if (activity.isEmpty()) return error(HttpStatus.NOT_FOUND, "NOT_IN_SECTOR");
+        return ResponseEntity.ok(activity);
     }
 
     @PostMapping("/referrals/{id}/approve")

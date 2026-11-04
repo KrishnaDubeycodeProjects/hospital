@@ -29,7 +29,7 @@ export default function TokenDetail() {
       if (showToast) setRefreshing(true);
       const data = await queueApi.tokenDetails(id);
       setToken(data);
-      if (showToast) toast.success('Queue status refreshed');
+      if (showToast) toast.success('Updated');
     } catch {
       setToken(null);
     } finally {
@@ -88,7 +88,7 @@ export default function TokenDetail() {
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
           <h2 style={{ fontSize: '19px', fontWeight: '800', color: '#0f172a' }}>Token Not Found</h2>
           <p style={{ fontSize: '13.5px', color: '#64748b', margin: '8px 0 24px' }}>
-            This token does not exist or may have expired.
+            We could not find this token. It may be from an earlier day. You can book a new one.
           </p>
           <button
             type="button"
@@ -104,7 +104,7 @@ export default function TokenDetail() {
               cursor: 'pointer',
             }}
           >
-            Find Hospital & Book
+            Book a new token
           </button>
         </div>
       </div>
@@ -118,12 +118,12 @@ export default function TokenDetail() {
   const tokenNum = token.dailyNumber ?? num;
   const aheadCount = token.status === 'serving' ? 0 : (token.peopleAhead ?? (token.queuePosition != null ? Math.max(0, token.queuePosition - 1) : 0));
   const hospitalName = token.hospitalName || 'Hospital';
-  const departmentName = token.category || 'Cardiology';
+  const departmentName = token.category || 'OPD';
   const patientName = token.name || token.patientName || 'Patient';
   const gender = token.gender
     ? token.gender.charAt(0).toUpperCase() + token.gender.slice(1).toLowerCase()
-    : 'Male';
-  const age = token.age || 20;
+    : '—';
+  const age = token.age || '—';
 
   // Current token running in this hospital/department
   const isMyTokenServing = token.status === 'serving';
@@ -136,27 +136,35 @@ export default function TokenDetail() {
     waiting: {
       dotColor: '#3B82F6',
       textColor: '#1D4ED8',
-      label: 'Waiting in Queue',
+      label: 'Waiting for your turn',
+      action:
+        aheadCount > 0
+          ? `${aheadCount} ${aheadCount === 1 ? 'person is' : 'people are'} before you. You can wait outside — this page updates by itself.`
+          : 'You are next. Please stay near the doctor\'s room.',
     },
     reserved: {
       dotColor: '#F59E0B',
       textColor: '#B45309',
-      label: 'En Route (Buffer Active)',
+      label: 'Your turn is coming soon',
+      action: 'Please start coming to the hospital now and show the QR code at reception.',
     },
     serving: {
       dotColor: '#10B981',
       textColor: '#047857',
-      label: 'Now Serving',
+      label: 'It is your turn now',
+      action: 'Please go to the doctor now.',
     },
     completed: {
       dotColor: '#059669',
       textColor: '#065F46',
-      label: 'Completed',
+      label: 'Visit finished',
+      action: 'Your visit is complete. Get well soon!',
     },
     missed: {
       dotColor: '#EF4444',
       textColor: '#DC2626',
-      label: 'Missed Call',
+      label: 'You missed your turn',
+      action: 'Please go to the reception counter and show this token — they can call you again.',
     },
   };
 
@@ -168,7 +176,7 @@ export default function TokenDetail() {
         activeNav="track"
         backTo="/track"
         backLabel="Track Queue"
-        title={`Live OPD Token #${token.tokenNumber || ''}`}
+        title={`My token ${tokenCode}`}
         subtitle={token.hospitalName || 'Outpatient Department'}
       />
       <main
@@ -323,6 +331,23 @@ export default function TokenDetail() {
               {status.label}
             </span>
           </div>
+          {status.action && (
+            <p
+              role="status"
+              aria-live="polite"
+              style={{
+                margin: '10px auto 0',
+                maxWidth: '520px',
+                textAlign: 'center',
+                fontSize: '15px',
+                fontWeight: '600',
+                lineHeight: 1.45,
+                color: status.textColor,
+              }}
+            >
+              {status.action}
+            </p>
+          )}
         </header>
 
         {/* Scrollable / Flexible Content Area */}
@@ -357,7 +382,7 @@ export default function TokenDetail() {
                   letterSpacing: '0.04em',
                 }}
               >
-                Current Token Running
+                Now calling
               </span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', margin: '2px 0 6px' }}>
                 <span
@@ -378,7 +403,7 @@ export default function TokenDetail() {
                     color: '#065F46',
                   }}
                 >
-                  {isMyTokenServing ? 'Your Turn (NOW)' : (currentRunningToken ? 'Now Serving' : 'Queue Waiting')}
+                  {isMyTokenServing ? 'Your turn now' : (currentRunningToken ? 'at the doctor' : 'Not started yet')}
                 </span>
               </div>
               <div
@@ -433,7 +458,7 @@ export default function TokenDetail() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                Token Code
+                Your token
               </span>
               <div
                 style={{
@@ -457,7 +482,7 @@ export default function TokenDetail() {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {token.isVerified ? 'Checked In ✅' : (token.status === 'reserved' ? 'Buffer Active ⏳' : 'Pending Check-in')}
+                {token.isVerified ? 'Checked in ✓' : (token.status === 'reserved' ? 'Please come now' : 'Not checked in yet')}
               </span>
             </div>
           </div>
@@ -701,23 +726,23 @@ export default function TokenDetail() {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
-                  <span style={{ color: '#64748b' }}>Current Token Running</span>
+                  <span style={{ color: '#64748b' }}>Now calling</span>
                   <strong style={{ color: currentRunningToken ? '#047857' : '#64748b', fontSize: '15px', fontWeight: '800' }}>
                     {currentRunningToken || 'None (Queue Waiting)'}
                   </strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
-                  <span style={{ color: '#64748b' }}>Queue Position</span>
+                  <span style={{ color: '#64748b' }}>Your place in line</span>
                   <strong style={{ color: '#0f172a', fontSize: '14px' }}>
                     {isMyTokenServing ? '0 (Now Serving)' : `${aheadCount} waiting ahead`}
                   </strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px' }}>
-                  <span style={{ color: '#64748b' }}>Check-in Status</span>
+                  <span style={{ color: '#64748b' }}>Reception check-in</span>
                   <strong style={{ color: token.isVerified ? '#15803D' : (token.status === 'reserved' ? '#92400E' : '#475569'), fontSize: '14px' }}>
-                    {token.isVerified ? 'Checked In ✅' : (token.status === 'reserved' ? 'Buffer Active ⏳' : 'Pending Check-in')}
+                    {token.isVerified ? 'Checked in ✓' : (token.status === 'reserved' ? 'Please come now' : 'Not checked in yet')}
                   </strong>
                 </div>
 

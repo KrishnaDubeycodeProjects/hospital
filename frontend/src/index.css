@@ -3077,3 +3077,18 @@ a:hover {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
 }
+
+/* Landing: patient service cards (keyboard + hover feedback) */
+.landing-service-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.landing-service-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06) !important;
+  border-color: #A7F3D0 !important;
+}
+.landing-service-card:focus-visible,
+.landing-hero-actions > button:focus-visible {
+  outline: 3px solid #059669;
+  outline-offset: 2px;
+}

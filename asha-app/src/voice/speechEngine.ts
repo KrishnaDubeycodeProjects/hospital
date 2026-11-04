@@ -83,11 +83,15 @@ export class SpeechEngine {
       try {
         const pack = await ensureTtsVoice(lang);
         if (pack.status === 'missing') {
-          const mr = lang.toLowerCase().startsWith('mr');
+          const code = lang.toLowerCase();
+          const mr = code.startsWith('mr');
+          const en = code.startsWith('en');
           Alert.alert(
-            mr ? 'आवाज डाउनलोड करा' : 'आवाज़ डाउनलोड करें',
+            mr ? 'आवाज डाउनलोड करा' : en ? 'Download voice' : 'आवाज़ डाउनलोड करें',
             mr
               ? 'मराठी आवाज फोनमध्ये नाही. सेटिंगमध्ये "मराठी" आवाज डाउनलोड करा, मग पुन्हा ऐका.'
+              : en
+              ? 'English voice is not installed. Download the "English (India)" voice in settings, then listen again.'
               : 'हिंदी आवाज़ फ़ोन में नहीं है। सेटिंग में "हिंदी" आवाज़ डाउनलोड करें, फिर दोबारा सुनें।'
           );
           refreshVoiceCache();

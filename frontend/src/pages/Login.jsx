@@ -270,7 +270,7 @@ function OtpAuthForm({ kind, redirectTarget }) {
 
       if (kind === 'patient') {
         login('PATIENT', res.token);
-        toast.success('Authenticated successfully! Welcome to AarogyaFlow.');
+        toast.success('Signed in. Welcome!');
         navigate(effectiveRedirect || '/patient');
         return;
       }
@@ -324,22 +324,20 @@ function OtpAuthForm({ kind, redirectTarget }) {
       <div className="pro-card-header">
         <h2 className="pro-card-title">
           {kind === 'patient'
-            ? mode === 'login'
-              ? 'Patient Sign In'
-              : 'New Patient Registration'
+            ? 'Sign in with your mobile number'
             : mode === 'login'
             ? 'Doctor Clinical Sign In'
             : 'Doctor Account Registration'}
         </h2>
         <p className="pro-card-subtitle">
-          {stage === 'phone' && 'Access your digital health portal securely with phone & WhatsApp OTP.'}
-          {stage === 'otp' && `Enter the 6-digit verification code sent to +91 ${phone}.`}
+          {stage === 'phone' && 'New or returning — it is the same. We will send a 6-digit code on WhatsApp.'}
+          {stage === 'otp' && `Enter the 6-digit code we sent on WhatsApp to +91 ${phone}.`}
           {stage === 'profile' && 'Complete your professional credentials to finalize your doctor account.'}
         </p>
       </div>
 
       {/* Mode Switcher (Sign In vs Sign Up) */}
-      {stage === 'phone' && (
+      {stage === 'phone' && kind !== 'patient' && (
         <div className="pro-mode-pills">
           <button
             type="button"
@@ -371,7 +369,7 @@ function OtpAuthForm({ kind, redirectTarget }) {
         <form onSubmit={handleSendOtp} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
-              Mobile Phone Number *
+              Mobile number
             </label>
             <div className="pro-phone-field">
               <div className="pro-country-prefix">
@@ -391,7 +389,7 @@ function OtpAuthForm({ kind, redirectTarget }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '12px', color: '#64748B' }}>
               <WhatsAppIcon size={14} color="#15803D" />
-              <span>We will deliver a 6-digit one-time passcode directly to your WhatsApp.</span>
+              <span>The code comes on WhatsApp on this number.</span>
             </div>
           </div>
 
@@ -401,11 +399,11 @@ function OtpAuthForm({ kind, redirectTarget }) {
             className={`pro-primary-btn ${kind === 'doctor' ? '' : 'emerald'}`}
           >
             {sending ? (
-              <span>Sending OTP Code...</span>
+              <span>Sending code…</span>
             ) : (
               <>
                 <WhatsAppIcon size={18} color="#ffffff" />
-                <span>Send WhatsApp Verification Code</span>
+                <span>Send code on WhatsApp</span>
                 <ArrowRight size={16} />
               </>
             )}
@@ -419,7 +417,7 @@ function OtpAuthForm({ kind, redirectTarget }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <label style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>
-                6-Digit Verification Code *
+                Enter the 6-digit code
               </label>
               <button
                 type="button"
@@ -429,7 +427,7 @@ function OtpAuthForm({ kind, redirectTarget }) {
                 }}
                 style={{ background: 'none', border: 'none', color: '#0F4C3A', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
               >
-                Change Phone
+                Change number
               </button>
             </div>
 
@@ -487,11 +485,11 @@ function OtpAuthForm({ kind, redirectTarget }) {
             className={`pro-primary-btn ${kind === 'doctor' ? '' : 'emerald'}`}
           >
             {verifying ? (
-              <span>Verifying code...</span>
+              <span>Checking code…</span>
             ) : (
               <>
                 <CheckCircle2 size={18} />
-                <span>Verify &amp; Enter Portal</span>
+                <span>Verify and continue</span>
                 <ArrowRight size={16} />
               </>
             )}

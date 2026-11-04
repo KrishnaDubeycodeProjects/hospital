@@ -24,15 +24,15 @@ interface AnmWorkerDetailScreenProps {
 
 export const categoryMeta = (
   code: string,
-  tr: (hi: string, mr: string) => string
+  tr: (hi: string, mr: string, en?: string) => string
 ): { icon: LucideIcon; tone: Tone; label: string } =>
   code === 'PREGNANCY'
-    ? { icon: HeartPulse, tone: 'red', label: tr('गर्भावस्था', 'गर्भधारणा') }
+    ? { icon: HeartPulse, tone: 'red', label: tr('गर्भावस्था', 'गर्भधारणा', 'Pregnancy') }
     : code === 'CHILD'
-    ? { icon: Baby, tone: 'accent', label: tr('बाल स्वास्थ्य', 'बाल आरोग्य') }
+    ? { icon: Baby, tone: 'accent', label: tr('बाल स्वास्थ्य', 'बाल आरोग्य', 'Child health') }
     : code === 'DISEASE'
-    ? { icon: Activity, tone: 'amber', label: tr('रोग जांच', 'आजार तपासणी') }
-    : { icon: ClipboardList, tone: 'neutral', label: tr('सामान्य', 'सामान्य') };
+    ? { icon: Activity, tone: 'amber', label: tr('रोग जांच', 'आजार तपासणी', 'Disease screening') }
+    : { icon: ClipboardList, tone: 'neutral', label: tr('सामान्य', 'सामान्य', 'Normal') };
 
 export const AnmWorkerDetailScreen: React.FC<AnmWorkerDetailScreenProps> = ({
   ashaName = '',
@@ -67,7 +67,7 @@ export const AnmWorkerDetailScreen: React.FC<AnmWorkerDetailScreenProps> = ({
     const byKey = new Map<string, AnmMemberForms>();
     for (const f of forms) {
       const key = f.familyMemberId ? `m${f.familyMemberId}` : `f${f.id}`;
-      const g = byKey.get(key) || { memberName: f.memberName || tr('नाम दर्ज नहीं', 'नाव नोंद नाही'), familyHeadName: f.familyHeadName, forms: [] };
+      const g = byKey.get(key) || { memberName: f.memberName || tr('नाम दर्ज नहीं', 'नाव नोंद नाही', 'Name not recorded'), familyHeadName: f.familyHeadName, forms: [] };
       g.forms.push(f);
       byKey.set(key, g);
     }
@@ -76,7 +76,7 @@ export const AnmWorkerDetailScreen: React.FC<AnmWorkerDetailScreenProps> = ({
 
   return (
     <View style={styles.flex}>
-      <AppBar title={ashaName} subtitle={village || undefined} onBack={onBack} backLabel={tr('वापस', 'मागे')} />
+      <AppBar title={ashaName} subtitle={village || undefined} onBack={onBack} backLabel={tr('वापस', 'मागे', 'Back')} />
       <Screen>
         {state === 'loading' ? (
           <SkeletonRows count={5} />
@@ -84,21 +84,21 @@ export const AnmWorkerDetailScreen: React.FC<AnmWorkerDetailScreenProps> = ({
           <EmptyState
             icon={CloudOff}
             tone="amber"
-            title={tr('डेटा लोड नहीं हुआ', 'डेटा लोड झाला नाही')}
-            action={<Button label={tr('फिर कोशिश', 'पुन्हा प्रयत्न')} icon={RotateCcw} variant="secondary" full={false} onPress={load} />}
+            title={tr('डेटा लोड नहीं हुआ', 'डेटा लोड झाला नाही', 'Data not loaded')}
+            action={<Button label={tr('फिर कोशिश', 'पुन्हा प्रयत्न', 'Try again')} icon={RotateCcw} variant="secondary" full={false} onPress={load} />}
           />
         ) : members.length === 0 ? (
-          <EmptyState icon={Inbox} tone="neutral" title={tr('अभी कोई फॉर्म नहीं', 'अजून फॉर्म नाही')} />
+          <EmptyState icon={Inbox} tone="neutral" title={tr('अभी कोई फॉर्म नहीं', 'अजून फॉर्म नाही', 'No forms yet')} />
         ) : (
           <>
             <Card>
               <View style={styles.statsRow}>
-                <Stat value={forms.length} label={tr('फॉर्म', 'फॉर्म')} tone="amber" />
+                <Stat value={forms.length} label={tr('फॉर्म', 'फॉर्म', 'Form')} tone="amber" />
                 <View style={styles.vr} />
-                <Stat value={members.length} label={tr('सदस्य', 'सदस्य')} tone="neutral" />
+                <Stat value={members.length} label={tr('सदस्य', 'सदस्य', 'Members')} tone="neutral" />
               </View>
             </Card>
-            <SectionTitle label={tr('सदस्य', 'सदस्य')} count={members.length} />
+            <SectionTitle label={tr('सदस्य', 'सदस्य', 'Members')} count={members.length} />
             <View style={styles.list}>
               {members.map((m, i) => {
                 const meta = categoryMeta(m.forms[0].categoryCode, tr);
@@ -108,7 +108,7 @@ export const AnmWorkerDetailScreen: React.FC<AnmWorkerDetailScreenProps> = ({
                     icon={meta.icon}
                     tone={meta.tone}
                     title={m.memberName}
-                    subtitle={m.familyHeadName ? `${tr('परिवार', 'कुटुंब')}: ${m.familyHeadName}` : undefined}
+                    subtitle={m.familyHeadName ? `${tr('परिवार', 'कुटुंब', 'Families')}: ${m.familyHeadName}` : undefined}
                     onPress={() => onSelectMember(m)}
                     right={<StatusPill tone={meta.tone} label={m.forms.length > 1 ? `${meta.label} +${m.forms.length - 1}` : meta.label} />}
                   />

@@ -141,9 +141,61 @@ public class ChoReferralService {
                 "(SELECT COUNT(*) FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON f.id = m.family_unit_id " +
                 "   WHERE " + d10("f.asha_worker_phone") + " = " + w10 + " AND m.has_chronic_condition = TRUE " +
                 "   AND (m.is_deleted IS NULL OR m.is_deleted = FALSE)) AS \"ncdCount\", " +
-                "(SELECT MAX(s.created_at) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = " + w10 + ") AS \"lastActive\" " +
+                "(SELECT COUNT(*) FROM clinicqueue.family_members m JOIN clinicqueue.family_units f ON f.id = m.family_unit_id " +
+                "   WHERE " + d10("f.asha_worker_phone") + " = " + w10 + " AND m.age IS NOT NULL AND m.age < 5 " +
+                "   AND (m.is_deleted IS NULL OR m.is_deleted = FALSE)) AS \"childCount\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = " + w10 +
+                "   AND s.created_at >= NOW() - INTERVAL '7 days') AS \"surveys7d\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = " + w10 +
+                "   AND s.created_at >= NOW() - INTERVAL '30 days') AS \"surveys30d\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = " + w10 +
+                "   AND t.status IN ('COMPLETED', 'APPROVED_CHO')) AS \"tasksDone\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = " + w10 +
+                "   AND t.status NOT IN ('COMPLETED', 'APPROVED_CHO')) AS \"tasksOpen\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = " + w10 +
+                "   AND t.status NOT IN ('COMPLETED', 'APPROVED_CHO') AND t.due_date < CURRENT_DATE) AS \"tasksOverdue\", " +
+                "(SELECT COUNT(*) FROM clinicqueue.family_units f WHERE " + d10("f.asha_worker_phone") + " = " + w10 +
+                "   AND (f.is_deleted IS NULL OR f.is_deleted = FALSE) AND f.last_visited_at >= NOW() - INTERVAL '30 days') AS \"familiesVisited30d\", " +
+                "GREATEST((SELECT MAX(s.created_at) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = " + w10 + "), " +
+                "         (SELECT MAX(f.last_visited_at) FROM clinicqueue.family_units f WHERE " + d10("f.asha_worker_phone") + " = " + w10 + "), " +
+                "         (SELECT MAX(t.completed_at) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = " + w10 + ")) AS \"lastActive\" " +
                 "FROM clinicqueue.asha_workers w WHERE " + w10 + " IN (" + SECTOR_PHONES + ") ORDER BY w.name";
         return jdbcTemplate.queryForList(sql, new MapSqlParameterSource("cho", lastTenDigits(choPhone)).addValue("types", REFERRAL_TYPES));
+    }
+
+    /**
+     * Activity trail of one sector worker for the CHO dashboard: daily survey counts for the last
+     * 14 days plus the 20 most recent surveys / follow-up tasks. Empty when the worker is outside the sector.
+     */
+    public Map<String, Object> workerActivity(String choPhone, String workerPhone) {
+        syncService.ensureSyncSchema();
+        String w = lastTenDigits(workerPhone);
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        if (!isAshaInSector(choPhone, w)) return out;
+        MapSqlParameterSource p = new MapSqlParameterSource("w", w);
+        out.put("daily", jdbcTemplate.queryForList(
+                "SELECT to_char(d.day, 'YYYY-MM-DD') AS \"date\", " +
+                "  (SELECT COUNT(*) FROM clinicqueue.survey_responses s WHERE " + d10("s.asha_worker_phone") + " = :w " +
+                "     AND s.created_at::date = d.day) AS \"surveys\", " +
+                "  (SELECT COUNT(*) FROM clinicqueue.follow_up_tasks t WHERE " + d10("t.asha_worker_phone") + " = :w " +
+                "     AND t.completed_at::date = d.day) AS \"tasksDone\" " +
+                "FROM generate_series(CURRENT_DATE - 13, CURRENT_DATE, INTERVAL '1 day') AS d(day) ORDER BY d.day", p));
+        out.put("recent", jdbcTemplate.queryForList(
+                "SELECT * FROM (" +
+                "  SELECT 'SURVEY' AS \"kind\", s.category_code AS \"category\", fm.name AS \"memberName\", " +
+                "         f.house_number AS \"houseNumber\", f.village_name AS \"villageName\", NULL AS \"status\", s.created_at AS \"at\" " +
+                "  FROM clinicqueue.survey_responses s " +
+                "  LEFT JOIN clinicqueue.family_members fm ON fm.id = s.family_member_id " +
+                "  LEFT JOIN clinicqueue.family_units f ON f.id = s.family_unit_id " +
+                "  WHERE " + d10("s.asha_worker_phone") + " = :w " +
+                "  UNION ALL " +
+                "  SELECT 'TASK', t.task_type, fm.name, f.house_number, f.village_name, t.status, COALESCE(t.completed_at, t.created_at) " +
+                "  FROM clinicqueue.follow_up_tasks t " +
+                "  LEFT JOIN clinicqueue.family_members fm ON fm.id = t.family_member_id " +
+                "  LEFT JOIN clinicqueue.family_units f ON f.id = t.family_unit_id " +
+                "  WHERE " + d10("t.asha_worker_phone") + " = :w " +
+                ") x ORDER BY x.\"at\" DESC NULLS LAST LIMIT 20", p));
+        return out;
     }
 
     public enum ApproveOutcome { APPROVED, ALREADY_APPROVED, NOT_IN_SECTOR }

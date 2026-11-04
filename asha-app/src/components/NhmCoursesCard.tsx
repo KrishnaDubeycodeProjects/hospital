@@ -24,11 +24,19 @@ export interface NhmCourseModule {
   descriptionMr: string;
   keyPointsHi: string[];
   keyPointsMr: string[];
+  titleEn: string;
+  categoryEn: string;
+  descriptionEn: string;
+  keyPointsEn: string[];
 }
 
 const DEFAULT_MODULES: NhmCourseModule[] = [
   {
     id: 'nhm-mod-1',
+    titleEn: "Maternal Health & Antenatal Care (ANC)",
+    categoryEn: "Maternal & child health",
+    descriptionEn: "Early identification of pregnant women, the 4 mandatory ANC check-ups, IFA tablet distribution and recognising danger signs of high-risk pregnancy (HRP).",
+    keyPointsEn: ["Mandatory registration in the first trimester (within 12 weeks).", "At least 4 ANC check-ups: first trimester, 14–26 weeks, 28–34 weeks, 36 weeks.", "Regular intake of 180 days of IFA (red tablet) and 360 calcium tablets.", "Danger signs: severe swelling, headache, blurred vision, bleeding — immediate CHC referral."],
     moduleNumber: 1,
     titleHi: 'मातृ स्वास्थ्य एवं प्रसव पूर्व देखभाल (ANC)',
     titleMr: 'माता आरोग्य आणि प्रसूतीपूर्व काळजी (ANC)',
@@ -52,6 +60,10 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
   },
   {
     id: 'nhm-mod-2',
+    titleEn: "Child Immunisation Cycle & Malnutrition Management",
+    categoryEn: "Child health & nutrition",
+    descriptionEn: "Complete immunisation schedule from birth to 5 years, zero dose (BCG, OPV, HepB), Pentavalent, MR and identification of severe acute malnutrition (SAM).",
+    keyPointsEn: ["Within 24 hours of birth: BCG, OPV-0, Hepatitis-B birth dose.", "6, 10, 14 weeks: Pentavalent (1, 2, 3), Rotavirus, fIPV, PCV.", "9–12 months: MR-1, JE-1, first dose of Vitamin A.", "Use the MUAC tape for children aged 6 months–5 years; refer to the Nutrition Rehabilitation Centre (NRC) on a red reading."],
     moduleNumber: 2,
     titleHi: 'बाल प्रतिरक्षण चक्र एवं कुपोषण प्रबंधन',
     titleMr: 'बाल लसीकरण आणि कुपोषण व्यवस्थापन',
@@ -75,6 +87,10 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
   },
   {
     id: 'nhm-mod-3',
+    titleEn: "Non-Communicable Diseases (NCD) & CBAC Form Screening",
+    categoryEn: "Public health screening",
+    descriptionEn: "Filling the CBAC form for every citizen above 30, early detection of hypertension (BP), diabetes (sugar) and oral, breast and cervical cancer.",
+    keyPointsEn: ["Annual health list of all villagers above 30 years.", "If the CBAC score is 4 or more, send to the CHO at the sub-centre for screening.", "Ensure medicine continuity for patients with high BP (>140/90 mmHg) or sugar (>200 mg/dl)."],
     moduleNumber: 3,
     titleHi: 'गैर-संचारी रोग (NCD) एवं सीबैक (CBAC) फॉर्म स्क्रीनिंग',
     titleMr: 'अंसंसर्गजन्य रोग (NCD) आणि सीबॅक फॉर्म स्क्रिनिंग',
@@ -96,6 +112,10 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
   },
   {
     id: 'nhm-mod-4',
+    titleEn: "Communicable Disease Control — Tuberculosis (TB) & Malaria",
+    categoryEn: "National health programmes",
+    descriptionEn: "Sputum test for cough over 2 weeks, fever or weight loss, registration on the Nikshay portal, DOTS treatment adherence and Nikshay Poshan Yojana support.",
+    keyPointsEn: ["Get an immediate sputum test done for anyone with symptoms.", "Record bank details for the ₹500 monthly Nikshay Poshan support for TB patients.", "Vector-borne disease: test fever cases with the malaria RDT kit."],
     moduleNumber: 4,
     titleHi: 'संक्रामक रोग नियंत्रण - क्षयरोग (TB) एवं मलेरिया',
     titleMr: 'संसर्गजन्य रोग नियंत्रण - क्षयरोग (TB) आणि मलेरिया',
@@ -117,6 +137,10 @@ const DEFAULT_MODULES: NhmCourseModule[] = [
   },
   {
     id: 'nhm-mod-5',
+    titleEn: "Village Health Sanitation & Nutrition Day (VHND) Coordination",
+    categoryEn: "Community coordination",
+    descriptionEn: "Organising the monthly VHND session at the Anganwadi centre with the ANM and Anganwadi worker, preparing the due list and the VHSNC meeting.",
+    keyPointsEn: ["Prepare the immunisation and pregnancy due list 3 days before the session.", "Ensure cleanliness, drinking water, weighing scale and logistics at the session site.", "Counsel adolescent girls and lactating mothers on hygiene, sanitary pads and nutrition."],
     moduleNumber: 5,
     titleHi: 'ग्राम स्वास्थ्य स्वच्छता एवं पोषण दिवस (VHND) समन्वय',
     titleMr: 'ग्राम आरोग्य स्वच्छता व पोषण दिवस (VHND) समन्वय',
@@ -143,7 +167,8 @@ export const NhmCoursesCard: React.FC = () => {
   const { user } = useAuth();
   const tr = useTr();
   const isMarathi = language === 'mr';
-  const locale = isMarathi ? 'mr-IN' : 'hi-IN';
+  const isEnglish = language === 'en';
+  const locale = isMarathi ? 'mr-IN' : isEnglish ? 'en-IN' : 'hi-IN';
 
   const [done, setDone] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<NhmCourseModule | null>(null);
@@ -176,10 +201,10 @@ export const NhmCoursesCard: React.FC = () => {
     });
   };
 
-  const title = (m: NhmCourseModule) => (isMarathi ? m.titleMr : m.titleHi);
-  const category = (m: NhmCourseModule) => (isMarathi ? m.categoryMr : m.categoryHi);
-  const description = (m: NhmCourseModule) => (isMarathi ? m.descriptionMr : m.descriptionHi);
-  const points = (m: NhmCourseModule) => (isMarathi ? m.keyPointsMr : m.keyPointsHi);
+  const title = (m: NhmCourseModule) => (isMarathi ? m.titleMr : isEnglish ? m.titleEn : m.titleHi);
+  const category = (m: NhmCourseModule) => (isMarathi ? m.categoryMr : isEnglish ? m.categoryEn : m.categoryHi);
+  const description = (m: NhmCourseModule) => (isMarathi ? m.descriptionMr : isEnglish ? m.descriptionEn : m.descriptionHi);
+  const points = (m: NhmCourseModule) => (isMarathi ? m.keyPointsMr : isEnglish ? m.keyPointsEn : m.keyPointsHi);
 
   const stopSpeaking = () => {
     speakToken.current++;
@@ -202,9 +227,9 @@ export const NhmCoursesCard: React.FC = () => {
 
   const readWholeModule = (m: NhmCourseModule) =>
     [
-      `${tr('मॉड्यूल', 'मॉड्यूल')} ${m.moduleNumber}. ${title(m)}.`,
+      `${tr('मॉड्यूल', 'मॉड्यूल', 'Module')} ${m.moduleNumber}. ${title(m)}.`,
       description(m),
-      tr('मुख्य बातें।', 'मुख्य मुद्दे.'),
+      tr('मुख्य बातें।', 'मुख्य मुद्दे.', 'Key points.'),
       ...points(m),
     ].join(' ');
 
@@ -222,8 +247,8 @@ export const NhmCoursesCard: React.FC = () => {
         <View style={styles.headRow}>
           <IconBadge icon={GraduationCap} tone="accent" />
           <View style={styles.flex}>
-            <Text style={text.heading}>{tr('आशा प्रशिक्षण', 'आशा प्रशिक्षण')}</Text>
-            <Text style={text.caption}>{tr('राष्ट्रीय स्वास्थ्य मिशन', 'राष्ट्रीय आरोग्य अभियान')}</Text>
+            <Text style={text.heading}>{tr('आशा प्रशिक्षण', 'आशा प्रशिक्षण', 'ASHA training')}</Text>
+            <Text style={text.caption}>{tr('राष्ट्रीय स्वास्थ्य मिशन', 'राष्ट्रीय आरोग्य अभियान', 'National Health Mission')}</Text>
           </View>
           <StatusPill
             tone={completed === DEFAULT_MODULES.length ? 'green' : 'accent'}
@@ -234,7 +259,7 @@ export const NhmCoursesCard: React.FC = () => {
           style={styles.track}
           accessibilityRole="progressbar"
           accessibilityValue={{ min: 0, max: 100, now: percent }}
-          accessibilityLabel={tr('प्रशिक्षण प्रगति', 'प्रशिक्षण प्रगती')}
+          accessibilityLabel={tr('प्रशिक्षण प्रगति', 'प्रशिक्षण प्रगती', 'Training progress')}
         >
           <View style={[styles.fill, { width: `${percent}%` }]} />
         </View>
@@ -259,7 +284,7 @@ export const NhmCoursesCard: React.FC = () => {
                 <View style={styles.metaRow}>
                   <Clock size={14} color={color.muted} strokeWidth={2} />
                   <Text style={text.caption}>
-                    {m.durationMinutes} {tr('मिनट', 'मिनिटे')} · {category(m)}
+                    {m.durationMinutes} {tr('मिनट', 'मिनिटे', 'min')} · {category(m)}
                   </Text>
                 </View>
               </View>
@@ -273,17 +298,17 @@ export const NhmCoursesCard: React.FC = () => {
         visible={!!open}
         onClose={closeModule}
         title={open ? `${open.moduleNumber}. ${title(open)}` : undefined}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         {open ? (
           <ScrollView contentContainerStyle={styles.sheetBody}>
             <View style={styles.metaRow}>
               <StatusPill tone="accent" label={category(open)} />
-              <StatusPill tone="neutral" icon={Clock} label={`${open.durationMinutes} ${tr('मिनट', 'मिनिटे')}`} />
+              <StatusPill tone="neutral" icon={Clock} label={`${open.durationMinutes} ${tr('मिनट', 'मिनिटे', 'min')}`} />
             </View>
 
             <Button
-              label={speaking === 'all' ? tr('रोकें', 'थांबवा') : tr('पूरा पाठ सुनें', 'संपूर्ण पाठ ऐका')}
+              label={speaking === 'all' ? tr('रोकें', 'थांबवा', 'Stop') : tr('पूरा पाठ सुनें', 'संपूर्ण पाठ ऐका', 'Listen to full lesson')}
               icon={speaking === 'all' ? Square : Volume2}
               variant={speaking === 'all' ? 'danger' : 'primary'}
               onPress={() => speak('all', readWholeModule(open))}
@@ -291,7 +316,7 @@ export const NhmCoursesCard: React.FC = () => {
 
             <Text style={text.body}>{description(open)}</Text>
 
-            <Text style={text.label}>{tr('मुख्य बातें — छूकर सुनें', 'मुख्य मुद्दे — स्पर्श करून ऐका')}</Text>
+            <Text style={text.label}>{tr('मुख्य बातें — छूकर सुनें', 'मुख्य मुद्दे — स्पर्श करून ऐका', 'Key points — tap to listen')}</Text>
             {points(open).map((pt, i) => {
               const active = speaking === i;
               return (
@@ -299,7 +324,7 @@ export const NhmCoursesCard: React.FC = () => {
                   key={i}
                   onPress={() => speak(i, pt)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${tr('सुनें', 'ऐका')}: ${pt}`}
+                  accessibilityLabel={`${tr('सुनें', 'ऐका', 'Listen')}: ${pt}`}
                   style={({ pressed }) => [styles.point, active && styles.pointActive, pressed && styles.pressed]}
                 >
                   <Text style={[text.body, styles.flex]}>{pt}</Text>
@@ -313,7 +338,7 @@ export const NhmCoursesCard: React.FC = () => {
             })}
 
             <Button
-              label={done.has(open.id) ? tr('पूरा हुआ — वापस लें', 'पूर्ण — परत घ्या') : tr('पूरा हुआ', 'पूर्ण झाले')}
+              label={done.has(open.id) ? tr('पूरा हुआ — वापस लें', 'पूर्ण — परत घ्या', 'Done — undo') : tr('पूरा हुआ', 'पूर्ण झाले', 'Completed')}
               icon={done.has(open.id) ? CircleCheck : Circle}
               variant={done.has(open.id) ? 'secondary' : 'primary'}
               onPress={() => toggleDone(open.id)}

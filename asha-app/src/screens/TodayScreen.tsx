@@ -86,9 +86,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
         kind: 'referral',
         tone: validated ? 'green' : missed ? 'red' : 'amber',
         icon: validated ? CircleCheck : Route,
-        title: t.name || tr('लाभार्थी', 'लाभार्थी'),
-        subtitle: [t.referralReason, fam ? `${tr('घर', 'घर')} ${houseOf(fam)}` : null].filter(Boolean).join(' • '),
-        pill: validated ? tr('सत्यापित', 'पडताळले') : missed ? tr('छूटा रेफरल', 'चुकलेला संदर्भ') : tr('रेफरल', 'संदर्भ'),
+        title: t.name || tr('लाभार्थी', 'लाभार्थी', 'Beneficiaries'),
+        subtitle: [t.referralReason, fam ? `${tr('घर', 'घर', 'House')} ${houseOf(fam)}` : null].filter(Boolean).join(' • '),
+        pill: validated ? tr('सत्यापित', 'पडताळले', 'Verified') : missed ? tr('छूटा रेफरल', 'चुकलेला संदर्भ', 'Missed referral') : tr('रेफरल', 'संदर्भ', 'Referrals'),
         rank: validated ? 40 : missed ? 0 : 20,
         onPress: onOpenFollowUps,
       });
@@ -109,12 +109,12 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
         icon: high ? AlertTriangle : HeartPulse,
         title: m.name,
         subtitle: [
-          fam ? `${tr('घर', 'घर')} ${houseOf(fam)}` : null,
-          daysToEdd != null ? (daysToEdd >= 0 ? `${daysToEdd} ${tr('दिन में प्रसव', 'दिवसांत प्रसूती')}` : tr('प्रसव तिथि पार', 'प्रसूती तारीख उलटली')) : null,
+          fam ? `${tr('घर', 'घर', 'House')} ${houseOf(fam)}` : null,
+          daysToEdd != null ? (daysToEdd >= 0 ? `${daysToEdd} ${tr('दिन में प्रसव', 'दिवसांत प्रसूती', 'days to delivery')}` : tr('प्रसव तिथि पार', 'प्रसूती तारीख उलटली', 'Delivery date passed')) : null,
         ]
           .filter(Boolean)
           .join(' • '),
-        pill: high ? tr('उच्च जोखिम', 'उच्च जोखीम') : deliverySoon ? tr('प्रसव निकट', 'प्रसूती जवळ') : tr('ANC देय', 'ANC देय'),
+        pill: high ? tr('उच्च जोखिम', 'उच्च जोखीम', 'High risk') : deliverySoon ? tr('प्रसव निकट', 'प्रसूती जवळ', 'Delivery near') : tr('ANC देय', 'ANC देय', 'ANC due'),
         rank: high ? 1 : deliverySoon ? 2 : 25,
         onPress: () => onOpenMember(m, houseOf(fam), fam?.headName || ''),
       });
@@ -131,9 +131,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
         kind: 'vaccine',
         tone: 'amber',
         icon: Syringe,
-        title: v.childName || child?.name || tr('शिशु', 'बाळ'),
-        subtitle: [fam ? `${tr('घर', 'घर')} ${houseOf(fam)}` : null, `${due} ${tr('टीके देय', 'लसी देय')}`].filter(Boolean).join(' • '),
-        pill: tr('टीका देय', 'लस देय'),
+        title: v.childName || child?.name || tr('शिशु', 'बाळ', 'Infant'),
+        subtitle: [fam ? `${tr('घर', 'घर', 'House')} ${houseOf(fam)}` : null, `${due} ${tr('टीके देय', 'लसी देय', 'Vaccines due')}`].filter(Boolean).join(' • '),
+        pill: tr('टीका देय', 'लस देय', 'Vaccine due'),
         rank: 30,
         onPress: () => (child ? onOpenMember(child, houseOf(fam), fam?.headName || '') : fam && onOpenFamily(houseOf(fam), fam.headName)),
       });
@@ -148,9 +148,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
         kind: 'visit',
         tone: urgent ? 'red' : 'amber',
         icon: Home,
-        title: `${tr('घर', 'घर')} ${houseOf(f)} • ${f.headName}`,
-        subtitle: urgent ? tr('7 दिन भेंट', '7 दिवस भेट') : tr('15 दिन भेंट', '15 दिवस भेट'),
-        pill: urgent ? tr('भेंट जरूरी', 'भेट आवश्यक') : tr('भेंट देय', 'भेट देय'),
+        title: `${tr('घर', 'घर', 'House')} ${houseOf(f)} • ${f.headName}`,
+        subtitle: urgent ? tr('7 दिन भेंट', '7 दिवस भेट', '7-day visit') : tr('15 दिन भेंट', '15 दिवस भेट', '15-day visit'),
+        pill: urgent ? tr('भेंट जरूरी', 'भेट आवश्यक', 'Visit needed') : tr('भेंट देय', 'भेट देय', 'Visit due'),
         rank: urgent ? 5 : 35,
         onPress: () => onOpenFamily(houseOf(f), f.headName),
       });
@@ -193,10 +193,10 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
               isChild: Boolean(m.isChild || (m.age != null && m.age <= 5)),
               hasDisease: m.hasChronicCondition || m.isNcdPatient,
               condition: m.isPregnant
-                ? tr('गर्भवती', 'गरोदर')
+                ? tr('गर्भवती', 'गरोदर', 'Pregnant')
                 : m.isChild
-                ? tr('शिशु', 'बाळ')
-                : m.chronicConditionType || tr('सामान्य', 'सामान्य'),
+                ? tr('शिशु', 'बाळ', 'Infant')
+                : m.chronicConditionType || tr('सामान्य', 'सामान्य', 'Normal'),
             })),
           } as HouseholdDot;
         }),
@@ -212,11 +212,11 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
       {/* Summary: three numbers, colour = meaning */}
       <Card>
         <View style={styles.statsRow}>
-          <Stat value={redCount} label={tr('उच्च जोखिम', 'उच्च जोखीम')} tone="red" onPress={() => { setMode('list'); setFilter('red'); }} />
+          <Stat value={redCount} label={tr('उच्च जोखिम', 'उच्च जोखीम', 'High risk')} tone="red" onPress={() => { setMode('list'); setFilter('red'); }} />
           <View style={styles.vr} />
-          <Stat value={amberCount} label={tr('देय काम', 'देय कामे')} tone="amber" onPress={() => { setMode('list'); setFilter('amber'); }} />
+          <Stat value={amberCount} label={tr('देय काम', 'देय कामे', 'Tasks due')} tone="amber" onPress={() => { setMode('list'); setFilter('amber'); }} />
           <View style={styles.vr} />
-          <Stat value={doneCount} label={tr('भेंट पूर्ण', 'भेट पूर्ण')} tone="green" />
+          <Stat value={doneCount} label={tr('भेंट पूर्ण', 'भेट पूर्ण', 'Visit done')} tone="green" />
         </View>
       </Card>
 
@@ -224,8 +224,8 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
         value={mode}
         onChange={setMode}
         options={[
-          { key: 'list', label: tr('सूची', 'यादी'), icon: List },
-          { key: 'grid', label: tr('ग्रिड', 'ग्रिड'), icon: LayoutGrid },
+          { key: 'list', label: tr('काम', 'कामे', 'Tasks'), icon: List },
+          { key: 'grid', label: tr('घर', 'घरे', 'Houses'), icon: LayoutGrid },
         ]}
       />
 
@@ -247,18 +247,18 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
             value={filter}
             onChange={setFilter}
             options={[
-              { key: 'all', label: tr('सभी', 'सर्व'), count: tasks.length, tone: 'accent' },
-              { key: 'red', label: tr('उच्च जोखिम', 'उच्च जोखीम'), count: redCount, tone: 'red' },
-              { key: 'amber', label: tr('देय', 'देय'), count: amberCount, tone: 'amber' },
+              { key: 'all', label: tr('सभी', 'सर्व', 'All'), count: tasks.length, tone: 'accent' },
+              { key: 'red', label: tr('उच्च जोखिम', 'उच्च जोखीम', 'High risk'), count: redCount, tone: 'red' },
+              { key: 'amber', label: tr('देय', 'देय', 'Due'), count: amberCount, tone: 'amber' },
             ]}
           />
 
-          <SectionTitle label={tr('आज के काम', 'आजची कामे')} count={visible.length} />
+          <SectionTitle label={tr('आज के काम', 'आजची कामे', 'Today\'s tasks')} count={visible.length} />
 
           {isLoading && tasks.length === 0 ? (
             <SkeletonRows count={4} />
           ) : visible.length === 0 ? (
-            <EmptyState icon={CircleCheck} title={tr('सब काम पूरे', 'सर्व कामे पूर्ण')} />
+            <EmptyState icon={CircleCheck} title={tr('सब काम पूरे', 'सर्व कामे पूर्ण', 'All tasks done')} />
           ) : (
             <View style={styles.list}>
               {visible.map((t) => (
@@ -276,7 +276,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenFamily, onOpenMe
           )}
           {tasks.some((t) => t.kind === 'pregnancy') || tasks.some((t) => t.kind === 'vaccine') ? (
             <Text style={styles.legend}>
-              <Baby size={13} color={color.faint} /> {tr('नाम दबाएँ → जांच शुरू', 'नाव दाबा → तपासणी सुरू')}
+              <Baby size={13} color={color.faint} /> {tr('नाम दबाएँ → जांच शुरू', 'नाव दाबा → तपासणी सुरू', 'Tap name → start check')}
             </Text>
           ) : null}
         </>

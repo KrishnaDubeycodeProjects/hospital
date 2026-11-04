@@ -99,15 +99,15 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
   }, [selectedCluster]);
 
   const handleInwardsSync = async () => {
-    setSyncFeedback(tr('डेटा आ रहा है…', 'डेटा येत आहे…'));
+    setSyncFeedback(tr('डेटा आ रहा है…', 'डेटा येत आहे…', 'Fetching data…'));
     const res = await triggerSync();
-    setSyncFeedback(res.message || tr('डेटा मिल गया', 'डेटा मिळाला'));
+    setSyncFeedback(res.message || tr('डेटा मिल गया', 'डेटा मिळाला', 'Data received'));
   };
 
   const handleOutwardsSync = async () => {
-    setSyncFeedback(tr('भेजा जा रहा है…', 'पाठवत आहे…'));
+    setSyncFeedback(tr('भेजा जा रहा है…', 'पाठवत आहे…', 'Sending…'));
     const res = await triggerSync();
-    setSyncFeedback(res.message || tr('सब भेज दिया', 'सर्व पाठवले'));
+    setSyncFeedback(res.message || tr('सब भेज दिया', 'सर्व पाठवले', 'All sent'));
   };
 
   const handleQrImageFile = async (e: any) => {
@@ -115,18 +115,18 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
     if (!file) return;
 
     setIsDecoding(true);
-    setScanStatusMessage(tr('QR पढ़ा जा रहा है…', 'QR वाचत आहे…'));
+    setScanStatusMessage(tr('QR पढ़ा जा रहा है…', 'QR वाचत आहे…', 'Reading QR…'));
 
     try {
       const decodedRaw = await scanQrFromImageFile(file);
       const parsed = parseQrIdentifier(decodedRaw);
       setIsDecoding(false);
       setManualCode(parsed);
-      setScanStatusMessage(`${tr('QR मिला', 'QR सापडला')}: ${parsed}`);
+      setScanStatusMessage(`${tr('QR मिला', 'QR सापडला', 'QR found')}: ${parsed}`);
       await handleDirectScan(parsed);
     } catch (err: any) {
       setIsDecoding(false);
-      setScanStatusMessage(tr('QR नहीं मिला, साफ़ फ़ोटो लें', 'QR सापडला नाही, स्पष्ट फोटो घ्या'));
+      setScanStatusMessage(tr('QR नहीं मिला, साफ़ फ़ोटो लें', 'QR सापडला नाही, स्पष्ट फोटो घ्या', 'QR not found, take a clear photo'));
     }
   };
 
@@ -142,17 +142,17 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
     const raw = (codeToUse || manualCode).trim();
     const code = parseQrIdentifier(raw) || assignedAnmPhone;
     if (!code) {
-      setHandoffError(tr('एएनएम का QR स्कैन करें या कोड लिखें', 'एएनएमचा QR स्कॅन करा किंवा कोड लिहा'));
+      setHandoffError(tr('एएनएम का QR स्कैन करें या कोड लिखें', 'एएनएमचा QR स्कॅन करा किंवा कोड लिहा', 'Scan the ANM QR or enter the code'));
       return;
     }
     const res = await sendToAnm(selectedCluster, code);
     if (!res.success) {
       setHandoffError(
         res.message === 'ANM_NOT_FOUND'
-          ? tr('यह एएनएम कोड नहीं मिला। सही QR स्कैन करें।', 'हा एएनएम कोड सापडला नाही. योग्य QR स्कॅन करा.')
+          ? tr('यह एएनएम कोड नहीं मिला। सही QR स्कैन करें।', 'हा एएनएम कोड सापडला नाही. योग्य QR स्कॅन करा.', 'This ANM code was not found. Scan the correct QR.')
           : res.message === 'SESSION_EXPIRED'
-          ? tr('सत्र समाप्त — पुनः लॉगिन करें। डेटा फोन में सुरक्षित है।', 'सत्र संपले — पुन्हा लॉगिन करा. डेटा फोनमध्ये सुरक्षित आहे.')
-          : tr('भेजा नहीं जा सका, फिर कोशिश करें', 'पाठवता आले नाही, पुन्हा प्रयत्न करा')
+          ? tr('सत्र समाप्त — पुनः लॉगिन करें। डेटा फोन में सुरक्षित है।', 'सत्र संपले — पुन्हा लॉगिन करा. डेटा फोनमध्ये सुरक्षित आहे.', 'Session expired — log in again. Data is safe on the phone.')
+          : tr('भेजा नहीं जा सका, फिर कोशिश करें', 'पाठवता आले नाही, पुन्हा प्रयत्न करा', 'Could not send, try again')
       );
       return;
     }
@@ -173,9 +173,9 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
   };
 
   const clusters: { key: Cluster; icon: LucideIcon; tone: Tone; label: string; count: number }[] = [
-    { key: 'CHILD_VAX', icon: Syringe, tone: 'accent', label: tr('बाल टीकाकरण', 'बाल लसीकरण'), count: childVaxCount },
-    { key: 'ANC', icon: Baby, tone: 'red', label: tr('गर्भवती जाँच', 'गर्भवती तपासणी'), count: ancCount },
-    { key: 'NCD', icon: Activity, tone: 'amber', label: tr('रोग जाँच', 'रोग तपासणी'), count: ncdCount },
+    { key: 'CHILD_VAX', icon: Syringe, tone: 'accent', label: tr('बाल टीकाकरण', 'बाल लसीकरण', 'Child immunisation'), count: childVaxCount },
+    { key: 'ANC', icon: Baby, tone: 'red', label: tr('गर्भवती जाँच', 'गर्भवती तपासणी', 'Pregnancy check'), count: ancCount },
+    { key: 'NCD', icon: Activity, tone: 'amber', label: tr('रोग जाँच', 'रोग तपासणी', 'Disease screening'), count: ncdCount },
   ];
   const current = clusters.find((c) => c.key === selectedCluster)!;
   const busy = isSyncing || isDecoding;
@@ -186,14 +186,14 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
 
   return (
     <View style={styles.flex}>
-      <AppBar title={tr('डेटा भेजें', 'डेटा पाठवा')} onBack={onBack} backLabel={tr('वापस', 'मागे')} />
+      <AppBar title={tr('डेटा भेजें', 'डेटा पाठवा', 'Send data')} onBack={onBack} backLabel={tr('वापस', 'मागे', 'Back')} />
       <Screen>
         <Segmented
           value={syncMode}
           onChange={setSyncMode}
           options={[
-            { key: 'ANM_QR', label: tr('एएनएम QR', 'एएनएम QR'), icon: QrCode },
-            { key: 'IN_OUT', label: tr('सर्वर सिंक', 'सर्व्हर सिंक'), icon: RefreshCw },
+            { key: 'ANM_QR', label: tr('एएनएम QR', 'एएनएम QR', 'ANM QR'), icon: QrCode },
+            { key: 'IN_OUT', label: tr('सर्वर सिंक', 'सर्व्हर सिंक', 'Server sync'), icon: RefreshCw },
           ]}
         />
 
@@ -212,7 +212,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
             <Card>
               <View style={styles.inline}>
                 <IconBadge icon={ArrowDownCircle} tone="accent" />
-                <Text style={[text.heading, styles.flex]}>{tr('अस्पताल से प्राप्त', 'रुग्णालयाकडून')}</Text>
+                <Text style={[text.heading, styles.flex]}>{tr('अस्पताल से प्राप्त', 'रुग्णालयाकडून', 'Received from hospital')}</Text>
               </View>
               {followUps.slice(0, 3).map((f) => (
                 <View key={f.id} style={styles.preview}>
@@ -228,7 +228,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                 </View>
               ))}
               <View style={styles.gapTop}>
-                <Button label={tr('डेटा लें', 'डेटा घ्या')} icon={RefreshCw} loading={isSyncing} onPress={handleInwardsSync} />
+                <Button label={tr('डेटा लें', 'डेटा घ्या', 'Get data')} icon={RefreshCw} loading={isSyncing} onPress={handleInwardsSync} />
               </View>
             </Card>
 
@@ -236,19 +236,19 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
             <Card>
               <View style={styles.inline}>
                 <IconBadge icon={ArrowUpCircle} tone="green" />
-                <Text style={[text.heading, styles.flex]}>{tr('सर्वर को भेजें', 'सर्व्हरला पाठवा')}</Text>
+                <Text style={[text.heading, styles.flex]}>{tr('सर्वर को भेजें', 'सर्व्हरला पाठवा', 'Send to server')}</Text>
               </View>
               <View style={styles.stats}>
-                <Stat value={pendingSyncCount} label={tr('बाकी', 'बाकी')} tone={pendingSyncCount ? 'amber' : 'green'} />
-                <Stat value={followUps.filter((f) => f.referredToCho).length} label={tr('सीएचओ रेफरल', 'सीएचओ संदर्भ')} tone="accent" />
-                <Stat value={followUps.filter((f) => f.isCompleted).length} label={tr('पूर्ण', 'पूर्ण')} tone="green" />
+                <Stat value={pendingSyncCount} label={tr('बाकी', 'बाकी', 'Pending')} tone={pendingSyncCount ? 'amber' : 'green'} />
+                <Stat value={followUps.filter((f) => f.referredToCho).length} label={tr('सीएचओ रेफरल', 'सीएचओ संदर्भ', 'CHO referral')} tone="accent" />
+                <Stat value={followUps.filter((f) => f.isCompleted).length} label={tr('पूर्ण', 'पूर्ण', 'Done')} tone="green" />
               </View>
-              <Button label={tr('अभी भेजें', 'आता पाठवा')} icon={Send} loading={isSyncing} onPress={handleOutwardsSync} />
+              <Button label={tr('अभी भेजें', 'आता पाठवा', 'Send now')} icon={Send} loading={isSyncing} onPress={handleOutwardsSync} />
             </Card>
           </>
         ) : (
           <>
-            <Text style={text.label}>{tr('श्रेणी चुनें', 'श्रेणी निवडा')}</Text>
+            <Text style={text.label}>{tr('श्रेणी चुनें', 'श्रेणी निवडा', 'Choose category')}</Text>
             {clusters.map((c) => {
               const selected = c.key === selectedCluster;
               return (
@@ -278,8 +278,8 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
               value={qrSubMode}
               onChange={setQrSubMode}
               options={[
-                { key: 'SCAN', label: tr('QR स्कैन', 'QR स्कॅन'), icon: Scan },
-                { key: 'SHOW', label: tr('मेरा QR', 'माझा QR'), icon: QrCode },
+                { key: 'SCAN', label: tr('QR स्कैन', 'QR स्कॅन', 'Scan QR'), icon: Scan },
+                { key: 'SHOW', label: tr('मेरा QR', 'माझा QR', 'My QR'), icon: QrCode },
               ]}
             />
 
@@ -289,7 +289,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                   <Text style={[text.heading, styles.flex]}>{current.label}</Text>
                   <IconButton
                     icon={Maximize2}
-                    label={isQrZoomed ? tr('छोटा करें', 'लहान करा') : tr('बड़ा करें', 'मोठे करा')}
+                    label={isQrZoomed ? tr('छोटा करें', 'लहान करा', 'Smaller') : tr('बड़ा करें', 'मोठे करा', 'Larger')}
                     onPress={() => setIsQrZoomed(!isQrZoomed)}
                   />
                 </View>
@@ -299,17 +299,17 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                   ) : (
                     <ActivityIndicator size="large" color={color.accent} />
                   )}
-                  <StatusPill tone="accent" label={`${current.count} ${tr('रिकॉर्ड', 'नोंदी')}`} />
-                  <Text style={[text.caption, styles.center]}>{tr('एएनएम यह QR स्कैन करें', 'एएनएमने हा QR स्कॅन करावा')}</Text>
+                  <StatusPill tone="accent" label={`${current.count} ${tr('रिकॉर्ड', 'नोंदी', 'Records')}`} />
+                  <Text style={[text.caption, styles.center]}>{tr('एएनएम यह QR स्कैन करें', 'एएनएमने हा QR स्कॅन करावा', 'ANM, scan this QR')}</Text>
                 </View>
                 {/* After the ANM scans: mark these records as handed over to her (no fake code). */}
                 <Text style={[text.caption, styles.center]}>
                   {assignedAnmPhone
-                    ? tr('एएनएम के स्कैन करने के बाद नीचे दबाएँ — ये रिकॉर्ड उन्हें सौंपे गए माने जाएँगे।', 'एएनएमने स्कॅन केल्यानंतर खाली दाबा — या नोंदी त्यांना दिल्या असे नोंदवले जाईल.')
-                    : tr('आपका एएनएम तय नहीं है — CHO से संपर्क करें।', 'तुमची एएनएम ठरलेली नाही — CHO शी संपर्क करा.')}
+                    ? tr('एएनएम के स्कैन करने के बाद नीचे दबाएँ — ये रिकॉर्ड उन्हें सौंपे गए माने जाएँगे।', 'एएनएमने स्कॅन केल्यानंतर खाली दाबा — या नोंदी त्यांना दिल्या असे नोंदवले जाईल.', 'Press below after the ANM scans — these records will be treated as handed over to them.')
+                    : tr('आपका एएनएम तय नहीं है — CHO से संपर्क करें।', 'तुमची एएनएम ठरलेली नाही — CHO शी संपर्क करा.', 'Your ANM is not assigned — contact the CHO.')}
                 </Text>
                 <Button
-                  label={tr('एएनएम ने स्कैन कर लिया', 'एएनएमने स्कॅन केले')}
+                  label={tr('एएनएम ने स्कैन कर लिया', 'एएनएमने स्कॅन केले', 'ANM has scanned')}
                   icon={CircleCheck}
                   loading={isSyncing}
                   disabled={!assignedAnmPhone || !ashaQrData || current.count === 0}
@@ -331,10 +331,10 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                   </View>
                   <View style={styles.row2}>
                     <View style={styles.flex}>
-                      <Button label={tr('कैमरा', 'कॅमेरा')} icon={Camera} disabled={busy} onPress={() => openPicker(cameraInputRef)} />
+                      <Button label={tr('कैमरा', 'कॅमेरा', 'Camera')} icon={Camera} disabled={busy} onPress={() => openPicker(cameraInputRef)} />
                     </View>
                     <View style={styles.flex}>
-                      <Button label={tr('फ़ोटो', 'फोटो')} icon={ImageIcon} variant="secondary" disabled={busy} onPress={() => openPicker(fileInputRef)} />
+                      <Button label={tr('फ़ोटो', 'फोटो', 'Photo')} icon={ImageIcon} variant="secondary" disabled={busy} onPress={() => openPicker(fileInputRef)} />
                     </View>
                   </View>
                 </Card>
@@ -348,7 +348,7 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
 
                 {anmSessions && anmSessions.length > 0 ? (
                   <>
-                    <Text style={text.label}>{tr('सक्रिय सत्र', 'सक्रिय सत्र')}</Text>
+                    <Text style={text.label}>{tr('सक्रिय सत्र', 'सक्रिय सत्र', 'Active session')}</Text>
                     <Chips
                       value={manualCode}
                       onChange={(code: string) => {
@@ -361,12 +361,12 @@ export const SendDataScreen: React.FC<SendDataScreenProps> = ({
                 ) : null}
 
                 {showManualInput ? (
-                  <Field label={tr('सत्र कोड', 'सत्र कोड')} value={manualCode} onChangeText={setManualCode} />
+                  <Field label={tr('सत्र कोड', 'सत्र कोड', 'Session code')} value={manualCode} onChangeText={setManualCode} />
                 ) : null}
 
-                <Button label={tr('एएनएम को भेजें', 'एएनएमला पाठवा')} icon={Send} loading={isSyncing} onPress={() => handleDirectScan()} />
+                <Button label={tr('एएनएम को भेजें', 'एएनएमला पाठवा', 'Send to ANM')} icon={Send} loading={isSyncing} onPress={() => handleDirectScan()} />
                 <Button
-                  label={showManualInput ? tr('कोड छिपाएँ', 'कोड लपवा') : tr('कोड लिखें', 'कोड लिहा')}
+                  label={showManualInput ? tr('कोड छिपाएँ', 'कोड लपवा', 'Hide code') : tr('कोड लिखें', 'कोड लिहा', 'Enter code')}
                   icon={Keyboard}
                   variant="ghost"
                   onPress={() => setShowManualInput(!showManualInput)}

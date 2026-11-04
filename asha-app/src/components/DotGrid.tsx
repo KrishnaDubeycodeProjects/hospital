@@ -61,26 +61,26 @@ export const DotGrid: React.FC<DotGridProps> = ({ dots, onDotPress, selectedDotI
 
   const statusLabel = (s: HouseholdDot['status']) =>
     s === '7days'
-      ? tr('7 दिन', '7 दिवस')
+      ? tr('7 दिन', '7 दिवस', '7 days')
       : s === '15days'
-      ? tr('15 दिन', '15 दिवस')
+      ? tr('15 दिन', '15 दिवस', '15 days')
       : s === '30days'
-      ? tr('30 दिन', '30 दिवस')
+      ? tr('30 दिन', '30 दिवस', '30 days')
       : s === 'visited'
-      ? tr('भेंट पूर्ण', 'भेट पूर्ण')
-      : tr('जानकारी नहीं', 'माहिती नाही');
+      ? tr('भेंट पूर्ण', 'भेट पूर्ण', 'Visit done')
+      : tr('जानकारी नहीं', 'माहिती नाही', 'No data');
 
   const legend: { tone: Tone; label: string }[] = [
-    { tone: 'red', label: tr('7 दिन', '7 दिवस') },
-    { tone: 'amber', label: tr('15 दिन', '15 दिवस') },
-    { tone: 'neutral', label: tr('30 दिन', '30 दिवस') },
-    { tone: 'green', label: tr('भेंट पूर्ण', 'भेट पूर्ण') },
+    { tone: 'red', label: tr('7 दिन', '7 दिवस', '7 days') },
+    { tone: 'amber', label: tr('15 दिन', '15 दिवस', '15 days') },
+    { tone: 'neutral', label: tr('30 दिन', '30 दिवस', '30 days') },
+    { tone: 'green', label: tr('भेंट पूर्ण', 'भेट पूर्ण', 'Visit done') },
   ];
 
   if (villageDots.length === 0) {
     return (
       <Card>
-        <Text style={[text.body, styles.center]}>{tr('अभी कोई घर नहीं', 'अद्याप घर नाही')}</Text>
+        <Text style={[text.body, styles.center]}>{tr('अभी कोई घर नहीं', 'अद्याप घर नाही', 'No houses yet')}</Text>
       </Card>
     );
   }
@@ -99,7 +99,7 @@ export const DotGrid: React.FC<DotGridProps> = ({ dots, onDotPress, selectedDotI
                 key={dot.id}
                 onPress={() => onDotPress(dot)}
                 accessibilityRole="button"
-                accessibilityLabel={`${tr('घर', 'घर')} ${dot.houseNo}, ${statusLabel(dot.status)}`}
+                accessibilityLabel={`${tr('घर', 'घर', 'House')} ${dot.houseNo}, ${statusLabel(dot.status)}`}
                 accessibilityState={{ selected }}
                 style={({ pressed }) => [
                   styles.cell,
@@ -140,7 +140,7 @@ export const DotGrid: React.FC<DotGridProps> = ({ dots, onDotPress, selectedDotI
                 {activeDot.familyName}
               </Text>
               <Text style={text.caption} numberOfLines={1}>
-                {[activeDot.villageName, `${activeDot.totalMembers} ${tr('सदस्य', 'सदस्य')}`].filter(Boolean).join(' • ')}
+                {[activeDot.villageName, `${activeDot.totalMembers} ${tr('सदस्य', 'सदस्य', 'Members')}`].filter(Boolean).join(' • ')}
               </Text>
               <StatusPill tone={toneFor(activeDot.status)} label={statusLabel(activeDot.status)} />
             </View>
@@ -149,27 +149,27 @@ export const DotGrid: React.FC<DotGridProps> = ({ dots, onDotPress, selectedDotI
                 icon={Phone}
                 tone="accent"
                 filled
-                label={tr('कॉल करें', 'कॉल करा')}
+                label={tr('कॉल करें', 'कॉल करा', 'Call')}
                 onPress={() => Linking.openURL(`tel:${activeDot.primaryPhone}`)}
               />
             ) : null}
           </View>
 
           <View style={styles.flags}>
-            {activeDot.sectionData?.pregnancy ? <StatusPill tone="accent" icon={Baby} label={tr('गर्भवती', 'गरोदर')} /> : null}
-            {activeDot.sectionData?.child ? <StatusPill tone="amber" icon={Syringe} label={tr('शिशु', 'बाळ')} /> : null}
-            {activeDot.sectionData?.disease ? <StatusPill tone="red" icon={HeartPulse} label={tr('NCD', 'NCD')} /> : null}
+            {activeDot.sectionData?.pregnancy ? <StatusPill tone="accent" icon={Baby} label={tr('गर्भवती', 'गरोदर', 'Pregnant')} /> : null}
+            {activeDot.sectionData?.child ? <StatusPill tone="amber" icon={Syringe} label={tr('शिशु', 'बाळ', 'Infant')} /> : null}
+            {activeDot.sectionData?.disease ? <StatusPill tone="red" icon={HeartPulse} label={tr('NCD', 'NCD', 'NCD')} /> : null}
           </View>
 
           <View style={styles.actions}>
             <Button
-              label={tr('परिवार खोलें', 'कुटुंब उघडा')}
+              label={tr('परिवार खोलें', 'कुटुंब उघडा', 'Open family')}
               icon={FolderOpen}
               onPress={() => (onViewFamilyDetail ? onViewFamilyDetail(activeDot) : onDotPress(activeDot))}
             />
             {onMarkVisited && activeDot.familyUnitId && activeDot.status !== 'visited' ? (
               <Button
-                label={tr('भेंट पूर्ण', 'भेट पूर्ण')}
+                label={tr('भेंट पूर्ण', 'भेट पूर्ण', 'Visit done')}
                 icon={CircleCheck}
                 variant="secondary"
                 onPress={() => onMarkVisited(activeDot.familyUnitId as string)}

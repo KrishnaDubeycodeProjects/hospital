@@ -135,7 +135,7 @@ export function DepartmentIcon({ type, color = 'currentColor', size = 18 }) {
 /**
  * Returns pastel styling and vector icon configuration for any department name.
  */
-export function getDepartmentVisual(rawName = '') {
+function getDepartmentVisualBase(rawName = '') {
   const name = (rawName || '').trim();
   const lower = name.toLowerCase();
 
@@ -302,7 +302,7 @@ export function getDepartmentVisual(rawName = '') {
     };
   }
 
-  if (lower.includes('ent') || lower.includes('otorhinolaryngology')) {
+  if (/\bent\b/.test(lower) || lower.includes('otorhinolaryngology') || lower.includes('ear, nose')) {
     return {
       displayName: 'ENT',
       fullLabel: name,
@@ -333,4 +333,39 @@ export function getDepartmentVisual(rawName = '') {
     iconColor: '#0284C7',
     type: 'default',
   };
+}
+
+/**
+ * Everyday words for each department, shown under the medical name so a patient
+ * who doesn't know "Dermatology" can still find "Skin".
+ */
+const PLAIN_HINTS = {
+  'General Medicine': 'Fever, cold, BP, sugar, general illness',
+  'Family Medicine': 'General check-up for all ages',
+  Cardiology: 'Heart, chest pain',
+  'Cardiac Surgery': 'Heart operation',
+  'General Surgery': 'Operations, wounds, lumps',
+  Orthopaedics: 'Bones, joints, back pain, fracture',
+  'Obstetrics & Gynae': "Pregnancy and women's health",
+  Paediatrics: 'Children and babies',
+  'Paediatric Cardiology': 'Child heart problems',
+  Neurology: 'Brain, nerves, fits, headache',
+  Urology: 'Urine problems, kidney stones',
+  Nephrology: 'Kidney problems',
+  Ophthalmology: 'Eyes',
+  Dentistry: 'Teeth and gums',
+  Pulmonology: 'Lungs, cough, breathing',
+  Dermatology: 'Skin, hair, rashes',
+  ENT: 'Ear, nose, throat',
+};
+
+export function getDepartmentVisual(rawName = '') {
+  const visual = getDepartmentVisualBase(rawName);
+  const lower = (rawName || '').toLowerCase();
+  let hint = PLAIN_HINTS[visual.displayName];
+  if (!hint && lower.includes('general opd')) hint = 'Any common illness — start here';
+  if (!hint && lower.includes('psychiatr')) hint = 'Mental health, stress, sleep';
+  if (!hint && lower.includes('gastro')) hint = 'Stomach, liver, digestion';
+  if (!hint && lower.includes('oncolog')) hint = 'Cancer care';
+  return hint ? { ...visual, hint } : visual;
 }

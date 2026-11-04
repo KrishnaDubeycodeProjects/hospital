@@ -44,11 +44,9 @@ export default function AppHeader({
   };
 
   const navItems = [
-    { to: '/find-hospital', label: 'Find Hospital', id: 'hospitals' },
-    { to: '/track', label: 'Track Queue', id: 'track' },
-    { to: patient ? '/patient' : '/login/patient', label: 'Patient Portal', id: 'patient' },
-    { to: doctor ? '/doctor' : '/login/doctor', label: 'Doctor Desk', id: 'doctor' },
-    { to: '/asha', label: 'ASHA Hub', id: 'asha', badge: true },
+    { to: '/find-hospital', label: 'Book token', id: 'hospitals' },
+    { to: '/track', label: 'My token', id: 'track' },
+    { to: patient ? '/patient' : '/login/patient', label: 'My records', id: 'patient' },
   ];
 
   return (
@@ -225,7 +223,7 @@ export default function AppHeader({
             title="Open WhatsApp Support Bot"
           >
             <WhatsAppIcon size={14} color="#15803D" />
-            <span>WhatsApp Access</span>
+            <span>WhatsApp</span>
           </button>
 
           {/* User Session / Sign In Button */}
@@ -249,7 +247,7 @@ export default function AppHeader({
               }}
             >
               <UserCheck size={14} />
-              <span>Patient Hub</span>
+              <span>My account</span>
             </button>
           ) : doctor ? (
             <button
@@ -437,7 +435,7 @@ export default function AppHeader({
               }}
             >
               <Home size={18} style={{ color: '#0F4C3A' }} />
-              <span>Home &amp; Services</span>
+              <span>Home</span>
             </Link>
 
             <Link
@@ -457,7 +455,7 @@ export default function AppHeader({
               }}
             >
               <Building2 size={18} style={{ color: '#0F4C3A' }} />
-              <span>Find Hospital &amp; Book Token</span>
+              <span>Book a token</span>
             </Link>
 
             <Link
@@ -477,7 +475,7 @@ export default function AppHeader({
               }}
             >
               <Clock size={18} style={{ color: '#0F4C3A' }} />
-              <span>Track Live Queue Turn</span>
+              <span>Check my token</span>
             </Link>
 
             <Link
@@ -497,7 +495,7 @@ export default function AppHeader({
               }}
             >
               <UserCheck size={18} style={{ color: '#059669' }} />
-              <span>Patient &amp; Family Records</span>
+              <span>My records &amp; family</span>
             </Link>
 
             <Link
@@ -517,7 +515,7 @@ export default function AppHeader({
               }}
             >
               <Stethoscope size={18} style={{ color: '#2563EB' }} />
-              <span>Doctor Consultation Desk</span>
+              <span>Doctor login</span>
             </Link>
 
             <Link
@@ -537,7 +535,7 @@ export default function AppHeader({
               }}
             >
               <Building2 size={18} style={{ color: '#0F766E' }} />
-              <span>Hospital Staff Console</span>
+              <span>Hospital staff login</span>
             </Link>
 
             <Link
@@ -558,7 +556,7 @@ export default function AppHeader({
               }}
             >
               <Users size={18} style={{ color: '#15803D' }} />
-              <span>ASHA Community Worker App</span>
+              <span>ASHA worker app</span>
             </Link>
           </div>
 
@@ -586,7 +584,7 @@ export default function AppHeader({
               }}
             >
               <WhatsAppIcon size={16} color="#15803D" />
-              <span>WhatsApp Assistant Bot</span>
+              <span>Book on WhatsApp</span>
             </button>
           </div>
         </div>

@@ -17,7 +17,7 @@ export const FamilyBottomSheet: React.FC<FamilyBottomSheetProps> = ({ dot, onClo
   if (!dot) return null;
 
   return (
-    <Sheet visible={!!dot} onClose={onClose} closeLabel={tr('बंद करें', 'बंद करा')} title={`${tr('घर', 'घर')} ${dot.houseNo}`}>
+    <Sheet visible={!!dot} onClose={onClose} closeLabel={tr('बंद करें', 'बंद करा', 'Close')} title={`${tr('घर', 'घर', 'House')} ${dot.houseNo}`}>
       <View style={styles.head}>
         <IconBadge icon={Home} tone="accent" size="lg" />
         <View style={styles.headText}>
@@ -29,12 +29,12 @@ export const FamilyBottomSheet: React.FC<FamilyBottomSheetProps> = ({ dot, onClo
       </View>
 
       <View style={styles.rows}>
-        <ListRow icon={Users} tone="neutral" title={tr('सदस्य', 'सदस्य')} right={<Text style={text.heading}>{dot.totalMembers}</Text>} />
-        <ListRow icon={CalendarCheck} tone="neutral" title={tr('पिछली भेंट', 'मागील भेट')} right={<Text style={styles.value}>{dot.lastVisited || '—'}</Text>} />
-        <ListRow icon={CalendarClock} tone="neutral" title={tr('अगली भेंट', 'पुढील भेट')} right={<Text style={styles.value}>{dot.nextVisit || '—'}</Text>} />
+        <ListRow icon={Users} tone="neutral" title={tr('सदस्य', 'सदस्य', 'Members')} right={<Text style={text.heading}>{dot.totalMembers}</Text>} />
+        <ListRow icon={CalendarCheck} tone="neutral" title={tr('पिछली भेंट', 'मागील भेट', 'Last visit')} right={<Text style={styles.value}>{dot.lastVisited || '—'}</Text>} />
+        <ListRow icon={CalendarClock} tone="neutral" title={tr('अगली भेंट', 'पुढील भेट', 'Next visit')} right={<Text style={styles.value}>{dot.nextVisit || '—'}</Text>} />
       </View>
 
-      <Button label={tr('सदस्य देखें', 'सदस्य पहा')} icon={ChevronRight} onPress={() => onViewMembers(dot)} />
+      <Button label={tr('सदस्य देखें', 'सदस्य पहा', 'View members')} icon={ChevronRight} onPress={() => onViewMembers(dot)} />
     </Sheet>
   );
 };

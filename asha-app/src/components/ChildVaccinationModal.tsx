@@ -13,6 +13,7 @@ import { ChildVaccinationRecord } from '../types/storage';
 import { useLanguage } from '../context/LanguageContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { SpeechEngine } from '../voice/speechEngine';
+import { useTr } from '../ui/useTr';
 
 interface ChildVaccinationModalProps {
   visible: boolean;
@@ -96,6 +97,10 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
   const { t, language, localeCode, ttsEnabled } = useLanguage();
   const { updateChildVaccine } = useOfflineData();
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const tr = useTr();
+  const isEn = language === 'en';
+  // Age labels are stored as 'हिंदी (English)'; English mode shows only the bracketed part.
+  const ageLabel = (label: string) => (isEn ? label.match(/\(([^)]+)\)\s*$/)?.[1] || label : label);
 
   if (!childRecord) return null;
 
@@ -156,7 +161,8 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
                 <Text style={styles.modalTitle}>{childRecord.childName}</Text>
               </View>
               <Text style={styles.modalSub}>
-                पिता: {childRecord.fatherName} • {childRecord.ageMonths} माह • {childRecord.gender === 'Female' ? 'बालिका' : 'बालक'}
+                {tr('पिता', 'वडील', 'Father')}: {childRecord.fatherName} • {childRecord.ageMonths} {tr('माह', 'महिने', 'months')} •{' '}
+                {childRecord.gender === 'Female' ? tr('बालिका', 'मुलगी', 'Girl') : tr('बालक', 'मुलगा', 'Boy')}
               </Text>
             </View>
 
@@ -174,11 +180,11 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
             <View style={styles.metaItem}>
               <Hash size={13} color={Colors.textSecondary} style={{ marginRight: 4 }} />
               <Text style={styles.metaLabel}>MCTS / RCH: </Text>
-              <Text style={styles.metaValue}>{childRecord.mctsCode || 'उपलब्ध नहीं'}</Text>
+              <Text style={styles.metaValue}>{childRecord.mctsCode || tr('उपलब्ध नहीं', 'उपलब्ध नाही', 'Not available')}</Text>
             </View>
             <View style={styles.metaItem}>
               <Calendar size={13} color={Colors.textSecondary} style={{ marginRight: 4 }} />
-              <Text style={styles.metaLabel}>जन्म: </Text>
+              <Text style={styles.metaLabel}>{tr('जन्म', 'जन्म', 'Born')}: </Text>
               <Text style={styles.metaValue}>{childRecord.dob}</Text>
             </View>
           </View>
@@ -186,7 +192,12 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
           {/* Quick instructions banner */}
           <View style={styles.instructionBanner}>
             <Text style={styles.instructionText}>
-              💡 स्थिति बदलने के लिए किसी भी टीके पर टैप करें (दिया गया ➔ देय ➔ नहीं दिया)
+              💡{' '}
+              {tr(
+                'स्थिति बदलने के लिए किसी भी टीके पर टैप करें (दिया गया ➔ देय ➔ नहीं दिया)',
+                'स्थिती बदलण्यासाठी कोणत्याही लसीवर टॅप करा (दिली ➔ देय ➔ दिली नाही)',
+                'Tap any vaccine to change its status (Given ➔ Due ➔ Not given)',
+              )}
             </Text>
           </View>
 
@@ -195,7 +206,7 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
             {VACCINE_SCHEDULE.map((grp) => (
               <View key={grp.ageLabel} style={styles.stageBlock}>
                 <View style={styles.stageHeader}>
-                  <Text style={styles.stageTitle}>{grp.ageLabel}</Text>
+                  <Text style={styles.stageTitle}>{ageLabel(grp.ageLabel)}</Text>
                 </View>
 
                 {grp.vaccines.map((v) => {
@@ -216,7 +227,7 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={styles.vaccineName}>
-                          {v.nameHi}
+                          {isEn ? v.nameEn : v.nameHi}
                         </Text>
                         <Text style={styles.vaccineCodeText}>{v.code}</Text>
                       </View>
@@ -233,17 +244,17 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
                         {isGiven ? (
                           <>
                             <Check size={12} color="#15803D" style={{ marginRight: 4 }} />
-                            <Text style={styles.statusTextGiven}>दिया गया</Text>
+                            <Text style={styles.statusTextGiven}>{tr('दिया गया', 'दिली', 'Given')}</Text>
                           </>
                         ) : isDue ? (
                           <>
                             <Clock size={12} color="#B45309" style={{ marginRight: 4 }} />
-                            <Text style={styles.statusTextDue}>देय</Text>
+                            <Text style={styles.statusTextDue}>{tr('देय', 'देय', 'Due')}</Text>
                           </>
                         ) : (
                           <>
                             <AlertCircle size={12} color="#B91C1C" style={{ marginRight: 4 }} />
-                            <Text style={styles.statusTextNotGiven}>नहीं दिया</Text>
+                            <Text style={styles.statusTextNotGiven}>{tr('नहीं दिया', 'दिली नाही', 'Not given')}</Text>
                           </>
                         )}
                       </View>
@@ -256,7 +267,7 @@ export const ChildVaccinationModal: React.FC<ChildVaccinationModalProps> = ({
 
           {/* Close CTA */}
           <TouchableOpacity style={styles.doneBtn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.doneBtnText}>पूर्ण (बंद करें)</Text>
+            <Text style={styles.doneBtnText}>{tr('पूर्ण (बंद करें)', 'पूर्ण (बंद करा)', 'Done (close)')}</Text>
           </TouchableOpacity>
         </View>
       </View>

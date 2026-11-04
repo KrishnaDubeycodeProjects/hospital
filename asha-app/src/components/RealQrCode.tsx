@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import Svg, { Rect, Path } from 'react-native-svg';
 import QRCode from 'qrcode';
+import { useTr } from '../ui/useTr';
 
 interface RealQrCodeProps {
   value: string;
@@ -14,6 +15,7 @@ export const RealQrCode: React.FC<RealQrCodeProps> = ({
   size = 180,
   label,
 }) => {
+  const tr = useTr();
   const qrData = useMemo(() => {
     try {
       const safeValue =
@@ -72,7 +74,7 @@ export const RealQrCode: React.FC<RealQrCodeProps> = ({
           </Svg>
         ) : (
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>QR कोड लोड नहीं हुआ</Text>
+            <Text style={styles.errorText}>{tr('QR कोड लोड नहीं हुआ', 'QR कोड लोड झाला नाही', 'QR code did not load')}</Text>
           </View>
         )}
       </View>

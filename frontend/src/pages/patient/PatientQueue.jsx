@@ -320,7 +320,7 @@ export default function PatientQueue() {
                 transition: 'background-color 0.15s ease',
               }}
             >
-              <span>Open Live Token Screen & QR Code</span>
+              <span>See my turn & QR code</span>
               <ArrowRight size={17} />
             </button>
           </div>
@@ -359,11 +359,10 @@ export default function PatientQueue() {
             <Ticket size={26} strokeWidth={2.2} />
           </div>
           <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0F172A', margin: '0 0 6px' }}>
-            No Active Token in Queue
+            You have no token for today
           </h2>
           <p style={{ fontSize: '13.5px', color: '#64748B', margin: '0 0 16px', maxWidth: '440px', lineHeight: 1.5 }}>
-            You do not have any pending queue appointment today. Review your past booking history below or tap the{' '}
-            <strong style={{ color: '#00A884' }}>+ button</strong> at the bottom right to select a family member and book an OPD counter.
+            Need to see a doctor? Book a token for yourself or a family member.
           </p>
           <button
             type="button"
@@ -385,7 +384,7 @@ export default function PatientQueue() {
             }}
           >
             <Plus size={16} strokeWidth={2.6} />
-            <span>Book New OPD Token</span>
+            <span>Book a token</span>
           </button>
         </div>
       )}
@@ -429,7 +428,7 @@ export default function PatientQueue() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
-                  Care History Journey
+                  Your treatment steps
                 </h2>
                 <span
                   style={{
@@ -450,7 +449,7 @@ export default function PatientQueue() {
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>
-                Ongoing continuation care journey with hospital checkpoints
+                Where you are in your treatment, step by step
               </div>
             </div>
           </div>
@@ -474,7 +473,7 @@ export default function PatientQueue() {
             }}
           >
             <RefreshCw size={13} />
-            <span>Refresh Journey</span>
+            <span>Refresh</span>
           </button>
         </div>
 
@@ -531,7 +530,7 @@ export default function PatientQueue() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h2 style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
-                  Booking History
+                  Past visits
                 </h2>
                 <span
                   style={{
@@ -547,7 +546,7 @@ export default function PatientQueue() {
                 </span>
               </div>
               <div style={{ fontSize: '12px', color: '#64748B', marginTop: '1px' }}>
-                Past OPD consultations &amp; visit tokens
+                Your earlier tokens and doctor visits
               </div>
             </div>
           </div>
@@ -813,7 +812,7 @@ export default function PatientQueue() {
                         cursor: 'pointer',
                       }}
                     >
-                      <span>View Token Details</span>
+                      <span>Open token</span>
                       <ChevronRight size={14} />
                     </button>
                   </div>
@@ -828,7 +827,7 @@ export default function PatientQueue() {
       <button
         type="button"
         onClick={handleStartBooking}
-        title="Book New OPD Token (Member Selection → Hospital)"
+        title="Book a token"
         aria-label="Book New OPD Token"
         className="queue-fab-btn"
       >

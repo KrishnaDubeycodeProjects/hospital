@@ -75,16 +75,20 @@ export const VoiceMic: React.FC<{
       },
       onError: (code) => {
         if (code !== 'language-pack-missing' && code !== 'language-pack-downloading') return;
-        const mr = language === 'mr';
+        const L = (hi: string, mr: string, en: string) => (language === 'mr' ? mr : language === 'en' ? en : hi);
         Alert.alert(
-          mr ? 'भाषा डाउनलोड करा' : 'भाषा डाउनलोड करें',
+          L('भाषा डाउनलोड करें', 'भाषा डाउनलोड करा', 'Download language'),
           code === 'language-pack-downloading'
-            ? mr
-              ? 'मराठी भाषा डाउनलोड होत आहे. पूर्ण झाल्यावर माइक पुन्हा दाबा.'
-              : 'हिंदी भाषा डाउनलोड हो रही है। पूरा होने पर माइक दोबारा दबाएँ।'
-            : mr
-            ? 'बोलून लिहिण्यासाठी आधी मराठी भाषा डाउनलोड करा. इंटरनेट चालू करून माइक पुन्हा दाबा.'
-            : 'बोलकर लिखने के लिए पहले हिंदी भाषा डाउनलोड करें। इंटरनेट चालू करके माइक दोबारा दबाएँ।'
+            ? L(
+                'हिंदी भाषा डाउनलोड हो रही है। पूरा होने पर माइक दोबारा दबाएँ।',
+                'मराठी भाषा डाउनलोड होत आहे. पूर्ण झाल्यावर माइक पुन्हा दाबा.',
+                'English speech pack is downloading. Press the mic again when it finishes.',
+              )
+            : L(
+                'बोलकर लिखने के लिए पहले हिंदी भाषा डाउनलोड करें। इंटरनेट चालू करके माइक दोबारा दबाएँ।',
+                'बोलून लिहिण्यासाठी आधी मराठी भाषा डाउनलोड करा. इंटरनेट चालू करून माइक पुन्हा दाबा.',
+                'To dictate, first download the English speech pack. Turn on internet and press the mic again.',
+              )
         );
       },
       onEnd: () => {

@@ -165,7 +165,7 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
         <Pressable
           onPress={() => onSelectFamily(house, family.headName)}
           accessibilityRole="button"
-          accessibilityLabel={`${tr('घर', 'घर')} ${house}, ${family.headName}`}
+          accessibilityLabel={`${tr('घर', 'घर', 'House')} ${house}, ${family.headName}`}
           style={({ pressed }) => [styles.familyCard, pressed && styles.pressed]}
         >
           <View style={[styles.houseNo, { backgroundColor: statusTone.bg }]}>
@@ -178,7 +178,7 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
             <View style={styles.metaRow}>
               <Users size={14} color={color.muted} strokeWidth={2} />
               <Text style={text.caption}>
-                {fm.length || family.totalMembers} {tr('सदस्य', 'सदस्य')}
+                {fm.length || family.totalMembers} {tr('सदस्य', 'सदस्य', 'Members')}
               </Text>
             </View>
             <StatusBadge type={family.status} />
@@ -234,7 +234,7 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
               <ClipboardPlus size={20} color={intentPalette.fg} strokeWidth={2} />
             )}
             <Text style={[text.label, { color: intentPalette.text }]}>
-              {intent === 'referral' ? tr('सदस्य चुनें — रेफरल', 'सदस्य निवडा — संदर्भ') : tr('सदस्य चुनें — जांच', 'सदस्य निवडा — तपासणी')}
+              {intent === 'referral' ? tr('सदस्य चुनें — रेफरल', 'सदस्य निवडा — संदर्भ', 'Choose member — referral') : tr('सदस्य चुनें — जांच', 'सदस्य निवडा — तपासणी', 'Choose member — check')}
             </Text>
           </View>
         ) : null}
@@ -245,12 +245,12 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder={isListening ? tr('सुन रहे हैं…', 'ऐकत आहे…') : tr('नाम या घर नंबर', 'नाव किंवा घर क्रमांक')}
+            placeholder={isListening ? tr('सुन रहे हैं…', 'ऐकत आहे…', 'Listening…') : tr('नाम या घर नंबर', 'नाव किंवा घर क्रमांक', 'Name or house number')}
             placeholderTextColor={color.faint}
-            accessibilityLabel={tr('खोजें', 'शोधा')}
+            accessibilityLabel={tr('खोजें', 'शोधा', 'Search')}
           />
-          {searchQuery ? <IconButton icon={X} label={tr('साफ़ करें', 'साफ करा')} onPress={() => setSearchQuery('')} /> : null}
-          <IconButton icon={Mic} tone="accent" filled={isListening} label={tr('बोलकर खोजें', 'बोलून शोधा')} onPress={startVoiceSearch} />
+          {searchQuery ? <IconButton icon={X} label={tr('साफ़ करें', 'साफ करा', 'Clear')} onPress={() => setSearchQuery('')} /> : null}
+          <IconButton icon={Mic} tone="accent" filled={isListening} label={tr('बोलकर खोजें', 'बोलून शोधा', 'Search by voice')} onPress={startVoiceSearch} />
         </View>
 
         <View style={styles.filterRow}>
@@ -259,17 +259,17 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
               value={filter}
               onChange={setFilter}
               options={[
-                { key: 'all', label: tr('सभी', 'सर्व'), count: families.length },
-                { key: 'due', label: tr('देय', 'देय'), count: counts.due, tone: 'amber' },
-                { key: 'visited', label: tr('पूर्ण', 'पूर्ण'), count: counts.visited, tone: 'green' },
-                { key: 'new', label: tr('नए', 'नवीन'), count: counts.fresh, tone: 'neutral' },
+                { key: 'all', label: tr('सभी', 'सर्व', 'All'), count: families.length },
+                { key: 'due', label: tr('देय', 'देय', 'Due'), count: counts.due, tone: 'amber' },
+                { key: 'visited', label: tr('पूर्ण', 'पूर्ण', 'Done'), count: counts.visited, tone: 'green' },
+                { key: 'new', label: tr('नए', 'नवीन', 'New'), count: counts.fresh, tone: 'neutral' },
               ]}
             />
           </View>
           <Pressable
             onPress={() => setShowAddModal(true)}
             accessibilityRole="button"
-            accessibilityLabel={tr('नया परिवार', 'नवीन कुटुंब')}
+            accessibilityLabel={tr('नया परिवार', 'नवीन कुटुंब', 'New family')}
             style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
           >
             <Plus size={24} color={color.white} strokeWidth={2.4} />
@@ -292,10 +292,10 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
             <EmptyState
               icon={searchQuery ? Search : HousePlus}
               tone={searchQuery ? 'neutral' : 'accent'}
-              title={searchQuery ? tr('कोई परिवार नहीं मिला', 'कुटुंब सापडले नाही') : tr('अभी कोई परिवार नहीं', 'अद्याप कुटुंब नाही')}
+              title={searchQuery ? tr('कोई परिवार नहीं मिला', 'कुटुंब सापडले नाही', 'No family found') : tr('अभी कोई परिवार नहीं', 'अद्याप कुटुंब नाही', 'No families yet')}
               action={
                 searchQuery ? undefined : (
-                  <Button label={tr('नया परिवार', 'नवीन कुटुंब')} icon={Plus} full={false} onPress={() => setShowAddModal(true)} />
+                  <Button label={tr('नया परिवार', 'नवीन कुटुंब', 'New family')} icon={Plus} full={false} onPress={() => setShowAddModal(true)} />
                 )
               }
             />
@@ -305,31 +305,31 @@ export const FamiliesScreen: React.FC<FamiliesScreenProps> = ({ onSelectFamily, 
 
       {/* New family form */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={closeForm}>
-        <Pressable style={styles.scrim} onPress={closeForm} accessibilityLabel={tr('बंद करें', 'बंद करा')} />
+        <Pressable style={styles.scrim} onPress={closeForm} accessibilityLabel={tr('बंद करें', 'बंद करा', 'Close')} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
-              <Text style={text.title}>{tr('नया परिवार', 'नवीन कुटुंब')}</Text>
-              <IconButton icon={X} label={tr('बंद करें', 'बंद करा')} onPress={closeForm} />
+              <Text style={text.title}>{tr('नया परिवार', 'नवीन कुटुंब', 'New family')}</Text>
+              <IconButton icon={X} label={tr('बंद करें', 'बंद करा', 'Close')} onPress={closeForm} />
             </View>
             <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-              <Field label={tr('मुखिया का नाम', 'कुटुंबप्रमुखाचे नाव')} voice="name" value={newHeadName} onChangeText={(v) => { setNewHeadName(v); setFormError(null); }} autoFocus />
-              <Field label={tr('घर नंबर', 'घर क्रमांक')} voice="house" value={newHouseNo} onChangeText={(v) => { setNewHouseNo(v.replace(/[^0-9A-Za-z/-]/g, '')); setFormError(null); }} keyboardType="number-pad" maxLength={6} />
+              <Field label={tr('मुखिया का नाम', 'कुटुंबप्रमुखाचे नाव', 'Head of family name')} voice="name" value={newHeadName} onChangeText={(v) => { setNewHeadName(v); setFormError(null); }} autoFocus />
+              <Field label={tr('घर नंबर', 'घर क्रमांक', 'House number')} voice="house" value={newHouseNo} onChangeText={(v) => { setNewHouseNo(v.replace(/[^0-9A-Za-z/-]/g, '')); setFormError(null); }} keyboardType="number-pad" maxLength={6} />
               <Field
-                label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
+                label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)', 'Mobile (optional)')} voice="phone"
                 value={newPhone}
                 onChangeText={(v) => { setNewPhone(v.replace(/[^0-9]/g, '')); setFormError(null); }}
                 keyboardType="phone-pad"
                 maxLength={10}
-                helper={tr('सभी सदस्य यही नंबर उपयोग करेंगे', 'सर्व सदस्य हाच क्रमांक वापरतील')}
+                helper={tr('सभी सदस्य यही नंबर उपयोग करेंगे', 'सर्व सदस्य हाच क्रमांक वापरतील', 'All members will use this number')}
               />
               {formError ? (
                 <Card tone="red">
                   <Text style={[text.label, { color: color.redText }]}>{formError}</Text>
                 </Card>
               ) : null}
-              <Button label={tr('सहेजें', 'जतन करा')} icon={HousePlus} loading={saving} onPress={handleCreateFamily} />
+              <Button label={tr('सहेजें', 'जतन करा', 'Save')} icon={HousePlus} loading={saving} onPress={handleCreateFamily} />
             </ScrollView>
           </View>
         </KeyboardAvoidingView>

@@ -26,7 +26,7 @@ const isOverdue = (iso?: string | null) => {
 export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey }) => {
   const tr = useTr();
   const { language } = useLanguage();
-  const locale = language === 'mr' ? 'mr-IN' : 'hi-IN';
+  const locale = language === 'mr' ? 'mr-IN' : language === 'en' ? 'en-IN' : 'hi-IN';
   const [rows, setRows] = useState<Broadcast[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [showDone, setShowDone] = useState(false);
@@ -52,8 +52,8 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
 
   const sender = (b: Broadcast) =>
     b.senderRole === 'ADMIN'
-      ? tr('राष्ट्रीय स्वास्थ्य मिशन', 'राष्ट्रीय आरोग्य अभियान')
-      : `${tr('सीएचओ', 'सीएचओ')}${b.senderName ? ` · ${b.senderName}` : ''}`;
+      ? tr('राष्ट्रीय स्वास्थ्य मिशन', 'राष्ट्रीय आरोग्य अभियान', 'National Health Mission')
+      : `${tr('सीएचओ', 'सीएचओ', 'CHO')}${b.senderName ? ` · ${b.senderName}` : ''}`;
 
   const listen = (b: Broadcast) => {
     if (speakingId === b.id) {
@@ -67,10 +67,10 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
     setSpeakingId(b.id);
     const due = formatDue(b.dueDate);
     const spoken = [
-      `${sender(b)} ${tr('का संदेश', 'यांचा संदेश')}.`,
+      `${sender(b)} ${tr('का संदेश', 'यांचा संदेश', 'message')}.`,
       b.title + '.',
       b.message,
-      due ? `${tr('अंतिम तिथि', 'अंतिम तारीख')} ${due}.` : '',
+      due ? `${tr('अंतिम तिथि', 'अंतिम तारीख', 'Due date')} ${due}.` : '',
     ].join(' ');
     SpeechEngine.speak(spoken, locale, 0.9, undefined, () => {
       if (speakToken.current === token) setSpeakingId(null);
@@ -124,12 +124,12 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
           accessibilityState={{ expanded: isOpen }}
         >
           <View style={styles.head}>
-            {!b.readAt ? <View style={styles.unreadDot} accessibilityLabel={tr('नया', 'नवीन')} /> : null}
+            {!b.readAt ? <View style={styles.unreadDot} accessibilityLabel={tr('नया', 'नवीन', 'New')} /> : null}
             <Text style={[text.heading, styles.flex]} numberOfLines={isOpen ? undefined : 2}>
               {b.title}
             </Text>
-            {urgent && !b.doneAt ? <StatusPill tone="red" icon={AlertTriangle} label={tr('तत्काल', 'तातडीचे')} /> : null}
-            {b.doneAt ? <StatusPill tone="green" icon={CircleCheck} label={tr('पूरा', 'पूर्ण')} /> : null}
+            {urgent && !b.doneAt ? <StatusPill tone="red" icon={AlertTriangle} label={tr('तत्काल', 'तातडीचे', 'Urgent')} /> : null}
+            {b.doneAt ? <StatusPill tone="green" icon={CircleCheck} label={tr('पूरा', 'पूर्ण', 'Done')} /> : null}
           </View>
           <Text style={text.caption}>{sender(b)}</Text>
           <Text style={[text.body, styles.message]} numberOfLines={isOpen ? undefined : 3}>
@@ -139,7 +139,7 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
             <View style={styles.dueRow}>
               <CalendarClock size={16} color={overdue ? color.red : color.muted} strokeWidth={2} />
               <Text style={[text.caption, overdue && { color: color.redText, fontWeight: '700' }]}>
-                {overdue ? tr('समय निकल गया', 'मुदत संपली') : tr('अंतिम तिथि', 'अंतिम तारीख')} · {due}
+                {overdue ? tr('समय निकल गया', 'मुदत संपली', 'Time over') : tr('अंतिम तिथि', 'अंतिम तारीख', 'Due date')} · {due}
               </Text>
             </View>
           ) : null}
@@ -147,7 +147,7 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
         <View style={styles.actions}>
           <View style={styles.flex}>
             <Button
-              label={speaking ? tr('रोकें', 'थांबवा') : tr('सुनें', 'ऐका')}
+              label={speaking ? tr('रोकें', 'थांबवा', 'Stop') : tr('सुनें', 'ऐका', 'Listen')}
               icon={speaking ? Square : Volume2}
               variant={speaking ? 'danger' : 'secondary'}
               onPress={() => listen(b)}
@@ -155,7 +155,7 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
           </View>
           {!b.doneAt ? (
             <View style={styles.flex}>
-              <Button label={tr('काम पूरा', 'काम पूर्ण')} icon={CircleCheck} onPress={() => markDone(b)} />
+              <Button label={tr('काम पूरा', 'काम पूर्ण', 'Work done')} icon={CircleCheck} onPress={() => markDone(b)} />
             </View>
           ) : null}
         </View>
@@ -168,9 +168,9 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
       <View style={styles.titleRow}>
         <Megaphone size={20} color={color.accent} strokeWidth={2} />
         <View style={styles.flex}>
-          <SectionTitle label={tr('NHM संदेश', 'NHM संदेश')} count={open.length} />
+          <SectionTitle label={tr('NHM संदेश', 'NHM संदेश', 'NHM message')} count={open.length} />
         </View>
-        {unread > 0 ? <StatusPill tone="accent" label={`${unread} ${tr('नए', 'नवीन')}`} /> : null}
+        {unread > 0 ? <StatusPill tone="accent" label={`${unread} ${tr('नए', 'नवीन', 'New')}`} /> : null}
       </View>
 
       {open.map(renderCard)}
@@ -182,7 +182,7 @@ export const BroadcastInbox: React.FC<{ refreshKey?: unknown }> = ({ refreshKey 
           style={({ pressed }) => [styles.doneToggle, pressed && { opacity: 0.7 }]}
         >
           <Text style={[text.label, { color: color.muted }]}>
-            {tr('पूरे हुए', 'पूर्ण झालेले')} ({done.length})
+            {tr('पूरे हुए', 'पूर्ण झालेले', 'Completed')} ({done.length})
           </Text>
           {showDone ? (
             <ChevronUp size={18} color={color.muted} strokeWidth={2} />

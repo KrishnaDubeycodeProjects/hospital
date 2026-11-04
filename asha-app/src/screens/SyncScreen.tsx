@@ -25,7 +25,7 @@ export const SyncScreen: React.FC<SyncScreenProps> = ({ onOpenSendToAnm }) => {
     .sort()
     .pop();
   const lastSyncedText = lastSynced
-    ? new Date(lastSynced).toLocaleString(tr('hi-IN', 'mr-IN'), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    ? new Date(lastSynced).toLocaleString(tr('hi-IN', 'mr-IN', 'en-IN'), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     : '—';
 
   const allClear = pendingSyncCount === 0 && failedSyncCount === 0;
@@ -48,35 +48,40 @@ export const SyncScreen: React.FC<SyncScreenProps> = ({ onOpenSendToAnm }) => {
           <IconBadge icon={allClear ? CircleCheck : isOnline ? RefreshCw : CloudOff} tone={heroTone} size="lg" />
           <View style={styles.heroText}>
             <Text style={text.title}>
-              {allClear ? tr('सब सुरक्षित', 'सर्व सुरक्षित') : failedSyncCount > 0 ? tr('ध्यान दें', 'लक्ष द्या') : tr('भेजना बाकी', 'पाठवणे बाकी')}
+              {allClear ? tr('सब सुरक्षित', 'सर्व सुरक्षित', 'All safe') : failedSyncCount > 0 ? tr('ध्यान दें', 'लक्ष द्या', 'Needs attention') : tr('भेजना बाकी', 'पाठवणे बाकी', 'Pending to send')}
             </Text>
             <StatusPill
               tone={isOnline ? 'green' : 'amber'}
               icon={isOnline ? Wifi : CloudOff}
-              label={isOnline ? tr('ऑनलाइन', 'ऑनलाइन') : tr('ऑफलाइन', 'ऑफलाइन')}
+              label={isOnline ? tr('ऑनलाइन', 'ऑनलाइन', 'Online') : tr('ऑफलाइन', 'ऑफलाइन', 'Offline')}
             />
           </View>
         </View>
         <View style={styles.stats}>
-          <Stat value={pendingSyncCount} label={tr('बाकी', 'बाकी')} tone="amber" />
-          <Stat value={failedSyncCount} label={tr('अस्वीकृत', 'नाकारल्या')} tone="red" />
-          <Stat value={syncedCount} label={tr('भेजे गए', 'पाठवले')} tone="green" />
+          <Stat value={pendingSyncCount} label={tr('बाकी', 'बाकी', 'Pending')} tone="amber" />
+          <Stat value={failedSyncCount} label={tr('नहीं भेजे', 'पाठवले नाहीत', 'Not sent')} tone="red" />
+          <Stat value={syncedCount} label={tr('भेजे गए', 'पाठवले', 'Sent')} tone="green" />
         </View>
       </Card>
 
       <Button
-        label={tr('अभी सिंक', 'आता सिंक')}
+        label={tr('अभी भेजें', 'आता पाठवा', 'Send now')}
         icon={RefreshCw}
         loading={isSyncing || busy}
         disabled={!isOnline}
         onPress={() => run(triggerSync)}
       />
       {!isOnline ? (
-        <Text style={styles.note}>{tr('नेटवर्क मिलते ही अपने आप सिंक', 'नेटवर्क मिळताच आपोआप सिंक')}</Text>
+        <Text style={styles.note}>{tr('नेटवर्क मिलते ही अपने आप सिंक', 'नेटवर्क मिळताच आपोआप सिंक', 'Syncs automatically when network is available')}</Text>
       ) : null}
 
       {failedSyncCount > 0 ? (
-        <Button label={tr('पुनः भेजें', 'पुन्हा पाठवा')} icon={RotateCcw} variant="danger" loading={busy} onPress={() => run(retryFailedRecords)} />
+        <>
+          <Button label={tr('पुनः भेजें', 'पुन्हा पाठवा', 'Resend')} icon={RotateCcw} variant="danger" loading={busy} onPress={() => run(retryFailedRecords)} />
+          <Text style={styles.note}>
+            {tr('डेटा फ़ोन में सुरक्षित', 'डेटा फोनमध्ये सुरक्षित', 'Data safe on phone')}
+          </Text>
+        </>
       ) : null}
 
       {lastSyncResult?.message ? (
@@ -92,9 +97,9 @@ export const SyncScreen: React.FC<SyncScreenProps> = ({ onOpenSendToAnm }) => {
         </Card>
       ) : null}
 
-      <SectionTitle label={tr('अन्य', 'इतर')} />
-      <ListRow icon={QrCode} title={tr('एएनएम को भेजें', 'एएनएमला पाठवा')} subtitle={tr('QR या कोड', 'QR किंवा कोड')} onPress={onOpenSendToAnm} />
-      <ListRow icon={Clock} tone="neutral" title={tr('अंतिम सिंक', 'शेवटचा सिंक')} right={<Text style={text.label}>{lastSyncedText}</Text>} />
+      <SectionTitle label={tr('अन्य', 'इतर', 'Other')} />
+      <ListRow icon={QrCode} title={tr('एएनएम को भेजें', 'एएनएमला पाठवा', 'Send to ANM')} subtitle={tr('QR या कोड', 'QR किंवा कोड', 'QR or code')} onPress={onOpenSendToAnm} />
+      <ListRow icon={Clock} tone="neutral" title={tr('अंतिम सिंक', 'शेवटचा सिंक', 'Last sync')} right={<Text style={text.label}>{lastSyncedText}</Text>} />
     </Screen>
   );
 };

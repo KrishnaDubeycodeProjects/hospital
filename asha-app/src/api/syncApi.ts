@@ -59,6 +59,31 @@ export interface ChoSectorWorker {
   surveyCount: number;
   referralCount: number;
   pendingReferralCount: number;
+  // Performance fields (older backends omit them → 0 / null).
+  pregnantCount: number;
+  ncdCount: number;
+  childCount: number;
+  surveys7d: number;
+  surveys30d: number;
+  tasksDone: number;
+  tasksOpen: number;
+  tasksOverdue: number;
+  familiesVisited30d: number;
+  lastActive: string | null;
+}
+
+/** GET /api/asha/cho/workers/{phone}/activity */
+export interface ChoWorkerActivity {
+  daily: { date: string; surveys: number; tasksDone: number }[];
+  recent: {
+    kind: 'SURVEY' | 'TASK';
+    category: string;
+    memberName?: string | null;
+    houseNumber?: string | null;
+    villageName?: string | null;
+    status?: string | null;
+    at: string;
+  }[];
 }
 
 // Required for ngrok free tier to skip the browser warning interstitial page
@@ -76,7 +101,7 @@ export interface SyncResult {
 }
 
 type SyncLang = 'hi' | 'mr' | string;
-const msg = (lang: SyncLang, hi: string, mr: string) => (lang === 'mr' ? mr : hi);
+const msg = (lang: SyncLang, hi: string, mr: string, en?: string) => (lang === 'mr' ? mr : lang === 'en' ? en || hi : hi);
 
 /**
  * Auto-sync coordination (shared by heartbeat, NetInfo, browser events and manual taps):
@@ -179,8 +204,33 @@ export class SyncApi {
           surveyCount: Number(w.surveyCount) || 0,
           referralCount: Number(w.referralCount) || 0,
           pendingReferralCount: Number(w.pendingReferralCount) || 0,
+          pregnantCount: Number(w.pregnantCount) || 0,
+          ncdCount: Number(w.ncdCount) || 0,
+          childCount: Number(w.childCount) || 0,
+          surveys7d: Number(w.surveys7d) || 0,
+          surveys30d: Number(w.surveys30d) || 0,
+          tasksDone: Number(w.tasksDone) || 0,
+          tasksOpen: Number(w.tasksOpen) || 0,
+          tasksOverdue: Number(w.tasksOverdue) || 0,
+          familiesVisited30d: Number(w.familiesVisited30d) || 0,
+          lastActive: w.lastActive || null,
         }))
       : [];
+  }
+
+  /** Daily trend (14 days) + recent activity of one sector worker. Throws on failure. */
+  static async getChoWorkerActivity(phone: string): Promise<ChoWorkerActivity> {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/asha/cho/workers/${encodeURIComponent(phone)}/activity`, {
+      headers: { ...NGROK_HEADERS, ...authHeader() },
+    });
+    if (!res.ok) throw new Error(`worker activity ${res.status}`);
+    const data = await res.json();
+    return {
+      daily: Array.isArray(data?.daily)
+        ? data.daily.map((d: any) => ({ date: d.date, surveys: Number(d.surveys) || 0, tasksDone: Number(d.tasksDone) || 0 }))
+        : [],
+      recent: Array.isArray(data?.recent) ? data.recent : [],
+    };
   }
 
   /**
@@ -220,7 +270,7 @@ export class SyncApi {
       return {
         success: false,
         mode: 'OFFLINE_QUEUED',
-        message: msg(lang, `${pending.length} रिकॉर्ड सुरक्षित, पुनः प्रयास शीघ्र`, `${pending.length} नोंदी सुरक्षित, लवकरच पुन्हा प्रयत्न`),
+        message: msg(lang, `${pending.length} रिकॉर्ड सुरक्षित, पुनः प्रयास शीघ्र`, `${pending.length} नोंदी सुरक्षित, लवकरच पुन्हा प्रयत्न`, `${pending.length} records safe, retrying soon`),
         syncedCount: 0,
       };
     }
@@ -261,7 +311,8 @@ export class SyncApi {
         message: msg(
           lang,
           `ऑफलाइन: ${pendingItems.length} रिकॉर्ड सुरक्षित। नेटवर्क मिलते ही अपने आप सिंक होंगे।`,
-          `ऑफलाइन: ${pendingItems.length} नोंदी सुरक्षित. नेटवर्क मिळताच आपोआप सिंक होतील.`
+          `ऑफलाइन: ${pendingItems.length} नोंदी सुरक्षित. नेटवर्क मिळताच आपोआप सिंक होतील.`,
+          `Offline: ${pendingItems.length} records saved. They will sync automatically when network is available.`
         ),
         syncedCount: pendingItems.length,
         qrPayload,
@@ -379,7 +430,8 @@ export class SyncApi {
             message: msg(
               lang,
               `सत्र समाप्त — पुनः लॉगिन करें। ${retryCount} रिकॉर्ड फोन में सुरक्षित हैं।`,
-              `सत्र संपले — पुन्हा लॉगिन करा. ${retryCount} नोंदी फोनमध्ये सुरक्षित आहेत.`
+              `सत्र संपले — पुन्हा लॉगिन करा. ${retryCount} नोंदी फोनमध्ये सुरक्षित आहेत.`,
+              `Session expired — please log in again. ${retryCount} records are safe on the phone.`
             ),
             syncedCount: 0,
           };
@@ -393,7 +445,8 @@ export class SyncApi {
             message: msg(
               lang,
               `सर्वर ने अपलोड स्वीकार नहीं किया। ${retryCount} रिकॉर्ड सुरक्षित हैं, पुनः प्रयास होगा।`,
-              `सर्व्हरने अपलोड स्वीकारला नाही. ${retryCount} नोंदी सुरक्षित आहेत, पुन्हा प्रयत्न होईल.`
+              `सर्व्हरने अपलोड स्वीकारला नाही. ${retryCount} नोंदी सुरक्षित आहेत, पुन्हा प्रयत्न होईल.`,
+              `Server did not accept the upload. ${retryCount} records are safe and will be retried.`
             ),
             syncedCount: 0,
           };
@@ -439,10 +492,10 @@ export class SyncApi {
                 if (existingTasks.some((t) => String(t.sourceReferralId) === sourceReferralId)) continue;
 
                 await OfflineStorageService.ingestMissedReferral({
-                  memberName: remTask.memberName || msg(lang, 'लाभार्थी', 'लाभार्थी'),
+                  memberName: remTask.memberName || msg(lang, 'लाभार्थी', 'लाभार्थी', 'Beneficiary'),
                   houseNumber: remTask.houseNumber,
                   daysOverdue: days,
-                  referralReason: remTask.title || msg(lang, 'अस्पताल रेफरल फॉलो-अप', 'रुग्णालय संदर्भ पाठपुरावा'),
+                  referralReason: remTask.title || msg(lang, 'अस्पताल रेफरल फॉलो-अप', 'रुग्णालय संदर्भ पाठपुरावा', 'Hospital referral follow-up'),
                   sourceReferralId,
                 });
                 newReferralsCount++;
@@ -473,22 +526,26 @@ export class SyncApi {
       else registerSuccess();
       const partsHi = [`सिंक सफल: ${uploadedOk} बदलाव भेजे।`];
       const partsMr = [`सिंक यशस्वी: ${uploadedOk} बदल पाठवले.`];
+      const partsEn = [`Sync successful: ${uploadedOk} changes sent.`];
       if (retryCount > 0) {
         partsHi.push(`${retryCount} पुनः प्रयास में।`);
         partsMr.push(`${retryCount} पुन्हा प्रयत्नात.`);
+        partsEn.push(`${retryCount} pending retry.`);
       }
       if (failedCount > 0) {
         partsHi.push(`${failedCount} अस्वीकृत — जाँच आवश्यक।`);
         partsMr.push(`${failedCount} नाकारल्या — तपासणी आवश्यक.`);
+        partsEn.push(`${failedCount} rejected — needs review.`);
       }
       if (newReferralsCount > 0) {
         partsHi.push(`${newReferralsCount} नए रेफरल मिले।`);
         partsMr.push(`${newReferralsCount} नवीन संदर्भ मिळाले.`);
+        partsEn.push(`${newReferralsCount} new referrals received.`);
       }
       return {
         success: failedCount === 0 && retryCount === 0,
         mode: 'ONLINE_SYNCED',
-        message: msg(lang, partsHi.join(' '), partsMr.join(' ')),
+        message: msg(lang, partsHi.join(' '), partsMr.join(' '), partsEn.join(' ')),
         syncedCount: uploadedOk,
         downloadedTasksCount: newReferralsCount,
       };
@@ -498,7 +555,7 @@ export class SyncApi {
       return {
         success: false,
         mode: 'OFFLINE_QUEUED',
-        message: msg(lang, 'सिंक बाधित। डेटा फोन में सुरक्षित है।', 'सिंक खंडित. डेटा फोनमध्ये सुरक्षित आहे.'),
+        message: msg(lang, 'सिंक बाधित। डेटा फोन में सुरक्षित है।', 'सिंक खंडित. डेटा फोनमध्ये सुरक्षित आहे.', 'Sync interrupted. Data is safe on the phone.'),
         syncedCount: 0,
       };
     }

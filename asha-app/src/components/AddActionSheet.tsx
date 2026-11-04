@@ -19,11 +19,11 @@ export const AddActionSheet: React.FC<Props> = ({ visible, onClose, onNewFamily,
     fn();
   };
   return (
-    <Sheet visible={visible} onClose={onClose} title={tr('नया जोड़ें', 'नवीन जोडा')} closeLabel={tr('बंद करें', 'बंद करा')}>
+    <Sheet visible={visible} onClose={onClose} title={tr('नया जोड़ें', 'नवीन जोडा', 'Add new')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
       <View style={styles.row}>
-        <Tile icon={HousePlus} label={tr('नया परिवार', 'नवीन कुटुंब')} tone="accent" onPress={pick(onNewFamily)} />
-        <Tile icon={ClipboardPlus} label={tr('जांच शुरू', 'तपासणी सुरू')} tone="green" onPress={pick(onStartSurvey)} />
-        <Tile icon={Route} label={tr('रेफरल', 'संदर्भ')} tone="red" onPress={pick(onReferral)} />
+        <Tile icon={HousePlus} label={tr('नया परिवार', 'नवीन कुटुंब', 'New family')} tone="accent" onPress={pick(onNewFamily)} />
+        <Tile icon={ClipboardPlus} label={tr('जांच शुरू', 'तपासणी सुरू', 'Start check')} tone="green" onPress={pick(onStartSurvey)} />
+        <Tile icon={Route} label={tr('रेफरल', 'संदर्भ', 'Referrals')} tone="red" onPress={pick(onReferral)} />
       </View>
     </Sheet>
   );

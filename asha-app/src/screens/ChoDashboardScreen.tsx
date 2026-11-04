@@ -74,7 +74,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
   const [newPhone, setNewPhone] = useState('');
   const [newRole, setNewRole] = useState<'ASHA' | 'ANM'>('ASHA');
   const [newVillage, setNewVillage] = useState('');
-  const [newLang, setNewLang] = useState<'hi' | 'mr'>('hi');
+  const [newLang, setNewLang] = useState<'hi' | 'mr' | 'en'>('hi');
   const [addLoading, setAddLoading] = useState(false);
   const [addStatus, setAddStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -118,12 +118,12 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
 
   const handleAddWorker = async () => {
     if (!newName.trim()) {
-      setAddStatus({ type: 'error', text: tr('नाम डालें', 'नाव टाका') });
+      setAddStatus({ type: 'error', text: tr('नाम डालें', 'नाव टाका', 'Enter name') });
       return;
     }
     const digits = newPhone.replace(/[^0-9]/g, '');
     if (digits.length !== 10) {
-      setAddStatus({ type: 'error', text: tr('10 अंकों का नंबर डालें', '10 अंकी नंबर टाका') });
+      setAddStatus({ type: 'error', text: tr('10 अंकों का नंबर डालें', '10 अंकी नंबर टाका', 'Enter a 10-digit number') });
       return;
     }
     setAddLoading(true);
@@ -217,7 +217,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
       })),
   ];
 
-  const roleLabel = (r: 'ASHA' | 'ANM') => (r === 'ANM' ? tr('एएनएम', 'एएनएम') : tr('आशा', 'आशा'));
+  const roleLabel = (r: 'ASHA' | 'ANM') => (r === 'ANM' ? tr('एएनएम', 'एएनएम', 'ANM') : tr('आशा', 'आशा', 'ASHA'));
 
   // =============================================================================================
   // Workers view
@@ -226,7 +226,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
     return (
       <Screen>
         <Button
-          label={tr('कार्यकर्ता जोड़ें', 'कार्यकर्ता जोडा')}
+          label={tr('कार्यकर्ता जोड़ें', 'कार्यकर्ता जोडा', 'Add worker')}
           icon={UserPlus}
           onPress={() => {
             resetAddForm();
@@ -237,15 +237,15 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
         {/* NHM work messages to the sector (compose · read / done counts · withdraw) */}
         <ChoBroadcastPanel />
 
-        <SectionTitle label={tr('कार्यकर्ता', 'कार्यकर्ते')} count={allWorkers.length} />
+        <SectionTitle label={tr('कार्यकर्ता', 'कार्यकर्ते', 'Workers')} count={allWorkers.length} />
         {workersError ? (
           <Card tone="amber">
-            <Text style={text.body}>{tr('कार्यकर्ता सूची लोड नहीं हुई', 'कार्यकर्ता यादी लोड झाली नाही')}</Text>
-            <Button label={tr('फिर से कोशिश करें', 'पुन्हा प्रयत्न करा')} icon={RefreshCw} variant="secondary" onPress={loadSectorWorkers} />
+            <Text style={text.body}>{tr('कार्यकर्ता सूची लोड नहीं हुई', 'कार्यकर्ता यादी लोड झाली नाही', 'Worker list not loaded')}</Text>
+            <Button label={tr('फिर से कोशिश करें', 'पुन्हा प्रयत्न करा', 'Try again')} icon={RefreshCw} variant="secondary" onPress={loadSectorWorkers} />
           </Card>
         ) : null}
         {!workersLoading && !workersError && allWorkers.length === 0 ? (
-          <EmptyState icon={Users} title={tr('कोई आशा कार्यकर्ता पंजीकृत नहीं है', 'कोणतीही आशा कार्यकर्ती नोंदणीकृत नाही')} />
+          <EmptyState icon={Users} title={tr('कोई आशा कार्यकर्ता पंजीकृत नहीं है', 'कोणतीही आशा कार्यकर्ती नोंदणीकृत नाही', 'No ASHA workers registered')} />
         ) : null}
         <View style={styles.list}>
           {allWorkers.map((w) => (
@@ -274,13 +274,13 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                 <ChevronRight size={20} color={color.faint} strokeWidth={2} />
               </View>
               <View style={styles.statRow}>
-                <Stat value={w.families} label={tr('परिवार', 'कुटुंबे')} />
-                <Stat value={w.surveys} label={tr('सर्वे', 'सर्वे')} />
-                <Stat value={w.referrals} label={tr('रेफरल', 'रेफरल')} tone={w.referrals > 0 ? 'red' : 'neutral'} />
+                <Stat value={w.families} label={tr('परिवार', 'कुटुंबे', 'Families')} />
+                <Stat value={w.surveys} label={tr('सर्वे', 'सर्वे', 'Surveys')} />
+                <Stat value={w.referrals} label={tr('रेफरल', 'रेफरल', 'Referrals')} tone={w.referrals > 0 ? 'red' : 'neutral'} />
               </View>
               {w.isChoAdded ? (
                 <View style={styles.pillLeft}>
-                  <StatusPill tone="green" icon={ShieldCheck} label={tr('सीएचओ अधिकृत', 'सीएचओ अधिकृत')} />
+                  <StatusPill tone="green" icon={ShieldCheck} label={tr('सीएचओ अधिकृत', 'सीएचओ अधिकृत', 'CHO authorised')} />
                 </View>
               ) : null}
             </Card>
@@ -292,7 +292,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
           visible={!!selectedWorker}
           onClose={() => setSelectedWorker(null)}
           title={selectedWorker?.name}
-          closeLabel={tr('बंद करें', 'बंद करा')}
+          closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
         >
           {selectedWorker ? (
             <View style={styles.sheetBody}>
@@ -300,13 +300,13 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
               <ListRow
                 icon={Phone}
                 title={selectedWorker.phone}
-                subtitle={tr('कॉल करें', 'कॉल करा')}
+                subtitle={tr('कॉल करें', 'कॉल करा', 'Call')}
                 onPress={() => Linking.openURL(`tel:${selectedWorker.phone}`)}
               />
               <View style={styles.statRow}>
-                <Stat value={selectedWorker.families} label={tr('परिवार', 'कुटुंबे')} />
-                <Stat value={selectedWorker.surveys} label={tr('सर्वे', 'सर्वे')} />
-                <Stat value={selectedWorker.referrals} label={tr('रेफरल', 'रेफरल')} tone={selectedWorker.referrals > 0 ? 'red' : 'neutral'} />
+                <Stat value={selectedWorker.families} label={tr('परिवार', 'कुटुंबे', 'Families')} />
+                <Stat value={selectedWorker.surveys} label={tr('सर्वे', 'सर्वे', 'Surveys')} />
+                <Stat value={selectedWorker.referrals} label={tr('रेफरल', 'रेफरल', 'Referrals')} tone={selectedWorker.referrals > 0 ? 'red' : 'neutral'} />
               </View>
             </View>
           ) : null}
@@ -316,41 +316,42 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
         <Sheet
           visible={showAdd}
           onClose={() => setShowAdd(false)}
-          title={tr('नया कार्यकर्ता', 'नवीन कार्यकर्ता')}
-          closeLabel={tr('बंद करें', 'बंद करा')}
+          title={tr('नया कार्यकर्ता', 'नवीन कार्यकर्ता', 'New worker')}
+          closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
         >
           <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
             {addStatus ? <StatusBanner type={addStatus.type} message={addStatus.text} /> : null}
 
-            <Text style={text.label}>{tr('पद', 'पद')}</Text>
+            <Text style={text.label}>{tr('पद', 'पद', 'Role')}</Text>
             <Segmented
               options={[
-                { key: 'ASHA', label: tr('आशा', 'आशा') },
-                { key: 'ANM', label: tr('एएनएम', 'एएनएम') },
+                { key: 'ASHA', label: tr('आशा', 'आशा', 'ASHA') },
+                { key: 'ANM', label: tr('एएनएम', 'एएनएम', 'ANM') },
               ]}
               value={newRole}
               onChange={setNewRole}
             />
-            <Field label={tr('पूरा नाम', 'पूर्ण नाव')} voice="name" value={newName} onChangeText={setNewName} />
+            <Field label={tr('पूरा नाम', 'पूर्ण नाव', 'Full name')} voice="name" value={newName} onChangeText={setNewName} />
             <Field
-              label={tr('मोबाइल नंबर', 'मोबाइल नंबर')} voice="phone"
+              label={tr('मोबाइल नंबर', 'मोबाइल नंबर', 'Mobile number')} voice="phone"
               value={newPhone}
               onChangeText={(v) => setNewPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
               keyboardType="number-pad"
               maxLength={10}
               placeholder="98765 43210"
             />
-            <Field label={tr('गाँव / उपकेंद्र', 'गाव / उपकेंद्र')} voice="text" value={newVillage} onChangeText={setNewVillage} />
-            <Text style={text.label}>{tr('ऐप भाषा', 'ॲप भाषा')}</Text>
+            <Field label={tr('गाँव / उपकेंद्र', 'गाव / उपकेंद्र', 'Village / sub-centre')} voice="text" value={newVillage} onChangeText={setNewVillage} />
+            <Text style={text.label}>{tr('ऐप भाषा', 'ॲप भाषा', 'App language')}</Text>
             <Segmented
               options={[
                 { key: 'hi', label: 'हिंदी' },
                 { key: 'mr', label: 'मराठी' },
+                { key: 'en', label: 'English' },
               ]}
               value={newLang}
               onChange={setNewLang}
             />
-            <Button label={tr('अधिकृत करें', 'अधिकृत करा')} icon={ShieldCheck} loading={addLoading} onPress={handleAddWorker} />
+            <Button label={tr('अधिकृत करें', 'अधिकृत करा', 'Authorise')} icon={ShieldCheck} loading={addLoading} onPress={handleAddWorker} />
           </ScrollView>
         </Sheet>
       </Screen>
@@ -365,20 +366,20 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
       <View style={styles.statGrid}>
         <View style={styles.statCell}>
           <Card tone="amber">
-            <Stat value={pendingReferralCount} label={tr('लंबित रेफरल', 'प्रलंबित रेफरल')} tone="amber" />
+            <Stat value={pendingReferralCount} label={tr('लंबित रेफरल', 'प्रलंबित रेफरल', 'Pending referrals')} tone="amber" />
           </Card>
         </View>
         <View style={styles.statCell}>
           <Card tone="green">
-            <Stat value={approvedReferralCount} label={tr('सत्यापित रेफरल', 'सत्यापित रेफरल')} tone="green" />
+            <Stat value={approvedReferralCount} label={tr('सत्यापित रेफरल', 'सत्यापित रेफरल', 'Verified referrals')} tone="green" />
           </Card>
         </View>
       </View>
 
-      <SectionTitle label={tr('खुले रेफरल', 'खुले रेफरल')} count={urgentTasks.length} />
+      <SectionTitle label={tr('खुले रेफरल', 'खुले रेफरल', 'Open referrals')} count={urgentTasks.length} />
 
       {urgentTasks.length === 0 ? (
-        <EmptyState icon={CircleCheck} title={tr('कोई रेफरल नहीं', 'रेफरल नाही')} />
+        <EmptyState icon={CircleCheck} title={tr('कोई रेफरल नहीं', 'रेफरल नाही', 'No referrals')} />
       ) : (
         <View style={styles.list}>
           {urgentTasks.map((task: any) => {
@@ -393,9 +394,9 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                     </Text>
                     <Text style={text.caption} numberOfLines={1}>
                       {[
-                        task.age ? `${task.age} ${tr('वर्ष', 'वर्षे')}` : null,
+                        task.age ? `${task.age} ${tr('वर्ष', 'वर्षे', 'yrs')}` : null,
                         task.gender || null,
-                        task.houseNumber ? `${tr('घर', 'घर')} ${task.houseNumber}` : null,
+                        task.houseNumber ? `${tr('घर', 'घर', 'House')} ${task.houseNumber}` : null,
                         task.villageName || null,
                       ]
                         .filter(Boolean)
@@ -405,7 +406,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                   <StatusPill
                     tone={isApproved ? 'green' : 'red'}
                     icon={isApproved ? Check : AlertTriangle}
-                    label={isApproved ? tr('स्वीकृत', 'मंजूर') : tr('अति-आवश्यक', 'अति-तातडीचे')}
+                    label={isApproved ? tr('स्वीकृत', 'मंजूर', 'Approved') : tr('अति-आवश्यक', 'अति-तातडीचे', 'Urgent')}
                   />
                 </View>
 
@@ -418,7 +419,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                       <Pressable
                         onPress={() => Linking.openURL(`tel:${task.phone}`)}
                         accessibilityRole="button"
-                        accessibilityLabel={`${tr('कॉल करें', 'कॉल करा')} ${task.phone}`}
+                        accessibilityLabel={`${tr('कॉल करें', 'कॉल करा', 'Call')} ${task.phone}`}
                         style={({ pressed }) => [styles.callChip, pressed && styles.pressed]}
                       >
                         <Phone size={16} color={color.accent} strokeWidth={2} />
@@ -433,10 +434,10 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                 {task.condition || task.vitals ? (
                   <View style={[styles.infoBox, styles.infoNeutral]}>
                     {task.condition ? (
-                      <InfoLine icon={Activity} label={tr('निदान', 'निदान')} value={task.condition} />
+                      <InfoLine icon={Activity} label={tr('निदान', 'निदान', 'Diagnosis')} value={task.condition} />
                     ) : null}
                     {task.vitals ? (
-                      <InfoLine icon={ClipboardList} label={tr('जाँच', 'तपासणी')} value={task.vitals} />
+                      <InfoLine icon={ClipboardList} label={tr('जाँच', 'तपासणी', 'Check-up')} value={task.vitals} />
                     ) : null}
                   </View>
                 ) : null}
@@ -444,9 +445,9 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                 {/* Prescription */}
                 {task.prescriptionDetails ? (
                   <View style={[styles.infoBox, styles.infoAmber]}>
-                    <InfoLine icon={Pill} label={tr('दवा', 'औषध')} value={task.prescriptionDetails} tint={color.amberText} />
+                    <InfoLine icon={Pill} label={tr('दवा', 'औषध', 'Medicine')} value={task.prescriptionDetails} tint={color.amberText} />
                     {task.prescriptionDeadline ? (
-                      <InfoLine icon={Clock} label={tr('समयसीमा', 'मुदत')} value={task.prescriptionDeadline} tint={color.redText} />
+                      <InfoLine icon={Clock} label={tr('समयसीमा', 'मुदत', 'Deadline')} value={task.prescriptionDeadline} tint={color.redText} />
                     ) : null}
                   </View>
                 ) : null}
@@ -455,8 +456,8 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                 <View style={styles.metaRow}>
                   <Text style={[text.caption, styles.flex]} numberOfLines={1}>
                     {task.doctorName
-                      ? `${tr('डॉक्टर', 'डॉक्टर')} ${task.doctorName}`
-                      : `${tr('आशा', 'आशा')} ${task.ashaWorkerPhone || ''}`}
+                      ? `${tr('डॉक्टर', 'डॉक्टर', 'Doctor')} ${task.doctorName}`
+                      : `${tr('आशा', 'आशा', 'ASHA')} ${task.ashaWorkerPhone || ''}`}
                   </Text>
                   {task.dueDate ? (
                     <View style={styles.inline}>
@@ -468,7 +469,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
 
                 {task.choAdvice ? (
                   <View style={[styles.infoBox, styles.infoAccent]}>
-                    <InfoLine icon={FileText} label={tr('सीएचओ सलाह', 'सीएचओ सल्ला')} value={task.choAdvice} tint={color.accentPressed} />
+                    <InfoLine icon={FileText} label={tr('सीएचओ सलाह', 'सीएचओ सल्ला', 'CHO advice')} value={task.choAdvice} tint={color.accentPressed} />
                   </View>
                 ) : null}
 
@@ -476,7 +477,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                 <View style={styles.actions}>
                   <View style={styles.flex}>
                     <Button
-                      label={isApproved ? tr('स्वीकृत', 'मंजूर') : tr('स्वीकृत करें', 'मंजूर करा')}
+                      label={isApproved ? tr('स्वीकृत', 'मंजूर', 'Approved') : tr('स्वीकृत करें', 'मंजूर करा', 'Approve')}
                       icon={Check}
                       disabled={isApproved}
                       onPress={() => handleApprove(task.id)}
@@ -484,7 +485,7 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
                   </View>
                   <View style={styles.flex}>
                     <Button
-                      label={tr('सलाह लिखें', 'सल्ला लिहा')}
+                      label={tr('सलाह लिखें', 'सल्ला लिहा', 'Write advice')}
                       icon={FileText}
                       variant="secondary"
                       onPress={() => {
@@ -505,18 +506,18 @@ export const ChoDashboardScreen: React.FC<{ view?: 'referrals' | 'workers' }> = 
         visible={!!adviceTask}
         onClose={() => setAdviceTask(null)}
         title={adviceTask?.name}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         <View style={styles.sheetBody}>
           <Field
-            label={tr('नैदानिक सलाह', 'वैद्यकीय सल्ला')} voice="long"
+            label={tr('नैदानिक सलाह', 'वैद्यकीय सल्ला', 'Clinical advice')} voice="long"
             value={adviceNotes}
             onChangeText={setAdviceNotes}
             multiline
-            helper={tr('आशा को भेजी जाएगी', 'आशाला पाठवला जाईल')}
+            helper={tr('आशा को भेजी जाएगी', 'आशाला पाठवला जाईल', 'Will be sent to the ASHA')}
           />
-          {adviceSaved ? <StatusBanner type="success" message={tr('सलाह भेजी गई', 'सल्ला पाठवला')} /> : null}
-          <Button label={tr('सहेजें व स्वीकृत करें', 'जतन व मंजूर करा')} icon={Check} onPress={handleSaveAdvice} />
+          {adviceSaved ? <StatusBanner type="success" message={tr('सलाह भेजी गई', 'सल्ला पाठवला', 'Advice sent')} /> : null}
+          <Button label={tr('सहेजें व स्वीकृत करें', 'जतन व मंजूर करा', 'Save & approve')} icon={Check} onPress={handleSaveAdvice} />
         </View>
       </Sheet>
     </Screen>

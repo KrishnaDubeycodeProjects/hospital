@@ -16,7 +16,7 @@
 - **Design Skill & Rules:** Strictly enforce [`DESIGN_SKILL.md`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/asha-app/DESIGN_SKILL.md) and [`visual-abstract-ui`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/.agents/skills/visual-abstract-ui/SKILL.md) (Anti-AI-slop, 3-word ceiling, tactile cards, semantic color bindings).
 - **Government System Alignment:** Strictly adhere to [`GOVERNMENT_RCH_ANMOL_SPECIFICATION.md`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/asha-app/GOVERNMENT_RCH_ANMOL_SPECIFICATION.md) for official RCH 2.0 registers, ANMOL 5.0.12 schemas, National Immunization Schedule (NIS Annexure 2), Naegele's rule EDD calculation (Annexure 1), VHND workflows, and ASHA vs ANM role boundaries.
 - **Voice Engine:** `expo-speech-recognition`, `expo-speech` (Local model initialization for offline rural dialect dictation).
-- **Language Localization:** Strictly **Hindi (`hi`)** and **Marathi (`mr`)** only. Zero English leakage policy for all patient-facing and field worker interfaces.
+- **Language Localization:** Three complete, separate languages: **Hindi (`hi`)**, **Marathi (`mr`)** and **English (`en`)**. Each screen renders entirely in the selected language (no mixed-language strings).
 
 ---
 
@@ -47,8 +47,9 @@
    - **ASHA & ANM** cannot self-register; they authenticate via Phone + OTP (`/api/auth/otp/send` and `/api/auth/otp/verify`).
    - Roles (`ASHA`, `ANM`, `CHO`) are strictly immutable post-login.
 5. **Language Constraint:**
-   - Only Hindi (`hi`) and Marathi (`mr`) are permitted.
-   - Zero English leakage in UI. All user-facing strings must use the translation hook: `const { t } = useLanguage();`.
+   - Hindi (`hi`), Marathi (`mr`) and English (`en`) are supported; the worker picks one on Login / Profile and the CHO can assign it at onboarding.
+   - Every user-facing string must carry all three: `tr('हिंदी', 'मराठी', 'English')` (via `useTr()`), or the `t(key)` dictionary in `LanguageContext`.
+   - Screens rendered outside `<LanguageProvider>` (splash, login, auth messages) read the saved language with `src/utils/storedLanguage.ts`.
 6. **Government Compatibility Invariant:**
    - All forms, clinical tracking parameters (BP, Hb, EDD, vaccines), and role handoffs must strictly adhere to [`GOVERNMENT_RCH_ANMOL_SPECIFICATION.md`](file:///c:/Users/Krishana%20dubey/hospital-spring-boot/asha-app/GOVERNMENT_RCH_ANMOL_SPECIFICATION.md).
 7. **Guardrails:**

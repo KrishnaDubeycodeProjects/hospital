@@ -2,7 +2,7 @@
  * Role-based bottom navigation — icon + one word, 48 dp+ targets, active = tinted pill.
  *   ASHA: आज · परिवार · ＋ · सिंक · मैं
  *   ANM : आज · आशा · सत्र · मैं
- *   CHO : रेफरल · आशा · मैं
+ *   CHO : प्रदर्शन · रेफरल · आशा · मैं
  */
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
@@ -15,6 +15,7 @@ import {
   ClipboardList,
   QrCode,
   Route,
+  ChartColumn,
   type LucideIcon,
 } from 'lucide-react-native';
 import { UserRole } from '../context/AuthContext';
@@ -28,11 +29,12 @@ export type TabKey =
   | 'anmQueue'
   | 'anmWorkers'
   | 'anmSession'
+  | 'choPerformance'
   | 'choReferrals'
   | 'choWorkers';
 
 export function homeTabFor(role: UserRole): TabKey {
-  return role === 'CHO' ? 'choReferrals' : role === 'ANM' ? 'anmQueue' : 'today';
+  return role === 'CHO' ? 'choPerformance' : role === 'ANM' ? 'anmQueue' : 'today';
 }
 
 interface BottomNavProps {
@@ -49,22 +51,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({ role, activeTab, onTabChan
   const tabs: { key: TabKey; label: string; icon: LucideIcon }[] =
     role === 'CHO'
       ? [
-          { key: 'choReferrals', label: tr('रेफरल', 'संदर्भ'), icon: Route },
-          { key: 'choWorkers', label: tr('आशा', 'आशा'), icon: Users },
-          { key: 'me', label: tr('मैं', 'मी'), icon: UserRound },
+          { key: 'choPerformance', label: tr('प्रदर्शन', 'कामगिरी', 'Performance'), icon: ChartColumn },
+          { key: 'choReferrals', label: tr('रेफरल', 'संदर्भ', 'Referrals'), icon: Route },
+          { key: 'choWorkers', label: tr('आशा', 'आशा', 'ASHA'), icon: Users },
+          { key: 'me', label: tr('मैं', 'मी', 'Me'), icon: UserRound },
         ]
       : role === 'ANM'
       ? [
-          { key: 'anmQueue', label: tr('आज', 'आज'), icon: ClipboardList },
-          { key: 'anmWorkers', label: tr('आशा', 'आशा'), icon: Users },
-          { key: 'anmSession', label: tr('सत्र', 'सत्र'), icon: QrCode },
-          { key: 'me', label: tr('मैं', 'मी'), icon: UserRound },
+          { key: 'anmQueue', label: tr('आज', 'आज', 'Today'), icon: ClipboardList },
+          { key: 'anmWorkers', label: tr('आशा', 'आशा', 'ASHA'), icon: Users },
+          { key: 'anmSession', label: tr('सत्र', 'सत्र', 'Session'), icon: QrCode },
+          { key: 'me', label: tr('मैं', 'मी', 'Me'), icon: UserRound },
         ]
       : [
-          { key: 'today', label: tr('आज', 'आज'), icon: CalendarCheck },
-          { key: 'families', label: tr('परिवार', 'कुटुंब'), icon: Users },
-          { key: 'sync', label: tr('सिंक', 'सिंक'), icon: RefreshCw },
-          { key: 'me', label: tr('मैं', 'मी'), icon: UserRound },
+          { key: 'today', label: tr('आज', 'आज', 'Today'), icon: CalendarCheck },
+          { key: 'families', label: tr('परिवार', 'कुटुंब', 'Families'), icon: Users },
+          { key: 'sync', label: tr('सिंक', 'सिंक', 'Sync'), icon: RefreshCw },
+          { key: 'me', label: tr('मैं', 'मी', 'Me'), icon: UserRound },
         ];
 
   const renderTab = (t: { key: TabKey; label: string; icon: LucideIcon }) => {
@@ -107,7 +110,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ role, activeTab, onTabChan
         <Pressable
           onPress={onAddPress}
           accessibilityRole="button"
-          accessibilityLabel={tr('नया जोड़ें', 'नवीन जोडा')}
+          accessibilityLabel={tr('नया जोड़ें', 'नवीन जोडा', 'Add new')}
           style={({ pressed }) => [styles.addWrap, pressed && { transform: [{ scale: 0.95 }] }]}
         >
           <View style={styles.addButton}>

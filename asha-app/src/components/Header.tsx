@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
       ? { uri: '/aarogya_flow_icon_transparent_hd.png' }
       : require('../../assets/aarogya_flow_icon_transparent_hd.png');
 
-  const cadre = user.role === 'CHO' ? tr('सीएचओ', 'सीएचओ') : user.role === 'ANM' ? tr('एएनएम', 'एएनएम') : tr('आशा', 'आशा');
+  const cadre = user.role === 'CHO' ? tr('सीएचओ', 'सीएचओ', 'CHO') : user.role === 'ANM' ? tr('एएनएम', 'एएनएम', 'ANM') : tr('आशा', 'आशा', 'ASHA');
 
   return (
     <View style={styles.container}>
@@ -32,15 +32,15 @@ export const Header: React.FC<HeaderProps> = ({ onRolePress }) => {
           <Image source={logoSource} style={styles.logo} resizeMode="contain" />
         </View>
         <Text style={text.heading} numberOfLines={1}>
-          {tr('आरोग्य फ्लो', 'आरोग्य फ्लो')}
+          {tr('आरोग्य फ्लो', 'आरोग्य फ्लो', 'Aarogya Flow')}
         </Text>
       </View>
 
       <View style={styles.right}>
         {isSyncing ? (
-          <StatusPill tone="accent" icon={RefreshCw} label={tr('सिंक', 'सिंक')} />
+          <StatusPill tone="accent" icon={RefreshCw} label={tr('सिंक', 'सिंक', 'Sync')} />
         ) : (
-          <StatusPill tone={isOnline ? 'green' : 'amber'} icon={isOnline ? Wifi : CloudOff} label={isOnline ? tr('ऑनलाइन', 'ऑनलाइन') : tr('ऑफलाइन', 'ऑफलाइन')} />
+          <StatusPill tone={isOnline ? 'green' : 'amber'} icon={isOnline ? Wifi : CloudOff} label={isOnline ? tr('ऑनलाइन', 'ऑनलाइन', 'Online') : tr('ऑफलाइन', 'ऑफलाइन', 'Offline')} />
         )}
         <Pressable onPress={onRolePress} accessibilityRole="button" accessibilityLabel={cadre} style={styles.cadre} hitSlop={6}>
           <Shield size={13} color={color.accent} strokeWidth={2.2} />

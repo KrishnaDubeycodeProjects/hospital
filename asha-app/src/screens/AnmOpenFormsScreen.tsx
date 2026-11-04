@@ -120,10 +120,10 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
 
   const catMeta = (c: Category): { icon: LucideIcon; tone: Tone; label: string } =>
     c === 'CHILD_VAX'
-      ? { icon: Syringe, tone: 'accent', label: tr('बाल टीकाकरण', 'बाल लसीकरण') }
+      ? { icon: Syringe, tone: 'accent', label: tr('बाल टीकाकरण', 'बाल लसीकरण', 'Child immunisation') }
       : c === 'ANC'
-      ? { icon: HeartPulse, tone: 'red', label: tr('प्रसव पूर्व जांच', 'प्रसूतीपूर्व तपासणी') }
-      : { icon: Activity, tone: 'amber', label: tr('NCD जांच', 'NCD तपासणी') };
+      ? { icon: HeartPulse, tone: 'red', label: tr('प्रसव पूर्व जांच', 'प्रसूतीपूर्व तपासणी', 'Antenatal check-up') }
+      : { icon: Activity, tone: 'amber', label: tr('NCD जांच', 'NCD तपासणी', 'NCD screening') };
 
   const closeScanSoon = () =>
     setTimeout(() => {
@@ -138,20 +138,20 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
     try {
       data = JSON.parse(raw);
     } catch {
-      setScanNotice({ tone: 'red', msg: tr('QR कोड पढ़ा नहीं गया', 'QR कोड वाचला नाही') });
+      setScanNotice({ tone: 'red', msg: tr('QR कोड पढ़ा नहीं गया', 'QR कोड वाचला नाही', 'QR code could not be read') });
       return;
     }
     const cat: Category = ['CHILD_VAX', 'ANC', 'NCD'].includes(data.c || data.cluster) ? data.c || data.cluster : 'CHILD_VAX';
     const cnt = Number(data.cnt ?? data.count ?? (Array.isArray(data.items) ? data.items.length : 0));
     if (!Number.isFinite(cnt) || cnt <= 0) {
-      setScanNotice({ tone: 'amber', msg: tr('कोड में कोई रिकॉर्ड नहीं', 'कोडमध्ये नोंद नाही') });
+      setScanNotice({ tone: 'amber', msg: tr('कोड में कोई रिकॉर्ड नहीं', 'कोडमध्ये नोंद नाही', 'No records in the code') });
       return;
     }
     await receiveRecordsInAnmSession(cat, cnt);
     const who = data.n || data.ashaName;
     setScanNotice({
       tone: 'green',
-      msg: who ? `${who}: ${cnt} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या')}` : `${cnt} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या')}`,
+      msg: who ? `${who}: ${cnt} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या', 'Records received')}` : `${cnt} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या', 'Records received')}`,
     });
     closeScanSoon();
   };
@@ -159,18 +159,18 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
   const handleFileScan = async (e: any) => {
     const file = e.target?.files?.[0];
     if (!file) return;
-    setScanNotice({ tone: 'accent', msg: tr('स्कैन हो रहा है…', 'स्कॅन होत आहे…') });
+    setScanNotice({ tone: 'accent', msg: tr('स्कैन हो रहा है…', 'स्कॅन होत आहे…', 'Scanning…') });
     try {
       const decoded = await scanQrFromImageFile(file);
       await processPayload(decoded);
     } catch {
-      setScanNotice({ tone: 'red', msg: tr('QR नहीं मिला, साफ फोटो लें', 'QR मिळाला नाही, स्पष्ट फोटो घ्या') });
+      setScanNotice({ tone: 'red', msg: tr('QR नहीं मिला, साफ फोटो लें', 'QR मिळाला नाही, स्पष्ट फोटो घ्या', 'QR not found, take a clear photo') });
     }
   };
 
   const handleCreate = async () => {
     if (!newTitle.trim()) {
-      setTitleError(tr('शीर्षक लिखें', 'शीर्षक लिहा'));
+      setTitleError(tr('शीर्षक लिखें', 'शीर्षक लिहा', 'Enter a title'));
       return;
     }
     const created = await createAnmSession({
@@ -178,7 +178,7 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
       category: newCategory,
       studyType: catMeta(newCategory).label,
       notes: newNotes.trim(),
-      location: newLocation.trim() || tr('उपकेंद्र', 'उपकेंद्र'),
+      location: newLocation.trim() || tr('उपकेंद्र', 'उपकेंद्र', 'Sub-centre'),
     });
     setNewTitle('');
     setNewNotes('');
@@ -196,8 +196,8 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
       <EmptyState
         icon={CloudOff}
         tone="amber"
-        title={isOnline ? tr('डेटा लोड नहीं हुआ', 'डेटा लोड झाला नाही') : tr('इंटरनेट नहीं है', 'इंटरनेट नाही')}
-        action={<Button label={tr('फिर कोशिश', 'पुन्हा प्रयत्न')} icon={RotateCcw} variant="secondary" full={false} onPress={load} />}
+        title={isOnline ? tr('डेटा लोड नहीं हुआ', 'डेटा लोड झाला नाही', 'Data not loaded') : tr('इंटरनेट नहीं है', 'इंटरनेट नाही', 'No internet')}
+        action={<Button label={tr('फिर कोशिश', 'पुन्हा प्रयत्न', 'Try again')} icon={RotateCcw} variant="secondary" full={false} onPress={load} />}
       />
     ) : (
       empty
@@ -210,14 +210,14 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
         <BroadcastInbox />
         <Card>
           <View style={styles.statsRow}>
-            <Stat value={totalForms} label={tr('फॉर्म बाकी', 'फॉर्म बाकी')} tone="amber" />
+            <Stat value={totalForms} label={tr('फॉर्म बाकी', 'फॉर्म बाकी', 'Forms pending')} tone="amber" />
             <View style={styles.vr} />
-            <Stat value={queue.length} label={tr('आशा से', 'आशांकडून')} tone="neutral" />
+            <Stat value={queue.length} label={tr('आशा से', 'आशांकडून', 'From ASHA')} tone="neutral" />
           </View>
         </Card>
-        <SectionTitle label={tr('समीक्षा हेतु', 'पडताळणीसाठी')} count={queue.length} />
+        <SectionTitle label={tr('समीक्षा हेतु', 'पडताळणीसाठी', 'For review')} count={queue.length} />
         {loadState === 'ready' && queue.length === 0 ? (
-          <EmptyState icon={CircleCheck} title={tr('कोई फॉर्म बाकी नहीं', 'कोणताही फॉर्म बाकी नाही')} />
+          <EmptyState icon={CircleCheck} title={tr('कोई फॉर्म बाकी नहीं', 'कोणताही फॉर्म बाकी नाही', 'No forms pending')} />
         ) : loadState === 'ready' ? (
           <View style={styles.list}>
             {queue.map((r) => (
@@ -228,7 +228,7 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
                 title={r.worker?.name || r.asha_worker_phone}
                 subtitle={r.worker?.villageName || undefined}
                 onPress={() => onSelectAsha?.({ name: r.worker?.name || r.asha_worker_phone, village: r.worker?.villageName || '', phone: r.asha_worker_phone })}
-                right={<StatusPill tone="amber" label={`${r.count} ${tr('फॉर्म', 'फॉर्म')}`} />}
+                right={<StatusPill tone="amber" label={`${r.count} ${tr('फॉर्म', 'फॉर्म', 'Form')}`} />}
               />
             ))}
           </View>
@@ -242,10 +242,10 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
   if (view === 'workers') {
     return (
       <Screen>
-        <SectionTitle label={tr('मेरी आशा', 'माझ्या आशा')} count={loadState === 'ready' ? workers.length : undefined} />
+        <SectionTitle label={tr('मेरी आशा', 'माझ्या आशा', 'My ASHAs')} count={loadState === 'ready' ? workers.length : undefined} />
         {loadState === 'ready' ? (
           workers.length === 0 ? (
-            <EmptyState icon={Users} tone="neutral" title={tr('कोई आशा नहीं जुड़ी', 'कोणतीही आशा जोडलेली नाही')} />
+            <EmptyState icon={Users} tone="neutral" title={tr('कोई आशा नहीं जुड़ी', 'कोणतीही आशा जोडलेली नाही', 'No ASHA linked')} />
           ) : (
             <View style={styles.list}>
               {workers.map((w) => {
@@ -260,9 +260,9 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
                     onPress={() => onSelectAsha?.({ name: w.name, village: w.villageName || '', phone: w.phone })}
                     right={
                       pending > 0 ? (
-                        <StatusPill tone="amber" label={`${pending} ${tr('फॉर्म', 'फॉर्म')}`} />
+                        <StatusPill tone="amber" label={`${pending} ${tr('फॉर्म', 'फॉर्म', 'Form')}`} />
                       ) : (
-                        <StatusPill tone="green" label={tr('अद्यतन', 'अद्ययावत')} />
+                        <StatusPill tone="green" label={tr('अद्यतन', 'अद्ययावत', 'Updated')} />
                       )
                     }
                   />
@@ -286,16 +286,16 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
 
       <View style={styles.actionsRow}>
         <View style={styles.flex}>
-          <Button label={tr('नया सत्र', 'नवीन सत्र')} icon={Plus} onPress={() => setShowCreate(true)} />
+          <Button label={tr('नया सत्र', 'नवीन सत्र', 'New session')} icon={Plus} onPress={() => setShowCreate(true)} />
         </View>
         <View style={styles.flex}>
-          <Button label={tr('आशा QR स्कैन', 'आशा QR स्कॅन')} icon={ScanLine} variant="secondary" onPress={() => setShowScan(true)} />
+          <Button label={tr('आशा QR स्कैन', 'आशा QR स्कॅन', 'Scan ASHA QR')} icon={ScanLine} variant="secondary" onPress={() => setShowScan(true)} />
         </View>
       </View>
 
-      <SectionTitle label={tr('VHND सत्र', 'VHND सत्र')} count={anmSessions.length} />
+      <SectionTitle label={tr('VHND सत्र', 'VHND सत्र', 'VHND session')} count={anmSessions.length} />
       {anmSessions.length === 0 ? (
-        <EmptyState icon={Inbox} tone="neutral" title={tr('अभी कोई सत्र नहीं', 'अजून सत्र नाही')} />
+        <EmptyState icon={Inbox} tone="neutral" title={tr('अभी कोई सत्र नहीं', 'अजून सत्र नाही', 'No sessions yet')} />
       ) : (
         <View style={styles.list}>
           {anmSessions.map((s) => {
@@ -312,16 +312,16 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
                   right={
                     <StatusPill
                       tone={s.recordsCount > 0 ? 'green' : 'neutral'}
-                      label={`${s.recordsCount} ${tr('रिकॉर्ड', 'नोंदी')}`}
+                      label={`${s.recordsCount} ${tr('रिकॉर्ड', 'नोंदी', 'Records')}`}
                     />
                   }
                 />
                 <View style={styles.sessionActions}>
                   <View style={styles.flex}>
-                    <Button label={tr('QR दिखाएँ', 'QR दाखवा')} icon={QrCode} variant="secondary" onPress={() => setQrSession(s)} />
+                    <Button label={tr('QR दिखाएँ', 'QR दाखवा', 'Show QR')} icon={QrCode} variant="secondary" onPress={() => setQrSession(s)} />
                   </View>
                   {deletable ? (
-                    <IconButton icon={Trash2} tone="red" filled label={tr('सत्र हटाएँ', 'सत्र काढा')} onPress={() => deleteAnmSession(s.id)} />
+                    <IconButton icon={Trash2} tone="red" filled label={tr('सत्र हटाएँ', 'सत्र काढा', 'Delete session')} onPress={() => deleteAnmSession(s.id)} />
                   ) : null}
                 </View>
               </Card>
@@ -331,14 +331,14 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
       )}
 
       {/* Create session */}
-      <Sheet visible={showCreate} onClose={() => setShowCreate(false)} title={tr('नया सत्र', 'नवीन सत्र')} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={showCreate} onClose={() => setShowCreate(false)} title={tr('नया सत्र', 'नवीन सत्र', 'New session')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         <Chips
           value={newCategory}
           onChange={setNewCategory}
           options={(['CHILD_VAX', 'ANC', 'NCD'] as Category[]).map((c) => ({ key: c, label: catMeta(c).label, tone: catMeta(c).tone }))}
         />
         <Field
-          label={tr('सत्र का नाम', 'सत्राचे नाव')} voice="text"
+          label={tr('सत्र का नाम', 'सत्राचे नाव', 'Session name')} voice="text"
           value={newTitle}
           onChangeText={(v) => {
             setNewTitle(v);
@@ -347,14 +347,14 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
           error={titleError}
         />
         <Field
-          label={tr('स्थान', 'ठिकाण')} voice="text"
+          label={tr('स्थान', 'ठिकाण', 'Location')} voice="text"
           value={newLocation}
           onChangeText={setNewLocation}
-          helper={tr('जैसे: आंगनवाड़ी केंद्र', 'उदा. अंगणवाडी केंद्र')}
+          helper={tr('जैसे: आंगनवाड़ी केंद्र', 'उदा. अंगणवाडी केंद्र', 'e.g. Anganwadi centre')}
           right={<MapPin size={18} color={color.faint} />}
         />
-        <Field label={tr('टिप्पणी', 'टीप')} value={newNotes} voice="long" onChangeText={setNewNotes} multiline />
-        <Button label={tr('सत्र बनाएँ', 'सत्र तयार करा')} icon={QrCode} onPress={handleCreate} />
+        <Field label={tr('टिप्पणी', 'टीप', 'Note')} value={newNotes} voice="long" onChangeText={setNewNotes} multiline />
+        <Button label={tr('सत्र बनाएँ', 'सत्र तयार करा', 'Create session')} icon={QrCode} onPress={handleCreate} />
       </Sheet>
 
       {/* Session QR for ASHAs to scan */}
@@ -362,20 +362,20 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
         visible={!!qrSession}
         onClose={() => setQrSession(null)}
         title={qrSession?.title}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         {qrSession ? (
           <View style={styles.qrWrap}>
             <StatusPill tone={catMeta(qrSession.category).tone} label={catMeta(qrSession.category).label} />
             <RealQrCode value={qrSession.qrCodeValue} size={220} label={qrSession.qrCodeValue} />
-            <Text style={[text.body, styles.center]}>{tr('आशा फोन से यह QR स्कैन करें', 'आशा फोनने हा QR स्कॅन करा')}</Text>
-            <Button label={tr('पूर्ण', 'पूर्ण')} icon={CircleCheck} onPress={() => setQrSession(null)} />
+            <Text style={[text.body, styles.center]}>{tr('आशा फोन से यह QR स्कैन करें', 'आशा फोनने हा QR स्कॅन करा', 'Scan this QR from the ASHA phone')}</Text>
+            <Button label={tr('पूर्ण', 'पूर्ण', 'Done')} icon={CircleCheck} onPress={() => setQrSession(null)} />
           </View>
         ) : null}
       </Sheet>
 
       {/* Session records */}
-      <Sheet visible={!!inspected} onClose={() => setInspected(null)} title={inspected?.title} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={!!inspected} onClose={() => setInspected(null)} title={inspected?.title} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         {inspected ? (
           inspected.category === 'CHILD_VAX' && childVaccinations.length > 0 ? (
             <View style={styles.list}>
@@ -389,12 +389,12 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
                     icon={Syringe}
                     tone={due > 0 ? 'amber' : 'green'}
                     title={c.childName}
-                    subtitle={`${c.ageMonths} ${tr('माह', 'महिने')}${c.mctsCode ? ` • ${c.mctsCode}` : ''}`}
+                    subtitle={`${c.ageMonths} ${tr('माह', 'महिने', 'Month')}${c.mctsCode ? ` • ${c.mctsCode}` : ''}`}
                     right={
                       due > 0 ? (
-                        <StatusPill tone="amber" label={`${due} ${tr('देय', 'देय')}`} />
+                        <StatusPill tone="amber" label={`${due} ${tr('देय', 'देय', 'Due')}`} />
                       ) : (
-                        <StatusPill tone="green" label={`${given} ${tr('दिए', 'दिल्या')}`} />
+                        <StatusPill tone="green" label={`${given} ${tr('दिए', 'दिल्या', 'Given')}`} />
                       )
                     }
                   />
@@ -407,8 +407,8 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
               tone={inspected.recordsCount > 0 ? 'green' : 'neutral'}
               title={
                 inspected.recordsCount > 0
-                  ? `${inspected.recordsCount} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या')}`
-                  : tr('अभी कोई रिकॉर्ड नहीं', 'अजून नोंद नाही')
+                  ? `${inspected.recordsCount} ${tr('रिकॉर्ड प्राप्त', 'नोंदी मिळाल्या', 'Records received')}`
+                  : tr('अभी कोई रिकॉर्ड नहीं', 'अजून नोंद नाही', 'No records yet')
               }
             />
           )
@@ -422,20 +422,20 @@ export const AnmOpenFormsScreen: React.FC<AnmOpenFormsScreenProps> = ({ onSelect
           setShowScan(false);
           setScanNotice(null);
         }}
-        title={tr('आशा QR स्कैन', 'आशा QR स्कॅन')}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        title={tr('आशा QR स्कैन', 'आशा QR स्कॅन', 'Scan ASHA QR')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         {scanNotice ? <StatusPill tone={scanNotice.tone} label={scanNotice.msg} /> : null}
         {Platform.OS === 'web' ? (
           <Button
-            label={tr('QR फोटो चुनें', 'QR फोटो निवडा')}
+            label={tr('QR फोटो चुनें', 'QR फोटो निवडा', 'Choose QR photo')}
             icon={ScanLine}
             onPress={() => fileInputRef.current && fileInputRef.current.click()}
           />
         ) : null}
-        <Field label={tr('या कोड लिखें', 'किंवा कोड लिहा')} value={payload} onChangeText={setPayload} multiline />
+        <Field label={tr('या कोड लिखें', 'किंवा कोड लिहा', 'or enter code')} value={payload} onChangeText={setPayload} multiline />
         <Button
-          label={tr('डेटा जोड़ें', 'डेटा जोडा')}
+          label={tr('डेटा जोड़ें', 'डेटा जोडा', 'Add data')}
           icon={CircleCheck}
           disabled={!payload.trim()}
           onPress={() => processPayload(payload.trim())}

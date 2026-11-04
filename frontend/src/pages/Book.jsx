@@ -36,6 +36,56 @@ function getFamilyAvatarVisual(member, index = 0) {
 }
 
 
+const BOOKING_STEPS = [
+  { key: 'department', label: 'Doctor' },
+  { key: 'family', label: 'Patient' },
+  { key: 'confirm', label: 'Confirm' },
+];
+
+function BookingSteps({ step }) {
+  const current = BOOKING_STEPS.findIndex((s) => s.key === step);
+  return (
+    <ol
+      aria-label="Booking steps"
+      style={{ listStyle: 'none', margin: '8px 0 0', padding: 0, display: 'flex', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}
+    >
+      {BOOKING_STEPS.map((s, i) => {
+        const done = i < current;
+        const active = i === current;
+        const on = active || done;
+        return (
+          <li
+            key={s.key}
+            aria-current={active ? 'step' : undefined}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: active ? 700 : 600, color: on ? '#047857' : '#94A3B8' }}
+          >
+            <span
+              style={{
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                fontWeight: 800,
+                backgroundColor: on ? '#047857' : '#E2E8F0',
+                color: on ? '#ffffff' : '#64748B',
+              }}
+            >
+              {done ? '✓' : i + 1}
+            </span>
+            <span>{s.label}</span>
+            {i < BOOKING_STEPS.length - 1 && (
+              <span aria-hidden="true" style={{ width: '14px', height: '2px', backgroundColor: done ? '#047857' : '#E2E8F0' }} />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export default function Book() {
   const [params] = useSearchParams();
   const hospitalIdParam = params.get('hospitalId') ? Number(params.get('hospitalId')) : null;
@@ -90,7 +140,7 @@ export default function Book() {
   // link can never make you book (or view) under someone else's number.
   const activeUserPhone = patient?.subject || params.get('phone') || '';
   const cleanPhoneStr = activeUserPhone ? activeUserPhone.replace(/\D/g, '') : '';
-  const primaryPhone = cleanPhoneStr ? `+91 ${cleanPhoneStr.slice(-10)}` : '+91 98765 43210';
+  const primaryPhone = cleanPhoneStr ? `+91 ${cleanPhoneStr.slice(-10)}` : 'Not signed in';
   const [familyMembers, setFamilyMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [selectedMemberId, setSelectedMemberId] = useState(patientIdParam);
@@ -525,7 +575,10 @@ export default function Book() {
     if (!deptSearch.trim()) return popularList;
     const q = deptSearch.toLowerCase().trim();
     return popularList.filter(
-      (d) => d.displayName.toLowerCase().includes(q) || d.fullLabel.toLowerCase().includes(q)
+      (d) =>
+        d.displayName.toLowerCase().includes(q) ||
+        d.fullLabel.toLowerCase().includes(q) ||
+        (d.hint || '').toLowerCase().includes(q)
     );
   }, [popularList, deptSearch]);
 
@@ -533,7 +586,10 @@ export default function Book() {
     if (!deptSearch.trim()) return remainingList;
     const q = deptSearch.toLowerCase().trim();
     return remainingList.filter(
-      (d) => d.displayName.toLowerCase().includes(q) || d.fullLabel.toLowerCase().includes(q)
+      (d) =>
+        d.displayName.toLowerCase().includes(q) ||
+        d.fullLabel.toLowerCase().includes(q) ||
+        (d.hint || '').toLowerCase().includes(q)
     );
   }, [remainingList, deptSearch]);
 
@@ -549,13 +605,7 @@ export default function Book() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F8FAFC' }}>
-      <AppHeader
-        activeNav="book"
-        backTo="/find-hospital"
-        backLabel="Hospitals"
-        title={hospitalName || 'Book OPD Token'}
-        subtitle={step === 'department' ? 'Step 1: Department' : step === 'family' ? 'Step 2: Patient' : 'Step 3: Confirm'}
-      />
+      <AppHeader activeNav="book" />
       <main
         style={{
           width: '100%',
@@ -623,18 +673,9 @@ export default function Book() {
                 lineHeight: 1.25,
               }}
             >
-              {step === 'department' ? 'Select Department' : 'Book OPD Token'}
+              {step === 'department' ? 'Which doctor do you need?' : step === 'family' ? 'Who is the patient?' : 'Check and confirm'}
             </h1>
-            {step === 'family' && (
-              <div style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', marginTop: '2px' }}>
-                Select who the appointment is for
-              </div>
-            )}
-            {step === 'confirm' && (
-              <div style={{ fontSize: '13px', color: '#64748b', fontWeight: '500', marginTop: '2px' }}>
-                Confirm details & generate token
-              </div>
-            )}
+            <BookingSteps step={step} />
           </div>
 
           <div style={{ width: '38px' }} />
@@ -764,7 +805,7 @@ export default function Book() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search department..."
+                  placeholder="Search: fever, eye, child, teeth…"
                   value={deptSearch}
                   onChange={(e) => setDeptSearch(e.target.value)}
                   style={{
@@ -797,7 +838,30 @@ export default function Book() {
               </div>
 
               {/* Empty state when searching */}
-              {filteredPopular.length === 0 && filteredAll.length === 0 && (
+              {(loadingCategories || dbCategories.length === 0) && !deptSearch && (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#64748b', fontSize: '14px' }}>
+                  <div className="spinner" style={{ margin: '0 auto 10px' }} />
+                  Loading departments…
+                </div>
+              )}
+
+              {!loadingCategories && dbCategories.length > 0 && !deptSearch && (
+                <div
+                  style={{
+                    backgroundColor: '#FFFBEB',
+                    border: '1px solid #FDE68A',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    fontSize: '13.5px',
+                    color: '#92400E',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Not sure which one? Choose <strong>General Medicine</strong> — the doctor will guide you.
+                </div>
+              )}
+
+              {(deptSearch || (!loadingCategories && dbCategories.length > 0)) && filteredPopular.length === 0 && filteredAll.length === 0 && (
                 <div
                   style={{
                     padding: '32px 16px',
@@ -811,7 +875,7 @@ export default function Book() {
                     No departments found for "{deptSearch}"
                   </div>
                   <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '4px' }}>
-                    This hospital offers {dbCategories.length} live departments.
+                    Try a simple word like "fever", "child", "eye" or "teeth".
                   </div>
                   <button
                     type="button"
@@ -845,7 +909,7 @@ export default function Book() {
                       letterSpacing: '-0.01em',
                     }}
                   >
-                    Popular Departments
+                    Common departments
                   </h2>
 
                   <div
@@ -913,7 +977,12 @@ export default function Book() {
                               overflow: 'hidden',
                             }}
                           >
-                            {title}
+                            <div>{title}</div>
+                            {dept.hint && (
+                              <div style={{ fontSize: '12px', fontWeight: '500', color: '#64748b', marginTop: '2px' }}>
+                                {dept.hint}
+                              </div>
+                            )}
                           </div>
 
                           <div
@@ -947,7 +1016,7 @@ export default function Book() {
                       letterSpacing: '-0.01em',
                     }}
                   >
-                    All Departments
+                    More departments
                   </h2>
 
                   <div
@@ -1008,7 +1077,12 @@ export default function Book() {
                               lineHeight: 1.3,
                             }}
                           >
-                            {dept.displayName}
+                            <div>{dept.displayName}</div>
+                            {dept.hint && (
+                              <div style={{ fontSize: '12.5px', fontWeight: '500', color: '#64748b', marginTop: '2px' }}>
+                                {dept.hint}
+                              </div>
+                            )}
                           </div>
 
                           <div style={{ flexShrink: 0, color: active ? '#00A884' : '#94A3B8' }}>
@@ -1150,7 +1224,7 @@ export default function Book() {
                         marginTop: '1px',
                       }}
                     >
-                      Linked to your account
+                      {cleanPhoneStr ? 'Your mobile number' : 'Sign in with your mobile number to continue'}
                     </div>
                   </div>
                 </div>
@@ -1233,12 +1307,31 @@ export default function Book() {
                     letterSpacing: '-0.01em',
                   }}
                 >
-                  Select a family member
+                  Who is going to the doctor?
                 </h2>
+
+                {!loadingMembers && familyMembers.length === 0 && (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      padding: '20px 16px',
+                      backgroundColor: '#F8FAFC',
+                      border: '1px dashed #CBD5E1',
+                      borderRadius: '14px',
+                      fontSize: '14px',
+                      color: '#475569',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    No patient added yet.
+                    <br />
+                    {patient ? 'Add yourself or a family member below.' : 'Sign in with your mobile number, then add the patient.'}
+                  </div>
+                )}
 
                 {loadingMembers ? (
                   <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b', fontSize: '13px' }}>
-                    Loading saved family members...
+                    Loading your family…
                   </div>
                 ) : (
                   familyMembers.map((member, idx) => {
@@ -1305,7 +1398,7 @@ export default function Book() {
                             >
                               <span>{member.relationship}</span>
                               <span>•</span>
-                              <span>{member.age} years</span>
+                              {member.age != null && <span>{member.age} years</span>}
                             </div>
                           </div>
                         </div>
@@ -1368,7 +1461,7 @@ export default function Book() {
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  <span>Add Family Member</span>
+                  <span>{patient ? 'Add a family member' : 'Sign in to add patient'}</span>
                 </button>
               </div>
             </div>
@@ -1454,7 +1547,7 @@ export default function Book() {
                 }}
               >
                 <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Appointment Summary
+                  Your booking
                 </div>
 
                 {/* Patient Row */}
@@ -1479,7 +1572,9 @@ export default function Book() {
                         {selectedMember?.name}
                       </div>
                       <div style={{ fontSize: '12.5px', color: '#64748b' }}>
-                        {selectedMember?.relationship} · {selectedMember?.age} years · {selectedMember?.gender}
+                        {[selectedMember?.relationship, selectedMember?.age != null ? `${selectedMember.age} years` : null, selectedMember?.gender]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </div>
                     </div>
                   </div>
@@ -1545,7 +1640,38 @@ export default function Book() {
                 </div>
               </div>
 
+              {queueEstimate && (
+                <div
+                  style={{
+                    backgroundColor: '#ECFDF5',
+                    border: '1px solid #A7F3D0',
+                    borderRadius: '14px',
+                    padding: '14px 16px',
+                    display: 'flex',
+                    gap: '16px',
+                    justifyContent: 'space-around',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: '#065F46' }}>
+                      {Math.max(0, queueEstimate.nextNumber - 1)}
+                    </div>
+                    <div style={{ fontSize: '12.5px', color: '#047857', fontWeight: '600' }}>tokens given today</div>
+                  </div>
+                  <div style={{ width: '1px', backgroundColor: '#A7F3D0' }} />
+                  <div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: '#065F46' }}>
+                      {queueEstimate.estWaitMins > 0 ? `~${queueEstimate.estWaitMins} min` : 'Short'}
+                    </div>
+                    <div style={{ fontSize: '12.5px', color: '#047857', fontWeight: '600' }}>expected wait</div>
+                  </div>
+                </div>
+              )}
 
+              <div style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.5, textAlign: 'center', padding: '0 8px' }}>
+                After booking you get a token number. Watch your turn live on this phone — no need to stand in line.
+              </div>
             </div>
 
             {/* Bottom Button for Step 3: Generate Token */}
@@ -1583,7 +1709,7 @@ export default function Book() {
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>{submitting ? 'Generating Token…' : 'Generate OPD Token'}</span>
+                <span>{submitting ? 'Booking your token…' : 'Confirm & get my token'}</span>
               </button>
             </div>
           </>

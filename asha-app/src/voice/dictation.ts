@@ -45,7 +45,8 @@ function finish(session: Session) {
   notify();
 }
 
-export const speechLocale = (language: string) => (language === 'mr' ? 'mr-IN' : 'hi-IN');
+export const speechLocale = (language: string) =>
+  language === 'mr' ? 'mr-IN' : language === 'en' ? 'en-IN' : 'hi-IN';
 
 export const Dictation = {
   /** Start listening for a field. Returns the session id. */
@@ -73,14 +74,16 @@ export const Dictation = {
           finish(session);
           return;
         }
-        // The language model must be on the device before listening starts.
-        const pack = await ensureSttModel(lang);
-        if (current !== session) return;
-        if (pack === 'missing' || pack === 'downloading') {
-          session.onError?.(pack === 'downloading' ? 'language-pack-downloading' : 'language-pack-missing');
-          finish(session);
-          return;
+
+        // Verify or trigger STT model check
+        let pack = 'unknown';
+        try {
+          pack = await ensureSttModel(lang);
+        } catch {
+          pack = 'unknown';
         }
+        if (current !== session) return;
+
         const base = {
           lang,
           interimResults: true,
@@ -88,9 +91,18 @@ export const Dictation = {
           continuous: false,
           androidIntentOptions: { EXTRA_PREFER_OFFLINE: true },
         };
-        // On-device only when the model is confirmed installed; otherwise the recognizer
-        // would emit `language-not-supported` asynchronously (a try/catch cannot see it).
-        ExpoSpeechRecognitionModule.start(pack === 'ready' ? { ...base, requiresOnDeviceRecognition: true } : base);
+
+        // On-device when model is confirmed ready; otherwise standard recognition fallback
+        try {
+          ExpoSpeechRecognitionModule.start(
+            pack === 'ready'
+              ? { ...base, requiresOnDeviceRecognition: true }
+              : { ...base, requiresOnDeviceRecognition: false }
+          );
+        } catch (startErr) {
+          // Robust fallback
+          ExpoSpeechRecognitionModule.start({ ...base, requiresOnDeviceRecognition: false });
+        }
       })
       .catch((err) => {
         if (current !== session) return;

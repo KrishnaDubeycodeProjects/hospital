@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, Pressable, Alert, Platform } from 'react-native';
+import { setBackGuard } from '../navigation/backGuard';
 import {
   Volume2,
   Check,
@@ -63,93 +64,93 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   formType = 'PREGNANCY',
 }) => {
   const { ttsEnabled, localeCode, language } = useLanguage();
-  const tr = (hi: string, mr: string) => (language === 'mr' ? mr : hi);
+  const tr = (hi: string, mr: string, en?: string) => (language === 'mr' ? mr : language === 'en' ? en || hi : hi);
   const { submitSurvey } = useOfflineData();
 
   const pregnancyQuestions: QuestionDef[] = [
     {
       id: 'p1',
       number: 1,
-      title: tr('क्या महिला गर्भवती है? (ANC)', 'स्त्री गरोदर आहे का? (ANC)'),
+      title: tr('क्या महिला गर्भवती है? (ANC)', 'स्त्री गरोदर आहे का? (ANC)', 'Is the woman pregnant? (ANC)'),
       type: 'binary',
       fieldKey: 'isPregnant',
-      options: [tr('हाँ', 'होय'), tr('नहीं', 'नाही')],
+      options: [tr('हाँ', 'होय', 'Yes'), tr('नहीं', 'नाही', 'No')],
     },
     {
       id: 'p_lmp',
       number: 2,
-      title: tr('अंतिम मासिक धर्म तिथि (LMP)', 'शेवटची मासिक पाळीची तारीख (LMP)'),
+      title: tr('अंतिम मासिक धर्म तिथि (LMP)', 'शेवटची मासिक पाळीची तारीख (LMP)', 'Last menstrual period date (LMP)'),
       type: 'date',
       fieldKey: 'lmpDate',
-      helperText: tr('EDD = LMP + 9 माह + 7 दिन', 'EDD = LMP + 9 महिने + 7 दिवस'),
+      helperText: tr('EDD = LMP + 9 माह + 7 दिन', 'EDD = LMP + 9 महिने + 7 दिवस', 'EDD = LMP + 9 months + 7 days'),
     },
     {
       id: 'p2',
       number: 2,
-      title: tr('प्रसव पूर्व जाँच (ANC विजिट)', 'प्रसूतीपूर्व तपासणी (ANC भेट)'),
+      title: tr('प्रसव पूर्व जाँच (ANC विजिट)', 'प्रसूतीपूर्व तपासणी (ANC भेट)', 'Antenatal check-up (ANC visit)'),
       type: 'options',
       fieldKey: 'ancVisit',
-      options: ['ANC 1', 'ANC 2', 'ANC 3', 'ANC 4', tr('सभी पूर्ण', 'सर्व पूर्ण')],
+      options: ['ANC 1', 'ANC 2', 'ANC 3', 'ANC 4', tr('सभी पूर्ण', 'सर्व पूर्ण', 'All done')],
     },
     {
       id: 'p3',
       number: 3,
-      title: tr('Td टीका लगाया गया?', 'Td लस दिली का?'),
+      title: tr('Td टीका लगाया गया?', 'Td लस दिली का?', 'Td vaccine given?'),
       type: 'binary',
       fieldKey: 'ttGiven',
-      options: [tr('✓ लगाया गया', '✓ दिली'), tr('✕ नहीं लगाया', '✕ दिली नाही')],
+      options: [tr('✓ लगाया गया', '✓ दिली', '✓ Given'), tr('✕ नहीं लगाया', '✕ दिली नाही', '✕ Not given')],
     },
     {
       id: 'p4',
       number: 4,
-      title: tr('बी.पी. एवं वजन', 'बी.पी. व वजन'),
+      title: tr('बी.पी. एवं वजन', 'बी.पी. व वजन', 'BP & weight'),
       type: 'custom_clinical',
       fieldKey: 'bpAndWeight',
-      helperText: tr('सामान्य बी.पी.: 120/80', 'सामान्य बी.पी.: 120/80'),
+      helperText: tr('सामान्य बी.पी.: 120/80', 'सामान्य बी.पी.: 120/80', 'Normal BP: 120/80'),
     },
     {
       id: 'p5',
       number: 5,
-      title: tr('हीमोग्लोबिन (g/dL)', 'हिमोग्लोबिन (g/dL)'),
+      title: tr('हीमोग्लोबिन (g/dL)', 'हिमोग्लोबिन (g/dL)', 'Haemoglobin (g/dL)'),
       type: 'number',
       fieldKey: 'hemoglobin',
-      helperText: tr('11 से कम → एनीमिया (उच्च जोखिम)', '11 पेक्षा कमी → रक्तक्षय (उच्च जोखीम)'),
+      helperText: tr('11 से कम → एनीमिया (उच्च जोखिम)', '11 पेक्षा कमी → रक्तक्षय (उच्च जोखीम)', 'Below 11 → anaemia (high risk)'),
     },
     {
       id: 'p6',
       number: 6,
-      title: tr('मूत्र जाँच', 'लघवी तपासणी'),
+      title: tr('मूत्र जाँच', 'लघवी तपासणी', 'Urine test'),
       type: 'options',
       fieldKey: 'urine',
-      options: [tr('सामान्य', 'सामान्य'), tr('असामान्य (प्रोटीन+)', 'असामान्य (प्रथिने+)'), tr('जाँच नहीं हुई', 'तपासणी झाली नाही')],
+      options: [tr('सामान्य', 'सामान्य', 'Normal'), tr('असामान्य (प्रोटीन+)', 'असामान्य (प्रथिने+)', 'Abnormal (protein+)'), tr('जाँच नहीं हुई', 'तपासणी झाली नाही', 'Not tested')],
     },
     {
       id: 'p7',
       number: 7,
-      title: tr('पेट की जाँच हुई?', 'पोटाची तपासणी झाली का?'),
+      title: tr('पेट की जाँच हुई?', 'पोटाची तपासणी झाली का?', 'Abdominal exam done?'),
       type: 'binary',
       fieldKey: 'abdominalExam',
-      options: [tr('✓ की गई', '✓ केली'), tr('✕ नहीं की गई', '✕ केली नाही')],
+      options: [tr('✓ की गई', '✓ केली', '✓ Done'), tr('✕ नहीं की गई', '✕ केली नाही', '✕ Not done')],
     },
     {
       id: 'p8',
       number: 8,
-      title: tr('IFA एवं कैल्शियम गोलियाँ', 'IFA व कॅल्शियम गोळ्या'),
+      title: tr('IFA एवं कैल्शियम गोलियाँ', 'IFA व कॅल्शियम गोळ्या', 'IFA & calcium tablets'),
       type: 'dual_number',
       fieldKey: 'tablets',
-      helperText: tr('लक्ष्य: 180 गोलियाँ प्रत्येक', 'लक्ष्य: प्रत्येकी 180 गोळ्या'),
+      helperText: tr('लक्ष्य: 180 गोलियाँ प्रत्येक', 'लक्ष्य: प्रत्येकी 180 गोळ्या', 'Target: 180 tablets each'),
     },
     {
       id: 'p9',
       number: 9,
-      title: tr('सेवा की स्थिति', 'सेवेची स्थिती'),
+      title: tr('सेवा की स्थिति', 'सेवेची स्थिती', 'Service status'),
       type: 'options',
       fieldKey: 'serviceStatus',
       options: [
-        tr('✓ सेवा पूर्ण', '✓ सेवा पूर्ण'),
-        tr('लाभार्थी अनुपस्थित', 'लाभार्थी अनुपस्थित'),
-        tr('लाभार्थी का इनकार', 'लाभार्थीचा नकार'),
-        tr('अस्पताल रेफरल', 'रुग्णालय संदर्भ'),
+        tr('✓ सेवा पूर्ण', '✓ सेवा पूर्ण', '✓ Service complete'),
+        tr('लाभार्थी अनुपस्थित', 'लाभार्थी अनुपस्थित', 'Beneficiary absent'),
+        tr('लाभार्थी का इनकार', 'लाभार्थीचा नकार', 'Beneficiary refused'),
+        tr('अस्पताल रेफरल', 'रुग्णालय संदर्भ', 'Hospital referral'),
       ],
     },
   ];
@@ -158,42 +159,42 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     {
       id: 'c1',
       number: 1,
-      title: tr('आज टीका लगाया गया?', 'आज लस दिली का?'),
+      title: tr('आज टीका लगाया गया?', 'आज लस दिली का?', 'Vaccine given today?'),
       type: 'binary',
       fieldKey: 'vaccineGiven',
-      options: [tr('✓ हाँ, टीका लगाया', '✓ होय, लस दिली'), tr('✕ नहीं लगाया', '✕ दिली नाही')],
+      options: [tr('✓ हाँ, टीका लगाया', '✓ होय, लस दिली', '✓ Yes, vaccinated'), tr('✕ नहीं लगाया', '✕ दिली नाही', '✕ Not given')],
     },
     {
       id: 'c2',
       number: 2,
-      title: tr('शिशु का वजन (kg)', 'बाळाचे वजन (kg)'),
+      title: tr('शिशु का वजन (kg)', 'बाळाचे वजन (kg)', 'Infant weight (kg)'),
       type: 'number',
       fieldKey: 'childWeight',
-      helperText: tr('वृद्धि निगरानी', 'वाढ निरीक्षण'),
+      helperText: tr('वृद्धि निगरानी', 'वाढ निरीक्षण', 'Growth monitoring'),
     },
     {
       id: 'c3',
       number: 3,
-      title: tr('बीमारी / खतरे के लक्षण', 'आजार / धोक्याची लक्षणे'),
+      title: tr('बीमारी / खतरे के लक्षण', 'आजार / धोक्याची लक्षणे', 'Illness / danger signs'),
       type: 'options',
       fieldKey: 'childCondition',
       options: [
-        tr('पूर्णतः स्वस्थ', 'पूर्णपणे निरोगी'),
-        tr('खाँसी / सर्दी / बुखार', 'खोकला / सर्दी / ताप'),
-        tr('दस्त (ORS देय)', 'जुलाब (ORS देय)'),
-        tr('गंभीर — रेफरल आवश्यक', 'गंभीर — संदर्भ आवश्यक'),
+        tr('पूर्णतः स्वस्थ', 'पूर्णपणे निरोगी', 'Fully healthy'),
+        tr('खाँसी / सर्दी / बुखार', 'खोकला / सर्दी / ताप', 'Cough / cold / fever'),
+        tr('दस्त (ORS देय)', 'जुलाब (ORS देय)', 'Diarrhoea (ORS due)'),
+        tr('गंभीर — रेफरल आवश्यक', 'गंभीर — संदर्भ आवश्यक', 'Serious — referral needed'),
       ],
     },
     {
       id: 'c4',
       number: 4,
-      title: tr('सत्र की स्थिति (रजिस्टर 18 अ)', 'सत्राची स्थिती (रजिस्टर 18 अ)'),
+      title: tr('सत्र की स्थिति (रजिस्टर 18 अ)', 'सत्राची स्थिती (रजिस्टर 18 अ)', 'Session status (Register 18A)'),
       type: 'options',
       fieldKey: 'childStatus',
       options: [
-        tr('✓ टीकाकरण पूर्ण', '✓ लसीकरण पूर्ण'),
-        tr('माता-पिता अनुपस्थित', 'पालक अनुपस्थित'),
-        tr('टीके से इनकार', 'लसीला नकार'),
+        tr('✓ टीकाकरण पूर्ण', '✓ लसीकरण पूर्ण', '✓ Immunisation complete'),
+        tr('माता-पिता अनुपस्थित', 'पालक अनुपस्थित', 'Parents absent'),
+        tr('टीके से इनकार', 'लसीला नकार', 'Vaccine refused'),
       ],
     },
   ];
@@ -202,39 +203,39 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     {
       id: 'o1',
       number: 1,
-      title: tr('सेवा का प्रकार', 'सेवेचा प्रकार'),
+      title: tr('सेवा का प्रकार', 'सेवेचा प्रकार', 'Service type'),
       type: 'options',
       fieldKey: 'otherCategory',
       options: [
-        tr('परिवार नियोजन', 'कुटुंब नियोजन'),
-        tr('धात्री माता (PNC)', 'स्तनदा माता (PNC)'),
-        tr('किशोरी आयरन (WIFS)', 'किशोरी लोह (WIFS)'),
-        tr('NCD जाँच', 'NCD तपासणी'),
+        tr('परिवार नियोजन', 'कुटुंब नियोजन', 'Family planning'),
+        tr('धात्री माता (PNC)', 'स्तनदा माता (PNC)', 'Lactating mother (PNC)'),
+        tr('किशोरी आयरन (WIFS)', 'किशोरी लोह (WIFS)', 'Adolescent iron (WIFS)'),
+        tr('NCD जाँच', 'NCD तपासणी', 'NCD screening'),
       ],
     },
     {
       id: 'o2',
       number: 2,
-      title: tr('सामग्री / दवा वितरण', 'साहित्य / औषध वाटप'),
+      title: tr('सामग्री / दवा वितरण', 'साहित्य / औषध वाटप', 'Supplies / medicine distribution'),
       type: 'options',
       fieldKey: 'suppliesGiven',
       options: [
-        tr('छाया / अंतरा / कंडोम', 'छाया / अंतरा / निरोध'),
-        tr('आयरन (WIFS) गोली दी', 'लोह (WIFS) गोळी दिली'),
-        tr('केवल परामर्श दिया', 'फक्त समुपदेशन केले'),
-        tr('दवा अनुपलब्ध', 'औषध उपलब्ध नाही'),
+        tr('छाया / अंतरा / कंडोम', 'छाया / अंतरा / निरोध', 'Chhaya / Antara / condom'),
+        tr('आयरन (WIFS) गोली दी', 'लोह (WIFS) गोळी दिली', 'Iron (WIFS) tablets given'),
+        tr('केवल परामर्श दिया', 'फक्त समुपदेशन केले', 'Counselling only'),
+        tr('दवा अनुपलब्ध', 'औषध उपलब्ध नाही', 'Medicine unavailable'),
       ],
     },
     {
       id: 'o3',
       number: 3,
-      title: tr('सत्यापन (रजिस्टर 18 स)', 'पडताळणी (रजिस्टर 18 स)'),
+      title: tr('सत्यापन (रजिस्टर 18 स)', 'पडताळणी (रजिस्टर 18 स)', 'Verification (Register 18C)'),
       type: 'options',
       fieldKey: 'otherStatus',
       options: [
-        tr('✓ सेवा सफल', '✓ सेवा यशस्वी'),
-        tr('अगले सप्ताह फॉलो-अप', 'पुढील आठवड्यात पाठपुरावा'),
-        tr('स्वास्थ्य केंद्र रेफरल', 'आरोग्य केंद्र संदर्भ'),
+        tr('✓ सेवा सफल', '✓ सेवा यशस्वी', '✓ Service successful'),
+        tr('अगले सप्ताह फॉलो-अप', 'पुढील आठवड्यात पाठपुरावा', 'Follow-up next week'),
+        tr('स्वास्थ्य केंद्र रेफरल', 'आरोग्य केंद्र संदर्भ', 'Health centre referral'),
       ],
     },
   ];
@@ -263,11 +264,11 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   const lmpError: string | null = !lmpComplete
     ? null
     : !lmpDate
-    ? tr('अमान्य तिथि', 'अवैध तारीख')
+    ? tr('अमान्य तिथि', 'अवैध तारीख', 'Invalid date')
     : lmpIsFuture
-    ? tr('भविष्य की तिथि नहीं', 'भविष्यातील तारीख नाही')
+    ? tr('भविष्य की तिथि नहीं', 'भविष्यातील तारीख नाही', 'Date cannot be in the future')
     : lmpWeeks === null
-    ? tr('45 सप्ताह से पुरानी', '45 आठवड्यांपेक्षा जुनी')
+    ? tr('45 सप्ताह से पुरानी', '45 आठवड्यांपेक्षा जुनी', 'Older than 45 weeks')
     : null;
   const lmpEdd = lmpDate && !lmpError ? calculateEdd(lmpDate) : null;
 
@@ -295,7 +296,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       setIsListening(false);
     } else {
       setIsListening(true);
-      const speechLang = language === 'mr' ? 'mr-IN' : 'hi-IN';
+      const speechLang = language === 'mr' ? 'mr-IN' : language === 'en' ? 'en-IN' : 'hi-IN';
       VoiceRecognition.start(
         speechLang,
         (transcript) => {
@@ -320,7 +321,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
   };
 
   const handleSpeakQuestion = () => {
-    speak(`प्रश्न ${currentQ.number}: ${currentQ.title}`);
+    speak(`${tr('प्रश्न', 'प्रश्न', 'Question')} ${currentQ.number}: ${currentQ.title}`);
   };
 
   const handleSpeakOption = (option: string) => {
@@ -334,7 +335,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       case 'date':
         if (lmpError) return lmpError;
         // Partly typed date (e.g. day only) must be completed or cleared.
-        if ((lmpParts.d || lmpParts.m || lmpParts.y) && !lmpComplete) return tr('पूरी तिथि लिखें', 'पूर्ण तारीख लिहा');
+        if ((lmpParts.d || lmpParts.m || lmpParts.y) && !lmpComplete) return tr('पूरी तिथि लिखें', 'पूर्ण तारीख लिहा', 'Enter the full date');
         return null;
       case 'custom_clinical':
         return validateBp(answers.bp, tr) || validateAdultWeight(answers.weight, tr);
@@ -366,6 +367,38 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       setCurrentIndex(currentIndex - 1);
     }
   };
+
+  // Leaving a half-filled form by one stray tap loses everything — ask first.
+  const isDirty = Object.keys(answers).length > 0 || clinicalNote.trim().length > 0;
+  const confirmExit = () => {
+    if (!isDirty) {
+      onBack();
+      return;
+    }
+    const title = tr('फ़ॉर्म छोड़ें?', 'फॉर्म सोडायचा?', 'Leave form?');
+    const message = tr('भरे जवाब मिट जाएंगे', 'भरलेली उत्तरे जातील', 'Answers will be lost');
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`${title}\n${message}`)) onBack();
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: tr('रुकें', 'थांबा', 'Stay'), style: 'cancel' },
+      { text: tr('छोड़ें', 'सोडा', 'Leave'), style: 'destructive', onPress: onBack },
+    ]);
+  };
+
+  // Android back: step to the previous question first; on question 1, confirm before leaving.
+  const hardwareBackRef = useRef<() => boolean>(() => false);
+  hardwareBackRef.current = () => {
+    if (isSaving) return true;
+    if (currentIndex > 0) handlePrev();
+    else confirmExit();
+    return true;
+  };
+  useEffect(() => {
+    setBackGuard(() => hardwareBackRef.current());
+    return () => setBackGuard(null);
+  }, []);
 
   const handleSave = async () => {
     // Never attach a survey to a placeholder patient.
@@ -408,10 +441,10 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
 
   const headerTitle =
     formType === 'PREGNANCY'
-      ? tr('प्रसवपूर्व (18 ब)', 'प्रसूतीपूर्व (18 ब)')
+      ? tr('प्रसवपूर्व (18 ब)', 'प्रसूतीपूर्व (18 ब)', 'Antenatal (18B)')
       : formType === 'CHILD'
-      ? tr('बाल स्वास्थ्य (18 अ)', 'बाल आरोग्य (18 अ)')
-      : tr('अन्य सेवाएँ (18 स)', 'इतर सेवा (18 स)');
+      ? tr('बाल स्वास्थ्य (18 अ)', 'बाल आरोग्य (18 अ)', 'Child health (18A)')
+      : tr('अन्य सेवाएँ (18 स)', 'इतर सेवा (18 स)', 'Other services (18C)');
 
   /** Big tappable option card (≥56dp) with radio check. Stored value = shown label. */
   const renderOption = (opt: string) => {
@@ -429,7 +462,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
           {selected ? <Check size={16} color={color.white} strokeWidth={2.4} /> : null}
         </View>
         <Text style={[styles.optionText, selected && styles.optionTextActive]}>{opt}</Text>
-        <IconButton icon={Volume2} label={tr('सुनें', 'ऐका')} onPress={() => handleSpeakOption(opt)} />
+        <IconButton icon={Volume2} label={tr('सुनें', 'ऐका', 'Listen')} onPress={() => handleSpeakOption(opt)} />
       </Pressable>
     );
   };
@@ -450,7 +483,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       keyboardType={keyboard}
       placeholder={placeholder}
       voice={voiceKind}
-      right={<IconButton icon={Volume2} label={tr('सुनें', 'ऐका')} onPress={() => speak(spoken)} />}
+      right={<IconButton icon={Volume2} label={tr('सुनें', 'ऐका', 'Listen')} onPress={() => speak(spoken)} />}
     />
   );
 
@@ -458,7 +491,7 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
     <View style={styles.footerRow}>
       <View style={styles.footerBtn}>
         <Button
-          label={tr('पिछला', 'मागे')}
+          label={tr('पिछला', 'मागे', 'Previous')}
           icon={ChevronLeft}
           variant="secondary"
           disabled={currentIndex === 0}
@@ -467,9 +500,9 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       </View>
       <View style={styles.footerBtn}>
         {isLastQuestion ? (
-          <Button label={tr('सहेजें', 'जतन करा')} icon={CircleCheck} loading={isSaving} onPress={handleSave} />
+          <Button label={tr('सहेजें', 'जतन करा', 'Save')} icon={CircleCheck} loading={isSaving} onPress={handleSave} />
         ) : (
-          <Button label={tr('अगला', 'पुढे')} icon={ChevronRight} onPress={handleNext} />
+          <Button label={tr('अगला', 'पुढे', 'Next')} icon={ChevronRight} onPress={handleNext} />
         )}
       </View>
     </View>
@@ -480,16 +513,16 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
       <AppBar
         title={headerTitle}
         subtitle={memberName || undefined}
-        onBack={onBack}
-        backLabel={tr('वापस', 'मागे')}
-        right={<IconButton icon={Volume2} label={tr('प्रश्न सुनें', 'प्रश्न ऐका')} tone="accent" onPress={handleSpeakQuestion} />}
+        onBack={confirmExit}
+        backLabel={tr('वापस', 'मागे', 'Back')}
+        right={<IconButton icon={Volume2} label={tr('प्रश्न सुनें', 'प्रश्न ऐका', 'Listen to question')} tone="accent" onPress={handleSpeakQuestion} />}
       />
 
       {/* Progress */}
       <View style={styles.progressWrap}>
         <View style={styles.progressRow}>
           <Text style={text.label}>
-            {tr('प्रश्न', 'प्रश्न')} {currentIndex + 1} / {totalQuestions}
+            {tr('प्रश्न', 'प्रश्न', 'Question')} {currentIndex + 1} / {totalQuestions}
           </Text>
           <Text style={text.caption}>{Math.round(progress * 100)}%</Text>
         </View>
@@ -511,9 +544,9 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
           <View style={styles.block}>
             <View style={styles.lmpRow}>
               {([
-                ['d', tr('दिन', 'दिवस'), 2, '--'],
-                ['m', tr('माह', 'महिना'), 2, '--'],
-                ['y', tr('वर्ष', 'वर्ष'), 4, '----'],
+                ['d', tr('दिन', 'दिवस', 'Day'), 2, '--'],
+                ['m', tr('माह', 'महिना', 'Month'), 2, '--'],
+                ['y', tr('वर्ष', 'वर्ष', 'Year'), 4, '----'],
               ] as const).map(([part, label, max, hint]) => (
                 <View key={part} style={[styles.lmpCell, part === 'y' && styles.lmpCellWide]}>
                   <Text style={text.label}>{label}</Text>
@@ -542,12 +575,12 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
               <Card tone="green">
                 <View style={styles.inlineRow}>
                   <CalendarDays size={18} color={color.green} strokeWidth={2} />
-                  <Text style={[text.label, { color: color.greenText }]}>{tr('संभावित प्रसव (EDD)', 'संभाव्य प्रसूती (EDD)')}</Text>
+                  <Text style={[text.label, { color: color.greenText }]}>{tr('संभावित प्रसव (EDD)', 'संभाव्य प्रसूती (EDD)', 'Expected delivery (EDD)')}</Text>
                 </View>
                 <Text style={[text.display, { color: color.green, marginTop: space.sm }]}>{formatClinicalDate(lmpEdd)}</Text>
                 <View style={[styles.inlineRow, { marginTop: space.md }]}>
-                  <StatusPill tone="green" label={`${lmpWeeks} ${tr('सप्ताह', 'आठवडे')}`} />
-                  <StatusPill tone="green" label={`${tr('तिमाही', 'तिमाही')} ${trimesterFromWeeks(lmpWeeks)}`} />
+                  <StatusPill tone="green" label={`${lmpWeeks} ${tr('सप्ताह', 'आठवडे', 'weeks')}`} />
+                  <StatusPill tone="green" label={`${tr('तिमाही', 'तिमाही', 'Trimester')} ${trimesterFromWeeks(lmpWeeks)}`} />
                 </View>
               </Card>
             ) : null}
@@ -557,8 +590,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         {/* BP & weight */}
         {currentQ.type === 'custom_clinical' ? (
           <View style={styles.block}>
-            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)'), answers.bp, (v) => { setFieldError(null); setAnswers({ ...answers, bp: v.replace(/[^0-9/]/g, '') }); }, 'default', tr('रक्तचाप', 'रक्तदाब'), '120/80', 'bp')}
-            {renderNumberInput(tr('वजन (kg)', 'वजन (kg)'), answers.weight, (v) => { setFieldError(null); setAnswers({ ...answers, weight: sanitizeDecimal(v) }); }, 'numeric', tr('वजन किलोग्राम', 'वजन किलोग्रॅम'))}
+            {renderNumberInput(tr('बी.पी. (mmHg)', 'बी.पी. (mmHg)', 'BP (mmHg)'), answers.bp, (v) => { setFieldError(null); setAnswers({ ...answers, bp: v.replace(/[^0-9/]/g, '') }); }, 'default', tr('रक्तचाप', 'रक्तदाब', 'Blood pressure'), '120/80', 'bp')}
+            {renderNumberInput(tr('वजन (kg)', 'वजन (kg)', 'Weight (kg)'), answers.weight, (v) => { setFieldError(null); setAnswers({ ...answers, weight: sanitizeDecimal(v) }); }, 'numeric', tr('वजन किलोग्राम', 'वजन किलोग्रॅम', 'Weight in kilograms'))}
           </View>
         ) : null}
 
@@ -581,8 +614,8 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
         {/* IFA & calcium */}
         {currentQ.type === 'dual_number' ? (
           <View style={styles.block}>
-            {renderNumberInput(tr('IFA गोलियाँ (संख्या)', 'IFA गोळ्या (संख्या)'), answers.ironTablets, (v) => { setFieldError(null); setAnswers({ ...answers, ironTablets: sanitizeInteger(v) }); }, 'numeric', tr('आयरन गोलियों की संख्या', 'लोह गोळ्यांची संख्या'))}
-            {renderNumberInput(tr('कैल्शियम गोलियाँ (संख्या)', 'कॅल्शियम गोळ्या (संख्या)'), answers.calciumTablets, (v) => { setFieldError(null); setAnswers({ ...answers, calciumTablets: sanitizeInteger(v) }); }, 'numeric', tr('कैल्शियम गोलियों की संख्या', 'कॅल्शियम गोळ्यांची संख्या'))}
+            {renderNumberInput(tr('IFA गोलियाँ (संख्या)', 'IFA गोळ्या (संख्या)', 'IFA tablets (count)'), answers.ironTablets, (v) => { setFieldError(null); setAnswers({ ...answers, ironTablets: sanitizeInteger(v) }); }, 'numeric', tr('आयरन गोलियों की संख्या', 'लोह गोळ्यांची संख्या', 'Number of iron tablets'))}
+            {renderNumberInput(tr('कैल्शियम गोलियाँ (संख्या)', 'कॅल्शियम गोळ्या (संख्या)', 'Calcium tablets (count)'), answers.calciumTablets, (v) => { setFieldError(null); setAnswers({ ...answers, calciumTablets: sanitizeInteger(v) }); }, 'numeric', tr('कैल्शियम गोलियों की संख्या', 'कॅल्शियम गोळ्यांची संख्या', 'Number of calcium tablets'))}
           </View>
         ) : null}
 
@@ -607,22 +640,22 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
             <View style={styles.noteHeader}>
               <View style={styles.inlineRow}>
                 <FileText size={18} color={color.accent} strokeWidth={2} />
-                <Text style={text.label}>{tr('टिप्पणी (वैकल्पिक)', 'टीप (ऐच्छिक)')}</Text>
+                <Text style={text.label}>{tr('टिप्पणी (वैकल्पिक)', 'टीप (ऐच्छिक)', 'Note (optional)')}</Text>
               </View>
               <Pressable
                 onPress={toggleVoiceRecognition}
                 accessibilityRole="button"
-                accessibilityLabel={isListening ? tr('रोकें', 'थांबवा') : tr('बोलकर लिखें', 'बोलून लिहा')}
+                accessibilityLabel={isListening ? tr('रोकें', 'थांबवा', 'Stop') : tr('बोलकर लिखें', 'बोलून लिहा', 'Dictate')}
                 style={[styles.micBtn, isListening && styles.micBtnActive]}
               >
                 <Mic size={18} color={isListening ? color.white : color.accent} strokeWidth={2} />
                 <Text style={[styles.micText, isListening && styles.micTextActive]}>
-                  {isListening ? tr('रोकें', 'थांबवा') : tr('बोलकर लिखें', 'बोलून लिहा')}
+                  {isListening ? tr('रोकें', 'थांबवा', 'Stop') : tr('बोलकर लिखें', 'बोलून लिहा', 'Dictate')}
                 </Text>
               </Pressable>
             </View>
             {isListening ? (
-              <Text style={[text.caption, { marginTop: space.sm }]}>{tr('बोलिए…', 'बोला…')}</Text>
+              <Text style={[text.caption, { marginTop: space.sm }]}>{tr('बोलिए…', 'बोला…', 'Speak…')}</Text>
             ) : null}
             <TextInput
               style={styles.noteInput}
@@ -631,11 +664,11 @@ export const SurveyQuestionScreen: React.FC<SurveyQuestionScreenProps> = ({
                 setClinicalNote(txt);
                 setAnswers((prev) => ({ ...prev, clinicalNote: txt, remarks: txt }));
               }}
-              placeholder={tr('यहाँ बोलें या लिखें', 'येथे बोला किंवा लिहा')}
+              placeholder={tr('यहाँ बोलें या लिखें', 'येथे बोला किंवा लिहा', 'Speak or type here')}
               placeholderTextColor={color.faint}
               multiline
               numberOfLines={3}
-              accessibilityLabel={tr('टिप्पणी', 'टीप')}
+              accessibilityLabel={tr('टिप्पणी', 'टीप', 'Note')}
             />
           </Card>
         ) : null}

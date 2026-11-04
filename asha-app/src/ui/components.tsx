@@ -412,10 +412,10 @@ export const Field: React.FC<{
   const [vs, setVs] = useState<VoiceState>({ listening: false, partial: null, notUnderstood: false });
   const voiceLine = vs.listening
     ? vs.partial
-      ? `${tr('सुन रहे हैं', 'ऐकत आहे')}: ${vs.partial}`
-      : tr('बोलिए…', 'बोला…')
+      ? `${tr('सुन रहे हैं', 'ऐकत आहे', 'Listening')}: ${vs.partial}`
+      : tr('बोलिए…', 'बोला…', 'Speak…')
     : vs.notUnderstood
-    ? tr('समझ नहीं आया, फिर से बोलें', 'समजले नाही, पुन्हा बोला')
+    ? tr('समझ नहीं आया, फिर से बोलें', 'समजले नाही, पुन्हा बोला', 'Didn\'t catch that, please speak again')
     : null;
   return (
     <View style={styles.field}>
@@ -439,7 +439,7 @@ export const Field: React.FC<{
             kind={voice}
             value={value}
             onChangeText={(v) => onChangeText(maxLength ? v.slice(0, maxLength) : v)}
-            label={`${label} — ${tr('बोलकर भरें', 'बोलून भरा')}`}
+            label={`${label} — ${tr('बोलकर भरें', 'बोलून भरा', 'Fill by voice')}`}
             onStateChange={setVs}
           />
         ) : null}

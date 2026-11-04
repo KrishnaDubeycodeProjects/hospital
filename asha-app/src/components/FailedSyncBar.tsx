@@ -12,7 +12,7 @@ export const FailedSyncBar: React.FC = () => {
   const { failedSyncCount, retryFailedRecords, isSyncing } = useOfflineData();
   const { language } = useLanguage();
   const [busy, setBusy] = useState(false);
-  const tr = (hi: string, mr: string) => (language === 'mr' ? mr : hi);
+  const tr = (hi: string, mr: string, en?: string) => (language === 'mr' ? mr : language === 'en' ? en || hi : hi);
 
   if (failedSyncCount === 0) return null;
 
@@ -35,7 +35,7 @@ export const FailedSyncBar: React.FC = () => {
           <AlertTriangle size={14} color="#DC2626" />
         </View>
         <Text style={styles.countText}>{failedSyncCount}</Text>
-        <Text style={styles.labelText}>{tr('अस्वीकृत', 'नाकारल्या')}</Text>
+        <Text style={styles.labelText}>{tr('नहीं भेजे गए', 'पाठवले नाहीत', 'Not sent')}</Text>
       </View>
 
       <TouchableOpacity
@@ -44,10 +44,10 @@ export const FailedSyncBar: React.FC = () => {
         disabled={working}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={tr('पुनः भेजें', 'पुन्हा पाठवा')}
+        accessibilityLabel={tr('पुनः भेजें', 'पुन्हा पाठवा', 'Resend')}
       >
         {working ? <ActivityIndicator size="small" color="#FFFFFF" /> : <RotateCcw size={16} color="#FFFFFF" />}
-        <Text style={styles.retryText}>{tr('पुनः भेजें', 'पुन्हा पाठवा')}</Text>
+        <Text style={styles.retryText}>{tr('पुनः भेजें', 'पुन्हा पाठवा', 'Resend')}</Text>
       </TouchableOpacity>
     </View>
   );

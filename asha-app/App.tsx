@@ -13,6 +13,7 @@ import { FamilyMember } from './src/types/storage';
 import { DictationEventBridge } from './src/voice/dictation';
 import { StartingAnimation } from './src/components/StartingAnimation';
 import { VoiceRecognition, SpeechEngine } from './src/voice/speechEngine';
+import { runBackGuard } from './src/navigation/backGuard';
 
 // Auth (phone + OTP only — workers are registered by their CHO)
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -24,6 +25,7 @@ import { SyncScreen } from './src/screens/SyncScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { AnmOpenFormsScreen } from './src/screens/AnmOpenFormsScreen';
 import { ChoDashboardScreen } from './src/screens/ChoDashboardScreen';
+import { ChoPerformanceScreen } from './src/screens/ChoPerformanceScreen';
 
 // Sub-screens
 import { FamilyDetailScreen } from './src/screens/FamilyDetailScreen';
@@ -90,6 +92,8 @@ const MainAppContent: React.FC = () => {
         setAddOpen(false);
         return true;
       }
+      // A screen with unsaved work (e.g. a half-filled survey) decides for itself.
+      if (runBackGuard()) return true;
       if (stack.length > 0) {
         pop();
         return true;
@@ -235,6 +239,8 @@ const MainAppContent: React.FC = () => {
             }}
           />
         );
+      case 'choPerformance':
+        return <ChoPerformanceScreen />;
       case 'choReferrals':
       case 'choWorkers':
         return <ChoDashboardScreen view={activeTab === 'choReferrals' ? 'referrals' : 'workers'} />;

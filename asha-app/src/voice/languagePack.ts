@@ -1,16 +1,11 @@
 /**
- * Language-pack gate for voice features (Hindi `hi-IN` / Marathi `mr-IN`).
+ * Language-pack gate for voice features (Hindi `hi-IN`, Marathi `mr-IN`, English `en-IN`).
  *
- * Speech-to-text and text-to-speech must not start until the device has the language model:
- *  - STT: the on-device recognizer model (Android 13+, via the Google on-device service).
- *  - TTS: an installed Hindi/Marathi voice in the system TTS engine, preferring a `-local` voice.
+ * Speech-to-text and text-to-speech must not fail in the field:
+ *  - STT: on-device recognizer model (Android 13+, Google on-device speech service).
+ *  - TTS: installed Hindi/Marathi voice in the system TTS engine.
  *
- * When a model is missing we trigger its download (STT) or open the system voice-data
- * installer (TTS) and report `missing`, so callers can tell the worker instead of failing
- * silently or reading Hindi text with an English voice.
- *
- * `unknown` means the platform cannot report installed models (Android ≤ 12, web, iOS);
- * callers then proceed with the platform default rather than blocking the feature.
+ * Provides startup verification, explicit download triggers, and non-blocking fallback.
  */
 import { Linking, Platform } from 'react-native';
 import * as Speech from 'expo-speech';
@@ -25,7 +20,7 @@ const baseOf = (l: string) => norm(l).split('-')[0];
 
 const sttReady = new Set<string>();
 const sttDownloading = new Map<string, Promise<PackStatus>>();
-const ttsVoice = new Map<string, string | null>(); // locale -> voice identifier (null = none)
+const ttsVoice = new Map<string, string | null>(); // locale -> voice identifier
 let ttsInstallPrompted = false;
 
 async function installedSttLocales(): Promise<{ installed: string[]; supported: string[] } | null> {
@@ -49,7 +44,7 @@ export async function sttStatus(locale: string): Promise<PackStatus> {
   } catch {}
   if (!onDevice) return 'unknown';
   const locales = await installedSttLocales();
-  // Android ≤ 12 returns empty lists: the state cannot be verified.
+  // Android ≤ 12 or web/simulators return empty lists: state unknown (non-blocking).
   if (!locales || (locales.installed.length === 0 && locales.supported.length === 0)) return 'unknown';
   if (locales.installed.includes(key)) {
     sttReady.add(key);
@@ -76,7 +71,6 @@ export async function ensureSttModel(locale: string): Promise<PackStatus> {
         sttReady.add(key);
         return 'ready';
       }
-      // Android 13 opens a system dialog: the download continues outside the app.
       return res.status === 'opened_dialog' ? 'downloading' : 'missing';
     } catch {
       return 'missing';
@@ -98,7 +92,6 @@ async function findTtsVoice(locale: string): Promise<string | null | undefined> 
   } catch {
     return undefined;
   }
-  // The engine can report an empty list before it finishes binding: state unknown.
   if (!voices || voices.length === 0) return undefined;
   const base = baseOf(key);
   const matches = voices.filter((v) => v.language && (norm(v.language) === key || baseOf(v.language) === base));
@@ -110,8 +103,7 @@ async function findTtsVoice(locale: string): Promise<string | null | undefined> 
 
 /**
  * Makes sure a TTS voice for the locale is installed. When none is, opens the system
- * "install voice data" screen once per app run so the worker can download it.
- * Returns the voice identifier to use (when known).
+ * "install voice data" screen.
  */
 export async function ensureTtsVoice(locale: string): Promise<{ status: PackStatus; voice?: string }> {
   if (Platform.OS === 'web') return { status: 'unknown' };
@@ -136,9 +128,36 @@ export function refreshVoiceCache(): void {
   ttsVoice.clear();
 }
 
-/** App start: fetch Hindi + Marathi STT models in the background and warm the TTS voice cache. */
+/** Startup check: verifies whether speech-to-text models need downloading */
+export async function checkVoiceModelReadiness(): Promise<{
+  needsDownload: boolean;
+  hiStatus: PackStatus;
+  mrStatus: PackStatus;
+}> {
+  if (Platform.OS !== 'android') {
+    return { needsDownload: false, hiStatus: 'unknown', mrStatus: 'unknown' };
+  }
+  const hi = await sttStatus('hi-IN');
+  const mr = await sttStatus('mr-IN');
+  const needsDownload = hi === 'missing' || mr === 'missing';
+  return { needsDownload, hiStatus: hi, mrStatus: mr };
+}
+
+/** Initiates explicit download of offline Hindi and Marathi voice packs */
+export async function downloadAllVoiceModels(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'hi-IN' }).catch(() => {});
+    await ExpoSpeechRecognitionModule.androidTriggerOfflineModelDownload({ locale: 'mr-IN' }).catch(() => {});
+    await ensureTtsVoice('hi-IN').catch(() => {});
+  } catch (e) {
+    console.warn('Voice model download error:', e);
+  }
+}
+
+/** App start: fetch Hindi + Marathi + English STT models in the background. */
 export async function prefetchLanguagePacks(): Promise<void> {
-  for (const l of ['hi-IN', 'mr-IN']) {
+  for (const l of ['hi-IN', 'mr-IN', 'en-IN']) {
     await ensureSttModel(l).catch(() => 'missing');
     await findTtsVoice(l).catch(() => undefined);
   }

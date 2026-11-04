@@ -83,7 +83,7 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
   const [showReferModal, setShowReferModal] = useState(false);
   const [referReason, setReferReason] = useState(
     member.isHrp
-      ? tr('उच्च जोखिम गर्भावस्था', 'उच्च जोखमीची गर्भधारणा')
+      ? tr('उच्च जोखिम गर्भावस्था', 'उच्च जोखमीची गर्भधारणा', 'High-risk pregnancy')
       : member.hasChronicCondition
       ? member.chronicConditionType || ''
       : ''
@@ -136,20 +136,20 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
   };
 
   const genderLabel =
-    member.gender === 'Female' ? tr('महिला', 'स्त्री') : member.gender === 'Male' ? tr('पुरुष', 'पुरुष') : member.gender ? tr('अन्य', 'इतर') : '';
-  const metaLine = [genderLabel, member.age != null ? `${member.age} ${tr('वर्ष', 'वर्षे')}` : '', member.relationship]
+    member.gender === 'Female' ? tr('महिला', 'स्त्री', 'Female') : member.gender === 'Male' ? tr('पुरुष', 'पुरुष', 'Male') : member.gender ? tr('अन्य', 'इतर', 'Other') : '';
+  const metaLine = [genderLabel, member.age != null ? `${member.age} ${tr('वर्ष', 'वर्षे', 'yrs')}` : '', member.relationship]
     .filter(Boolean)
     .join(' · ');
-  const urgencyLabel = (u: Urgency) => (u === URGENT ? tr('गंभीर · 7 दिन', 'गंभीर · 7 दिवस') : tr('मध्यम · 14 दिन', 'मध्यम · 14 दिवस'));
+  const urgencyLabel = (u: Urgency) => (u === URGENT ? tr('गंभीर · 7 दिन', 'गंभीर · 7 दिवस', 'Serious · 7 days') : tr('मध्यम · 14 दिन', 'मध्यम · 14 दिवस', 'Moderate · 14 days'));
 
   return (
     <View style={styles.flex}>
       <AppBar
         title={member.name}
-        subtitle={`${familyName} · ${tr('घर', 'घर')} ${houseNo}`}
+        subtitle={`${familyName} · ${tr('घर', 'घर', 'House')} ${houseNo}`}
         onBack={onBack}
-        backLabel={tr('वापस', 'मागे')}
-        right={<IconButton icon={Plus} label={tr('नया सर्वे', 'नवीन सर्वे')} tone="accent" onPress={onStartNewSurvey} />}
+        backLabel={tr('वापस', 'मागे', 'Back')}
+        right={<IconButton icon={Plus} label={tr('नया सर्वे', 'नवीन सर्वे', 'New survey')} tone="accent" onPress={onStartNewSurvey} />}
       />
       <Screen>
         {/* Profile */}
@@ -166,10 +166,10 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
             </View>
           </View>
           <View style={styles.pills}>
-            {member.isPregnant ? <StatusPill tone="red" icon={Baby} label={tr('गर्भवती', 'गर्भवती')} /> : null}
-            {member.isHrp ? <StatusPill tone="red" icon={TriangleAlert} label={tr('उच्च जोखिम', 'उच्च जोखीम')} /> : null}
+            {member.isPregnant ? <StatusPill tone="red" icon={Baby} label={tr('गर्भवती', 'गर्भवती', 'Pregnant')} /> : null}
+            {member.isHrp ? <StatusPill tone="red" icon={TriangleAlert} label={tr('उच्च जोखिम', 'उच्च जोखीम', 'High risk')} /> : null}
             {member.hasChronicCondition ? (
-              <StatusPill tone="amber" icon={Activity} label={member.chronicConditionType || tr('पुराना रोग', 'जुनाट आजार')} />
+              <StatusPill tone="amber" icon={Activity} label={member.chronicConditionType || tr('पुराना रोग', 'जुनाट आजार', 'Chronic disease')} />
             ) : null}
             {member.abhaNumber ? <StatusPill tone="green" icon={ShieldCheck} label={`ABHA ${member.abhaNumber}`} /> : null}
           </View>
@@ -182,7 +182,7 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
           {contactPhone ? (
             <View style={styles.gapTop}>
               <Button
-                label={`${tr('कॉल करें', 'कॉल करा')} · ${contactPhone}`}
+                label={`${tr('कॉल करें', 'कॉल करा', 'Call')} · ${contactPhone}`}
                 icon={Phone}
                 variant="secondary"
                 onPress={() => Linking.openURL(`tel:${contactPhone}`)}
@@ -195,7 +195,7 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
         <Card
           tone={isSpeaking ? 'accent' : undefined}
           onPress={handleToggleSpeak}
-          accessibilityLabel={isSpeaking ? tr('रोकें', 'थांबवा') : tr('सारांश सुनें', 'सारांश ऐका')}
+          accessibilityLabel={isSpeaking ? tr('रोकें', 'थांबवा', 'Stop') : tr('सारांश सुनें', 'सारांश ऐका', 'Listen to summary')}
           style={isSpeaking ? styles.speaking : undefined}
         >
           <View style={styles.inline}>
@@ -203,10 +203,10 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
             <View style={styles.flex}>
               <Text style={text.heading}>{clinicalSummary.categoryTitle}</Text>
               <Text style={text.caption}>
-                {tr('अंतिम सर्वे', 'शेवटचा सर्वे')}: {clinicalSummary.surveyDate}
+                {tr('अंतिम सर्वे', 'शेवटचा सर्वे', 'Last survey')}: {clinicalSummary.surveyDate}
               </Text>
             </View>
-            <StatusPill tone={isSpeaking ? 'green' : 'accent'} label={isSpeaking ? tr('बोल रहा है', 'बोलत आहे') : tr('सुनें', 'ऐका')} />
+            <StatusPill tone={isSpeaking ? 'green' : 'accent'} label={isSpeaking ? tr('बोल रहा है', 'बोलत आहे', 'Speaking') : tr('सुनें', 'ऐका', 'Listen')} />
           </View>
 
           {clinicalSummary.highlights.length > 0 ? (
@@ -236,8 +236,8 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
             <Button
               label={
                 showDetailedForm
-                  ? tr('उत्तर छिपाएँ', 'उत्तरे लपवा')
-                  : `${tr('सभी उत्तर', 'सर्व उत्तरे')} (${clinicalSummary.detailedEntries.length})`
+                  ? tr('उत्तर छिपाएँ', 'उत्तरे लपवा', 'Hide answers')
+                  : `${tr('सभी उत्तर', 'सर्व उत्तरे', 'All answers')} (${clinicalSummary.detailedEntries.length})`
               }
               icon={showDetailedForm ? ChevronUp : ChevronDown}
               variant="ghost"
@@ -276,10 +276,10 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
 
         <View style={styles.row2}>
           <View style={styles.flex}>
-            <Button label={tr('सीएचओ रेफरल', 'सीएचओ संदर्भ')} icon={Route} variant="danger" onPress={() => setShowReferModal(true)} />
+            <Button label={tr('सीएचओ रेफरल', 'सीएचओ संदर्भ', 'CHO referral')} icon={Route} variant="danger" onPress={() => setShowReferModal(true)} />
           </View>
           <View style={styles.flex}>
-            <Button label={tr('नया सर्वे', 'नवीन सर्वे')} icon={Plus} onPress={onStartNewSurvey} />
+            <Button label={tr('नया सर्वे', 'नवीन सर्वे', 'New survey')} icon={Plus} onPress={onStartNewSurvey} />
           </View>
         </View>
       </Screen>
@@ -287,28 +287,28 @@ export const MemberResponsesScreen: React.FC<MemberResponsesScreenProps> = ({
       <Sheet
         visible={showReferModal}
         onClose={() => setShowReferModal(false)}
-        title={tr('सीएचओ को रेफर करें', 'सीएचओकडे संदर्भ')}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        title={tr('सीएचओ को रेफर करें', 'सीएचओकडे संदर्भ', 'Refer to CHO')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         {referSuccessMsg ? (
           <View style={styles.success}>
             <CircleCheck size={56} color={color.green} strokeWidth={1.8} />
-            <Text style={text.heading}>{tr('रेफरल भेजा गया', 'संदर्भ पाठवला')}</Text>
+            <Text style={text.heading}>{tr('रेफरल भेजा गया', 'संदर्भ पाठवला', 'Referral sent')}</Text>
           </View>
         ) : (
           <View style={styles.form}>
             <Text style={text.caption}>
-              {member.name} · {familyName} · {tr('घर', 'घर')} {houseNo}
+              {member.name} · {familyName} · {tr('घर', 'घर', 'House')} {houseNo}
             </Text>
-            <Text style={text.label}>{tr('प्राथमिकता', 'प्राधान्य')}</Text>
+            <Text style={text.label}>{tr('प्राथमिकता', 'प्राधान्य', 'Priority')}</Text>
             <Chips
               value={referUrgency}
               onChange={setReferUrgency}
               options={[URGENT, MEDIUM].map((u) => ({ key: u, label: urgencyLabel(u) }))}
             />
-            <Field label={tr('कारण', 'कारण')} voice="long" value={referReason} onChangeText={setReferReason} />
-            <Field label={tr('जाँच / लक्षण', 'तपासणी / लक्षणे')} voice="long" value={referVitals} onChangeText={setReferVitals} placeholder="BP 120/80, Hb 11" />
-            <Button label={tr('रेफरल भेजें', 'संदर्भ पाठवा')} icon={Send} disabled={!referReason.trim()} onPress={handleConfirmReferral} />
+            <Field label={tr('कारण', 'कारण', 'Reason')} voice="long" value={referReason} onChangeText={setReferReason} />
+            <Field label={tr('जाँच / लक्षण', 'तपासणी / लक्षणे', 'Check / symptoms')} voice="long" value={referVitals} onChangeText={setReferVitals} placeholder="BP 120/80, Hb 11" />
+            <Button label={tr('रेफरल भेजें', 'संदर्भ पाठवा', 'Send referral')} icon={Send} disabled={!referReason.trim()} onPress={handleConfirmReferral} />
           </View>
         )}
       </Sheet>

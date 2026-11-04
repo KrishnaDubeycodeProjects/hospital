@@ -59,16 +59,16 @@ export const ChoBroadcastPanel: React.FC = () => {
 
   const errorText = (code?: string) =>
     code === 'OFFLINE'
-      ? tr('नेटवर्क नहीं है — संदेश भेजने के लिए इंटरनेट चाहिए', 'नेटवर्क नाही — संदेश पाठवण्यासाठी इंटरनेट लागेल')
+      ? tr('नेटवर्क नहीं है — संदेश भेजने के लिए इंटरनेट चाहिए', 'नेटवर्क नाही — संदेश पाठवण्यासाठी इंटरनेट लागेल', 'No network — internet needed to send messages')
       : code === 'NO_SECTOR'
-      ? tr('आपके सेक्टर में अभी कोई कार्यकर्ता नहीं है', 'तुमच्या सेक्टरमध्ये अद्याप कार्यकर्ता नाही')
+      ? tr('आपके सेक्टर में अभी कोई कार्यकर्ता नहीं है', 'तुमच्या सेक्टरमध्ये अद्याप कार्यकर्ता नाही', 'No workers in your sector yet')
       : code === 'TOO_LONG'
-      ? tr('संदेश बहुत लंबा है', 'संदेश खूप मोठा आहे')
-      : tr('संदेश नहीं भेजा जा सका', 'संदेश पाठवता आला नाही');
+      ? tr('संदेश बहुत लंबा है', 'संदेश खूप मोठा आहे', 'Message is too long')
+      : tr('संदेश नहीं भेजा जा सका', 'संदेश पाठवता आला नाही', 'Message could not be sent');
 
   const handleSend = async () => {
     if (!title.trim() || !message.trim()) {
-      setStatus({ type: 'error', text: tr('विषय और संदेश भरें', 'विषय व संदेश भरा') });
+      setStatus({ type: 'error', text: tr('विषय और संदेश भरें', 'विषय व संदेश भरा', 'Fill subject and message') });
       return;
     }
     setSending(true);
@@ -82,7 +82,7 @@ export const ChoBroadcastPanel: React.FC = () => {
     });
     setSending(false);
     if (res.ok) {
-      setStatus({ type: 'success', text: tr('संदेश भेज दिया गया', 'संदेश पाठवला') });
+      setStatus({ type: 'success', text: tr('संदेश भेज दिया गया', 'संदेश पाठवला', 'Message sent') });
       load();
       setTimeout(() => {
         setComposeOpen(false);
@@ -101,13 +101,13 @@ export const ChoBroadcastPanel: React.FC = () => {
   };
 
   const audienceLabel = (a: BroadcastAudience) =>
-    a === 'ASHA' ? tr('सभी आशा', 'सर्व आशा') : a === 'ANM' ? tr('सभी एएनएम', 'सर्व एएनएम') : tr('सभी कार्यकर्ता', 'सर्व कार्यकर्ते');
+    a === 'ASHA' ? tr('सभी आशा', 'सर्व आशा', 'All ASHAs') : a === 'ANM' ? tr('सभी एएनएम', 'सर्व एएनएम', 'All ANMs') : tr('सभी कार्यकर्ता', 'सर्व कार्यकर्ते', 'All workers');
 
   return (
     <View style={styles.wrap}>
-      <SectionTitle label={tr('NHM संदेश', 'NHM संदेश')} count={sent.length} />
+      <SectionTitle label={tr('NHM संदेश', 'NHM संदेश', 'NHM message')} count={sent.length} />
       <Button
-        label={tr('कार्यकर्ताओं को संदेश भेजें', 'कार्यकर्त्यांना संदेश पाठवा')}
+        label={tr('कार्यकर्ताओं को संदेश भेजें', 'कार्यकर्त्यांना संदेश पाठवा', 'Send message to workers')}
         icon={Megaphone}
         variant="secondary"
         onPress={() => {
@@ -117,7 +117,7 @@ export const ChoBroadcastPanel: React.FC = () => {
       />
 
       {loadFailed ? (
-        <Text style={text.caption}>{tr('भेजे गए संदेश अभी लोड नहीं हुए', 'पाठवलेले संदेश लोड झाले नाहीत')}</Text>
+        <Text style={text.caption}>{tr('भेजे गए संदेश अभी लोड नहीं हुए', 'पाठवलेले संदेश लोड झाले नाहीत', 'Sent messages not loaded yet')}</Text>
       ) : null}
 
       {sent.slice(0, 5).map((b) => (
@@ -126,86 +126,86 @@ export const ChoBroadcastPanel: React.FC = () => {
             <Text style={[text.heading, styles.flex]} numberOfLines={2}>
               {b.title}
             </Text>
-            {b.priority === 'URGENT' ? <StatusPill tone="red" icon={AlertTriangle} label={tr('तत्काल', 'तातडीचे')} /> : null}
+            {b.priority === 'URGENT' ? <StatusPill tone="red" icon={AlertTriangle} label={tr('तत्काल', 'तातडीचे', 'Urgent')} /> : null}
           </View>
           <Text style={text.caption}>
             {audienceLabel(b.audience)}
-            {formatDue(b.dueDate) ? ` · ${tr('अंतिम तिथि', 'अंतिम तारीख')} ${formatDue(b.dueDate)}` : ''}
+            {formatDue(b.dueDate) ? ` · ${tr('अंतिम तिथि', 'अंतिम तारीख', 'Due date')} ${formatDue(b.dueDate)}` : ''}
           </Text>
           <Text style={[text.body, styles.message]} numberOfLines={3}>
             {b.message}
           </Text>
           <View style={styles.statsRow}>
-            <StatusPill tone="neutral" icon={Eye} label={`${b.readCount} ${tr('ने पढ़ा', 'वाचले')}`} />
-            <StatusPill tone="green" icon={CircleCheck} label={`${b.doneCount} ${tr('ने पूरा किया', 'पूर्ण केले')}`} />
+            <StatusPill tone="neutral" icon={Eye} label={`${b.readCount} ${tr('ने पढ़ा', 'वाचले', 'read')}`} />
+            <StatusPill tone="green" icon={CircleCheck} label={`${b.doneCount} ${tr('ने पूरा किया', 'पूर्ण केले', 'completed')}`} />
             <View style={styles.flex} />
-            <Button label={tr('वापस लें', 'मागे घ्या')} icon={Undo2} variant="ghost" onPress={() => setWithdrawTarget(b)} />
+            <Button label={tr('वापस लें', 'मागे घ्या', 'Withdraw')} icon={Undo2} variant="ghost" onPress={() => setWithdrawTarget(b)} />
           </View>
         </Card>
       ))}
 
       {/* Compose */}
-      <Sheet visible={composeOpen} onClose={() => setComposeOpen(false)} title={tr('नया संदेश', 'नवीन संदेश')} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={composeOpen} onClose={() => setComposeOpen(false)} title={tr('नया संदेश', 'नवीन संदेश', 'New message')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
           {status ? (
             <Card tone={status.type === 'success' ? 'green' : 'red'}>
               <Text style={[text.body, { color: status.type === 'success' ? color.greenText : color.redText }]}>{status.text}</Text>
             </Card>
           ) : null}
-          <Field label={tr('विषय', 'विषय')} value={title} onChangeText={setTitle} maxLength={120} voice="text" placeholder={tr('जैसे: पल्स पोलियो रविवार', 'उदा. पल्स पोलिओ रविवार')} />
+          <Field label={tr('विषय', 'विषय', 'Subject')} value={title} onChangeText={setTitle} maxLength={120} voice="text" placeholder={tr('जैसे: पल्स पोलियो रविवार', 'उदा. पल्स पोलिओ रविवार', 'e.g. Pulse Polio Sunday')} />
           <Field
-            label={tr('संदेश — क्या करना है', 'संदेश — काय करायचे')}
+            label={tr('संदेश — क्या करना है', 'संदेश — काय करायचे', 'Message — what to do')}
             value={message}
             onChangeText={setMessage}
             maxLength={2000}
             multiline
             voice="long"
-            helper={tr('बोलकर लिखें; दोबारा बोलने पर आगे जुड़ेगा', 'बोलून लिहा; पुन्हा बोलल्यास पुढे जोडले जाईल')}
+            helper={tr('बोलकर लिखें; दोबारा बोलने पर आगे जुड़ेगा', 'बोलून लिहा; पुन्हा बोलल्यास पुढे जोडले जाईल', 'Dictate by voice; speaking again appends')}
           />
-          <Text style={text.label}>{tr('किसे भेजें', 'कोणाला पाठवायचे')}</Text>
+          <Text style={text.label}>{tr('किसे भेजें', 'कोणाला पाठवायचे', 'Send to')}</Text>
           <Segmented
             value={audience}
             onChange={setAudience}
             options={[
-              { key: 'ASHA', label: tr('आशा', 'आशा') },
-              { key: 'ANM', label: tr('एएनएम', 'एएनएम') },
-              { key: 'ALL', label: tr('सभी', 'सर्व') },
+              { key: 'ASHA', label: tr('आशा', 'आशा', 'ASHA') },
+              { key: 'ANM', label: tr('एएनएम', 'एएनएम', 'ANM') },
+              { key: 'ALL', label: tr('सभी', 'सर्व', 'All') },
             ]}
           />
-          <Text style={text.label}>{tr('प्राथमिकता', 'प्राधान्य')}</Text>
+          <Text style={text.label}>{tr('प्राथमिकता', 'प्राधान्य', 'Priority')}</Text>
           <Chips
             value={priority}
             onChange={setPriority}
             options={[
-              { key: 'NORMAL', label: tr('सामान्य', 'सामान्य'), tone: 'accent' },
-              { key: 'URGENT', label: tr('तत्काल', 'तातडीचे'), tone: 'red' },
+              { key: 'NORMAL', label: tr('सामान्य', 'सामान्य', 'Normal'), tone: 'accent' },
+              { key: 'URGENT', label: tr('तत्काल', 'तातडीचे', 'Urgent'), tone: 'red' },
             ]}
           />
           <View style={styles.dueLabel}>
             <CalendarClock size={18} color={color.muted} strokeWidth={2} />
-            <Text style={text.label}>{tr('कब तक', 'केव्हापर्यंत')}</Text>
+            <Text style={text.label}>{tr('कब तक', 'केव्हापर्यंत', 'Due by')}</Text>
           </View>
           <Chips
             value={due}
             onChange={(v: DueChoice) => setDue(v)}
             options={[
-              { key: '0', label: tr('आज', 'आज') },
-              { key: '3', label: tr('3 दिन', '3 दिवस') },
-              { key: '7', label: tr('7 दिन', '7 दिवस') },
-              { key: 'none', label: tr('कोई तिथि नहीं', 'तारीख नाही') },
+              { key: '0', label: tr('आज', 'आज', 'Today') },
+              { key: '3', label: tr('3 दिन', '3 दिवस', '3 days') },
+              { key: '7', label: tr('7 दिन', '7 दिवस', '7 days') },
+              { key: 'none', label: tr('कोई तिथि नहीं', 'तारीख नाही', 'No date') },
             ]}
           />
-          <Button label={tr('भेजें', 'पाठवा')} icon={Send} loading={sending} onPress={handleSend} />
+          <Button label={tr('भेजें', 'पाठवा', 'Send')} icon={Send} loading={sending} onPress={handleSend} />
         </ScrollView>
       </Sheet>
 
       {/* Withdraw confirmation (soft-delete on the server) */}
-      <Sheet visible={!!withdrawTarget} onClose={() => setWithdrawTarget(null)} title={tr('संदेश वापस लें?', 'संदेश मागे घ्यायचा?')} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={!!withdrawTarget} onClose={() => setWithdrawTarget(null)} title={tr('संदेश वापस लें?', 'संदेश मागे घ्यायचा?', 'Withdraw message?')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         <View style={styles.sheetBody}>
           <Text style={text.body}>{withdrawTarget?.title}</Text>
-          <Text style={text.caption}>{tr('कार्यकर्ताओं के फ़ोन से यह संदेश हट जाएगा।', 'कार्यकर्त्यांच्या फोनवरून हा संदेश काढला जाईल.')}</Text>
-          <Button label={tr('हाँ, वापस लें', 'होय, मागे घ्या')} icon={Undo2} variant="danger" onPress={confirmWithdraw} />
-          <Button label={tr('रद्द करें', 'रद्द करा')} variant="secondary" onPress={() => setWithdrawTarget(null)} />
+          <Text style={text.caption}>{tr('कार्यकर्ताओं के फ़ोन से यह संदेश हट जाएगा।', 'कार्यकर्त्यांच्या फोनवरून हा संदेश काढला जाईल.', 'This message will be removed from workers\' phones.')}</Text>
+          <Button label={tr('हाँ, वापस लें', 'होय, मागे घ्या', 'Yes, withdraw')} icon={Undo2} variant="danger" onPress={confirmWithdraw} />
+          <Button label={tr('रद्द करें', 'रद्द करा', 'Cancel')} variant="secondary" onPress={() => setWithdrawTarget(null)} />
         </View>
       </Sheet>
     </View>

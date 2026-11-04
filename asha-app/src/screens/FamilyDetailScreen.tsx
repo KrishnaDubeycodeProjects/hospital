@@ -104,7 +104,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
             familyUnitId: currentFamily.id,
             name: currentFamily.headName,
             initials: initialsOf(currentFamily.headName),
-            relationship: tr('मुखिया', 'कुटुंबप्रमुख'),
+            relationship: tr('मुखिया', 'कुटुंबप्रमुख', 'Head'),
             phone: currentFamily.primaryPhone,
             isAbhaLinked: false,
             isPregnant: !!currentFamily.hasPregnancy,
@@ -131,7 +131,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
     try {
       await markFamilyVisited(currentFamily.id, p);
       setShowPriority(false);
-      flash(tr('भेंट दर्ज हुई', 'भेट नोंदवली'));
+      flash(tr('भेंट दर्ज हुई', 'भेट नोंदवली', 'Visit recorded'));
     } finally {
       setSavingVisit(false);
     }
@@ -144,7 +144,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
     const n = memberToDelete.name;
     await deleteMember(memberToDelete.id);
     setMemberToDelete(null);
-    flash(`${n} — ${tr('हटाया गया', 'काढले')}`);
+    flash(`${n} — ${tr('हटाया गया', 'काढले', 'Removed')}`);
   };
 
   // Delete family (migration / created in error). Soft-deleted on the server via the DELETE_FAMILY tombstone.
@@ -252,11 +252,11 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
       validateDob(dob, tr) ||
       validateAgeMatchesDob(age, dob, tr) ||
       validatePhone(phone, tr) ||
-      (relationship.trim() && /[0-9]/.test(relationship) ? tr('रिश्ते में अंक नहीं', 'नात्यात अंक नसावेत') : null) ||
-      (isPregnant && gender !== 'Female' ? tr('केवल महिला गर्भवती हो सकती है', 'फक्त स्त्री गरोदर असू शकते') : null) ||
+      (relationship.trim() && /[0-9]/.test(relationship) ? tr('रिश्ते में अंक नहीं', 'नात्यात अंक नसावेत', 'No digits in relationship') : null) ||
+      (isPregnant && gender !== 'Female' ? tr('केवल महिला गर्भवती हो सकती है', 'फक्त स्त्री गरोदर असू शकते', 'Only a woman can be pregnant') : null) ||
       (isPregnant ? validatePregnancyAge(effectiveAge, tr) : null) ||
       (isChild && effectiveAge != null && effectiveAge > LIMITS.childAgeMax
-        ? tr(`बच्चे की आयु ${LIMITS.childAgeMax} वर्ष तक`, `मुलाचे वय ${LIMITS.childAgeMax} वर्षांपर्यंत`)
+        ? tr(`बच्चे की आयु ${LIMITS.childAgeMax} वर्ष तक`, `मुलाचे वय ${LIMITS.childAgeMax} वर्षांपर्यंत`, `Child age up to ${LIMITS.childAgeMax} years`)
         : null);
     if (error) {
       setFormError(error);
@@ -275,7 +275,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
         fatherOrHusbandName: fatherOrHusband.trim() || undefined,
         age: parsedAge,
         gender,
-        relationship: relationship.trim() || tr('सदस्य', 'सदस्य'),
+        relationship: relationship.trim() || tr('सदस्य', 'सदस्य', 'Members'),
         isAbhaLinked: false,
         isPregnant: pregnant,
         isHrp: pregnant && isHrp,
@@ -285,7 +285,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
       });
       resetForm();
       setShowAdd(false);
-      flash(tr('सदस्य जोड़ा गया', 'सदस्य जोडला'));
+      flash(tr('सदस्य जोड़ा गया', 'सदस्य जोडला', 'Member added'));
     } finally {
       setSavingMember(false);
     }
@@ -298,34 +298,34 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
   const headPhone = currentFamily?.primaryPhone;
 
   const infoRows = [
-    { icon: Bath, label: tr('शौचालय', 'शौचालय'), value: currentFamily?.toiletType },
-    { icon: Droplets, label: tr('पेयजल', 'पिण्याचे पाणी'), value: currentFamily?.waterSource },
+    { icon: Bath, label: tr('शौचालय', 'शौचालय', 'Toilet'), value: currentFamily?.toiletType },
+    { icon: Droplets, label: tr('पेयजल', 'पिण्याचे पाणी', 'Drinking water'), value: currentFamily?.waterSource },
     {
       icon: CreditCard,
-      label: tr('राशन कार्ड', 'रेशन कार्ड'),
-      value: currentFamily?.bplCard == null ? undefined : currentFamily.bplCard ? 'BPL' : tr('गैर-BPL', 'बिगर-BPL'),
+      label: tr('राशन कार्ड', 'रेशन कार्ड', 'Ration card'),
+      value: currentFamily?.bplCard == null ? undefined : currentFamily.bplCard ? 'BPL' : tr('गैर-BPL', 'बिगर-BPL', 'Non-BPL'),
     },
     {
       icon: Users,
-      label: tr('वर्ग', 'प्रवर्ग'),
+      label: tr('वर्ग', 'प्रवर्ग', 'Category'),
       value: [currentFamily?.casteCategory, currentFamily?.religion].filter(Boolean).join(' • ') || undefined,
     },
   ].filter((r) => !!r.value);
 
   const priorities: { key: Priority; tone: Tone; title: string; sub: string }[] = [
-    { key: '7days', tone: 'red', title: tr('7 दिन में', '7 दिवसांत'), sub: tr('गंभीर — जल्दी देखें', 'गंभीर — लवकर पाहा') },
-    { key: '15days', tone: 'amber', title: tr('15 दिन में', '15 दिवसांत'), sub: tr('मध्यम — ANC / समीक्षा', 'मध्यम — ANC / आढावा') },
-    { key: '30days', tone: 'neutral', title: tr('30 दिन में', '30 दिवसांत'), sub: tr('सामान्य जांच', 'नियमित तपासणी') },
+    { key: '7days', tone: 'red', title: tr('7 दिन में', '7 दिवसांत', 'Within 7 days'), sub: tr('गंभीर — जल्दी देखें', 'गंभीर — लवकर पाहा', 'Serious — see soon') },
+    { key: '15days', tone: 'amber', title: tr('15 दिन में', '15 दिवसांत', 'Within 15 days'), sub: tr('मध्यम — ANC / समीक्षा', 'मध्यम — ANC / आढावा', 'Moderate — ANC / review') },
+    { key: '30days', tone: 'neutral', title: tr('30 दिन में', '30 दिवसांत', 'Within 30 days'), sub: tr('सामान्य जांच', 'नियमित तपासणी', 'Routine check') },
   ];
 
   return (
     <View style={styles.container}>
       <AppBar
         title={currentFamily?.headName || familyName}
-        subtitle={`${tr('घर', 'घर')} ${houseNo}`}
+        subtitle={`${tr('घर', 'घर', 'House')} ${houseNo}`}
         onBack={onBack}
-        backLabel={tr('वापस', 'मागे')}
-        right={<IconButton icon={UserPlus} tone="accent" label={tr('सदस्य जोड़ें', 'सदस्य जोडा')} onPress={() => setShowAdd(true)} />}
+        backLabel={tr('वापस', 'मागे', 'Back')}
+        right={<IconButton icon={UserPlus} tone="accent" label={tr('सदस्य जोड़ें', 'सदस्य जोडा', 'Add member')} onPress={() => setShowAdd(true)} />}
       />
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -340,7 +340,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
                 {currentFamily?.headName || familyName}
               </Text>
               <Text style={text.caption} numberOfLines={1}>
-                {[currentFamily?.villageName, `${familyMembers.length} ${tr('सदस्य', 'सदस्य')}`].filter(Boolean).join(' • ')}
+                {[currentFamily?.villageName, `${familyMembers.length} ${tr('सदस्य', 'सदस्य', 'Members')}`].filter(Boolean).join(' • ')}
               </Text>
               {status ? (
                 <View style={styles.pillRow}>
@@ -349,13 +349,13 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
               ) : null}
             </View>
             {headPhone ? (
-              <IconButton icon={Phone} tone="accent" filled label={tr('कॉल करें', 'कॉल करा')} onPress={() => Linking.openURL(`tel:${headPhone}`)} />
+              <IconButton icon={Phone} tone="accent" filled label={tr('कॉल करें', 'कॉल करा', 'Call')} onPress={() => Linking.openURL(`tel:${headPhone}`)} />
             ) : null}
           </View>
 
           <View style={styles.headAction}>
             <Button
-              label={visited ? tr('प्राथमिकता बदलें', 'प्राधान्य बदला') : tr('भेंट पूर्ण', 'भेट पूर्ण')}
+              label={visited ? tr('प्राथमिकता बदलें', 'प्राधान्य बदला', 'Change priority') : tr('भेंट पूर्ण', 'भेट पूर्ण', 'Visit done')}
               icon={visited ? CircleCheck : UserCheck}
               variant={visited ? 'secondary' : 'primary'}
               onPress={() => setShowPriority(true)}
@@ -369,7 +369,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
             <View style={styles.alertRow}>
               <TriangleAlert size={24} color={color.red} strokeWidth={2} />
               <Text style={[text.label, styles.flex, { color: color.redText }]}>
-                {tr('7 दिन में भेंट ज़रूरी', '7 दिवसांत भेट आवश्यक')}
+                {tr('7 दिन में भेंट ज़रूरी', '7 दिवसांत भेट आवश्यक', 'Visit needed within 7 days')}
               </Text>
             </View>
           </Card>
@@ -398,9 +398,9 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
         ) : null}
 
         <SectionTitle
-          label={tr('सदस्य', 'सदस्य')}
+          label={tr('सदस्य', 'सदस्य', 'Members')}
           count={familyMembers.length}
-          action={<Button label={tr('जोड़ें', 'जोडा')} icon={Plus} variant="ghost" full={false} onPress={() => setShowAdd(true)} />}
+          action={<Button label={tr('जोड़ें', 'जोडा', 'Add')} icon={Plus} variant="ghost" full={false} onPress={() => setShowAdd(true)} />}
         />
 
         {familyMembers.map((m) => {
@@ -408,8 +408,8 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
           const child = !!m.isChild || (m.age != null && m.age <= 5);
           const isVirtualHead = m.id.startsWith('head-');
           const meta = [
-            m.gender === 'Female' ? tr('महिला', 'स्त्री') : m.gender === 'Male' ? tr('पुरुष', 'पुरुष') : m.gender ? tr('अन्य', 'इतर') : null,
-            m.age != null ? `${m.age} ${tr('वर्ष', 'वर्षे')}` : null,
+            m.gender === 'Female' ? tr('महिला', 'स्त्री', 'Female') : m.gender === 'Male' ? tr('पुरुष', 'पुरुष', 'Male') : m.gender ? tr('अन्य', 'इतर', 'Other') : null,
+            m.age != null ? `${m.age} ${tr('वर्ष', 'वर्षे', 'yrs')}` : null,
             m.relationship,
           ]
             .filter(Boolean)
@@ -437,15 +437,15 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
                   ) : null}
                   {pregnant || m.isHrp || m.hasChronicCondition || child ? (
                     <View style={styles.pillRow}>
-                      {pregnant ? <StatusPill tone="accent" icon={Baby} label={tr('गर्भवती', 'गरोदर')} /> : null}
+                      {pregnant ? <StatusPill tone="accent" icon={Baby} label={tr('गर्भवती', 'गरोदर', 'Pregnant')} /> : null}
                       {m.isHrp ? <StatusPill tone="red" icon={ShieldAlert} label="HRP" /> : null}
                       {m.hasChronicCondition ? <StatusPill tone="red" icon={HeartPulse} label={m.ncdDiagnosis || 'NCD'} /> : null}
-                      {child ? <StatusPill tone="amber" icon={Syringe} label={tr('शिशु', 'बाळ')} /> : null}
+                      {child ? <StatusPill tone="amber" icon={Syringe} label={tr('शिशु', 'बाळ', 'Infant')} /> : null}
                     </View>
                   ) : null}
                 </View>
                 {!isVirtualHead ? (
-                  <IconButton icon={Trash2} tone="red" label={`${m.name} ${tr('हटाएं', 'काढा')}`} onPress={() => setMemberToDelete(m)} />
+                  <IconButton icon={Trash2} tone="red" label={`${m.name} ${tr('हटाएं', 'काढा', 'Remove')}`} onPress={() => setMemberToDelete(m)} />
                 ) : null}
                 <ChevronRight size={20} color={color.faint} strokeWidth={2} />
               </Pressable>
@@ -457,7 +457,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
                   style={({ pressed }) => [styles.vaxRow, pressed && styles.pressed]}
                 >
                   <Syringe size={20} color={color.amberText} strokeWidth={2} />
-                  <Text style={[text.label, styles.flex, { color: color.amberText }]}>{tr('टीकाकरण कार्ड', 'लसीकरण कार्ड')}</Text>
+                  <Text style={[text.label, styles.flex, { color: color.amberText }]}>{tr('टीकाकरण कार्ड', 'लसीकरण कार्ड', 'Immunisation card')}</Text>
                   <ChevronRight size={18} color={color.amberText} strokeWidth={2} />
                 </Pressable>
               ) : null}
@@ -468,7 +468,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
         {currentFamily ? (
           <View style={styles.deleteFamilyWrap}>
             <Button
-              label={tr('परिवार हटाएं (स्थलांतरण)', 'कुटुंब काढा (स्थलांतर)')}
+              label={tr('परिवार हटाएं (स्थलांतरण)', 'कुटुंब काढा (स्थलांतर)', 'Remove family (migration)')}
               icon={Trash2}
               variant="danger"
               onPress={() => setConfirmFamilyDelete(true)}
@@ -485,7 +485,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
       ) : null}
 
       {/* Revisit priority */}
-      <Sheet visible={showPriority} onClose={() => setShowPriority(false)} title={tr('अगली भेंट कब?', 'पुढील भेट कधी?')} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={showPriority} onClose={() => setShowPriority(false)} title={tr('अगली भेंट कब?', 'पुढील भेट कधी?', 'Next visit when?')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         <View style={styles.sheetBody}>
           {priorities.map((p) => {
             const pal = tonePalette(p.tone);
@@ -510,11 +510,11 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
       </Sheet>
 
       {/* Delete member confirmation */}
-      <Sheet visible={!!memberToDelete} onClose={() => setMemberToDelete(null)} title={tr('सदस्य हटाएं?', 'सदस्य काढायचा?')} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={!!memberToDelete} onClose={() => setMemberToDelete(null)} title={tr('सदस्य हटाएं?', 'सदस्य काढायचा?', 'Remove member?')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         <View style={styles.sheetBody}>
           <Text style={text.body}>{memberToDelete?.name}</Text>
-          <Button label={tr('हटाएं', 'काढा')} icon={Trash2} variant="danger" onPress={confirmDelete} />
-          <Button label={tr('रद्द करें', 'रद्द करा')} variant="secondary" onPress={() => setMemberToDelete(null)} />
+          <Button label={tr('हटाएं', 'काढा', 'Remove')} icon={Trash2} variant="danger" onPress={confirmDelete} />
+          <Button label={tr('रद्द करें', 'रद्द करा', 'Cancel')} variant="secondary" onPress={() => setMemberToDelete(null)} />
         </View>
       </Sheet>
 
@@ -522,24 +522,24 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
       <Sheet
         visible={confirmFamilyDelete}
         onClose={() => setConfirmFamilyDelete(false)}
-        title={tr('क्या आप इस परिवार को हटाना चाहते हैं?', 'तुम्हाला हे कुटुंब काढायचे आहे का?')}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        title={tr('क्या आप इस परिवार को हटाना चाहते हैं?', 'तुम्हाला हे कुटुंब काढायचे आहे का?', 'Do you want to remove this family?')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         <View style={styles.sheetBody}>
           <Text style={text.body}>
-            {currentFamily ? `${tr('घर', 'घर')} ${currentFamily.houseNumber} — ${currentFamily.headName}` : ''}
+            {currentFamily ? `${tr('घर', 'घर', 'House')} ${currentFamily.houseNumber} — ${currentFamily.headName}` : ''}
           </Text>
           <Text style={text.caption}>
-            {tr('परिवार और उसके सभी सदस्य सक्रिय सूची से हट जाएंगे।', 'कुटुंब आणि त्याचे सर्व सदस्य सक्रिय यादीतून काढले जातील.')}
+            {tr('परिवार और उसके सभी सदस्य सक्रिय सूची से हट जाएंगे।', 'कुटुंब आणि त्याचे सर्व सदस्य सक्रिय यादीतून काढले जातील.', 'The family and all its members will be removed from the active list.')}
           </Text>
           <Button
-            label={tr('हाँ, परिवार हटाएं', 'होय, कुटुंब काढा')}
+            label={tr('हाँ, परिवार हटाएं', 'होय, कुटुंब काढा', 'Yes, remove family')}
             icon={Trash2}
             variant="danger"
             loading={deletingFamily}
             onPress={handleDeleteFamily}
           />
-          <Button label={tr('रद्द करें', 'रद्द करा')} variant="secondary" onPress={() => setConfirmFamilyDelete(false)} />
+          <Button label={tr('रद्द करें', 'रद्द करा', 'Cancel')} variant="secondary" onPress={() => setConfirmFamilyDelete(false)} />
         </View>
       </Sheet>
 
@@ -550,45 +550,45 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
           setShowAdd(false);
           setFormError(null);
         }}
-        title={tr('नया सदस्य', 'नवीन सदस्य')}
-        closeLabel={tr('बंद करें', 'बंद करा')}
+        title={tr('नया सदस्य', 'नवीन सदस्य', 'New member')}
+        closeLabel={tr('बंद करें', 'बंद करा', 'Close')}
       >
         <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-          <Field label={tr('पूरा नाम', 'पूर्ण नाव')} voice="name" value={name} onChangeText={(v) => { setName(v); setFormError(null); }} autoFocus />
-          <Field label={tr('पिता / पति का नाम', 'वडील / पतीचे नाव')} voice="name" value={fatherOrHusband} onChangeText={setFatherOrHusband} />
+          <Field label={tr('पूरा नाम', 'पूर्ण नाव', 'Full name')} voice="name" value={name} onChangeText={(v) => { setName(v); setFormError(null); }} autoFocus />
+          <Field label={tr('पिता / पति का नाम', 'वडील / पतीचे नाव', 'Father / husband name')} voice="name" value={fatherOrHusband} onChangeText={setFatherOrHusband} />
           <View style={styles.twoCol}>
             <View style={styles.flex}>
-              <Field label={tr('उम्र (वर्ष)', 'वय (वर्षे)')} voice="age" value={age} onChangeText={onAgeChange} keyboardType="number-pad" maxLength={3} />
+              <Field label={tr('उम्र (वर्ष)', 'वय (वर्षे)', 'Age (years)')} voice="age" value={age} onChangeText={onAgeChange} keyboardType="number-pad" maxLength={3} />
             </View>
             <View style={styles.flex}>
-              <Field label={tr('रिश्ता', 'नाते')} voice="text" value={relationship} onChangeText={setRelationship} placeholder={tr('पत्नी / पुत्र', 'पत्नी / मुलगा')} />
+              <Field label={tr('रिश्ता', 'नाते', 'Relationship')} voice="text" value={relationship} onChangeText={setRelationship} placeholder={tr('पत्नी / पुत्र', 'पत्नी / मुलगा', 'Wife / son')} />
             </View>
           </View>
-          <Field label={tr('जन्म तिथि', 'जन्मतारीख')} value={dob} onChangeText={(v) => { setDob(v.replace(/[^0-9/\-]/g, '')); setFormError(null); }} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" maxLength={10} error={dob.length === 10 ? validateDob(dob, tr) : null} />
+          <Field label={tr('जन्म तिथि', 'जन्मतारीख', 'Date of birth')} value={dob} onChangeText={(v) => { setDob(v.replace(/[^0-9/\-]/g, '')); setFormError(null); }} placeholder="DD/MM/YYYY" keyboardType="numbers-and-punctuation" maxLength={10} error={dob.length === 10 ? validateDob(dob, tr) : null} />
           <Field
-            label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)')} voice="phone"
+            label={tr('मोबाइल (वैकल्पिक)', 'मोबाईल (ऐच्छिक)', 'Mobile (optional)')} voice="phone"
             value={phone}
             onChangeText={(v) => { setPhone(v.replace(/[^0-9]/g, '')); setFormError(null); }}
             keyboardType="phone-pad"
             maxLength={10}
           />
 
-          <Text style={text.label}>{tr('लिंग', 'लिंग')}</Text>
+          <Text style={text.label}>{tr('लिंग', 'लिंग', 'Gender')}</Text>
           <Segmented
             value={gender}
             onChange={onGenderChange}
             options={[
-              { key: 'Female', label: tr('महिला', 'स्त्री') },
-              { key: 'Male', label: tr('पुरुष', 'पुरुष') },
-              { key: 'Other', label: tr('अन्य', 'इतर') },
+              { key: 'Female', label: tr('महिला', 'स्त्री', 'Female') },
+              { key: 'Male', label: tr('पुरुष', 'पुरुष', 'Male') },
+              { key: 'Other', label: tr('अन्य', 'इतर', 'Other') },
             ]}
           />
 
-          <Text style={text.label}>{tr('स्वास्थ्य', 'आरोग्य')}</Text>
+          <Text style={text.label}>{tr('स्वास्थ्य', 'आरोग्य', 'Health')}</Text>
           <View style={styles.flagRow}>
             {canBePregnant ? (
               <FlagToggle
-                label={tr('गर्भवती', 'गरोदर')}
+                label={tr('गर्भवती', 'गरोदर', 'Pregnant')}
                 icon={Baby}
                 tone="accent"
                 on={isPregnant}
@@ -605,7 +605,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
             ) : null}
             {canBeChild ? (
               <FlagToggle
-                label={tr('शिशु', 'बाळ')}
+                label={tr('शिशु', 'बाळ', 'Infant')}
                 icon={Syringe}
                 tone="amber"
                 on={isChild}
@@ -627,7 +627,7 @@ export const FamilyDetailScreen: React.FC<FamilyDetailScreenProps> = ({ houseNo,
               <Text style={[text.label, { color: color.redText }]}>{formError}</Text>
             </Card>
           ) : null}
-          <Button label={tr('सहेजें', 'जतन करा')} icon={UserPlus} loading={savingMember} onPress={handleSaveMember} />
+          <Button label={tr('सहेजें', 'जतन करा', 'Save')} icon={UserPlus} loading={savingMember} onPress={handleSaveMember} />
         </ScrollView>
       </Sheet>
 

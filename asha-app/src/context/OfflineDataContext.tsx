@@ -164,7 +164,7 @@ export const OfflineDataProvider: React.FC<{ children: React.ReactNode }> = ({
         return {
           success: false,
           mode: 'OFFLINE_QUEUED',
-          message: languageRef.current === 'mr' ? 'लॉगिननंतर सिंक होईल' : 'लॉगिन के बाद सिंक होगा',
+          message: languageRef.current === 'mr' ? 'लॉगिननंतर सिंक होईल' : languageRef.current === 'en' ? 'Will sync after login' : 'लॉगिन के बाद सिंक होगा',
           syncedCount: 0,
         };
       }

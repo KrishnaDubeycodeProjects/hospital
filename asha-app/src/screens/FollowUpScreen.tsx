@@ -23,24 +23,24 @@ export const FollowUpScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) =>
   const list = tab === 'pending' ? pending : done;
 
   const statusOf = (t: FollowUpTask): { tone: Tone; label: string } => {
-    if (t.isCompleted) return { tone: 'green', label: tr('पूर्ण', 'पूर्ण') };
-    if (t.choStatus === 'APPROVED_CHO') return { tone: 'green', label: tr('सत्यापित', 'पडताळले') };
+    if (t.isCompleted) return { tone: 'green', label: tr('पूर्ण', 'पूर्ण', 'Done') };
+    if (t.choStatus === 'APPROVED_CHO') return { tone: 'green', label: tr('सत्यापित', 'पडताळले', 'Verified') };
     const missed = /missed/i.test(t.taskType) || (t.sourceReferralId != null && !t.referredToCho);
-    if (missed) return { tone: 'red', label: tr('छूटा रेफरल', 'चुकलेला संदर्भ') };
-    if (t.referredToCho) return { tone: 'amber', label: tr('सीएचओ समीक्षा', 'सीएचओ आढावा') };
-    return { tone: 'amber', label: tr('देय', 'देय') };
+    if (missed) return { tone: 'red', label: tr('छूटा रेफरल', 'चुकलेला संदर्भ', 'Missed referral') };
+    if (t.referredToCho) return { tone: 'amber', label: tr('सीएचओ समीक्षा', 'सीएचओ आढावा', 'CHO review') };
+    return { tone: 'amber', label: tr('देय', 'देय', 'Due') };
   };
 
   return (
     <View style={styles.flex}>
-      {onBack ? <AppBar title={tr('फॉलो-अप', 'पाठपुरावा')} onBack={onBack} backLabel={tr('वापस', 'मागे')} /> : null}
+      {onBack ? <AppBar title={tr('फॉलो-अप', 'पाठपुरावा', 'Follow-up')} onBack={onBack} backLabel={tr('वापस', 'मागे', 'Back')} /> : null}
       <Screen>
         <Segmented
           value={tab}
           onChange={setTab}
           options={[
-            { key: 'pending', label: `${tr('बाकी', 'बाकी')} ${pending.length}`, icon: Clock },
-            { key: 'done', label: `${tr('पूर्ण', 'पूर्ण')} ${done.length}`, icon: CircleCheck },
+            { key: 'pending', label: `${tr('बाकी', 'बाकी', 'Pending')} ${pending.length}`, icon: Clock },
+            { key: 'done', label: `${tr('पूर्ण', 'पूर्ण', 'Done')} ${done.length}`, icon: CircleCheck },
           ]}
         />
 
@@ -49,7 +49,7 @@ export const FollowUpScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) =>
         ) : list.length === 0 ? (
           <EmptyState
             icon={CircleCheck}
-            title={tab === 'pending' ? tr('कोई बाकी काम नहीं', 'बाकी काम नाही') : tr('अभी कुछ पूर्ण नहीं', 'अजून काही पूर्ण नाही')}
+            title={tab === 'pending' ? tr('कोई बाकी काम नहीं', 'बाकी काम नाही', 'No pending work') : tr('अभी कुछ पूर्ण नहीं', 'अजून काही पूर्ण नाही', 'Nothing completed yet')}
           />
         ) : (
           list.map((item) => {
@@ -65,7 +65,7 @@ export const FollowUpScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) =>
                     </Text>
                     {item.houseNumber ? (
                       <Text style={text.caption}>
-                        {tr('घर', 'घर')} {item.houseNumber}
+                        {tr('घर', 'घर', 'House')} {item.houseNumber}
                       </Text>
                     ) : null}
                   </View>
@@ -99,7 +99,7 @@ export const FollowUpScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) =>
                   <View style={styles.meta}>
                     <Clock size={16} color={color.muted} strokeWidth={2} />
                     <Text style={text.caption}>
-                      {tr('देय तिथि', 'देय तारीख')}: {item.dueDate}
+                      {tr('देय तिथि', 'देय तारीख', 'Due date')}: {item.dueDate}
                     </Text>
                   </View>
                 ) : null}
@@ -109,23 +109,23 @@ export const FollowUpScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) =>
                     <Pressable
                       onPress={() => Linking.openURL(`tel:${item.phone}`)}
                       accessibilityRole="button"
-                      accessibilityLabel={tr('कॉल करें', 'कॉल करा')}
+                      accessibilityLabel={tr('कॉल करें', 'कॉल करा', 'Call')}
                       style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
                     >
                       <Phone size={18} color={color.accent} strokeWidth={2} />
-                      <Text style={styles.actionText}>{tr('कॉल करें', 'कॉल करा')}</Text>
+                      <Text style={styles.actionText}>{tr('कॉल करें', 'कॉल करा', 'Call')}</Text>
                     </Pressable>
                   ) : null}
                   <Pressable
                     onPress={() => toggleFollowUp(item.id)}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: item.isCompleted }}
-                    accessibilityLabel={item.isCompleted ? tr('पूर्ण हटाएँ', 'पूर्ण काढा') : tr('पूर्ण करें', 'पूर्ण करा')}
+                    accessibilityLabel={item.isCompleted ? tr('पूर्ण हटाएँ', 'पूर्ण काढा', 'Remove completed') : tr('पूर्ण करें', 'पूर्ण करा', 'Mark done')}
                     style={({ pressed }) => [styles.actionBtn, item.isCompleted && styles.actionDone, pressed && styles.pressed]}
                   >
                     <Check size={18} color={item.isCompleted ? color.white : color.green} strokeWidth={2.4} />
                     <Text style={[styles.actionText, { color: item.isCompleted ? color.white : color.greenText }]}>
-                      {item.isCompleted ? tr('पूर्ण', 'पूर्ण') : tr('पूर्ण करें', 'पूर्ण करा')}
+                      {item.isCompleted ? tr('पूर्ण', 'पूर्ण', 'Done') : tr('पूर्ण करें', 'पूर्ण करा', 'Mark done')}
                     </Text>
                   </Pressable>
                 </View>

@@ -21,15 +21,15 @@ export const SyncSuccessScreen: React.FC<SyncSuccessScreenProps> = ({ onSendAnot
 
   return (
     <View style={styles.flex}>
-      <AppBar title={tr('डेटा भेजें', 'डेटा पाठवा')} onBack={onBackToHome} backLabel={tr('वापस', 'मागे')} />
+      <AppBar title={tr('डेटा भेजें', 'डेटा पाठवा', 'Send data')} onBack={onBackToHome} backLabel={tr('वापस', 'मागे', 'Back')} />
       <Screen>
         <View style={styles.hero}>
           <CircleCheck size={80} color={color.green} strokeWidth={1.8} />
-          <Text style={styles.title}>{online ? tr('डेटा भेजा गया', 'डेटा पाठवला') : tr('QR तैयार', 'QR तयार')}</Text>
+          <Text style={styles.title}>{online ? tr('डेटा भेजा गया', 'डेटा पाठवला', 'Data sent') : tr('QR तैयार', 'QR तयार', 'QR ready')}</Text>
           <View style={styles.pills}>
-            <StatusPill tone={online ? 'green' : 'amber'} label={online ? tr('ऑनलाइन', 'ऑनलाइन') : tr('ऑफलाइन', 'ऑफलाइन')} />
+            <StatusPill tone={online ? 'green' : 'amber'} label={online ? tr('ऑनलाइन', 'ऑनलाइन', 'Online') : tr('ऑफलाइन', 'ऑफलाइन', 'Offline')} />
             {lastSyncResult?.syncedCount !== undefined ? (
-              <StatusPill tone="accent" label={`${lastSyncResult.syncedCount} ${tr('रिकॉर्ड', 'नोंदी')}`} />
+              <StatusPill tone="accent" label={`${lastSyncResult.syncedCount} ${tr('रिकॉर्ड', 'नोंदी', 'Records')}`} />
             ) : null}
           </View>
         </View>
@@ -37,7 +37,7 @@ export const SyncSuccessScreen: React.FC<SyncSuccessScreenProps> = ({ onSendAnot
         {lastSyncResult?.qrPayload ? (
           <Card>
             <Button
-              label={showQr ? tr('QR छिपाएँ', 'QR लपवा') : tr('QR देखें', 'QR पहा')}
+              label={showQr ? tr('QR छिपाएँ', 'QR लपवा', 'Hide QR') : tr('QR देखें', 'QR पहा', 'View QR')}
               icon={showQr ? ChevronUp : QrCode}
               variant="secondary"
               onPress={() => setShowQr(!showQr)}
@@ -45,14 +45,14 @@ export const SyncSuccessScreen: React.FC<SyncSuccessScreenProps> = ({ onSendAnot
             {showQr ? (
               <View style={styles.qr}>
                 <RealQrCode value={lastSyncResult.qrPayload} size={200} />
-                <Text style={[text.caption, styles.center]}>{tr('एएनएम यह QR स्कैन करें', 'एएनएमने हा QR स्कॅन करावा')}</Text>
+                <Text style={[text.caption, styles.center]}>{tr('एएनएम यह QR स्कैन करें', 'एएनएमने हा QR स्कॅन करावा', 'ANM, scan this QR')}</Text>
               </View>
             ) : null}
           </Card>
         ) : null}
 
-        <Button label={tr('और भेजें', 'आणखी पाठवा')} icon={Send} onPress={onSendAnother} />
-        <Button label={tr('होम', 'होम')} icon={House} variant="secondary" onPress={onBackToHome} />
+        <Button label={tr('और भेजें', 'आणखी पाठवा', 'Send more')} icon={Send} onPress={onSendAnother} />
+        <Button label={tr('होम', 'होम', 'Home')} icon={House} variant="secondary" onPress={onBackToHome} />
       </Screen>
     </View>
   );

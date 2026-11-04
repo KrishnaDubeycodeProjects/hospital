@@ -26,7 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOfflineData } from '../context/OfflineDataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { NhmCoursesCard } from '../components/NhmCoursesCard';
-import { Screen, Card, ListRow, SectionTitle, Button, StatusPill, color, space, text, useTr } from '../ui';
+import { Screen, Card, ListRow, SectionTitle, Button, StatusPill, Segmented, color, space, text, useTr } from '../ui';
 
 export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpenMeetings }) => {
   const { user, logout } = useAuth();
@@ -76,10 +76,10 @@ export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpe
 
   const cadre =
     user.role === 'CHO'
-      ? tr('सामुदायिक स्वास्थ्य अधिकारी', 'समुदाय आरोग्य अधिकारी')
+      ? tr('सामुदायिक स्वास्थ्य अधिकारी', 'समुदाय आरोग्य अधिकारी', 'Community Health Officer')
       : user.role === 'ANM'
-      ? tr('एएनएम', 'एएनएम')
-      : tr('आशा कार्यकर्ता', 'आशा कार्यकर्ती');
+      ? tr('एएनएम', 'एएनएम', 'ANM')
+      : tr('आशा कार्यकर्ता', 'आशा कार्यकर्ती', 'ASHA worker');
 
   const area = [user.blockName, user.districtName].filter(Boolean).join(' • ');
 
@@ -110,29 +110,36 @@ export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpe
         {householdCount != null ? (
           <ListRow
             icon={House}
-            title={`${householdCount} ${tr('परिवार', 'कुटुंबे')}`}
-            subtitle={tr('आवंटित घर', 'नेमून दिलेली घरे')}
+            title={`${householdCount} ${tr('परिवार', 'कुटुंबे', 'Families')}`}
+            subtitle={tr('आवंटित घर', 'नेमून दिलेली घरे', 'Assigned houses')}
           />
         ) : null}
         {user.assignedAnm ? (
-          <ListRow icon={UserRound} tone="neutral" title={user.assignedAnm} subtitle={tr('पर्यवेक्षक', 'पर्यवेक्षक')} />
+          <ListRow icon={UserRound} tone="neutral" title={user.assignedAnm} subtitle={tr('पर्यवेक्षक', 'पर्यवेक्षक', 'Supervisor')} />
         ) : null}
       </View>
 
-      <SectionTitle label={tr('सेटिंग्स', 'सेटिंग्ज')} />
+      <SectionTitle label={tr('सेटिंग्स', 'सेटिंग्ज', 'Settings')} />
       <View style={styles.list}>
         <ListRow
           icon={Languages}
-          title={tr('भाषा', 'भाषा')}
-          subtitle={language === 'mr' ? 'मराठी' : 'हिंदी'}
-          onPress={() => setLanguage(language === 'hi' ? 'mr' : 'hi')}
-          right={<StatusPill tone="accent" label={language === 'hi' ? 'मराठी' : 'हिंदी'} />}
+          title={tr('भाषा', 'भाषा', 'Language')}
+          subtitle={language === 'mr' ? 'मराठी' : language === 'en' ? 'English' : 'हिंदी'}
+        />
+        <Segmented
+          options={[
+            { key: 'hi', label: 'हिंदी' },
+            { key: 'mr', label: 'मराठी' },
+            { key: 'en', label: 'English' },
+          ]}
+          value={language}
+          onChange={setLanguage}
         />
         <ListRow
           icon={ttsEnabled ? Volume2 : VolumeX}
           tone={ttsEnabled ? 'accent' : 'neutral'}
-          title={tr('आवाज़', 'आवाज')}
-          subtitle={ttsEnabled ? tr('चालू', 'चालू') : tr('बंद', 'बंद')}
+          title={tr('आवाज़', 'आवाज', 'Voice Audio')}
+          subtitle={ttsEnabled ? tr('चालू', 'चालू', 'Enabled') : tr('बंद', 'बंद', 'Disabled')}
           onPress={() => setTtsEnabled(!ttsEnabled)}
           right={
             <Switch
@@ -140,17 +147,17 @@ export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpe
               onValueChange={setTtsEnabled}
               trackColor={{ true: color.accentLine, false: color.line }}
               thumbColor={ttsEnabled ? color.accent : color.faint}
-              accessibilityLabel={tr('आवाज़', 'आवाज')}
+              accessibilityLabel={tr('आवाज़', 'आवाज', 'Voice')}
             />
           }
         />
         {user.role === 'ASHA' && onOpenMeetings ? (
-          <ListRow icon={Users} title={tr('बैठकें', 'बैठका')} subtitle={tr('ग्राम सभा, VHSNC', 'ग्रामसभा, VHSNC')} onPress={onOpenMeetings} />
+          <ListRow icon={Users} title={tr('बैठकें', 'बैठका', 'Meetings')} subtitle={tr('ग्राम सभा, VHSNC', 'ग्रामसभा, VHSNC', 'Gram Sabha, VHSNC')} onPress={onOpenMeetings} />
         ) : null}
         <ListRow
           icon={GraduationCap}
-          title={tr('प्रशिक्षण', 'प्रशिक्षण')}
-          subtitle={tr('NHM पाठ्यक्रम', 'NHM अभ्यासक्रम')}
+          title={tr('प्रशिक्षण', 'प्रशिक्षण', 'Training')}
+          subtitle={tr('NHM पाठ्यक्रम', 'NHM अभ्यासक्रम', 'NHM curriculum')}
           onPress={() => setCoursesOpen((o) => !o)}
           right={coursesOpen ? <ChevronUp size={20} color={color.faint} strokeWidth={2} /> : <ChevronDown size={20} color={color.faint} strokeWidth={2} />}
         />
@@ -159,19 +166,19 @@ export const ProfileScreen: React.FC<{ onOpenMeetings?: () => void }> = ({ onOpe
 
       {confirmLogout ? (
         <Card tone="red">
-          <Text style={[text.heading, styles.center]}>{tr('लॉगआउट करें?', 'लॉगआउट करायचे?')}</Text>
-          <Text style={[text.caption, styles.center]}>{tr('बिना सिंक डेटा फोन में रहेगा', 'सिंक न झालेला डेटा फोनमध्ये राहील')}</Text>
+          <Text style={[text.heading, styles.center]}>{tr('लॉगआउट करें?', 'लॉगआउट करायचे?', 'Log out?')}</Text>
+          <Text style={[text.caption, styles.center]}>{tr('बिना सिंक डेटा फोन में रहेगा', 'सिंक न झालेला डेटा फोनमध्ये राहील', 'Unsynced data will stay on the phone')}</Text>
           <View style={styles.confirmRow}>
             <View style={styles.flex}>
-              <Button label={tr('रद्द करें', 'रद्द करा')} variant="secondary" onPress={() => setConfirmLogout(false)} />
+              <Button label={tr('रद्द करें', 'रद्द करा', 'Cancel')} variant="secondary" onPress={() => setConfirmLogout(false)} />
             </View>
             <View style={styles.flex}>
-              <Button label={tr('लॉगआउट', 'लॉगआउट')} icon={LogOut} variant="danger" onPress={() => logout()} />
+              <Button label={tr('लॉगआउट', 'लॉगआउट', 'Log out')} icon={LogOut} variant="danger" onPress={() => logout()} />
             </View>
           </View>
         </Card>
       ) : (
-        <Button label={tr('लॉगआउट', 'लॉगआउट')} icon={LogOut} variant="secondary" onPress={() => setConfirmLogout(true)} />
+        <Button label={tr('लॉगआउट', 'लॉगआउट', 'Log out')} icon={LogOut} variant="secondary" onPress={() => setConfirmLogout(true)} />
       )}
     </Screen>
   );

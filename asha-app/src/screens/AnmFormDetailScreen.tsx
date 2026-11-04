@@ -89,16 +89,16 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({ member
 
   return (
     <View style={styles.flex}>
-      <AppBar title={memberName} subtitle={meta?.label} onBack={onBack} backLabel={tr('वापस', 'मागे')} />
+      <AppBar title={memberName} subtitle={meta?.label} onBack={onBack} backLabel={tr('वापस', 'मागे', 'Back')} />
       {!form || !summary || !meta ? (
         <Screen>
-          <EmptyState icon={Inbox} tone="neutral" title={tr('कोई फॉर्म नहीं', 'फॉर्म नाही')} />
+          <EmptyState icon={Inbox} tone="neutral" title={tr('कोई फॉर्म नहीं', 'फॉर्म नाही', 'No forms')} />
         </Screen>
       ) : (
         <Screen>
           {forms.length > 1 ? (
             <>
-              <SectionTitle label={tr('फॉर्म', 'फॉर्म')} count={forms.length} />
+              <SectionTitle label={tr('फॉर्म', 'फॉर्म', 'Form')} count={forms.length} />
               <View style={styles.list}>
                 {forms.map((f, i) => {
                   const m = categoryMeta(f.categoryCode, tr);
@@ -110,7 +110,7 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({ member
                       title={m.label}
                       subtitle={f.createdAt ? f.createdAt.slice(0, 10).split('-').reverse().join('/') : undefined}
                       onPress={() => selectForm(i)}
-                      right={i === index ? <StatusPill tone="accent" label={tr('खुला', 'उघडा')} /> : undefined}
+                      right={i === index ? <StatusPill tone="accent" label={tr('खुला', 'उघडा', 'Open')} /> : undefined}
                     />
                   );
                 })}
@@ -122,8 +122,8 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({ member
             value={tab}
             onChange={setTab}
             options={[
-              { key: 'summary', label: tr('संक्षेप', 'सारांश') },
-              { key: 'form', label: tr('पूरा फॉर्म', 'पूर्ण फॉर्म') },
+              { key: 'summary', label: tr('संक्षेप', 'सारांश', 'Summary') },
+              { key: 'form', label: tr('पूरा फॉर्म', 'पूर्ण फॉर्म', 'Full form') },
             ]}
           />
 
@@ -133,7 +133,7 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({ member
                 <StatusPill tone={meta.tone} label={summary.surveyDate} />
                 {ttsEnabled ? (
                   <Button
-                    label={speaking ? tr('रोकें', 'थांबवा') : tr('सुनें', 'ऐका')}
+                    label={speaking ? tr('रोकें', 'थांबवा', 'Stop') : tr('सुनें', 'ऐका', 'Listen')}
                     icon={speaking ? VolumeX : Volume2}
                     variant="secondary"
                     full={false}
@@ -142,7 +142,7 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({ member
                 ) : null}
               </View>
               {summary.highlights.length === 0 ? (
-                <Text style={text.body}>{tr('कोई जानकारी दर्ज नहीं', 'कोणतीही माहिती नोंद नाही')}</Text>
+                <Text style={text.body}>{tr('कोई जानकारी दर्ज नहीं', 'कोणतीही माहिती नोंद नाही', 'No information recorded')}</Text>
               ) : (
                 <View style={styles.list}>
                   {summary.highlights.map((h) => (
@@ -158,7 +158,7 @@ export const AnmFormDetailScreen: React.FC<AnmFormDetailScreenProps> = ({ member
               )}
             </Card>
           ) : summary.detailedEntries.length === 0 ? (
-            <EmptyState icon={Inbox} tone="neutral" title={tr('उत्तर दर्ज नहीं', 'उत्तरे नोंद नाहीत')} />
+            <EmptyState icon={Inbox} tone="neutral" title={tr('उत्तर दर्ज नहीं', 'उत्तरे नोंद नाहीत', 'No answer recorded')} />
           ) : (
             <View style={styles.list}>
               {summary.detailedEntries.map((e) => (

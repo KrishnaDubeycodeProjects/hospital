@@ -87,63 +87,36 @@ function formatOperatingHours(startTime, endTime) {
   return `${start} – ${end}`;
 }
 
-function getTitleFontSize(name = '') {
-  if (name.length > 34) return '12px';
-  if (name.length > 25) return '12.5px';
-  if (name.length > 18) return '14px';
-  return '15.5px';
-}
-
 function renderHospitalTitleWithBadge(name, isOpen) {
-  const words = (name || 'Hospital').trim().split(/\s+/);
-  const lastWord = words.pop() || '';
-  const prefix = words.join(' ');
-
   return (
-    <div
-      style={{
-        fontSize: getTitleFontSize(name),
-        fontWeight: '700',
-        color: '#0f172a',
-        letterSpacing: '-0.02em',
-        lineHeight: 1.3,
-        wordBreak: 'break-word',
-      }}
-    >
-      {prefix ? `${prefix} ` : ''}
-      <span
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+      <div
         style={{
-          whiteSpace: 'nowrap',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '5px',
+          fontSize: '15.5px',
+          fontWeight: '700',
+          color: '#0f172a',
+          letterSpacing: '-0.01em',
+          lineHeight: 1.3,
+          wordBreak: 'break-word',
         }}
       >
-        <span>{lastWord}</span>
-        <span
-          title={isOpen ? 'Online (OPD Open)' : 'Offline (OPD Closed)'}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '12px',
-            height: '12px',
-            borderRadius: '50%',
-            backgroundColor: isOpen ? '#D1FAE5' : '#FEE2E2',
-            border: `1.5px solid ${isOpen ? '#34D399' : '#F87171'}`,
-            flexShrink: 0,
-            transform: 'translateY(-0.5px)',
-          }}
-        >
-          <span
-            style={{
-              width: '5px',
-              height: '5px',
-              borderRadius: '50%',
-              backgroundColor: isOpen ? '#00A884' : '#EF4444',
-            }}
-          />
-        </span>
+        {name || 'Hospital'}
+      </div>
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '12px',
+          fontWeight: '700',
+          padding: '3px 10px',
+          borderRadius: '999px',
+          backgroundColor: isOpen ? '#DCFCE7' : '#FEE2E2',
+          color: isOpen ? '#166534' : '#991B1B',
+        }}
+      >
+        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: isOpen ? '#16A34A' : '#DC2626' }} />
+        {isOpen ? 'Open now' : 'Closed now'}
       </span>
     </div>
   );
@@ -235,6 +208,7 @@ export default function FindHospital() {
     return null;
   });
   const [locating, setLocating] = useState(false);
+  const [usingRealLocation, setUsingRealLocation] = useState(() => Boolean(latParam && lonParam));
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -251,6 +225,7 @@ export default function FindHospital() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
+        setUsingRealLocation(true);
         setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
       },
       (err) => {
@@ -364,7 +339,7 @@ export default function FindHospital() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#065F46' }}>
               <span style={{ fontSize: '16px' }}>👤</span>
               <span>
-                Booking OPD for: <strong>{nameParam}</strong>
+                Booking for: <strong>{nameParam}</strong>
                 {relationshipParam ? ` (${relationshipParam}` : ''}
                 {ageParam ? `, ${ageParam} yrs)` : relationshipParam ? ')' : ''}
               </span>
@@ -404,14 +379,18 @@ export default function FindHospital() {
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
               </svg>
               <span style={{ fontSize: '13.5px', fontWeight: '600', color: '#043c2c' }}>
-                Showing hospitals nearest to you
+                {locating
+                  ? 'Finding hospitals near you…'
+                  : usingRealLocation
+                  ? 'Hospitals nearest to you'
+                  : 'Turn on location to see the nearest hospitals'}
               </span>
             </div>
 
             <button
               type="button"
               onClick={() => {
-                requestLocation();
+                requestLocation(true);
                 fetchHospitals();
               }}
               disabled={locating || loading}
@@ -445,7 +424,7 @@ export default function FindHospital() {
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-              <span>{locating ? 'Locating…' : 'Refresh'}</span>
+              <span>{locating ? 'Locating…' : usingRealLocation ? 'Refresh' : 'Use my location'}</span>
             </button>
           </div>
 
@@ -468,7 +447,7 @@ export default function FindHospital() {
             </svg>
             <input
               type="text"
-              placeholder="Search hospital or area..."
+              placeholder="Type hospital name or area"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -671,7 +650,7 @@ export default function FindHospital() {
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <span>Book Here</span>
+                  <span>Book token here</span>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
@@ -712,19 +691,7 @@ export default function FindHospital() {
                   transition: 'all 0.15s ease',
                 }}
               >
-                <span>Show More 10 Hospitals</span>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    backgroundColor: '#DCFCE7',
-                    color: '#15803D',
-                    padding: '2px 8px',
-                    borderRadius: '10px',
-                  }}
-                >
-                  +{Math.min(10, displayedHospitals.length - visibleCount)} more
-                </span>
+                <span>Show more hospitals</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9" />
                 </svg>

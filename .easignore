@@ -1,10 +1,68 @@
 # EAS Build archives from the repository root, so this file (not asha-app/.easignore) decides
-# what is uploaded. Only the mobile app is needed; backend, web frontend, docs and decks are not.
-/*
-!/asha-app/
+# what is uploaded. Only asha-app is needed: every other top-level entry is listed below.
+/.agents
+/.claude
+/.dockerignore
+/.env
+/.env.example
+/.env.n8n
+/.gemini
+/.gitignore
+/.idea
+/.vscode
+/1774248929698-JansamvaadSRS__2_ - Copy.pdf
+/API.md
+/ASHA_CODEBASE_DOCUMENTATION.md
+/AarogyaFlow_Seva_Challenge_2026.pptx
+/Dockerfile
+/README.md
+/__pycache__
+/asha-backend
+/backend-run-err.log
+/backend-run.log
+/backend.pid
+/build_final_deck.py
+/crop_arch.png
+/crop_results.png
+/crop_table.png
+/demo
+/deploy-expo.ps1
+/deploy_lambda.py
+/design_ppt_helpers.py
+/docker-compose.override.yml
+/docker-compose.yml
+/docs
+/dump_full_details.py
+/eka-care-abha-tester
+/extract_images.py
+/extracted_images
+/final_comparison_table.png
+/final_results_graph.png
+/final_system_architecture.png
+/frontend
+/host_admin.py
+/inspect_deck.py
+/inspect_paragraphs.py
+/n8n-variables.json
+/nginx.conf
+/ops.json
+/packages
+/pom.xml
+/print_slides.py
+/qDischarge-Backend-Documentation.pdf
+/research
+/schema_migration.json
+/scratch
+/scratch_check_texts.py
+/setup_admin_email.py
+/setup_apigateway.py
+/src
+/stitch-assets
+/storage
+/target
 
-# Inside the app: dependencies are installed on the build server; reference material and
-# local build outputs are never part of the APK.
+# Inside the app: dependencies install on the build server; reference files and local
+# build outputs are never part of the APK.
 /asha-app/node_modules/
 /asha-app/res/
 /asha-app/dist/
@@ -16,4 +74,3 @@
 **/local.properties
 *.apk
 *.aab
-npm-debug.*

@@ -2,7 +2,7 @@
  * Login — phone + OTP only. Workers are registered by their CHO; the profile loads from the
  * server after verification. Unregistered numbers get AuthContext's NOT_REGISTERED_MESSAGE.
  *
- * Rendered before LanguageProvider mounts, so the hi/mr choice is kept locally here and saved
+ * Rendered before LanguageProvider mounts, so the hi/mr/en choice is kept locally here and saved
  * to the same storage key the LanguageProvider reads after login.
  */
 import React, { useEffect, useState } from 'react';
@@ -16,8 +16,8 @@ const LANGUAGE_STORAGE_KEY = '@asha_selected_language';
 
 export const LoginScreen: React.FC = () => {
   const { sendOtp, verifyOtp } = useAuth();
-  const [lang, setLang] = useState<'hi' | 'mr'>('hi');
-  const tr = (hi: string, mr: string) => (lang === 'mr' ? mr : hi);
+  const [lang, setLang] = useState<'hi' | 'mr' | 'en'>('hi');
+  const tr = (hi: string, mr: string, en?: string) => (lang === 'mr' ? mr : lang === 'en' ? (en || hi) : hi);
 
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -30,7 +30,7 @@ export const LoginScreen: React.FC = () => {
   useEffect(() => {
     AsyncStorage.getItem(LANGUAGE_STORAGE_KEY)
       .then((v) => {
-        if (v === 'hi' || v === 'mr') setLang(v);
+        if (v === 'hi' || v === 'mr' || v === 'en') setLang(v as any);
       })
       .catch(() => {});
   }, []);
@@ -41,7 +41,7 @@ export const LoginScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const switchLang = (next: 'hi' | 'mr') => {
+  const switchLang = (next: 'hi' | 'mr' | 'en') => {
     setLang(next);
     AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, next).catch(() => {});
   };
@@ -51,7 +51,7 @@ export const LoginScreen: React.FC = () => {
   const handleSendOtp = async () => {
     setStatus(null);
     if (digits.length !== 10) {
-      setStatus({ type: 'error', text: tr('10 अंकों का मोबाइल नंबर डालें', '10 अंकी मोबाइल नंबर टाका') });
+      setStatus({ type: 'error', text: tr('10 अंकों का मोबाइल नंबर डालें', '10 अंकी मोबाइल नंबर टाका', 'Enter 10-digit mobile number') });
       return;
     }
     setLoadingSend(true);
@@ -61,20 +61,21 @@ export const LoginScreen: React.FC = () => {
       setOtpSent(true);
       setOtp('');
       setCountdown(60);
-      setStatus({ type: 'success', text: tr('OTP भेजा गया', 'OTP पाठवला') });
+      setStatus({ type: 'success', text: tr('OTP भेजा गया', 'OTP पाठवला', 'OTP Sent successfully') });
     } else {
       setStatus({ type: 'error', text: result.message });
     }
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = async (code: string = otp) => {
+    if (loadingVerify) return;
     setStatus(null);
-    if (otp.replace(/[^0-9]/g, '').length < 6) {
-      setStatus({ type: 'error', text: tr('6 अंकों का OTP डालें', '6 अंकी OTP टाका') });
+    if (code.replace(/[^0-9]/g, '').length < 6) {
+      setStatus({ type: 'error', text: tr('6 अंकों का OTP डालें', '6 अंकी OTP टाका', 'Enter 6-digit OTP') });
       return;
     }
     setLoadingVerify(true);
-    const result = await verifyOtp(digits, otp.trim());
+    const result = await verifyOtp(digits, code.trim());
     setLoadingVerify(false);
     if (!result.success) setStatus({ type: 'error', text: result.message });
   };
@@ -87,9 +88,9 @@ export const LoginScreen: React.FC = () => {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Language */}
+        {/* Language Selection */}
         <View style={styles.langRow} accessibilityRole="tablist">
-          {(['hi', 'mr'] as const).map((l) => (
+          {(['hi', 'mr', 'en'] as const).map((l) => (
             <Pressable
               key={l}
               onPress={() => switchLang(l)}
@@ -97,24 +98,26 @@ export const LoginScreen: React.FC = () => {
               accessibilityState={{ selected: lang === l }}
               style={[styles.langChip, lang === l && styles.langChipActive]}
             >
-              <Text style={[styles.langText, lang === l && styles.langTextActive]}>{l === 'hi' ? 'हिंदी' : 'मराठी'}</Text>
+              <Text style={[styles.langText, lang === l && styles.langTextActive]}>
+                {l === 'hi' ? 'हिंदी' : l === 'mr' ? 'मराठी' : 'English'}
+              </Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Brand: white squircle logo */}
+        {/* Brand: clean emblem */}
         <View style={styles.brand}>
           <View style={styles.logoSquircle}>
             <Image source={logoSource} style={styles.logo} resizeMode="contain" />
           </View>
-          <Text style={text.title}>{tr('आरोग्य फ्लो', 'आरोग्य फ्लो')}</Text>
-          <Text style={text.caption}>{tr('आशा • एएनएम • सीएचओ', 'आशा • एएनएम • सीएचओ')}</Text>
+          <Text style={text.title}>{tr('आरोग्य फ्लो', 'आरोग्य फ्लो', 'Aarogya Flow')}</Text>
+          <Text style={text.caption}>{tr('आशा • एएनएम • सीएचओ', 'आशा • एएनएम • सीएचओ', 'ASHA • ANM • CHO')}</Text>
         </View>
 
         <Card>
           <View style={styles.cardHead}>
             <IconBadge icon={otpSent ? MessageSquare : ShieldCheck} tone="accent" />
-            <Text style={text.heading}>{otpSent ? tr('OTP डालें', 'OTP टाका') : tr('लॉगिन करें', 'लॉगिन करा')}</Text>
+            <Text style={text.heading}>{otpSent ? tr('OTP डालें', 'OTP टाका', 'Enter OTP') : tr('लॉगिन करें', 'लॉगिन करा', 'Worker Login')}</Text>
           </View>
 
           {status ? (
@@ -133,7 +136,7 @@ export const LoginScreen: React.FC = () => {
           {!otpSent ? (
             <View style={styles.gap}>
               <Field
-                label={tr('मोबाइल नंबर', 'मोबाइल नंबर')}
+                label={tr('मोबाइल नंबर', 'मोबाइल नंबर', 'Mobile Number')}
                 value={phone}
                 onChangeText={(v) => setPhone(v.replace(/[^0-9]/g, '').slice(0, 10))}
                 keyboardType="number-pad"
@@ -141,7 +144,13 @@ export const LoginScreen: React.FC = () => {
                 placeholder="98765 43210"
                 right={<Phone size={20} color={color.faint} strokeWidth={2} />}
               />
-              <Button label={tr('OTP भेजें', 'OTP पाठवा')} icon={ArrowRight} loading={loadingSend} disabled={digits.length !== 10} onPress={handleSendOtp} />
+              <Button
+                label={tr('OTP भेजें', 'OTP पाठवा', 'Send OTP')}
+                icon={ArrowRight}
+                loading={loadingSend}
+                disabled={digits.length !== 10}
+                onPress={handleSendOtp}
+              />
             </View>
           ) : (
             <View style={styles.gap}>
@@ -151,17 +160,31 @@ export const LoginScreen: React.FC = () => {
                 <Pencil size={16} color={color.muted} strokeWidth={2} />
               </Pressable>
               <Field
-                label={tr('6 अंकों का OTP', '6 अंकी OTP')}
+                label={tr('6 अंकों का OTP', '6 अंकी OTP', '6-Digit OTP')}
                 value={otp}
-                onChangeText={(v) => setOtp(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                onChangeText={(v) => {
+                  const next = v.replace(/[^0-9]/g, '').slice(0, 6);
+                  setOtp(next);
+                  if (next.length === 6 && otp.length < 6) handleVerifyOtp(next);
+                }}
                 keyboardType="number-pad"
                 maxLength={6}
                 autoFocus
                 placeholder="• • • • • •"
               />
-              <Button label={tr('सत्यापित करें', 'पडताळा')} icon={ShieldCheck} loading={loadingVerify} disabled={otp.length < 6} onPress={handleVerifyOtp} />
               <Button
-                label={countdown > 0 ? `${tr('पुनः भेजें', 'पुन्हा पाठवा')} ${countdown}` : tr('पुनः भेजें', 'पुन्हा पाठवा')}
+                label={tr('सत्यापित करें', 'पडताळा', 'Verify & Login')}
+                icon={ShieldCheck}
+                loading={loadingVerify}
+                disabled={otp.length < 6}
+                onPress={() => handleVerifyOtp()}
+              />
+              <Button
+                label={
+                  countdown > 0
+                    ? `${tr('पुनः भेजें', 'पुन्हा पाठवा', 'Resend')} (${countdown}s)`
+                    : tr('पुनः भेजें', 'पुन्हा पाठवा', 'Resend OTP')
+                }
                 icon={RotateCcw}
                 variant="secondary"
                 disabled={countdown > 0 || loadingSend}
@@ -172,7 +195,13 @@ export const LoginScreen: React.FC = () => {
           )}
         </Card>
 
-        <Text style={styles.footnote}>{tr('नंबर सीएचओ द्वारा पंजीकृत होता है', 'नंबर सीएचओ नोंदवतात')}</Text>
+        <Text style={styles.footnote}>
+          {tr(
+            'नंबर सीएचओ द्वारा पंजीकृत होता है (Universal Test OTP: 123456)',
+            'नंबर सीएचओ नोंदवतात (Universal Test OTP: 123456)',
+            'Field workers registered via CHO (Universal Test OTP: 123456)'
+          )}
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -197,7 +226,6 @@ const styles = StyleSheet.create({
   langText: { fontSize: 14, fontWeight: '700', color: color.muted, lineHeight: 19 },
   langTextActive: { color: color.accentPressed },
   brand: { alignItems: 'center', gap: space.sm },
-  // Official brand treatment: clear logo
   logoSquircle: {
     width: 96,
     height: 96,

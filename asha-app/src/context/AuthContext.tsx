@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { getStoredLanguage, pick } from '../utils/storedLanguage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setStorageWorkerPhone } from '../storage/OfflineStorageService';
 import { setAuthToken, authHeader } from '../api/authSession';
@@ -15,7 +16,7 @@ export interface UserProfile {
   assignedAnm?: string;
   blockName?: string;
   districtName?: string;
-  preferredLanguage?: 'hi' | 'mr';
+  preferredLanguage?: 'hi' | 'mr' | 'en';
   /** Server-assigned PHC / sub-centre id and household count (loaded at login). */
   phcId?: number;
   householdCount?: number;
@@ -40,7 +41,7 @@ interface AuthContextType {
     role: 'ASHA' | 'ANM';
     village: string;
     subcenter?: string;
-    preferredLanguage?: 'hi' | 'mr';
+    preferredLanguage?: 'hi' | 'mr' | 'en';
   }) => Promise<{ success: boolean; message: string }>;
 }
 
@@ -241,9 +242,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Send 6-digit OTP via Twilio SMS and Meta WhatsApp Cloud API
    */
   const sendOtp = async (phone: string): Promise<{ success: boolean; message: string }> => {
+    const lang = await getStoredLanguage();
+    const L = (hi: string, mr: string, en: string) => pick(lang, hi, mr, en);
+    // Server messages are Hindi; in English / Marathi mode show the local copy instead.
+    const srv = (m: unknown) => (lang === 'hi' && typeof m === 'string' && m ? m : null);
     const cleanPhone = normalizePhone(phone);
     if (!cleanPhone || cleanPhone.length < 10) {
-      return { success: false, message: 'कृपया वैध 10-अंकीय मोबाइल नंबर दर्ज करें (Invalid phone)' };
+      return { success: false, message: L('कृपया वैध 10-अंकीय मोबाइल नंबर दर्ज करें', 'कृपया वैध 10-अंकी मोबाइल नंबर टाका', 'Please enter a valid 10-digit mobile number') };
     }
 
     try {
@@ -261,12 +266,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (res.ok && data.success !== false) {
         return {
           success: true,
-          message: data.message || 'OTP सफलतापूर्वक WhatsApp और SMS द्वारा भेजा गया है!',
+          message: srv(data.message) || L('OTP सफलतापूर्वक WhatsApp और SMS द्वारा भेजा गया है!', 'OTP WhatsApp आणि SMS द्वारे पाठवला आहे!', 'OTP sent via WhatsApp and SMS!'),
         };
       } else {
         return {
           success: false,
-          message: data.message || 'OTP भेजने में विफल। कृपया पुनः प्रयास करें।',
+          message: srv(data.message) || L('OTP भेजने में विफल। कृपया पुनः प्रयास करें।', 'OTP पाठवता आला नाही. कृपया पुन्हा प्रयत्न करा.', 'Could not send OTP. Please try again.'),
         };
       }
     } catch (err: any) {
@@ -274,7 +279,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Offline fallback: allows field testing even in airplane mode
       return {
         success: true,
-        message: 'ऑफ़लाइन मोड: सत्यापन कोड तैयार है (कोड: 123456 दर्ज करें)',
+        message: L('ऑफ़लाइन मोड: सत्यापन कोड तैयार है (कोड: 123456 दर्ज करें)', 'ऑफलाइन मोड: सत्यापन कोड तयार आहे (कोड: 123456 टाका)', 'Offline mode: verification code ready (enter 123456)'),
       };
     }
   };
@@ -286,11 +291,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     phone: string,
     code: string
   ): Promise<{ success: boolean; message: string }> => {
+    const lang = await getStoredLanguage();
+    const L = (hi: string, mr: string, en: string) => pick(lang, hi, mr, en);
+    const srv = (m: unknown) => (lang === 'hi' && typeof m === 'string' && m ? m : null);
     const cleanPhone = normalizePhone(phone);
     const cleanCode = code.trim();
 
     if (!cleanCode || cleanCode.length < 4) {
-      return { success: false, message: 'कृपया 6-अंकीय OTP कोड दर्ज करें।' };
+      return { success: false, message: L('कृपया 6-अंकीय OTP कोड दर्ज करें।', 'कृपया 6-अंकी OTP कोड टाका.', 'Please enter the 6-digit OTP.') };
     }
 
     try {
@@ -309,7 +317,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Workers are registered by their CHO: an OTP-verified number without a worker cadre
       // (server answers role PATIENT) is not allowed into the field app.
       if (res.ok && data.success !== false && data.role && !['ASHA', 'ANM', 'CHO'].includes(data.role)) {
-        return { success: false, message: NOT_REGISTERED_MESSAGE };
+        return {
+          success: false,
+          message: pick(
+            await getStoredLanguage(),
+            NOT_REGISTERED_MESSAGE,
+            'हा नंबर नोंदणीकृत नाही. कृपया आपल्या सीएचओशी संपर्क साधा.',
+            'This number is not registered. Please contact your CHO.',
+          ),
+        };
       }
 
       if (res.ok && data.success !== false) {
@@ -346,7 +362,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               if (dbWorker.householdCount != null) profile.householdCount = dbWorker.householdCount;
               if (dbWorker.id) profile.ashaId = `${profile.role}-${dbWorker.id}`;
               if (dbWorker.anmPhone) profile.assignedAnm = dbWorker.anmPhone;
-              if (dbWorker.preferredLanguage === 'hi' || dbWorker.preferredLanguage === 'mr') {
+              if (dbWorker.preferredLanguage === 'hi' || dbWorker.preferredLanguage === 'mr' || dbWorker.preferredLanguage === 'en') {
                 profile.preferredLanguage = dbWorker.preferredLanguage;
               }
             }
@@ -367,11 +383,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           rememberOnlineVerification(cleanDigits, data.token || null),
         ]);
 
-        return { success: true, message: `सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।` };
+        return { success: true, message: L(`सत्यापन सफल! ${profile.roleTitle} के रूप में स्वागत है।`, `सत्यापन यशस्वी! ${profile.roleTitle} म्हणून स्वागत आहे.`, `Verified! Welcome, ${profile.roleTitle}.`) };
       } else {
         return {
           success: false,
-          message: data.message || 'अमान्य OTP कोड। कृपया पुनः प्रयास करें।',
+          message: srv(data.message) || L('अमान्य OTP कोड। कृपया पुनः प्रयास करें।', 'अवैध OTP कोड. कृपया पुन्हा प्रयत्न करा.', 'Invalid OTP. Please try again.'),
         };
       }
     } catch (err: any) {
@@ -384,7 +400,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!verifiedPhones.includes(cleanDigits)) {
           return {
             success: false,
-            message: 'ऑफ़लाइन लॉगिन केवल पहले से सत्यापित फोन पर। कृपया इंटरनेट से OTP सत्यापन करें।',
+            message: L('ऑफ़लाइन लॉगिन केवल पहले से सत्यापित फोन पर। कृपया इंटरनेट से OTP सत्यापन करें।', 'ऑफलाइन लॉगिन फक्त आधी सत्यापित फोनवर. कृपया इंटरनेटसह OTP सत्यापन करा.', 'Offline login works only on a previously verified phone. Please verify the OTP with internet.'),
           };
         }
         const fakeToken = (await AsyncStorage.getItem(lastTokenKey(cleanDigits))) || 'offline-jwt-' + Date.now();
@@ -400,11 +416,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile)),
           AsyncStorage.setItem(`@asha_profile_${cleanDigits}_v6`, JSON.stringify(profile)),
         ]);
-        return { success: true, message: `ऑफ़लाइन सत्यापन सफल! (${profile.roleTitle})` };
+        return { success: true, message: L(`ऑफ़लाइन सत्यापन सफल! (${profile.roleTitle})`, `ऑफलाइन सत्यापन यशस्वी! (${profile.roleTitle})`, `Offline verification successful! (${profile.roleTitle})`) };
       }
       return {
         success: false,
-        message: 'सत्यापन त्रुटि। कृपया इंटरनेट जांचें और पुनः प्रयास करें।',
+        message: L('सत्यापन त्रुटि। कृपया इंटरनेट जांचें और पुनः प्रयास करें।', 'सत्यापन त्रुटी. कृपया इंटरनेट तपासा आणि पुन्हा प्रयत्न करा.', 'Verification error. Please check the internet and try again.'),
       };
     }
   };
@@ -418,18 +434,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role: 'ASHA' | 'ANM';
     village: string;
     subcenter?: string;
-    preferredLanguage?: 'hi' | 'mr';
+    preferredLanguage?: 'hi' | 'mr' | 'en';
   }): Promise<{ success: boolean; message: string }> => {
+    const lang = await getStoredLanguage();
+    const L = (hi: string, mr: string, en: string) => pick(lang, hi, mr, en);
     const cleanDigits = worker.phone.replace(/[^0-9]/g, '').slice(-10);
     if (!cleanDigits || cleanDigits.length < 10) {
-      return { success: false, message: 'कृपया वैध 10-अंकीय मोबाइल नंबर दर्ज करें।' };
+      return { success: false, message: L('कृपया वैध 10-अंकीय मोबाइल नंबर दर्ज करें।', 'कृपया वैध 10-अंकी मोबाइल नंबर टाका.', 'Please enter a valid 10-digit mobile number.') };
     }
     if (!worker.name.trim()) {
-      return { success: false, message: 'कृपया कार्यकर्ता का नाम दर्ज करें।' };
+      return { success: false, message: L('कृपया कार्यकर्ता का नाम दर्ज करें।', 'कृपया कार्यकर्त्याचे नाव टाका.', "Please enter the worker's name.") };
     }
 
     const fullPhone = '+91' + cleanDigits;
-    const prefLang: 'hi' | 'mr' = worker.preferredLanguage || 'hi';
+    const prefLang: 'hi' | 'mr' | 'en' = worker.preferredLanguage || 'hi';
     const workerProfile: UserProfile = {
       name: worker.name.trim(),
       role: worker.role,
@@ -489,10 +507,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return {
         success: true,
-        message: `${workerProfile.roleTitle} ${workerProfile.name} सफलतापूर्वक जोड़ा गया! अब वे अपने मोबाइल नंबर (${fullPhone}) से लॉगिन कर सकते हैं।`,
+        message: L(
+          `${workerProfile.roleTitle} ${workerProfile.name} सफलतापूर्वक जोड़ा गया! अब वे अपने मोबाइल नंबर (${fullPhone}) से लॉगिन कर सकते हैं।`,
+          `${workerProfile.roleTitle} ${workerProfile.name} यशस्वीरित्या जोडले! आता ते आपल्या मोबाइल नंबरने (${fullPhone}) लॉगिन करू शकतात.`,
+          `${workerProfile.roleTitle} ${workerProfile.name} added! They can now log in with their mobile number (${fullPhone}).`,
+        ),
       };
     } catch (err: any) {
-      return { success: false, message: 'कार्यकर्ता जोड़ने में त्रुटि: ' + (err?.message || err) };
+      return { success: false, message: L('कार्यकर्ता जोड़ने में त्रुटि: ', 'कार्यकर्ता जोडताना त्रुटी: ', 'Error adding worker: ') + (err?.message || err) };
     }
   };
 

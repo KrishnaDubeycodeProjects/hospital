@@ -15,13 +15,13 @@ interface StatusBadgeProps {
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ type, label }) => {
   const tr = useTr();
   const config: Record<StatusType, { tone: Tone; label: string }> = {
-    '7days': { tone: 'red', label: tr('7 दिन', '7 दिवस') },
-    '15days': { tone: 'amber', label: tr('15 दिन', '15 दिवस') },
-    '30days': { tone: 'neutral', label: tr('30 दिन', '30 दिवस') },
-    dueSoon: { tone: 'amber', label: tr('देय', 'देय') },
-    visited: { tone: 'green', label: tr('भेंट पूर्ण', 'भेट पूर्ण') },
-    pregnant: { tone: 'accent', label: tr('गर्भवती', 'गरोदर') },
-    noData: { tone: 'neutral', label: tr('जानकारी नहीं', 'माहिती नाही') },
+    '7days': { tone: 'red', label: tr('7 दिन', '7 दिवस', '7 days') },
+    '15days': { tone: 'amber', label: tr('15 दिन', '15 दिवस', '15 days') },
+    '30days': { tone: 'neutral', label: tr('30 दिन', '30 दिवस', '30 days') },
+    dueSoon: { tone: 'amber', label: tr('देय', 'देय', 'Due') },
+    visited: { tone: 'green', label: tr('भेंट पूर्ण', 'भेट पूर्ण', 'Visit done') },
+    pregnant: { tone: 'accent', label: tr('गर्भवती', 'गरोदर', 'Pregnant') },
+    noData: { tone: 'neutral', label: tr('जानकारी नहीं', 'माहिती नाही', 'No data') },
   };
   const c = config[type] || config.noData;
   return <StatusPill tone={c.tone} label={label || c.label} />;

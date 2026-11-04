@@ -58,78 +58,8 @@ import AyushmanFooter from '../../components/AyushmanFooter';
 import { Modal, Spinner, fmtDateTime } from '../../components/ui';
 import { RAW_FAMILY_MEMBERS } from '../../data/rawPatientRecordsData';
 import TrainStationTimeline, { formatIndianDateTime } from '../../components/TrainStationTimeline';
+import ConsultationViewModal from './ConsultationViews';
 
-
-// Helper to parse time-of-day slots
-function parseRuralDosageSlots(frequency = '', dosage = '') {
-  const f = (frequency || '').toLowerCase();
-  const d = (dosage || '').toLowerCase();
-  let m = false;
-  let a = false;
-  let n = false;
-  if (f.includes('tid') || f.includes('tds') || f.includes('thrice') || f.includes('three') || d.includes('1-1-1')) {
-    m = true; a = true; n = true;
-  } else if (f.includes('bid') || f.includes('bd') || f.includes('twice') || f.includes('two') || d.includes('1-0-1')) {
-    m = true; a = false; n = true;
-  } else if (f.includes('od') || f.includes('once') || f.includes('daily') || d.includes('1-0-0') || d.includes('0-0-1')) {
-    if (f.includes('night') || d.includes('0-0-1')) {
-      n = true;
-    } else {
-      m = true;
-    }
-  } else {
-    m = true; n = true;
-  }
-  return { m, a, n };
-}
-
-// Native SpeechSynthesis helper to read prescription aloud in English
-function speakPrescriptionAloud(title, doctor, diagnosis, prescriptions = [], plan = '') {
-  if (typeof window === 'undefined' || !window.speechSynthesis) {
-    alert('Voice narration is not supported on this browser or device.');
-    return;
-  }
-  window.speechSynthesis.cancel();
-  
-  let speechText = `Hello. This is your medical consultation summary with Dr. ${doctor || 'Rajesh Sharma'}. `;
-  if (diagnosis) speechText += `Clinical diagnosis: ${diagnosis}. `;
-  if (prescriptions && prescriptions.length > 0) {
-    speechText += `You have ${prescriptions.length} prescribed medication${prescriptions.length > 1 ? 's' : ''}. `;
-    prescriptions.forEach((p, idx) => {
-      const name = p.medicineName || p.drugName || 'Medicine';
-      const dose = p.dosage || p.dose || 'one dose';
-      const freq = p.frequency || '';
-      const instructions = p.instructions ? `, ${p.instructions}` : '';
-      speechText += `Medicine ${idx + 1}: ${name}, dosage: ${dose}, ${freq}${instructions}. `;
-    });
-  }
-  if (plan) speechText += `Doctor's Advice: ${plan}. `;
-  speechText += `Please take your medications on time and follow all instructions. Thank you.`;
-
-  const utterance = new SpeechSynthesisUtterance(speechText);
-  utterance.lang = 'en-IN';
-  utterance.rate = 0.95;
-  window.speechSynthesis.speak(utterance);
-}
-
-
-// Helper to extract essential clinical vitals from raw summary
-function parseVitalsFromSummary(text = '') {
-  if (!text) return { bp: '120/80', pulse: '76', temp: '98.6', spo2: '99%', hasLabs: false };
-  const bpMatch = text.match(/BP\s*([0-9/]+)/i);
-  const pulseMatch = text.match(/Pulse\s*([0-9]+)/i);
-  const tempMatch = text.match(/Temp\s*([0-9.]+)/i);
-  const spo2Match = text.match(/SpO2\s*([0-9]+%?)/i);
-  const labsMatch = text.match(/Investigations Ordered:\s*([^\n\r]+)/i);
-
-  return {
-    bp: bpMatch ? bpMatch[1] : '120/80',
-    pulse: pulseMatch ? pulseMatch[1] : '76',
-    temp: tempMatch ? tempMatch[1] : '98.6',
-    spo2: spo2Match ? spo2Match[1] : '99%',
-    hasLabs: Boolean(labsMatch && !labsMatch[1].toLowerCase().includes('none')),
-  };
-}
 
 // Helper to map family member to their corresponding clinical sample bundle if DB records are not yet added
 function getMemberFallbackData(member, memberIndex = 0) {
@@ -210,29 +140,26 @@ export default function HealthRecordsScreen() {
 
   // Modals for QR / Document / Timeline preview
   const [activeSlipModal, setActiveSlipModal] = useState(null);
-  const [activeCourseModal, setActiveCourseModal] = useState(null);
-  const [courseDetailTab, setCourseDetailTab] = useState('prescription');
+  // Care History: { view: 'prescription' | 'doctor' | 'documents', course, station, stations, courseDocuments }
+  const [consultView, setConsultView] = useState(null);
   const [activeDocModal, setActiveDocModal] = useState(null);
-  const [courseTimeline, setCourseTimeline] = useState(null);
   const [courseTimelinesMap, setCourseTimelinesMap] = useState({});
   const [openCourseIds, setOpenCourseIds] = useState({});
   const [selectedStationMap, setSelectedStationMap] = useState({});
 
-  const handleOpenStation = (course, station, initialTab = 'prescription') => {
-    if (!course) return;
-    const targetStation = station || course;
-    setActiveCourseModal({
-      ...course,
-      selectedStation: targetStation,
-      doctorName: targetStation?.doctorName || course.startedByDoctorName || 'Dr. Rajesh Sharma',
-      hospitalName: targetStation?.hospitalName || course.startedAtHospitalName || 'District Civil Hospital',
-      createdAt: targetStation?.date || course.createdAt,
-      prescriptions: targetStation?.prescriptions && targetStation.prescriptions.length > 0 ? targetStation.prescriptions : course.prescriptions,
-      documents: targetStation?.documents || [],
-      notes: targetStation?.notes || {},
-      labTests: targetStation?.labTests,
+  const handleOpenStation = (course, station, stations, view = 'prescription') => {
+    if (!course || !station) return;
+    setConsultView({
+      view,
+      course,
+      // Fall back to course-level prescriptions only when the visit itself has none
+      station: {
+        ...station,
+        prescriptions: station.prescriptions?.length ? station.prescriptions : course.prescriptions || [],
+      },
+      stations,
+      courseDocuments: courseTimelinesMap[course.id]?.standaloneDocuments || [],
     });
-    setCourseDetailTab(initialTab);
   };
 
   const toggleCourseAccordion = (courseId) => {
@@ -241,8 +168,6 @@ export default function HealthRecordsScreen() {
       [courseId]: prev[courseId] === undefined ? false : !prev[courseId],
     }));
   };
-  const [stationActiveTab, setStationActiveTab] = useState({});
-  const [loadingTimeline, setLoadingTimeline] = useState(false);
 
   // Tab switcher
   const handleTabChange = (tab) => {
@@ -659,7 +584,7 @@ export default function HealthRecordsScreen() {
       return;
     }
     const docId = typeof docOrId === 'object' ? docOrId.id : docOrId;
-    const courseId = docObj?.courseId || activeCourseModal?.id;
+    const courseId = docObj?.courseId || consultView?.course?.id;
     try {
       const fileUrl = (docObj?.isCourseDoc || docObj?.courseId)
         ? (patient?.token ? courseApi.documentDownloadUrl(courseId, docId) : courseApi.publicDocumentDownloadUrl(courseId, docId))
@@ -678,36 +603,6 @@ export default function HealthRecordsScreen() {
           toast.error('Could not open document from server.');
         }
       }
-    }
-  };
-
-  // Open Course Details & Timeline (100% Live DB data, resilient to unauthenticated/public patient view)
-  const handleOpenCourse = async (course, initialTab = 'prescription') => {
-    if (!course) return;
-    setActiveCourseModal(course);
-    setCourseDetailTab(initialTab);
-    if (course.encounters && course.encounters.length > 0) {
-      setCourseTimeline({ encounters: course.encounters });
-      return;
-    }
-    setLoadingTimeline(true);
-    try {
-      const t = await courseApi.timeline(course.id, patient?.token ? 'PATIENT' : 'PUBLIC');
-      if (t && t.encounters && t.encounters.length > 0) {
-        setCourseTimeline(t);
-      } else {
-        setCourseTimeline(t || { encounters: [] });
-      }
-    } catch (err) {
-      console.warn('Timeline fetch notice:', err);
-      try {
-        const pub = await courseApi.timeline(course.id, 'PUBLIC');
-        setCourseTimeline(pub || { encounters: [] });
-      } catch {
-        setCourseTimeline({ encounters: [] });
-      }
-    } finally {
-      setLoadingTimeline(false);
     }
   };
 
@@ -1392,7 +1287,7 @@ export default function HealthRecordsScreen() {
                               clinicalNotes: enc.clinicalNotes,
                               plan: enc.plan || course.currentSummary,
                             },
-                            documents: enc.documents || standaloneDocs || [],
+                            documents: enc.documents || [],
                           }))
                         : [
                             {
@@ -1557,7 +1452,7 @@ export default function HealthRecordsScreen() {
                                   {/* Primary Action: Full Width */}
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenStation(course, selectedStation, 'prescription')}
+                                    onClick={() => handleOpenStation(course, selectedStation, stations, 'prescription')}
                                     style={{
                                       width: '100%',
                                       padding: '11px 16px',
@@ -1584,7 +1479,7 @@ export default function HealthRecordsScreen() {
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                     <button
                                       type="button"
-                                      onClick={() => handleOpenStation(course, selectedStation, 'doctor')}
+                                      onClick={() => handleOpenStation(course, selectedStation, stations, 'doctor')}
                                       style={{
                                         padding: '9px 10px',
                                         borderRadius: '10px',
@@ -1607,7 +1502,7 @@ export default function HealthRecordsScreen() {
 
                                     <button
                                       type="button"
-                                      onClick={() => handleOpenStation(course, selectedStation, 'documents')}
+                                      onClick={() => handleOpenStation(course, selectedStation, stations, 'documents')}
                                       style={{
                                         padding: '9px 10px',
                                         borderRadius: '10px',
@@ -1956,674 +1851,14 @@ export default function HealthRecordsScreen() {
         </Modal>
       )}
 
-      {/* Course Detail Modal with 4 High-Signal Views: Prescription, Tests, Doctor, Advice */}
-      {activeCourseModal && (() => {
-        const sortedEncounters = [...(courseTimeline?.encounters || [])].sort((a, b) => {
-          const dateA = new Date(a.visitDate || a.createdAt || a.date || 0);
-          const dateB = new Date(b.visitDate || b.createdAt || b.date || 0);
-          return dateB - dateA;
-        });
-
-        const latestEnc = sortedEncounters.length > 0 ? sortedEncounters[0] : null;
-        const allRx = sortedEncounters.flatMap((e) => e.prescriptions || []);
-        const fallbackRx = activeCourseModal.prescriptions || [];
-        const activePrescriptions = allRx.length > 0 ? allRx : fallbackRx.length > 0 ? fallbackRx : [
-          {
-            medicineName: 'Paracetamol 500mg',
-            dosage: '1 tablet',
-            frequency: 'TDS (Thrice daily)',
-            durationDays: 5,
-            route: 'Oral',
-            instructions: 'Take after meals with water',
-          },
-          {
-            medicineName: 'Pantoprazole 40mg',
-            dosage: '1 tablet',
-            frequency: 'OD (Once daily)',
-            durationDays: 5,
-            route: 'Oral',
-            instructions: 'Take empty stomach in morning',
-          },
-        ];
-
-        const doctorName = activeCourseModal.startedByDoctorName || activeCourseModal.doctorName || latestEnc?.doctorName || 'Dr. Rajesh Sharma';
-        const hospitalName = activeCourseModal.startedAtHospitalName || activeCourseModal.hospitalName || 'District Civil Hospital';
-        const diagnosis = activeCourseModal.diagnosis || activeCourseModal.primaryDiagnosis || 'Clinical Evaluation & Symptomatic Care';
-        const vitals = parseVitalsFromSummary(activeCourseModal.currentSummary || latestEnc?.clinicalNotes);
-        const labText = (() => {
-          const text = `${latestEnc?.clinicalNotes || ''} ${latestEnc?.plan || ''} ${activeCourseModal.currentSummary || ''}`;
-          const idx = text.indexOf('Investigations Ordered:');
-          const match = idx !== -1 ? text.substring(idx + 23).trim().split('\n')[0] : null;
-          return match || (vitals.hasLabs ? 'CBC (Complete Blood Count), Blood Glucose, Urinalysis' : 'Routine Clinical Panel');
-        })();
-
-        const adviceText = latestEnc?.plan || activeCourseModal.initialNotes || 'Adequate hydration, warm fluids, light nutritious diet, and 5 days rest. Revisit OPD if symptoms persist.';
-        const chiefComplaint = latestEnc?.chiefComplaint || 'Consultation for general health evaluation and ongoing treatment';
-        const examFindings = latestEnc?.examinationFindings || 'Systemic examination within normal limits. Chest clear, abdomen soft, no pedal edema.';
-
-        return (
-          <Modal
-            title="Care Course & Consultation Records"
-            onClose={() => {
-              if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
-              setActiveCourseModal(null);
-            }}
-            wide={true}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '4px 0' }}>
-              
-              {/* 1. Official Ayushman / ABDM Verified Header Card */}
-              <div
-                style={{
-                  backgroundColor: '#F0FDFA',
-                  border: '1.5px solid #99F6E4',
-                  borderRadius: '14px',
-                  padding: '16px',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      🇮🇳 Government of India • Ayushman Bharat Digital Health (ABDM Verified)
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => speakPrescriptionAloud(activeCourseModal.title, doctorName, diagnosis, activePrescriptions, adviceText)}
-                      style={{
-                        background: '#0D9488',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '20px',
-                        padding: '5px 12px',
-                        fontSize: '11.5px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        boxShadow: '0 1px 3px rgba(13, 148, 136, 0.3)',
-                      }}
-                      title="Listen to prescription aloud in English"
-                    >
-                      <span>🔊</span> <span>Listen Aloud</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      style={{
-                        background: '#FFFFFF',
-                        color: '#0F766E',
-                        border: '1px solid #99F6E4',
-                        borderRadius: '20px',
-                        padding: '5px 12px',
-                        fontSize: '11.5px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                      title="Print or Save Prescription as PDF"
-                    >
-                      <span>🖨️</span> <span>Print / Save PDF</span>
-                    </button>
-
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        backgroundColor: activeCourseModal.status === 'active' ? '#DCFCE7' : '#F1F5F9',
-                        color: activeCourseModal.status === 'active' ? '#15803D' : '#475569',
-                        border: activeCourseModal.status === 'active' ? '1px solid #86EFAC' : '1px solid #CBD5E1',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                      }}
-                    >
-                      {activeCourseModal.status === 'active' ? 'Active Care Course' : 'Closed'}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: '17px', fontWeight: '800', color: '#0F172A', marginBottom: '4px' }}>
-                  {(activeCourseModal.title || 'General Consultation').replace(/\s*(care\s*)?episode\s*/gi, '').trim() || 'General Consultation'}
-                </div>
-
-                {/* Consultation Date & Timings directly with Professional Calendar Icon */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: '700', color: '#0D9488', marginBottom: '8px' }}>
-                  <CalendarIcon size={14} color="#0D9488" />
-                  <span>Consultation Date &amp; Time: {formatLaymanDateTime(activeCourseModal.createdAt || latestEnc?.visitDate)}</span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginTop: '4px', background: '#FFFFFF', padding: '12px 14px', borderRadius: '10px', border: '1px solid #CCFBF1' }}>
-                  <div>
-                    <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Consulting Doctor</span>
-                    <strong style={{ fontSize: '13.5px', color: '#0F172A' }}>
-                      👨‍⚕️ {doctorName}
-                    </strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital &amp; Desk</span>
-                    <strong style={{ fontSize: '13.5px', color: '#00A884' }}>
-                      🏥 {hospitalName}
-                    </strong>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Clinical Diagnosis</span>
-                    <span style={{ fontSize: '13.5px', color: '#1E40AF', fontWeight: '700' }}>
-                      🩺 {diagnosis}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Responsive 3-Button Navigation Tabs */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                  gap: '8px',
-                  backgroundColor: '#F1F5F9',
-                  padding: '6px',
-                  borderRadius: '12px',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setCourseDetailTab('prescription')}
-                  style={{
-                    padding: '9px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: courseDetailTab === 'prescription' ? '#00A884' : 'transparent',
-                    color: courseDetailTab === 'prescription' ? '#FFFFFF' : '#334155',
-                    fontWeight: '700',
-                    fontSize: '12.5px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: courseDetailTab === 'prescription' ? '0 2px 4px rgba(0, 168, 132,0.2)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>💊</span>
-                  <span>Prescription &amp; Tests</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCourseDetailTab('doctor')}
-                  style={{
-                    padding: '9px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: courseDetailTab === 'doctor' ? '#0F766E' : 'transparent',
-                    color: courseDetailTab === 'doctor' ? '#FFFFFF' : '#334155',
-                    fontWeight: '700',
-                    fontSize: '12.5px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: courseDetailTab === 'doctor' ? '0 2px 4px rgba(15,118,110,0.2)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>👨‍⚕️</span>
-                  <span>Doctor Profile</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCourseDetailTab('documents')}
-                  style={{
-                    padding: '9px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: courseDetailTab === 'documents' ? '#B45309' : 'transparent',
-                    color: courseDetailTab === 'documents' ? '#FFFFFF' : '#334155',
-                    fontWeight: '700',
-                    fontSize: '12.5px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    boxShadow: courseDetailTab === 'documents' ? '0 2px 4px rgba(180,83,9,0.2)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>📄</span>
-                  <span>View Documents</span>
-                </button>
-              </div>
-
-              {/* 3. VIEW 1: PRESCRIPTION (Official Digital Document / PDF) */}
-              {courseDetailTab === 'prescription' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {/* Digital Rx Document Sheet */}
-                  <div
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '2px solid #00A884',
-                      borderRadius: '12px',
-                      padding: '18px',
-                      boxShadow: '0 4px 12px rgba(0, 168, 132, 0.08)',
-                    }}
-                  >
-                    {/* Document Top Bar */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', borderBottom: '2px solid #E2E8F0', paddingBottom: '12px' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '24px', fontWeight: '900', color: '#00A884', fontFamily: 'serif' }}>℞</span>
-                          <div>
-                            <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
-                              MEDICAL PRESCRIPTION SLIP (e-Rx)
-                            </div>
-                            <div style={{ fontSize: '11px', color: '#64748B' }}>
-                              National Health Authority • Ayushman Bharat Digital Mission (ABDM)
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '800', backgroundColor: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', padding: '3px 8px', borderRadius: '6px' }}>
-                          VALID MEDICAL DOCUMENT
-                        </span>
-                        <div style={{ fontSize: '11px', color: '#64748B', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
-                          <CalendarIcon size={12} color="#64748B" />
-                          <span>{formatLaymanDateTime(activeCourseModal.createdAt || latestEnc?.visitDate)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Patient & Facility Summary */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', padding: '12px 0', borderBottom: '1px solid #F1F5F9' }}>
-                      <div>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Patient Name</span>
-                        <strong style={{ fontSize: '13px', color: '#0F172A' }}>{selectedMember?.name || 'Patient'}</strong>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          {selectedMember?.gender || 'Male'}, {selectedMember?.age || '24'} yrs &bull; ABHA: {selectedMember?.abhaAddress || 'Not linked'}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Prescribing Physician</span>
-                        <strong style={{ fontSize: '13px', color: '#0F172A' }}>{doctorName}</strong>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          {hospitalName} &bull; General OPD
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Diagnosis</span>
-                        <strong style={{ fontSize: '13px', color: '#1E40AF' }}>{diagnosis}</strong>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          Course ID: #{activeCourseModal.id}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Prescribed Medications */}
-                    <div style={{ marginTop: '14px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '800', color: '#00A884', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>💊</span>
-                        <span>Prescribed Medicines ({activePrescriptions.length})</span>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {activePrescriptions.map((p, pIdx) => {
-                          const name = p.medicineName || p.drugName || 'Prescribed Medicine';
-                          const dosage = p.dosage || p.dose || '1 tablet';
-                          const frequency = p.frequency || 'BD (Twice daily)';
-                          const duration = p.durationDays || p.duration || 5;
-                          const route = p.route || 'Oral';
-                          const instructions = p.instructions || 'Take after meals';
-                          const { m, a, n } = parseRuralDosageSlots(frequency, dosage);
-
-                          return (
-                            <div
-                              key={pIdx}
-                              style={{
-                                backgroundColor: '#F8FAFC',
-                                border: '1px solid #E2E8F0',
-                                borderRadius: '10px',
-                                padding: '12px 14px',
-                              }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '6px' }}>
-                                <div>
-                                  <div style={{ fontSize: '14.5px', fontWeight: '800', color: '#0F172A' }}>
-                                    {pIdx + 1}. {name}
-                                  </div>
-                                  <div style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>
-                                    Route: {route} &bull; Dosage: {dosage} &bull; Frequency: {frequency}
-                                  </div>
-                                </div>
-                                <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#EFF6FF', color: '#1E40AF', padding: '3px 8px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
-                                  Duration: {duration} Days
-                                </span>
-                              </div>
-
-                              {/* Clean Visual Daily Intake Badges in English */}
-                              <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                <div
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '11.5px',
-                                    fontWeight: '700',
-                                    background: m ? '#DCFCE7' : '#F1F5F9',
-                                    color: m ? '#166534' : '#94A3B8',
-                                    border: m ? '1px solid #86EFAC' : '1px solid #E2E8F0',
-                                  }}
-                                >
-                                  <span>🌅 Morning</span>
-                                  <span>{m ? '✓' : '✗'}</span>
-                                </div>
-
-                                <div
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '11.5px',
-                                    fontWeight: '700',
-                                    background: a ? '#FEF3C7' : '#F1F5F9',
-                                    color: a ? '#92400E' : '#94A3B8',
-                                    border: a ? '1px solid #FCD34D' : '1px solid #E2E8F0',
-                                  }}
-                                >
-                                  <span>☀️ Afternoon</span>
-                                  <span>{a ? '✓' : '✗'}</span>
-                                </div>
-
-                                <div
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    fontSize: '11.5px',
-                                    fontWeight: '700',
-                                    background: n ? '#E0E7FF' : '#F1F5F9',
-                                    color: n ? '#3730A3' : '#94A3B8',
-                                    border: n ? '1px solid #C7D2FE' : '1px solid #E2E8F0',
-                                  }}
-                                >
-                                  <span>🌙 Night</span>
-                                  <span>{n ? '✓' : '✗'}</span>
-                                </div>
-                              </div>
-
-                              {/* Meal Instruction */}
-                              <div style={{ marginTop: '8px', fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                <span>🍛 Meal Instruction:</span>
-                                <span style={{ fontWeight: '700' }}>{instructions}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Authorized Diagnostic Laboratory Investigations (Merged Inside Prescription) */}
-                    <div style={{ marginTop: '16px', backgroundColor: '#FFFBEB', border: '1.5px solid #FDE68A', borderRadius: '10px', padding: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '18px' }}>🧪</span>
-                        <span style={{ fontSize: '12px', fontWeight: '800', color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Ordered Lab Tests &amp; Diagnostic Investigations
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '14px', fontWeight: '800', color: '#78350F' }}>
-                        {labText}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#B45309', marginTop: '6px' }}>
-                        👉 Authorized by {doctorName}. Present this prescription at {hospitalName} Diagnostic Laboratory for priority sample collection.
-                      </div>
-                    </div>
-
-                    {/* Doctor Digital Signature Stamp */}
-                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748B', maxWidth: '380px' }}>
-                        ⚠️ <strong>Notice:</strong> Take all medications as prescribed. Do not stop midway without consulting your doctor. Keep medications out of reach of children.
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '11px', color: '#059669', fontWeight: '800' }}>
-                          ✅ VERIFIED DIGITAL SIGNATURE
-                        </div>
-                        <div style={{ fontSize: '13px', fontWeight: '800', color: '#0F172A' }}>
-                          {doctorName}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748B' }}>
-                          {hospitalName}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Print / Save Action Bar */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      style={{
-                        padding: '10px 18px',
-                        backgroundColor: '#00A884',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 4px rgba(0, 168, 132, 0.2)',
-                      }}
-                    >
-                      <span>🖨️</span>
-                      <span>Print Prescription / Save PDF</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-
-
-              {/* 5. VIEW 3: DOCTOR DETAILS */}
-              {courseDetailTab === 'doctor' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1.5px solid #99F6E4',
-                      borderRadius: '12px',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <div
-                        style={{
-                          width: '46px',
-                          height: '46px',
-                          borderRadius: '12px',
-                          backgroundColor: '#CCFBF1',
-                          color: '#0F766E',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '22px',
-                          flexShrink: 0,
-                        }}
-                      >
-                        👨‍⚕️
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '16px', fontWeight: '800', color: '#0F172A' }}>
-                          {doctorName}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#0F766E', fontWeight: '700' }}>
-                          Consulting Physician &bull; MD, General Medicine
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
-                      <div style={{ background: '#F0FDFA', padding: '12px', borderRadius: '10px', border: '1px solid #CCFBF1' }}>
-                        <span style={{ fontSize: '10.5px', color: '#0F766E', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Department</span>
-                        <strong style={{ fontSize: '13px', color: '#0F172A' }}>General Medicine &amp; Chronic Care</strong>
-                      </div>
-
-                      <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Hospital &amp; OPD Desk</span>
-                        <strong style={{ fontSize: '13px', color: '#00A884' }}>{hospitalName} &bull; Counter 4</strong>
-                      </div>
-
-                      <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Registration ID</span>
-                        <strong style={{ fontSize: '13px', color: '#334155' }}>NMC / State Council Verified</strong>
-                      </div>
-
-                      <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                        <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>Consultation Session</span>
-                        <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <CalendarIcon size={13} color="#0F172A" />
-                          <span>{formatLaymanDateTime(activeCourseModal.createdAt || latestEnc?.visitDate)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 3. VIEW 3: DOCUMENTS (Uploaded during this consultancy) */}
-              {courseDetailTab === 'documents' && (() => {
-                const consultDocs = activeCourseModal.documents || activeCourseModal.selectedStation?.documents || [];
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div
-                      style={{
-                        backgroundColor: '#FFFFFF',
-                        border: '1.5px solid #FDE68A',
-                        borderRadius: '12px',
-                        padding: '16px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <span style={{ fontSize: '20px' }}>📄</span>
-                        <div>
-                          <div style={{ fontSize: '15px', fontWeight: '800', color: '#92400E' }}>
-                            Consultancy Documents &amp; Reports
-                          </div>
-                          <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                            Medical records and test reports registered during this consultation at {hospitalName}
-                          </div>
-                        </div>
-                      </div>
-
-                      {consultDocs.length === 0 ? (
-                        <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '10px', padding: '22px 16px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '26px', marginBottom: '6px' }}>📄</div>
-                          <div style={{ fontSize: '14px', fontWeight: '800', color: '#0F172A' }}>
-                            e-Prescription &amp; Record Registered
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', maxWidth: '400px', margin: '4px auto 0' }}>
-                            Official digital prescription and lab orders are registered under Token #{activeCourseModal.id}. You can view, download, or print the signed prescription anytime.
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => window.print()}
-                            style={{
-                              marginTop: '12px',
-                              padding: '8px 16px',
-                              borderRadius: '8px',
-                              backgroundColor: '#00A884',
-                              color: '#FFFFFF',
-                              border: 'none',
-                              fontWeight: '700',
-                              fontSize: '12px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                            }}
-                          >
-                            <span>🖨️</span>
-                            <span>Print / Download Prescription Slip</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          {consultDocs.map((doc, dIdx) => (
-                            <div
-                              key={doc.id || dIdx}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                padding: '12px 14px',
-                                backgroundColor: '#F8FAFC',
-                                border: '1px solid #E2E8F0',
-                                borderRadius: '10px',
-                                gap: '8px',
-                              }}
-                            >
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ fontSize: '13.5px', fontWeight: '800', color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  📄 {doc.fileName || `Medical_Document_${dIdx + 1}.pdf`}
-                                </div>
-                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                                  Uploaded: {formatLaymanDateTime(doc.uploadedAt || doc.createdAt || activeCourseModal.createdAt)} &bull; ABDM Verified
-                                </div>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (doc.downloadUrl) {
-                                    window.open(doc.downloadUrl, '_blank');
-                                  } else {
-                                    handleViewDocument({ ...doc, isCourseDoc: true, courseId: activeCourseModal?.id });
-                                  }
-                                }}
-                                style={{
-                                  padding: '7px 14px',
-                                  borderRadius: '8px',
-                                  backgroundColor: '#00A884',
-                                  color: '#FFFFFF',
-                                  border: 'none',
-                                  fontSize: '12px',
-                                  fontWeight: '700',
-                                  cursor: 'pointer',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                View
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-            </div>
-          </Modal>
-        );
-      })()}
+      {/* Care History consultation views: each action opens its own purpose-built view */}
+      <ConsultationViewModal
+        state={consultView}
+        patient={selectedMember}
+        onClose={() => setConsultView(null)}
+        onSwitch={(view) => setConsultView((prev) => (prev ? { ...prev, view } : prev))}
+        onViewDocument={handleViewDocument}
+      />
 {/* Digital Prescription & Medical Report Slip Modal */}
       {activeDocModal && (
         <Modal

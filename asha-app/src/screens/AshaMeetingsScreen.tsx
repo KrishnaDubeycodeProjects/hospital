@@ -39,12 +39,12 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
 
   const typeLabel = (t: MeetingType) =>
     t === 'VHSNC'
-      ? tr('ग्राम स्वास्थ्य समिति', 'ग्राम आरोग्य समिती')
+      ? tr('ग्राम स्वास्थ्य समिति', 'ग्राम आरोग्य समिती', 'Village Health Committee')
       : t === 'ASHA Cluster'
-      ? tr('आशा क्लस्टर', 'आशा क्लस्टर')
+      ? tr('आशा क्लस्टर', 'आशा क्लस्टर', 'ASHA cluster')
       : t === 'Sector Monthly'
-      ? tr('सेक्टर मासिक', 'सेक्टर मासिक')
-      : tr('स्वास्थ्य दिवस योजना', 'आरोग्य दिन नियोजन');
+      ? tr('सेक्टर मासिक', 'सेक्टर मासिक', 'Sector monthly')
+      : tr('स्वास्थ्य दिवस योजना', 'आरोग्य दिन नियोजन', 'Health day plan');
 
   const [open, setOpen] = useState(false);
   const [meetingType, setMeetingType] = useState<MeetingType>('VHSNC');
@@ -68,7 +68,7 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
 
   const handleSave = async () => {
     if (!venue.trim() || !decisionsTaken.trim()) {
-      setError(tr('स्थान और निर्णय भरें', 'स्थळ व निर्णय भरा'));
+      setError(tr('स्थान और निर्णय भरें', 'स्थळ व निर्णय भरा', 'Fill location and decisions'));
       return;
     }
     await saveMeeting({
@@ -92,21 +92,18 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
       return;
     }
     if (!ttsEnabled) return;
-    const spoken = tr(
-      `बैठक: ${typeLabel(m.meetingType)}. दिनांक ${m.meetingDate}, स्थान ${m.venue}. ${m.attendeesCount} सदस्य उपस्थित. निर्णय: ${m.decisionsTaken}.`,
-      `बैठक: ${typeLabel(m.meetingType)}. तारीख ${m.meetingDate}, स्थळ ${m.venue}. ${m.attendeesCount} सदस्य उपस्थित. निर्णय: ${m.decisionsTaken}.`
-    );
+    const spoken = tr(`बैठक: ${typeLabel(m.meetingType)}. दिनांक ${m.meetingDate}, स्थान ${m.venue}. ${m.attendeesCount} सदस्य उपस्थित. निर्णय: ${m.decisionsTaken}.`, `बैठक: ${typeLabel(m.meetingType)}. तारीख ${m.meetingDate}, स्थळ ${m.venue}. ${m.attendeesCount} सदस्य उपस्थित. निर्णय: ${m.decisionsTaken}.`, `Meeting: ${typeLabel(m.meetingType)}. Date ${m.meetingDate}, venue ${m.venue}. ${m.attendeesCount} members present. Decisions: ${m.decisionsTaken}.`);
     SpeechEngine.speak(spoken, localeCode, 0.9, () => setSpeakingId(m.id), () => setSpeakingId(null));
   };
 
   return (
     <View style={styles.flex}>
-      {onBack ? <AppBar title={tr('ग्राम बैठकें', 'ग्राम बैठका')} onBack={onBack} backLabel={tr('वापस', 'मागे')} /> : null}
+      {onBack ? <AppBar title={tr('ग्राम बैठकें', 'ग्राम बैठका', 'Village meetings')} onBack={onBack} backLabel={tr('वापस', 'मागे', 'Back')} /> : null}
       <Screen>
-        <Button label={tr('नई बैठक', 'नवीन बैठक')} icon={Plus} onPress={() => setOpen(true)} />
+        <Button label={tr('नई बैठक', 'नवीन बैठक', 'New meeting')} icon={Plus} onPress={() => setOpen(true)} />
 
         {meetings.length === 0 ? (
-          <EmptyState icon={Users} tone="accent" title={tr('अभी कोई बैठक नहीं', 'अजून बैठक नाही')} />
+          <EmptyState icon={Users} tone="accent" title={tr('अभी कोई बैठक नहीं', 'अजून बैठक नाही', 'No meetings yet')} />
         ) : (
           meetings.map((m) => {
             const speaking = speakingId === m.id;
@@ -130,12 +127,12 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
                     icon={Volume2}
                     tone={speaking ? 'green' : 'accent'}
                     filled={speaking}
-                    label={tr('सुनें', 'ऐका')}
+                    label={tr('सुनें', 'ऐका', 'Listen')}
                     onPress={() => speakMeeting(m)}
                   />
                 </View>
                 <View style={styles.pills}>
-                  <StatusPill tone="green" icon={Users} label={`${m.attendeesCount} ${tr('उपस्थित', 'उपस्थित')}`} />
+                  <StatusPill tone="green" icon={Users} label={`${m.attendeesCount} ${tr('उपस्थित', 'उपस्थित', 'Present')}`} />
                 </View>
                 {m.materialsAvailable ? (
                   <View style={styles.meta}>
@@ -155,9 +152,9 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
         )}
       </Screen>
 
-      <Sheet visible={open} onClose={() => setOpen(false)} title={tr('नई बैठक', 'नवीन बैठक')} closeLabel={tr('बंद करें', 'बंद करा')}>
+      <Sheet visible={open} onClose={() => setOpen(false)} title={tr('नई बैठक', 'नवीन बैठक', 'New meeting')} closeLabel={tr('बंद करें', 'बंद करा', 'Close')}>
         <View style={styles.form}>
-          <Text style={text.label}>{tr('बैठक का प्रकार', 'बैठकीचा प्रकार')}</Text>
+          <Text style={text.label}>{tr('बैठक का प्रकार', 'बैठकीचा प्रकार', 'Meeting type')}</Text>
           <Chips
             value={meetingType}
             onChange={setMeetingType}
@@ -168,16 +165,16 @@ export const AshaMeetingsScreen: React.FC<{ onBack?: () => void }> = ({ onBack }
           />
           <View style={styles.row2}>
             <View style={styles.flex}>
-              <Field label={tr('तारीख', 'तारीख')} value={meetingDate} onChangeText={setMeetingDate} keyboardType="numbers-and-punctuation" />
+              <Field label={tr('तारीख', 'तारीख', 'Date')} value={meetingDate} onChangeText={setMeetingDate} keyboardType="numbers-and-punctuation" />
             </View>
             <View style={styles.flex}>
-              <Field label={tr('उपस्थित', 'उपस्थित')} voice="number" value={attendeesCount} onChangeText={setAttendeesCount} keyboardType="numeric" />
+              <Field label={tr('उपस्थित', 'उपस्थित', 'Present')} voice="number" value={attendeesCount} onChangeText={setAttendeesCount} keyboardType="numeric" />
             </View>
           </View>
-          <Field label={tr('स्थान', 'स्थळ')} voice="text" value={venue} onChangeText={setVenue} />
-          <Field label={tr('किट सामग्री', 'किट साहित्य')} voice="text" value={materialsAvailable} onChangeText={setMaterialsAvailable} />
-          <Field label={tr('निर्णय', 'निर्णय')} value={decisionsTaken} onChangeText={setDecisionsTaken} multiline error={error} voice="long" />
-          <Button label={tr('सहेजें', 'जतन करा')} icon={CircleCheck} onPress={handleSave} />
+          <Field label={tr('स्थान', 'स्थळ', 'Venue')} voice="text" value={venue} onChangeText={setVenue} />
+          <Field label={tr('किट सामग्री', 'किट साहित्य', 'Kit supplies')} voice="text" value={materialsAvailable} onChangeText={setMaterialsAvailable} />
+          <Field label={tr('निर्णय', 'निर्णय', 'Decisions')} value={decisionsTaken} onChangeText={setDecisionsTaken} multiline error={error} voice="long" />
+          <Button label={tr('सहेजें', 'जतन करा', 'Save')} icon={CircleCheck} onPress={handleSave} />
         </View>
       </Sheet>
     </View>
