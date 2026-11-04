@@ -79,24 +79,30 @@
 
       <!-- Active Content Container -->
       <div id="activeQueueContent">
-        <!-- Token & Queue Metrics: Hero metric is 'Patients Ahead', Token code in details card -->
-        <section class="mt-6 mb-7 flex items-start justify-between" data-purpose="token-and-queue-count">
-          <div class="flex flex-col">
-            <span class="text-[13px] font-bold uppercase tracking-wider text-emerald-800" id="heroBadgeLabel">Current Token Running</span>
-            <div class="flex items-baseline gap-1 my-0.5">
-              <span class="text-[52px] font-black text-[#005a40] leading-none tracking-tight" id="patientsAheadDisplay">0</span>
-              <span class="text-[18px] font-bold text-[#014534]" id="patientsAheadUnit">patients</span>
-            </div>
-            <span class="text-[10px] font-semibold text-slate-400 tracking-wide" id="runningCodeSmall"></span>
-            <span class="text-[15px] font-bold text-[#142d25] mt-1 tracking-tight" id="hospitalNameDisplay">Loading...</span>
-            <span class="text-[13px] font-medium text-slate-500" id="departmentNameDisplay">-</span>
+        <!-- Token & Queue Metrics -->
+        <section class="mt-4 mb-7" data-purpose="token-and-queue-count">
+          <div class="text-center mb-4">
+            <div class="text-[16px] font-bold text-[#142d25] tracking-tight" id="hospitalNameDisplay">Loading...</div>
+            <div class="text-[13px] font-medium text-slate-500" id="departmentNameDisplay">-</div>
           </div>
 
-          <div class="flex flex-col items-center justify-center border-2 border-[#daeae3] bg-[#f8fbf9] rounded-2xl px-4 py-3 shadow-sm min-w-[130px]" data-purpose="token-code-card">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">Token Code</span>
-            <span class="text-[20px] font-black text-[#005a40] leading-tight mt-1" id="tokenCodeDisplay">-</span>
-            <span class="text-[10px] font-semibold text-slate-400 tracking-wide" id="tokenCodeSmall"></span>
-            <span class="text-[11px] font-bold px-2 py-0.5 mt-1.5 rounded-full bg-slate-100 text-slate-600" id="checkinBadge">Pending Check-in</span>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col items-center justify-center rounded-3xl bg-[#005a40] text-white px-3 py-5 shadow-md" data-purpose="now-serving-card">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-100" id="heroBadgeLabel">Now Serving</span>
+              <span class="text-[56px] font-black leading-none mt-2 tracking-tight" id="patientsAheadDisplay">--</span>
+              <span class="text-[10px] font-medium text-emerald-200 mt-2 h-3" id="runningCodeSmall"></span>
+            </div>
+
+            <div class="flex flex-col items-center justify-center rounded-3xl border-2 border-[#005a40] bg-white px-3 py-5 shadow-sm" data-purpose="token-code-card">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Your Token</span>
+              <span class="text-[56px] font-black text-[#005a40] leading-none mt-2 tracking-tight" id="tokenCodeDisplay">--</span>
+              <span class="text-[10px] font-medium text-slate-400 mt-2 h-3" id="tokenCodeSmall"></span>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between rounded-2xl bg-[#f1f7f4] px-4 py-3">
+            <span class="text-[15px] font-bold text-[#073629]" id="patientsAheadUnit">-</span>
+            <span class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600" id="checkinBadge">Pending Check-in</span>
           </div>
         </section>
 
@@ -292,7 +298,6 @@
 
       const aheadEl = document.getElementById('patientsAheadDisplay');
       const unitEl = document.getElementById('patientsAheadUnit');
-      const heroLabelEl = document.getElementById('heroBadgeLabel');
       const runningSmallEl = document.getElementById('runningCodeSmall');
       if (aheadEl) {
         let runningNum = 0;
@@ -309,10 +314,13 @@
             runningNum = m ? parseInt(m[1], 10) : 0;
           }
         }
-        aheadEl.textContent = String(runningNum);
-        if (unitEl) unitEl.textContent = data.status === 'serving' ? 'Serving You' : (runningNum ? 'Now Serving' : 'Queue Waiting');
-        if (heroLabelEl) heroLabelEl.textContent = 'Current Token Running';
+        aheadEl.textContent = runningNum ? String(runningNum).padStart(2, '0') : '--';
         if (runningSmallEl) runningSmallEl.textContent = runningCode;
+        if (unitEl) {
+          if (data.status === 'serving') unitEl.textContent = "It's your turn now!";
+          else if (ahead === 0) unitEl.textContent = 'You are next';
+          else unitEl.textContent = ahead + (ahead === 1 ? ' patient' : ' patients') + ' ahead of you';
+        }
       }
 
       // Check-in Badge
